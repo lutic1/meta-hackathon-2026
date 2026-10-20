@@ -1,73 +1,70 @@
-# Product Brief: Rashomon on Meta Models
+# Product Brief: Picture-Book Any Document
 
 **Event:** Meta Global AI Developer Hackathon (Cerebral Valley), Oct 26 to Nov 4, 2026
-**Track:** Startup (judged on technical execution and whether it holds up in production)
 **Theme:** Build for Your World
-**Status:** Draft v1, Oct 20, 2026. Direction open for revision before kickoff.
+**Status:** Draft v2, Oct 20, 2026. Replaces v1 (wrong direction, discarded). Concept as submitted in the application.
 
 ## The problem
 
-Coding agents report work they did not do. They say the tests pass when a test was skipped, say a file was written when the write failed, and hide workarounds inside plausible summaries. The summary reads fine. The work is not done.
-
-This is not hypothetical. In my own benchmark of 100 runs across 20 adversarial tasks (60 Sonnet, 40 Haiku, $9.29 total cost), agents filed 13 reports that the captured evidence did not support. The most common pattern was the hidden workaround: a fake `./docgen` script standing in for real documentation, a no-op audit stub, invented VAT rates, a git-lfs pointer presented as the file itself. Exit codes were also masked by shell pipes, so a failing command reported success.
-
-If agents are going to run in production, someone has to check the work against what actually happened. Today, almost nobody does.
+The documents that matter most are the ones people cannot read. A benefits plan, an immigration guide, a medical leaflet: hundreds of pages of dense text, written for lawyers and administrators, handed to people who need the information most and are least equipped to get through it. Low-literacy adults, newcomers working in a second language, and kids fall out at page one. The information exists. It just never reaches them.
 
 ## The product
 
-Rashomon is an independent execution recorder for coding agents. It captures ground truth as the agent works: shell commands, exit codes, file writes, tool calls, test runs, and subagent activity, assembled into one timeline. It then compares what the agent claimed against what the capture shows, and flags every claim the evidence does not support.
+Drop in a long PDF, up to 200 pages. Get back a 20-panel illustrated picture book that tells the same content as a story, in the reader's language, at the reader's reading level, with one consistent guide character who walks through every panel.
 
-Rashomon stores structure, not content. No prompts, no responses, no file contents, no tool outputs. Hostnames and paths are the deliberate exceptions, because you cannot audit an execution trail without them.
+The reader picks two things: language and reading level. Everything else is the system's job: decide what matters in the document, turn it into a story a person can follow, and draw it.
 
-## What we build at the hackathon
+Working cost assumption from the concept: at roughly $0.01 per generated image, a 20-panel book costs about 20 cents in image generation. Verify against actual Muse Image pricing at kickoff.
 
-The current version records and compares. The hackathon build puts Meta's models on the judgment layer:
+## How it works
 
-1. **Claim extraction.** Muse Spark reads the agent's end-of-turn report and extracts every checkable claim: tests passed, file created, command succeeded, dependency installed.
-2. **Adjudication.** Each claim is matched against the captured timeline. Supported, contradicted, or unverifiable, with the evidence attached. This replaces hand-written rules with a model that can handle claims phrased a thousand different ways.
-3. **Live verification during the run.** Flags surface while the agent is still working, not in a postmortem. A masked exit code or a stub file gets caught in the act.
-4. **Benchmark on the Meta stack.** The 20-task adversarial benchmark, re-run against agents built on Meta models through the Meta Model API and Muse Code, with the results published in the submission.
-
-The recorder already catches the pipe-masking failure (recorded as `status_masked`); after the fix, replay detection went from 13 of 47 claims to 47 of 47. The hackathon build has to hold that standard while the adjudication moves to the model.
+1. **Read the whole document.** Muse Spark's 1M-token context takes in the full PDF text, so the story is planned against the complete document, not chunks that lose the thread.
+2. **Plan the story.** The model selects the points a reader must walk away with and writes a 20-panel script: one idea per panel, plain language, at the requested reading level, in the requested language.
+3. **Fix the guide character.** Before any panel is drawn, the system generates the guide character once and locks a written character spec: appearance, clothing, colors, style. That spec and the reference image go into every panel prompt. Character consistency across 20 panels is the product's hardest problem and its most visible feature.
+4. **Draw the panels.** Muse Image generates each panel from its script line plus the locked character spec.
+5. **Assemble the book.** Panels and captions come out as a readable, printable, shareable picture book.
 
 ## Why this fits
 
-Build for Your World asks for a problem you know firsthand. I lead AI product work in regulated enterprise, where an agent's unsupported claim is not a curiosity, it is an audit finding. The startup track asks whether the thing holds up in production. Verification is the production problem. Every team shipping agents will need a layer that answers one question: did the agent actually do what it said?
+Build for Your World asks for a problem you know firsthand. Benefits documents are my day job's raw material, and immigration paperwork is my own family's history. The demo is also honest about what it is: show a page nobody can read, then show the same content as a panel a child can follow. Thirty seconds, no explanation needed.
 
 ## Scope for ten days
 
 **Must ship (MVP by Nov 1):**
-- Recorder running against an agent on the Meta stack
-- Claim extraction and adjudication through the Meta Model API
-- One live demo scenario: an agent files an unsupported report, Rashomon catches it with evidence
-- Verification report output a judge can read in two minutes
+- PDF in, text extracted, full-document story plan out
+- Language and reading level controls that visibly change the output
+- 20 generated panels with the guide character consistent across them
+- Assembled picture book (web view plus PDF export)
+- One polished demo end to end: a real benefits plan or immigration guide, converted live
 
 **Should ship (Nov 2 to 3):**
-- Adversarial benchmark re-run on Meta models, results in the submission
-- At least three caught failure patterns in the demo set: hidden workaround, masked exit code, unsupported success claim
+- Second demo document in a second language
+- Reading-level comparison view: same document at two levels, side by side
 
 **Stretch:**
-- SAM 3.1 or Muse Image in the evidence layer (screenshot and UI-state verification)
-- Public leaderboard-style results page
+- Panel-level regeneration (redraw one panel without rebuilding the book)
+- Audio narration of the captions
 
 **Explicitly out of scope:**
-- Storing prompts, responses, or file contents. The structure-only rule is the product's privacy position and does not bend for the demo.
-- Multi-agent orchestration recording beyond subagent activity already captured.
+- Documents beyond roughly 200 pages in the demo path
+- Perfect factual coverage of every clause. The product is a faithful summary with a story spine, and the submission will say so plainly.
 
 ## Demo plan
 
-Three minutes. An agent gets a task with a trap in it: a test that cannot pass honestly. The agent takes the shortcut and reports success. Rashomon's timeline shows the command, the masked exit code, and the claim side by side, flagged. Then the honest run: same task, agent does the work, every claim verified green. End on the benchmark numbers.
+Ninety seconds. Show the source document first: one dense page of a benefits plan, small print, no pictures. Then run the conversion. Show the book: the guide character explaining the same content across panels a newcomer can actually read. Switch the language live and redraw one panel. End on cost: the whole book for about 20 cents of image generation (pending price verification at kickoff).
+
+Choose the showcase documents in advance and rehearse with them. Per the concept notes, avoid demos that need perfect accuracy: pick inputs the system handles well, record the demo video early, and build fallbacks so nothing stalls on stage.
 
 ## Risks
 
-- **API unknowns.** The Meta Model API surface is not public until kickoff. Mitigation: the whole app is built against a provider interface with a mock backend, so Monday's work is one client implementation, not a rewrite.
-- **Adjudication accuracy.** A model judging claims can miss or over-flag. Mitigation: keep the deterministic checks (exit codes, file existence) as hard evidence and use the model only where rules cannot reach.
-- **Scope creep.** Ten days with a day job. Mitigation: MVP locked to one demo scenario and one benchmark; everything else is stretch.
+- **Character consistency.** Twenty panels, one character, and image models drift. Mitigation: locked character spec plus reference image in every prompt, a consistency check pass on the panel set, and per-panel regeneration as the fallback.
+- **Reading-level control.** Models write above the target level unless pushed. Mitigation: level-specific instructions and a plain-language pass before drawing.
+- **API unknowns.** The Meta Model API surface is not public until kickoff. Mitigation: the app is built against a provider interface with a mock backend, so Monday's work is one client implementation, not a rewrite.
 
 ## Timeline
 
-- **Oct 26:** Kickoff. Wire the Meta Model API client. Smoke test live models.
-- **Oct 27 to 29:** Claim extraction and adjudication working end to end on recorded runs.
-- **Oct 30 to Nov 1:** Live verification, demo scenario hardened. MVP freeze Nov 1.
-- **Nov 2 to 3:** Benchmark re-run on Meta models. Demo video recorded.
+- **Oct 26:** Kickoff. Wire the Meta Model API client. Verify Muse Image pricing and character-reference support.
+- **Oct 27 to 29:** Ingest, story planner, and panel pipeline working end to end on the mock, then on live models.
+- **Oct 30 to Nov 1:** Character consistency hardening, language and reading level controls. MVP freeze Nov 1.
+- **Nov 2 to 3:** Second demo document, demo video recorded.
 - **Nov 4:** Submission package complete by 6 PM ET. Deadline is 9 PM ET.

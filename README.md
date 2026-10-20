@@ -1,32 +1,34 @@
-# Rashomon on Meta Models
+# Picture-Book Any Document
 
 **Meta Global AI Developer Hackathon (Cerebral Valley), Oct 26 to Nov 4, 2026.**
-**Startup track. Theme: Build for Your World.**
+**Theme: Build for Your World.**
 
-Coding agents report work they did not do. Rashomon is an independent
-execution recorder that captures what an agent actually did (commands,
-exit codes, file writes, tool calls, tests) and flags every claim in
-the agent's report that the evidence does not support. This build puts
-Meta's models (Muse Spark series, via the Meta Model API) on the
-judgment layer: claim extraction, adjudication against the captured
-timeline, and live verification while the agent is still working.
+Drop in a long PDF, up to 200 pages: a benefits plan, an immigration
+guide, a medical leaflet. Get back a 20-panel illustrated picture book
+that tells the same content as a story, in the reader's language, at
+the reader's reading level, with one consistent guide character in
+every panel. Built on Meta's models: Muse Spark reads the whole
+document on its 1M-token context and plans the story, Muse Image
+draws the panels.
 
 Full product brief: [PRODUCT_BRIEF.md](PRODUCT_BRIEF.md)
 
 ## Why
 
-In a benchmark of 100 runs across 20 adversarial tasks, agents filed
-13 reports the captured evidence did not support. The most common
-pattern was the hidden workaround: a fake script standing in for real
-work, a no-op stub, invented data. Rashomon stores structure, not
-content, so the audit trail does not become a privacy problem of its
-own.
+The documents that matter most are the ones people cannot read.
+Dense, hundred-page documents go to low-literacy adults, newcomers in
+a second language, and kids, and the information never reaches them.
+A 20-panel picture book at roughly $0.01 per generated image costs
+about 20 cents a book (pricing to be verified at kickoff) and can be
+read by the people the original was supposedly written for.
 
 ## This repo
 
 Scaffold for the hackathon build. Model access lands at kickoff on
 Oct 26, so everything here runs against a mock provider today and
 swaps to the Meta Model API on Monday with one client implementation.
+The provider interface covers both halves of the product: `chat` for
+document reading and story planning, `generate_image` for panels.
 
 ```
 main.py                    demo entry point (chat / image)
@@ -44,8 +46,8 @@ docs/MONDAY.md             the Oct 26 plug-in checklist
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python main.py chat "Summarize why agent verification matters"
-.venv/bin/python main.py image "a red convertible on a coastal road"
+.venv/bin/python main.py chat "Plan a picture book about this document"
+.venv/bin/python main.py image "guide character explaining a hospital visit, panel 1"
 .venv/bin/python -m pytest
 ```
 
@@ -63,7 +65,6 @@ today, `MODEL_PROVIDER=meta` once the API is wired. See
 
 ## Pre-existing code note
 
-Rashomon predates this hackathon and is the author's own project; the
-scaffold in this repo was written ahead of kickoff as plumbing. Both
-will be disclosed in the submission per the official rules published
-at kickoff.
+The scaffold in this repo was written ahead of kickoff as plumbing
+and will be disclosed in the submission per the official rules
+published at kickoff.
