@@ -10,3 +10,15 @@ build/
 
 # BMAD personal install answers (team config lives in _bmad/config.toml)
 _bmad/config.user.toml
+
+# Privacy rule: raw room photos never enter the repo, consent or not.
+# Only outputs ship (screenshots, clue cards, the demo video).
+rooms/
+photos/
+captures/
+uploads/
+*.heic
+*.HEIC
+# Pipeline cache (downscaled photos, masks, model responses)
+.cache/
+cache/
