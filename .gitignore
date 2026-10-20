@@ -7,3 +7,6 @@ __pycache__/
 dist/
 build/
 .DS_Store
+
+# BMAD personal install answers (team config lives in _bmad/config.toml)
+_bmad/config.user.toml
