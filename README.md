@@ -3,26 +3,33 @@
 **Meta Global AI Developer Hackathon (Cerebral Valley), Oct 26 to Nov 4, 2026.**
 **Indie developer track.**
 
-Keyframe turns any room into a playable 3D escape room. Photograph a
-room from a few angles, and about two minutes later you are playing
-an escape room inside a 3D version of it, with puzzles built from
-your own objects. The game is run by a council of Muse Spark wizard
-agents: the Architect rebuilds the room with SAM 3.1 and SAM 3D
-Objects, the Riddler writes the puzzle chain, the Guide learns how
-you play and hints accordingly (on Muse Glimmer, locally, so play
-data never leaves your machine), and the Trickster adjusts
-difficulty mid-game. Muse Image paints the wizards and clue cards,
-Muse Voice Transcribe lets you talk to them.
+Keyframe turns any room into a playable escape room. Photograph a
+room from a few angles, and two to three minutes later you are
+playing an escape room built from your own objects. The game is run
+by a council of Muse Spark wizard agents: the Architect finds the
+objects with SAM 3.1 (and rebuilds them with SAM 3D Objects in
+Tier 2), the Riddler writes and verifies the puzzle chain, the Guide
+picks hint rungs from how you play (phrased by a Meta open-weights
+model running on your machine, so the profile of how you play never
+leaves it), and the Trickster proposes bounded difficulty changes
+mid-game. Muse Image paints the wizards and clue cards, Muse Voice
+Transcribe lets you talk to them.
 
-Full product brief: [PRODUCT_BRIEF.md](PRODUCT_BRIEF.md)
+Product brief (BMAD):
+[docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/brief.md](docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/brief.md),
+with the technical depth in
+[addendum.md](docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/addendum.md)
+beside it.
 
 ## Build tiers
 
-- **Tier 1:** Myst-style photo scenes with hotspots, full wizard
-  council. Playable end to end. Demo-complete by Day 4 (Oct 30).
-- **Tier 2:** Navigable Three.js room from the SAM 3D pipeline.
-  Go or no-go gate on Day 7 (Nov 2).
-- **Tier 3 (stretch):** Gaussian-splatted photoreal shell.
+- **Tier 1:** Myst-style photo scenes with mask hotspots, full wizard
+  council. Playable end to end. Backup demo video by Sun Nov 1,
+  2 PM; Saturday night is the early gate that alone unlocks Tier 2.
+- **Tier 2:** Navigable Three.js room from SAM 3D Objects (hosted on
+  fal.ai). Go or no-go gate on Mon Nov 2.
+- **Tier 3 (stretch, never gating):** Gaussian-splatted photoreal
+  shell.
 
 ## This repo
 
@@ -35,13 +42,14 @@ this repo during the build week.
 
 ```
 main.py                    demo entry point (chat / image)
-PRODUCT_BRIEF.md           what we are building and why
 src/config.py              settings from environment / .env
 src/providers/base.py      the ModelProvider interface. Depend on this only.
 src/providers/mock.py      deterministic fake, scriptable for tests and demos
 src/providers/meta_api.py  Meta Model API stub, wire up Oct 26
 tests/test_providers.py    smoke tests, all offline
 docs/MONDAY.md             the Oct 26 plug-in checklist
+docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
+_bmad/, .claude/skills/    BMAD Method v6 tooling (bmad-* skills)
 ```
 
 ## Run it today
@@ -60,14 +68,19 @@ today, `MODEL_PROVIDER=meta` once the API is wired. See
 
 ## Key dates
 
-- Oct 26, 1:00 PM ET: kickoff livestream, hackathon begins
-- Oct 30: Tier 1 backup demo video recorded (gate)
-- Nov 2: Tier 2 go or no-go (gate)
-- Nov 4, 9:00 PM ET: submissions due (submit early in the day)
-- Nov 9: closing ceremony, live finals, winners announced
+- Oct 25, night: tag `pre-hackathon-baseline`, start CHANGELOG.md
+- Oct 26: approval notifications by 9:00 AM ET, kickoff livestream,
+  hackathon begins
+- Sun Nov 1, 2 PM: Tier 1 backup demo video recorded (gate)
+- Mon Nov 2: Tier 2 go or no-go (gate)
+- Wed Nov 4, 9:00 PM ET: submissions due (submit in the morning)
+- Nov 4 to 8: judging. Nov 9: closing ceremony, live finals, winners
 
 ## Pre-existing code note
 
-The scaffold in this repo was written ahead of kickoff as plumbing
-and will be disclosed in the submission per the official rules
-published at kickoff.
+Everything committed before the `pre-hackathon-baseline` tag was
+written ahead of kickoff: the model-provider scaffold and tests,
+the BMAD planning documents, and the BMAD tooling. None of it is
+product code. It is disclosed here and in the submission; if the
+Official Rules (published before Oct 26) exclude prior code, the
+scaffold is small enough to be rewritten on Oct 26.
