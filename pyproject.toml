@@ -1,0 +1,8 @@
+[project]
+name = "meta-hackathon-2026"
+version = "0.1.0"
+description = "Meta Global AI Developer Hackathon project (Cerebral Valley, Oct 26 to Nov 4, 2026)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
