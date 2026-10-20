@@ -1,34 +1,37 @@
-# Picture-Book Any Document
+# Keyframe
 
 **Meta Global AI Developer Hackathon (Cerebral Valley), Oct 26 to Nov 4, 2026.**
-**Theme: Build for Your World.**
+**Indie developer track.**
 
-Drop in a long PDF, up to 200 pages: a benefits plan, an immigration
-guide, a medical leaflet. Get back a 20-panel illustrated picture book
-that tells the same content as a story, in the reader's language, at
-the reader's reading level, with one consistent guide character in
-every panel. Built on Meta's models: Muse Spark reads the whole
-document on its 1M-token context and plans the story, Muse Image
-draws the panels.
+Keyframe turns any room into a playable 3D escape room. Photograph a
+room from a few angles, and about two minutes later you are playing
+an escape room inside a 3D version of it, with puzzles built from
+your own objects. The game is run by a council of Muse Spark wizard
+agents: the Architect rebuilds the room with SAM 3.1 and SAM 3D
+Objects, the Riddler writes the puzzle chain, the Guide learns how
+you play and hints accordingly (on Muse Glimmer, locally, so play
+data never leaves your machine), and the Trickster adjusts
+difficulty mid-game. Muse Image paints the wizards and clue cards,
+Muse Voice Transcribe lets you talk to them.
 
 Full product brief: [PRODUCT_BRIEF.md](PRODUCT_BRIEF.md)
 
-## Why
+## Build tiers
 
-The documents that matter most are the ones people cannot read.
-Dense, hundred-page documents go to low-literacy adults, newcomers in
-a second language, and kids, and the information never reaches them.
-A 20-panel picture book at roughly $0.01 per generated image costs
-about 20 cents a book (pricing to be verified at kickoff) and can be
-read by the people the original was supposedly written for.
+- **Tier 1:** Myst-style photo scenes with hotspots, full wizard
+  council. Playable end to end. Demo-complete by Day 4 (Oct 30).
+- **Tier 2:** Navigable Three.js room from the SAM 3D pipeline.
+  Go or no-go gate on Day 7 (Nov 2).
+- **Tier 3 (stretch):** Gaussian-splatted photoreal shell.
 
 ## This repo
 
-Scaffold for the hackathon build. Model access lands at kickoff on
-Oct 26, so everything here runs against a mock provider today and
-swaps to the Meta Model API on Monday with one client implementation.
-The provider interface covers both halves of the product: `chat` for
-document reading and story planning, `generate_image` for panels.
+Model-access scaffold for the build. Model access lands at kickoff
+on Oct 26, so everything here runs against a mock provider today and
+swaps to the Meta Model API on Monday with one client
+implementation. `chat` carries the Spark wizard calls,
+`generate_image` carries Muse Image. The Three.js front end joins
+this repo during the build week.
 
 ```
 main.py                    demo entry point (chat / image)
@@ -46,8 +49,8 @@ docs/MONDAY.md             the Oct 26 plug-in checklist
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python main.py chat "Plan a picture book about this document"
-.venv/bin/python main.py image "guide character explaining a hospital visit, panel 1"
+.venv/bin/python main.py chat "You are the Riddler. Greet the player."
+.venv/bin/python main.py image "portrait of a wizard game master"
 .venv/bin/python -m pytest
 ```
 
@@ -58,9 +61,9 @@ today, `MODEL_PROVIDER=meta` once the API is wired. See
 ## Key dates
 
 - Oct 26, 1:00 PM ET: kickoff livestream, hackathon begins
-- Oct 27 to Nov 4: live workshops, office hours on Discord
-- Nov 1: MVP freeze (per product brief)
-- Nov 4, 9:00 PM ET: submissions due
+- Oct 30: Tier 1 backup demo video recorded (gate)
+- Nov 2: Tier 2 go or no-go (gate)
+- Nov 4, 9:00 PM ET: submissions due (submit early in the day)
 - Nov 9: closing ceremony, live finals, winners announced
 
 ## Pre-existing code note

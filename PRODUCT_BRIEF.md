@@ -1,70 +1,61 @@
-# Product Brief: Picture-Book Any Document
+# Product Brief: Keyframe
 
 **Event:** Meta Global AI Developer Hackathon (Cerebral Valley), Oct 26 to Nov 4, 2026
-**Theme:** Build for Your World
-**Status:** Draft v2, Oct 20, 2026. Replaces v1 (wrong direction, discarded). Concept as submitted in the application.
+**Working title:** Keyframe
+**Track:** Indie developer
+**Status:** Draft v3, Oct 20, 2026. This is the concept from the submitted application. Earlier drafts in this repo (Rashomon, picture-book) were wrong directions and are discarded.
 
-## The problem
+## The idea
 
-The documents that matter most are the ones people cannot read. A benefits plan, an immigration guide, a medical leaflet: hundreds of pages of dense text, written for lawyers and administrators, handed to people who need the information most and are least equipped to get through it. Low-literacy adults, newcomers working in a second language, and kids fall out at page one. The information exists. It just never reaches them.
+Escape rooms are magic, but they are expensive, scripted, and the same for everyone. Keyframe turns any room into a playable escape room. Photograph a room from a few angles, and about two minutes later you are walking through a 3D version of it as a game, with puzzles built from your own objects: the key behind your cactus, your books in the order only you would notice.
 
-## The product
+The game is run by a council of wizard agents, each a Muse Spark subagent:
 
-Drop in a long PDF, up to 200 pages. Get back a 20-panel illustrated picture book that tells the same content as a story, in the reader's language, at the reader's reading level, with one consistent guide character who walks through every panel.
+- **The Architect** rebuilds the room from your photos using SAM 3.1 and SAM 3D Objects, and marks which objects can be interacted with.
+- **The Riddler** reads what the Architect found and writes the puzzle chain and the lore around it.
+- **The Guide** watches how you play, builds a persistent profile of your style across sessions, and gives hints on a ladder: nudge, then direction, then near-answer. Play twice and the Guide already knows you. It runs on Muse Glimmer locally, so play data never leaves the player's machine.
+- **The Trickster** reads the same signals and adjusts difficulty mid-game, tightening or loosening the room while you are inside it.
 
-The reader picks two things: language and reading level. Everything else is the system's job: decide what matters in the document, turn it into a story a person can follow, and draw it.
+Muse Image paints the wizard portraits and the clue cards. Muse Voice Transcribe lets the player talk to the wizards instead of typing. The whole build is done with Muse Code.
 
-Working cost assumption from the concept: at roughly $0.01 per generated image, a 20-panel book costs about 20 cents in image generation. Verify against actual Muse Image pricing at kickoff.
+## Why it can win
 
-## How it works
+Every judge has a living room. The demo puts two very different rooms side by side as two very different games, built from the same two-minute photo flow, with the wizards' private notes on each player visible to the judges. It uses the capabilities Meta is pushing hardest in this event: SAM 3.1 and SAM 3D Objects for the rebuild, Spark subagents for the game masters, Muse Image for the art, voice for the conversation, and Glimmer for on-device privacy.
 
-1. **Read the whole document.** Muse Spark's 1M-token context takes in the full PDF text, so the story is planned against the complete document, not chunks that lose the thread.
-2. **Plan the story.** The model selects the points a reader must walk away with and writes a 20-panel script: one idea per panel, plain language, at the requested reading level, in the requested language.
-3. **Fix the guide character.** Before any panel is drawn, the system generates the guide character once and locks a written character spec: appearance, clothing, colors, style. That spec and the reference image go into every panel prompt. Character consistency across 20 panels is the product's hardest problem and its most visible feature.
-4. **Draw the panels.** Muse Image generates each panel from its script line plus the locked character spec.
-5. **Assemble the book.** Panels and captions come out as a readable, printable, shareable picture book.
+## Build tiers
 
-## Why this fits
+Ambition is staged so the demo cannot dead-end:
 
-Build for Your World asks for a problem you know firsthand. Benefits documents are my day job's raw material, and immigration paperwork is my own family's history. The demo is also honest about what it is: show a page nobody can read, then show the same content as a panel a child can follow. Thirty seconds, no explanation needed.
+- **Tier 1: Myst-style scenes.** Photo scenes with interactive hotspots and the full wizard council. Playable end to end. This is the floor, and it must be demo-complete by Day 4.
+- **Tier 2: True 3D.** A navigable Three.js room from the SAM 3D pipeline, with puzzles and the Guide working inside it.
+- **Tier 3 (stretch): Photoreal shell.** Gaussian-splatted room as the game's skin.
 
-## Scope for ten days
+## Ten-day plan
 
-**Must ship (MVP by Nov 1):**
-- PDF in, text extracted, full-document story plan out
-- Language and reading level controls that visibly change the output
-- 20 generated panels with the guide character consistent across them
-- Assembled picture book (web view plus PDF export)
-- One polished demo end to end: a real benefits plan or immigration guide, converted live
+- **Day 0, Mon Oct 26:** Kickoff. API keys, cloud GPU, test rooms photographed, puzzle JSON schema fixed.
+- **Day 1, Tue Oct 27:** Web app scaffold. Photo upload to SAM 3.1 to interactive-objects JSON.
+- **Day 2, Wed Oct 28:** The Riddler: puzzle chain, lore, hint ladders. Tier 1 playable.
+- **Day 3, Thu Oct 29:** The Guide and the Trickster: event logging, player profile, hint-rung selection.
+- **Day 4, Fri Oct 30:** Voice and Muse Image wizard portraits. **Gate: record the backup demo video of Tier 1.** (Rome's soccer is 5:30 PM; plan around it.)
+- **Day 5, Sat Oct 31:** SAM 3D pipeline. (Halloween. Keep the day short.)
+- **Day 6, Sun Nov 1:** Three.js room standing up.
+- **Day 7, Mon Nov 2:** Puzzles and the Guide working in 3D, playtest. **Gate: go or no-go on Tier 2.** If no-go, Tier 1 carries the submission.
+- **Day 8, Tue Nov 3:** Second room end to end, persistent player profile across both.
+- **Day 9, Wed Nov 4:** Demo video final, README, architecture diagram, submission text. **Submit early in the day.** Deadline is 9:00 PM ET.
 
-**Should ship (Nov 2 to 3):**
-- Second demo document in a second language
-- Reading-level comparison view: same document at two levels, side by side
+## Architecture
 
-**Stretch:**
-- Panel-level regeneration (redraw one panel without rebuilding the book)
-- Audio narration of the captions
-
-**Explicitly out of scope:**
-- Documents beyond roughly 200 pages in the demo path
-- Perfect factual coverage of every clause. The product is a faithful summary with a story spine, and the submission will say so plainly.
-
-## Demo plan
-
-Ninety seconds. Show the source document first: one dense page of a benefits plan, small print, no pictures. Then run the conversion. Show the book: the guide character explaining the same content across panels a newcomer can actually read. Switch the language live and redraw one panel. End on cost: the whole book for about 20 cents of image generation (pending price verification at kickoff).
-
-Choose the showcase documents in advance and rehearse with them. Per the concept notes, avoid demos that need perfect accuracy: pick inputs the system handles well, record the demo video early, and build fallbacks so nothing stalls on stage.
+- **Front end:** web app, Three.js for the 3D room, photo upload and capture flow.
+- **Model layer:** this repo's provider interface. `chat` carries the Spark calls (Riddler, Guide, Trickster), `generate_image` carries Muse Image (portraits, clue cards). SAM 3.1 and SAM 3D Objects plug in as their own services behind the same boundary on Monday.
+- **Guide:** runs on Muse Glimmer on the player's machine. The privacy line is a feature, not a footnote: the profile that learns how you play never leaves your device.
+- **Data:** puzzle definitions as JSON against the Day 0 schema, so the Riddler's output is testable without the models live.
 
 ## Risks
 
-- **Character consistency.** Twenty panels, one character, and image models drift. Mitigation: locked character spec plus reference image in every prompt, a consistency check pass on the panel set, and per-panel regeneration as the fallback.
-- **Reading-level control.** Models write above the target level unless pushed. Mitigation: level-specific instructions and a plain-language pass before drawing.
-- **API unknowns.** The Meta Model API surface is not public until kickoff. Mitigation: the app is built against a provider interface with a mock backend, so Monday's work is one client implementation, not a rewrite.
+- **3D quality from casual photos.** SAM 3D output from a few phone photos may not hold up. Mitigation: Tier 1 is a complete game on its own, the Day 4 gate locks a working demo video, and the Day 7 gate decides Tier 2 honestly.
+- **Scope.** Four agents, voice, images, 3D, and a persistent profile in ten days with a day job. Mitigation: the tier structure. Anything past Tier 1 is additive, never load-bearing.
+- **Hint quality.** A Guide that gives away answers ruins the game; one that never helps frustrates. Mitigation: the three-rung ladder is explicit in the design, and rung selection is driven by logged play events, not vibes.
 
-## Timeline
+## The pitch, in one paragraph
 
-- **Oct 26:** Kickoff. Wire the Meta Model API client. Verify Muse Image pricing and character-reference support.
-- **Oct 27 to 29:** Ingest, story planner, and panel pipeline working end to end on the mock, then on live models.
-- **Oct 30 to Nov 1:** Character consistency hardening, language and reading level controls. MVP freeze Nov 1.
-- **Nov 2 to 3:** Second demo document, demo video recorded.
-- **Nov 4:** Submission package complete by 6 PM ET. Deadline is 9 PM ET.
+Keyframe turns any room into a playable 3D escape room in about two minutes. A council of Muse Spark wizard agents builds the room from your photos, writes puzzles from your own objects, learns how you play, and hints like it knows you, because by the second game it does. Two rooms become two different games, and no two players get the same wizards.
