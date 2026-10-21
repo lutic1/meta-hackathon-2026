@@ -23,7 +23,7 @@ There are two modes, local and hosted. In both, Chrome on the M1 is the client a
 | Dry run | Meta Model API | `muse-spark-1.3`, photos, labels, clues, rungs; reasoning low | Cut 4 drops it | Must reach each answer without the solutions |
 | State machine | Code | Python | None | Opens locks; solutions never enter a prompt |
 | Guide rung selection | Code | Python over the event log | None | Thresholds pick the rung |
-| Guide phrasing | Mac | Llama 3.2 3B Instruct Q4_K_M on Ollama, `OLLAMA_KEEP_ALIVE=-1` | `GUIDE_PROVIDER=meta` (`muse-spark-1.3`, derived only) | Keeps the local-profile claim true |
+| Guide phrasing | Mac only | Llama 3.2 3B Instruct Q4_K_M on Ollama, `OLLAMA_KEEP_ALIVE=-1` | No hosted Guide model: in hosted mode the rungs are selected in code and shown verbatim (the cut 3 behaviour) | The Guide runs locally and nowhere else; the player profile stays on your machine |
 | Trickster | Meta Model API | `muse-spark-1.3`, reasoning low, fixed menu | Cut 1: pre-authored edits plus scripted reject; 8B Llama on Fireworks last | Bounded proposals from a game-state summary |
 | Player profile | Browser | IndexedDB under a profile name | Cut 2: a JSON file | Local by design |
 | Portraits, clue cards | Meta Model API | `muse-image-1.0`, `POST /v1/images/generations`, once Oct 29, cached | Placeholder art | Four portraits are not cuttable |
@@ -38,7 +38,7 @@ Async job: `POST /builds` stores the photos, spawns the pipeline function, and r
 
 Protocol: the council (Architect, Riddler, dry run, Trickster) uses Chat Completions with `response_format: json_schema`; `sam-3.1` is served only on Responses. Chat Completions on the Meta API rejects `max_output_tokens`, `stop`, `n>1`, and `reasoning_effort: "none"`, and `tool_choice` is `auto` only. [ASSUMPTION] Baseten's OpenAI-compatible endpoint for Muse Spark Open honors `response_format: json_schema`, so the fallback is a `base_url` and model swap; the Tue Oct 27 test is one schema-constrained Riddler call, and a failure drops the fallback to plain-JSON prompting with validator retry.
 
-Privacy claim, verbatim for the README and the capture screen: "the profile of how you play is stored and read only on your machine, by a Meta open-weights model on your machine, in the local build." It is made only when cut 3 is reversed (Ollama phrasing ships); otherwise the README says the profile is read by code only. Muse Glimmer is not run (see §RAM budget); photos and puzzle text go to the Meta Model API and, in Tier 2, to fal.ai.
+Privacy line, verbatim for the README and the capture screen: "the player profile stays on your machine." It holds in every build and does not depend on cut 3: the profile is stored in the browser and read by the selection code on the player's machine, and when Ollama phrasing ships the phrasing runs there too; the hosted URL never runs a Guide model and shows the rung text verbatim. Photos and puzzle text go to the Meta Model API and, in Tier 2, to fal.ai.
 
 ## Call, latency and spend budget
 
@@ -102,7 +102,7 @@ Estimates for the 16 GB M1 (unified memory, shared with the GPU); file sizes fro
 
 The 3B versus 8B rule: Llama 3.2 3B Instruct Q4_K_M is a 2.02 GB file, about 3 GB resident; Llama 3.1 8B Instruct Q4_K_M is 4.92 GB, about 6 GB resident, which puts development near 17 GB and makes a recording stutter. 8B is for quality comparisons only, with the IDE closed; 3B is the demo model. Speed [ASSUMPTION, extrapolated from the measured 14.15 tok/s of a 7B Q4_0 on an M1 8-core GPU]: 25 to 35 tok/s decode for 3B, 10 to 13 for 8B; a 40-token hint at 25 tok/s is 1.6 s of decode. The Ollama benchmark before Oct 26 measures prefill and decode on a 400-token prompt.
 
-Muse Glimmer: 30B dense, Apache 2.0. Meta's smallest official quant, `Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf`, is 16.8 GB, sized for a 24 GB target; Meta measures about 19.0 GiB resident with the vision projector and full context; LM Studio measures 24.1 GiB at 16K context; the MLX path lists 48 GB minimum. Community sub-4-bit quants (12.3 to 14.1 GB) would leave 2 to 3 GB for everything else above. It is not run in the demo; the README says so.
+Muse Glimmer: Meta measures about 19.0 GiB resident for its smallest official quant, which does not fit the 16 GB M1 (§Options considered and rejected).
 
 ## Schema v1
 
@@ -132,7 +132,6 @@ The 90 s spacing is fixed; only the nudge threshold scales with persistence. `DE
 | `PROFILE` | `dev`, `playtest`, `demo` | `dev` | §Player profile v1 |
 | `CACHE` | `on`, `off` | `on` | §What runs where (Cache row) |
 | `SPEND_CAP_USD` | dollars | 80 through Nov 4, 25 from Thu Nov 5 | §Call, latency and spend budget |
-| `GUIDE_PROVIDER` | `ollama`, `meta` | `ollama` | §What runs where (Guide phrasing row) |
 | `DEMO_TIMESCALE` | integer n, 1 or more | 1 | §Player profile v1 |
 | `DEMO_TRICKSTER` | `live`, `scripted` | `live` | §Demo and video plan |
 | `MIN_CONTAINERS` | 0, 1 | 0 | §What runs where (Hosted URL row) |
@@ -141,7 +140,9 @@ The 90 s spacing is fixed; only the nudge threshold scales with persistence. `DE
 
 Tier 1 is 35 h as estimated, 28 h after cuts 1 to 5, and 22 h with all eight cuts in force, which is exactly the 16 h through Sat Oct 31 plus Sunday morning, so there is no slack: the backup-video gate is Sun Nov 1 at 2 PM, and the video is recorded then from whatever runs, cuts included. A slipped evening is absorbed by the next cut, never by moving the gate; the Sunday afternoon reverses cuts, last cut first.
 
-[ASSUMPTION] Hour budget: 3 h per weekday evening (Mon Oct 26 to Thu Oct 29, Mon Nov 2, Tue Nov 3), 0 h Fri Oct 30 (blocked from 5 PM), 4 h Sat Oct 31, 8 h Sun Nov 1, 2 h Wed Nov 4 before work. That is about 32 h in the window, plus about 8 h Wed Oct 21 to Sun Oct 25; only 16 h of it exist through Sat Oct 31.
+[ASSUMPTION] Hour budget (the builder's own time, spent on review, direction, playtesting, and recording): 3 h per weekday evening (Mon Oct 26 to Thu Oct 29, Mon Nov 2, Tue Nov 3), 0 h Fri Oct 30 (blocked from 5 PM), 4 h Sat Oct 31, 8 h Sun Nov 1, 2 h Wed Nov 4 before work. That is about 32 h in the window, plus about 8 h Wed Oct 21 to Sun Oct 25; only 16 h of it exist through Sat Oct 31.
+
+Agent-parallel build: implementation runs on multiple coding agents working around the clock (Muse Code, the sponsor's agentic coding tool, and the BMAD build loop). Items run in parallel against the mock provider and the Schema v1 contract so stories do not block each other. The builder's 16 h through Sat Oct 31 is the review and integration budget; the 35 / 28 / 22 h figures below are effort and stay as the fallback cut ladder if reviewed output lags; the Sun Nov 1 2 PM gate is unchanged. Agent dev loops run with the mock provider and `CACHE=on` so `SPEND_CAP_USD` holds. Two risks this adds: review bandwidth (the builder must read what ships), and merge conflicts (schema-first, one owner per module).
 
 Tier 1 per-item estimates (Oct 20):
 
@@ -154,7 +155,7 @@ Tier 1 per-item estimates (Oct 20):
 | Riddler prompt, JSON schema, regeneration loop | 3.0 h |
 | Dry run | 1.0 h |
 | Photo-scene UI: hotspots, thumbnail strip, inventory, wizard notes | 3.5 h |
-| Event log, rung selection, Ollama phrasing, `GUIDE_PROVIDER` switch | 3.0 h |
+| Event log, rung selection, Ollama phrasing, verbatim-rung mode for the hosted URL | 3.0 h |
 | Trickster: menu, proposal, validator re-check, cards, scripted mode | 3.0 h |
 | Profile: IndexedDB, `derived`, thresholds, greeting | 2.0 h |
 | Four portraits, cached | 1.0 h |
@@ -169,7 +170,7 @@ Cut order, with the hours each recovers (Oct 20 estimates) and the success crite
 |---|---|---|---|---|
 | 1 | Trickster pre-authored edits plus a scripted reject | 2.0 h | 33 h | Criterion 5 becomes a scripted replay; the reject is not evaluated live |
 | 2 | Profile as a JSON file | 1.0 h | 32 h | None |
-| 3 | Rung text verbatim; no Ollama phrasing | 1.5 h | 30.5 h | Criterion 4 met trivially (verbatim rungs); the Guide phrasing claim is dropped from the README |
+| 3 | Rung text verbatim; no Ollama phrasing | 1.5 h | 30.5 h | Criterion 4 met trivially (verbatim rungs); the Guide phrasing claim is dropped from the README; the privacy line stays |
 | 4 | Validator only; no dry run | 1.0 h | 29.5 h | Criterion 2 reduced to validator only |
 | 5 | Event log in a separate window | 1.5 h | 28 h | Criterion 4 "triggers visible" moves to a second window |
 | 6 | `code` and `find` locks only | 3.0 h (state machine 1.5 h, Riddler schema and validator payload rules 1.0 h, scene UI 0.5 h) | 25 h | Criterion 2 and the dry run cover `code` and `find` only |
@@ -179,9 +180,9 @@ Cut order, with the hours each recovers (Oct 20 estimates) and the success crite
 Rules:
 
 - Cut nightly, never carried: a slipped item is cut, not deferred.
-- Cuts 3, 4, and 7 change what the README and criterion 2 may claim: no local model, no dry run, one retry.
+- Cuts 3, 4, and 7 change what the README and criterion 2 may claim: no Ollama phrasing, no dry run, one retry.
 - Criteria 1, 3, and 7 survive every cut; the README states which cuts shipped.
-- Saturday night is the early gate: only a backup video existing by Sat Oct 31 night sends Sun Nov 1 to Tier 2. Expected: not attempted.
+- Tier 2 is a default no-go. Saturday night is the early gate: only a backup video already existing by Sat Oct 31 night sends Sun Nov 1 to Tier 2; Tier 1 and the demo video are protected above everything else. Expected: not attempted.
 - Tier 2 gate, Mon Nov 2, only if attempted: brief criterion 8.
 
 ## Day plan
@@ -199,7 +200,7 @@ Pre-kickoff, Wed Oct 21 to Sun Oct 25 (about 8 h); each verification and spike i
 - Spike: a `sam-3.1` mask decoded with `meta-sam-parser` to a hotspot polygon in Chrome.
 - Spike: three Riddler calls against the draft schema, failure modes recorded.
 - Both rooms photographed (6 to 10 photos each, originals kept; no faces, documents, or others' belongings).
-- MIT LICENSE; `_bmad/` and the other planning-tooling directories out of the index before the repo goes public; Hugging Face `sam-3d-objects` access request, optional.
+- MIT LICENSE; `_bmad/` and `.claude/` out of the index before the repo goes public (§Submission package); Hugging Face `sam-3d-objects` access request, optional.
 - Sun Oct 25 night: baseline tag and CHANGELOG (§Submission package); accept the Official Rules if published.
 
 Build window. Each evening line names what is attempted; by the item table a 3 h evening holds about half of what its line names, so the nightly cut decision is part of the line.
@@ -213,7 +214,7 @@ Build window. Each evening line names what is attempted; by the item table a 3 h
 - Sun Nov 1 (8 h): Tier 2 if the video exists; else (the expected case) finish Tier 1 and record by 2 PM. The afternoon (about 2 h) is the playtest on `PROFILE=playtest` first (it needs the tester), then room 2 through the pipeline, which may finish Mon Nov 2. Cuts are reversed only with time left, last cut first, and only cuts 1 to 3 are realistic candidates before Nov 3.
 - Mon Nov 2 (3 h): Tier 2 gate if attempted; else play room 1 for real on `PROFILE=demo` so the cross-session greeting has a record to cite; playtest here if the tester missed Nov 1, else the builder's cold run of room 2.
 - Tue Nov 3 (3 h): video only: fresh room-2 photo set, cache cleared on camera, capture proof, three main-demo takes, captions, unlisted upload.
-- Wed Nov 4 (2 h before work): README model table, diagram, pre-existing-code section with the baseline diffstat, screenshots, portal description; submit before 9:00 AM ET; 6 to 9 PM is slack for a failed upload or a required live link (deadline 9:00 PM ET).
+- Wed Nov 4 (2 h before work): repo hygiene at the latest here, before the repo goes public: `git rm -r --cached _bmad/ .claude/` plus `.gitignore` entries, the BMAD brief folder kept as the single source of truth, `PRODUCT_BRIEF.md` left removed; README model table, diagram, pre-existing-code section with the baseline diffstat, screenshots, portal description; submit before 9:00 AM ET; 6 to 9 PM is slack for a failed upload or a required live link (deadline 9:00 PM ET).
 - Thu Nov 5 to Sun Nov 8: hosted-URL redeploy, `MIN_CONTAINERS=1` kept through Mon Nov 9, finals preparation.
 - Mon Nov 9: live finals, local mode screen-shared from the M1.
 
@@ -224,7 +225,7 @@ The Waiver (Oct 13, re-read Oct 20, "terms may change") says:
 - Judging weights: Impact 30%, Use of Meta AI Tooling 25%, Technical Depth and Execution 20%, Demo 25% ("working, impressive demo, whether the product holds up live, and the quality of the demo video").
 - Indie track: "teams of up to four (4)"; prizes $150k, $100k, $75k, $50k, $25k; entrants 18 and over.
 - Credit: "Participants selected to participate in the Hackathon will be provided $150 in Meta Model API credits for development over a ten (10) day period." No issue date and no expiry are given, and the plan assumes none: judging (Nov 4 to 8) and finals (Nov 9) are budgeted pay-as-you-go with a card on file.
-- The Submission must be "original work product" and "solely owned"; open source is allowed if licenses are followed; the entrant keeps IP and grants the Organizers a perpetual, irrevocable, royalty-free license.
+- The Submission must be "original work product" and "solely owned"; open source is allowed if licenses are followed; the entrant keeps IP and grants the Organizers a perpetual, irrevocable, royalty-free license over the Submission, which carries screenshots, clue cards, and the videos, never the raw room photos.
 - Deadline Wed Nov 4 9:00 PM ET; judging Nov 4 to 8; live finals Mon Nov 9.
 
 Still unpublished: the Official Rules (promised before Oct 26), the pre-existing-code policy, the submission format (video length, repo visibility, write-up, slides), how finalists are chosen, and whether a live link is required. The 2-minute video and public repo are precedent, not rule.
@@ -244,27 +245,28 @@ Two videos, both on the M1, both on fresh profiles.
 | 1:05 to 1:20 | Trickster: one accepted and one validator-rejected edit as cards; `DEMO_TRICKSTER=scripted` replays two recorded proposals, the reject evaluated live | Criterion 5 |
 | 1:20 to 1:35 | Room 2: at least 80% of clues reference objects absent from room 1; the greeting cites the room-1 profile | Criterion 6 |
 | 1:35 to 1:50 | Model wiring, 15 s: which Meta model did what, the local Guide, what is cached | Tooling, Technical Depth |
-| 1:50 to 2:00 | Disclosures: 6x timescale, scripted Trickster replay, earlier builds of the room, Glimmer not run | |
+| 1:50 to 2:00 | Disclosures: 6x timescale, scripted Trickster replay, earlier builds of the room | |
 
 (b) Capture proof, unedited, about two minutes: `CACHE=off`, a photo set shot that day and never sent to the pipeline, timer on screen. T0 is the Upload click; T1 is the first scene becoming interactive (first hotspot responds). The take is kept only if it finishes under 200 s (at most one visible retry); earlier builds of the same room are disclosed. Three main-demo takes and one proof are recorded Tue Nov 3.
 
 Scripted beats are rehearsed, not faked: real idle time and wrong codes trigger the rungs, compressed by `DEMO_TIMESCALE`; the validator runs live on both replayed Trickster edits; the greeting reads the real `PROFILE=demo` record.
 
-Finals, Mon Nov 9: local mode screen-shared from the M1, Guide on Ollama. Fallbacks in order: the hosted URL on Modal (`GUIDE_PROVIDER=meta`, cached demo rooms, own-room upload behind an access code good for 20 builds), the cached rooms in local mode, then the video. The mode is declared in the UI and the README.
+Finals, Mon Nov 9: local mode screen-shared from the M1, Guide on Ollama. Fallbacks in order: the hosted URL on Modal (no Guide model, rung text verbatim; cached demo rooms, own-room upload behind an access code good for 20 builds), the cached rooms in local mode, then the video. The mode is declared in the UI and the README.
 
 ## Submission package
 
 Built to the strictest Cerebral Valley precedent (public open-source repo, 2-minute video, no localhost for a live demo):
 
 - [ ] Public GitHub repo, MIT LICENSE at root.
-- [ ] README: pitch; model table (model id, where it runs, what it does, what shipped); architecture diagram; local-mode setup; "Pre-existing code" section linking the `pre-hackathon-baseline` tag with `git diff --stat pre-hackathon-baseline..HEAD`; third-party and model licenses (SAM License, Llama 3.2 license, Meta Model API service terms for `muse-spark-1.3`, `muse-image-1.0`, `muse-voice-transcribe-1.0`, and `sam-3.1`, MIT for the `@sparkjsdev/spark` renderer if Tier 3 ships, fal terms); a line that Muse Glimmer was not run; photo retention summary.
+- [ ] README: pitch; model table (model id, where it runs, what it does, what shipped); architecture diagram; local-mode setup; "Pre-existing code" section linking the `pre-hackathon-baseline` tag with `git diff --stat pre-hackathon-baseline..HEAD`; third-party and model licenses (SAM License, Llama 3.2 license, Meta Model API service terms for `muse-spark-1.3`, `muse-image-1.0`, `muse-voice-transcribe-1.0`, and `sam-3.1`, MIT for the `@sparkjsdev/spark` renderer if Tier 3 ships, fal terms); the privacy line "the player profile stays on your machine"; photo retention summary.
 - [ ] Unlisted captioned main-demo video (2:00 target, 2:30 cap) and the unedited capture proof.
 - [ ] 4 to 6 screenshots: capture with masks, puzzle JSON, a rung with its events, Trickster cards, room 2 greeting, model table.
 - [ ] 300- to 400-word write-up for the portal, repeating the pre-existing-code statement.
 - [ ] Spend log: Meta API counter export, fal receipts, Modal usage.
 - [ ] Dated CHANGELOG.md from the baseline entry through Nov 4.
 - [ ] Portal: Indie track, solo, theme named; fields checked when the form opens.
-- [ ] Only the two demo rooms' photos committed; judge-uploaded rooms deleted from the Volume Tue Nov 10.
+- [ ] Raw room photos never enter the public repo, consent or not: the photo input folders are git-ignored; only outputs ship (screenshots, clue cards, the demo video), with household consent for what appears in them; judge-uploaded rooms deleted from the Volume Tue Nov 10.
+- [ ] Repo hygiene before the repo goes public, Wed Nov 4 morning at the latest: `_bmad/` and `.claude/` removed (`git rm -r --cached` plus `.gitignore`); the BMAD brief folder under `docs/planning-artifacts/` stays as the single source of truth; `PRODUCT_BRIEF.md` stays removed (it still exists on `master`; merging `keyframe/bmad-brief` into `master` deletes it; do not recreate it).
 
 Pre-existing-code practice: as of Oct 20 the repo holds about 400 lines of Python (provider interface, mock provider, Meta API stub, tests) and no product code. Sun Oct 25 night: `git tag -a pre-hackathon-baseline` pushed, CHANGELOG entry "Before Oct 26 (baseline): provider interface, mock provider, Meta API stub, tests. No front end, no model calls." Then small dated commits; the README carries the diffstat at submission. If the Official Rules ban prior code outright, the scaffold is rewritten on Mon Oct 26 in under an hour; it is not expanded before kickoff so that option stays open.
 
@@ -272,7 +274,7 @@ Pre-existing-code practice: as of Oct 20 the repo holds about 400 lines of Pytho
 
 | Option | Rejected because | Revisit when |
 |---|---|---|
-| Muse Glimmer as the on-device Guide | Does not fit 16 GB; numbers in §RAM budget | A 24 GB or larger Mac; one model string changes |
+| Muse Glimmer as the on-device Guide | Does not fit 16 GB | Not revisited for this build |
 | Llama 3.1 8B for the demo | Pushes development near 17 GB; numbers in §RAM budget | Quality tests only, IDE closed |
 | Modal GPU self-hosting of SAM 3D Objects | Linux plus 32 GB VRAM, cu121 torch, PyTorch3D, Kaolin, gated checkpoint; L40S $1.95 per hour against fal $0.02 per call | fal output proves unusable and Tier 2 is a go |
 | Local SAM 3.1 (MPS) | Official repo is CUDA-only; the MPS/CPU PR is unmerged, reportedly slower than CPU | The PR merges and beats 10 s per room |
@@ -308,16 +310,16 @@ Three "looks derivative" risks and the counter for each:
 
 ## Scope boundaries
 
-Out of scope for the hackathon build: live phone capture (photos are uploaded from the phone's camera roll), multiplayer, accounts, native mobile, Quest or MR, Muse Glimmer in the demo, Muse Wonder, SAM 3D Body, local SAM inference, Modal GPU self-hosting, and any puzzle content not derived from the player's photos. Tier 3 (the Scaniverse splat shell) never gates a deliverable; voice (`muse-voice-transcribe-1.0`) is unscheduled and ships only if everything else is done Mon Nov 2.
+Out of scope for the hackathon build: live phone capture (photos are uploaded from the phone's camera roll), multiplayer, accounts, native mobile, Quest or MR, any hosted or cloud-run Guide model (the Guide runs only on the local Mac), Muse Wonder, SAM 3D Body, local SAM inference, Modal GPU self-hosting, and any puzzle content not derived from the player's photos. Tier 3 (the Scaniverse splat shell) never gates a deliverable; voice (`muse-voice-transcribe-1.0`) is unscheduled and ships only if everything else is done Mon Nov 2.
 
 ## Open questions
 
 For Luis, each needed before the date given:
 
-- Which two rooms, and does everyone living there agree to photos of them in a public repo? (Before Sun Oct 25, when the rooms are photographed.)
+- Which two rooms, and does everyone living there agree to them appearing in the video and screenshots? (Before Sun Oct 25, when the rooms are photographed; the raw photos never enter the repo.)
 - Payment methods on dev.meta.ai, fal.ai, and Modal (before Mon Oct 26).
 - Who playtests, and can they come to the laptop or screen-share Sun Nov 1 or Mon Nov 2?
-- Are 32 build hours realistic given the day job? (If not, the cut order applies earlier.)
+- Is about 32 h of review and direction time realistic given the day job? (If not, the cut order applies earlier.)
 - Availability in working hours Mon Nov 9 for the live finals.
 - Does the Baseten partner credit (unconfirmed, "select participants") cover Muse Spark Open tokens on Baseten's Model API or only dedicated deployments? (Tue Oct 27 test.)
 - Does fal's metadata JSON carry a usable object pose? (Pre-Oct 26 fal spike; see `schema-v1.md`.)

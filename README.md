@@ -9,9 +9,9 @@ playing an escape room built from your own objects. The game is run
 by a council of Muse Spark wizard agents: the Architect finds the
 objects with SAM 3.1 (and rebuilds them with SAM 3D Objects in
 Tier 2), the Riddler writes and verifies the puzzle chain, the Guide
-picks hint rungs from how you play (phrased by a Meta open-weights
-model running on your machine, so the profile of how you play never
-leaves it), and the Trickster proposes bounded difficulty changes
+picks hint rungs from how you play (phrased by Llama 3.2 3B running
+locally through Ollama; the player profile stays on your machine),
+and the Trickster proposes bounded difficulty changes
 mid-game. Muse Image paints the wizards and clue cards, Muse Voice
 Transcribe lets you talk to them.
 
@@ -49,7 +49,7 @@ src/providers/meta_api.py  Meta Model API stub, wire up Oct 26
 tests/test_providers.py    smoke tests, all offline
 docs/MONDAY.md             the Oct 26 plug-in checklist
 docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
-_bmad/, .claude/skills/    BMAD Method v6 tooling (bmad-* skills)
+_bmad/, .claude/skills/    BMAD Method v6 tooling (bmad-* skills) (removed before the repo goes public)
 ```
 
 ## Run it today
