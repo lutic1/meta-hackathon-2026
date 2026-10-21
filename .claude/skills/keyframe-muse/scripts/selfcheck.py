@@ -2,7 +2,7 @@
 
 Asserts the pinned versions, builds the Muse Spark and Muse Image request
 bodies the skill documents, checks the strict-schema transform, and drives
-the retry policy against httpx.MockTransport.
+the AD-13 retry policy against httpx.MockTransport.
 
     uv run --no-project --with httpx==0.28.1 --with pydantic==2.14.1 \
         python .claude/skills/keyframe-muse/scripts/selfcheck.py
@@ -15,7 +15,7 @@ import json
 import random
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime, parsedate_to_datetime
 from importlib.metadata import version
@@ -31,12 +31,14 @@ IMAGE_MODEL = "muse-image-1.0"
 EFFORTS = {"low", "medium"}
 REJECTED_CHAT_PARAMS = {"max_output_tokens", "stop", "logprobs", "logit_bias",
                         "verbosity", "prediction", "modalities", "audio", "text"}
-AD13_RETRYABLE = frozenset({429, *range(500, 600)})  # binding today: 429 and every 5xx
-# Proposed spine change, pending architect approval: follow the vendor and skip
-# 504 (re-sent unchanged it times out again) and muse-image's non-retryable 500.
-PROPOSED_CHAT_RETRYABLE = frozenset({429, 500, 503})
-PROPOSED_IMAGE_RETRYABLE = frozenset({429, 503})
-RETRY_ON_CONNECT = (httpx.ConnectError, httpx.ConnectTimeout)  # request never reached the server
+# AD-13: each endpoint declares what Meta documents as retryable. Never 502, 504 or an
+# undocumented 5xx; a muse-image-1.0 500 is the vendor's non-retryable class.
+CHAT_RETRYABLE_STATUS = frozenset({429, 500, 503})
+IMAGE_RETRYABLE_STATUS = frozenset({429, 503})
+RETRY_ON_CONNECT = (httpx.ConnectError, httpx.ConnectTimeout)  # nothing was sent, so nothing was billed
+# Seconds left in the stage budget when a call starts (budgets.md); the Trickster and
+# portraits have no budget there, so these two are Keyframe choices.
+BUDGET_S = {"architect": 15.0, "riddler": 45.0, "dryrun": 30.0, "trickster": 30.0, "image": 120.0}
 SCHEMA_NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
@@ -73,12 +75,21 @@ class FindSolution(BaseModel):
 Solution = Annotated[CodeSolution | FindSolution, Field(discriminator="lock_type")]
 
 
+class DryRunAnswer(BaseModel):
+    puzzle_id: str
+    answer: Solution
+
+
 class DryRunAnswers(BaseModel):
-    answers: dict[str, Solution]  # keyed by puzzle id: a map, so never strict
+    """AD-12: a list of {puzzle_id, answer}, never a map, so strict mode can express it."""
+
+    answers: list[DryRunAnswer]
 
 
-class DryRunAnswerList(BaseModel):
-    answers: list[Solution]
+class MapShaped(BaseModel):
+    """What AD-2 forbids in a model-response schema: a map-typed field."""
+
+    answers: dict[str, Solution]
 
 
 def strict_schema(model: type[BaseModel]) -> dict:
@@ -99,7 +110,7 @@ def strict_schema(model: type[BaseModel]) -> dict:
         if "oneOf" in node:
             node["anyOf"] = node.pop("oneOf")
         if isinstance(node.get("additionalProperties"), dict):
-            raise ValueError("map-typed field cannot be strict; use a list or fixed keys")
+            raise ValueError("map-typed field cannot be strict; use a list or fixed keys (AD-2)")
         out = {k: walk(v) for k, v in node.items() if k != "properties"}
         if "properties" in node:
             out["properties"] = {k: walk(v) for k, v in node["properties"].items()}
@@ -140,9 +151,9 @@ def image_body(prompt: str) -> dict:
             "response_format": "b64_json", "output_format": "webp"}
 
 
-def retry_after(response: httpx.Response) -> float | None:
-    """Seconds to wait from Retry-After, in either its delta-seconds or HTTP-date form."""
-    value = response.headers.get("retry-after")
+def retry_after_s(headers: Mapping[str, str]) -> float | None:
+    """Retry-After in seconds, from delta-seconds or an HTTP-date; None when absent or unreadable."""
+    value = headers.get("retry-after")
     if value is None:
         return None
     try:
@@ -158,6 +169,12 @@ def retry_after(response: httpx.Response) -> float | None:
     return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
 
 
+def retry_wait_s(retry_after: float | None, remaining_s: float) -> float | None:
+    """AD-13: Retry-After, else 0.5 to 1 s of jitter; None (fail at once) past the remaining budget."""
+    wait = retry_after if retry_after is not None else 0.5 + random.random() * 0.5
+    return wait if wait <= remaining_s else None
+
+
 def provider_error(response: httpx.Response) -> ProviderError:
     try:
         error = response.json()["error"]
@@ -169,31 +186,36 @@ def provider_error(response: httpx.Response) -> ProviderError:
                          error.get("message") or "")
 
 
-def post_with_retry(client: httpx.Client, path: str, body: dict, *, retryable: frozenset[int],
-                    sleep: Callable[[float], None] = time.sleep,
-                    max_wait_s: float = 30.0) -> httpx.Response:
-    """At most one retry with backoff (AD-13). Raises ProviderError, never an httpx error.
+def transport_error(exc: httpx.RequestError) -> ProviderError:
+    kind = "timeout" if isinstance(exc, httpx.TimeoutException) else "transport_error"
+    return ProviderError(None, kind, str(exc) or type(exc).__name__)
 
-    A retryable status waits min(Retry-After or jitter, max_wait_s), then retries once.
-    Only connect failures are retried on the transport side: a read timeout may mean the
-    server is still generating (and billing), so it is not re-sent.
+
+def post_with_retry(client: httpx.Client, path: str, body: dict, *, retryable: frozenset[int],
+                    budget_s: float, sleep: Callable[[float], None] = time.sleep,
+                    clock: Callable[[], float] = time.monotonic) -> httpx.Response:
+    """AD-13: at most one retry with backoff. Raises ProviderError, never an httpx error.
+
+    Retries a status in `retryable` or a connect error, after Retry-After or 0.5 to 1 s of
+    jitter, unless that wait is longer than what is left of `budget_s`. A read timeout is
+    never re-sent: the server may still be generating, and billing.
     """
+    started = clock()
     for attempt in (0, 1):
         try:
             response = client.post(path, json=body)
         except httpx.RequestError as exc:
-            if attempt == 0 and isinstance(exc, RETRY_ON_CONNECT):
-                sleep(0.5 + random.random())
-                continue
-            kind = "timeout" if isinstance(exc, httpx.TimeoutException) else "transport_error"
-            raise ProviderError(None, kind, str(exc) or type(exc).__name__) from exc
-        if response.status_code < 400:
-            return response
-        if attempt == 0 and response.status_code in retryable:
-            wait = retry_after(response)
-            sleep(min(max_wait_s, 0.5 + random.random() if wait is None else wait))
-            continue
-        raise provider_error(response)
+            error, cause = transport_error(exc), exc
+            retry, after = isinstance(exc, RETRY_ON_CONNECT), None
+        else:
+            if response.status_code < 400:
+                return response
+            error, cause = provider_error(response), None
+            retry, after = response.status_code in retryable, retry_after_s(response.headers)
+        wait = retry_wait_s(after, budget_s - (clock() - started)) if retry and attempt == 0 else None
+        if wait is None:
+            raise error from cause
+        sleep(wait)
     raise AssertionError("unreachable")
 
 
@@ -242,14 +264,26 @@ def error(status: int, kind: str, headers: dict | None = None) -> httpx.Response
                           json={"error": {"message": kind, "type": kind, "param": None, "code": None}})
 
 
-def run(responses, body, path="/chat/completions", retryable=AD13_RETRYABLE):
+def clock_at(*readings: float) -> Callable[[], float]:
+    """A fake monotonic clock that returns the given readings in order."""
+    values = iter(readings)
+    return lambda: next(values)
+
+
+def run(responses, body, path="/chat/completions", retryable=CHAT_RETRYABLE_STATUS,
+        budget_s=BUDGET_S["architect"], **options):
     seen, waits = [], []
     with mock_client(responses, seen) as client:
         try:
-            result = post_with_retry(client, path, body, retryable=retryable, sleep=waits.append)
+            result = post_with_retry(client, path, body, retryable=retryable, budget_s=budget_s,
+                                     sleep=waits.append, **options)
         except ProviderError as exc:
             result = exc
     return result, seen, waits
+
+
+def failed(result, status: int | None, requests: int, seen: list) -> bool:
+    return isinstance(result, ProviderError) and result.status == status and len(seen) == requests
 
 
 def main() -> None:
@@ -273,20 +307,28 @@ def main() -> None:
     assert SCHEMA_NAME.match(fmt["name"]) and fmt["strict"] is False
     print("chat body ok: images only in the user message, strict false, no rejected params")
 
-    for model in (ArchitectResponse, DryRunAnswerList):
+    for model in (ArchitectResponse, DryRunAnswers):
         check_strict_subset(response_format(model, strict=True)["json_schema"]["schema"])
-    assert "oneOf" in json.dumps(DryRunAnswerList.model_json_schema()), "pydantic emits oneOf"
+    assert "oneOf" in json.dumps(DryRunAnswers.model_json_schema()), "pydantic emits oneOf"
+    answer = DryRunAnswers.model_validate_json(
+        '{"answers": [{"puzzle_id": "p1", "answer": {"lock_type": "code", "code": "0412"}}]}')
+    assert isinstance(answer.answers[0].answer, CodeSolution)
     try:
-        strict_schema(DryRunAnswers)
+        strict_schema(MapShaped)
         raise AssertionError("map field accepted as strict")
     except ValueError:
         pass
-    print("strict_schema ok: oneOf rewritten to anyOf, objects closed, map field refused")
+    print("strict_schema ok: DryRunAnswers as a list of {puzzle_id, answer} fits the strict "
+          "subset (oneOf rewritten to anyOf); a map-typed field is refused")
 
     img = json.loads(httpx.Request("POST", f"{BASE_URL}/images/generations",
                                    json=image_body("a portrait")).content)
     assert img["model"] == IMAGE_MODEL and "seed" not in img and 1 <= img["n"] <= 10
     print("image body ok: muse-image-1.0, b64_json, no seed")
+
+    assert CHAT_RETRYABLE_STATUS == {429, 500, 503} and IMAGE_RETRYABLE_STATUS == {429, 503}
+    assert RETRY_ON_CONNECT == (httpx.ConnectError, httpx.ConnectTimeout)
+    print("AD-13 sets ok: chat 429, 500, 503; image 429, 503; connect errors ConnectError, ConnectTimeout")
 
     content = json.dumps({"objects": [{"label": "lamp", "photo": 0, "box": [10, 20, 300, 1001],
                                        "attributes": ["brass"], "instances": 1,
@@ -305,7 +347,7 @@ def main() -> None:
     print(f"200: 1 request, parsed ArchitectResponse, cost ${chat_cost_usd(usage):.6f}")
 
     result, seen, waits = run([error(400, "invalid_request_error")], body)
-    assert isinstance(result, ProviderError) and result.status == 400 and len(seen) == 1 and not waits
+    assert failed(result, 400, 1, seen) and not waits
     print("400: 1 request, no retry, ProviderError invalid_request_error")
 
     result, seen, waits = run([error(429, "rate_limit_error", {"retry-after": "2"}), ok], body)
@@ -313,7 +355,7 @@ def main() -> None:
     print("429 retry-after 2: waited 2.0 s, 2 requests, then 200")
 
     result, seen, waits = run([error(429, "rate_limit_error", {"retry-after": "1"})] * 2, body)
-    assert isinstance(result, ProviderError) and result.status == 429 and len(seen) == 2
+    assert failed(result, 429, 2, seen)
     print("429 twice: 2 requests, then ProviderError (one retry only)")
 
     result, seen, waits = run([error(429, "rate_limit_error", {"retry-after": "0"}), ok], body)
@@ -323,44 +365,44 @@ def main() -> None:
     assert result.status_code == 200 and 3.0 <= waits[0] <= 5.0
     print(f"retry-after 0: waited 0.0 s; retry-after HTTP-date: waited {waits[0]:.1f} s")
 
-    result, seen, waits = run([error(503, "server_error", {"retry-after": "60"})] * 2, body)
-    assert isinstance(result, ProviderError) and result.status == 503
-    assert len(seen) == 2 and waits == [30.0]
-    print("503 retry-after 60: waited 30.0 s (the cap), 2 requests, then ProviderError")
+    result, seen, waits = run([error(503, "server_error", {"retry-after": "60"}), ok], body,
+                              budget_s=BUDGET_S["dryrun"])
+    assert failed(result, 503, 1, seen) and not waits
+    result, seen, waits = run([error(429, "rate_limit_error", {"retry-after": "2"}), ok], body,
+                              budget_s=BUDGET_S["architect"], clock=clock_at(0.0, 14.0))
+    assert failed(result, 429, 1, seen) and not waits
+    print("503 retry-after 60 in a 30 s budget, and retry-after 2 with 1 s left: "
+          "1 request each, no wait, ProviderError at once")
 
     result, seen, waits = run([error(500, "server_error"), ok], body)
-    assert result.status_code == 200 and len(seen) == 2 and 0.5 <= waits[0] <= 1.5
+    assert result.status_code == 200 and len(seen) == 2 and 0.5 <= waits[0] <= 1.0
     print(f"chat 500: retried once after {waits[0]:.2f} s jittered backoff")
 
-    result, seen, _ = run([error(504, "server_error"), ok], body)
-    assert result.status_code == 200 and len(seen) == 2
-    result, seen, _ = run([error(504, "server_error")], body, retryable=PROPOSED_CHAT_RETRYABLE)
-    assert isinstance(result, ProviderError) and result.status == 504 and len(seen) == 1
-    print("504: retried once under AD-13; 1 request under the proposed set")
+    for status in (502, 504, 501):
+        result, seen, waits = run([error(status, "server_error"), ok], body)
+        assert failed(result, status, 1, seen) and not waits
+    print("chat 502, 504 and an undocumented 501: 1 request each, ProviderError, no retry")
 
     gen = image_body("a portrait")
     image_ok = httpx.Response(200, json={"created": 1, "data": [{"b64_json": "UklGRg=="}],
                                          "output_format": "webp"})
-    result, seen, _ = run([error(500, "server_error"), image_ok], gen, "/images/generations")
-    assert result.json()["data"][0]["b64_json"] and len(seen) == 2
-    result, seen, _ = run([error(500, "server_error")], gen, "/images/generations",
-                          PROPOSED_IMAGE_RETRYABLE)
-    assert isinstance(result, ProviderError) and len(seen) == 1
-    result, seen, _ = run([error(503, "server_error"), image_ok], gen, "/images/generations",
-                          PROPOSED_IMAGE_RETRYABLE)
-    assert result.json()["data"][0]["b64_json"] and len(seen) == 2
-    print("image 500: retried under AD-13, not under the proposed set; image 503: retried once")
+    image = {"path": "/images/generations", "retryable": IMAGE_RETRYABLE_STATUS,
+             "budget_s": BUDGET_S["image"]}
+    result, seen, _ = run([error(500, "server_error"), image_ok], gen, **image)
+    assert failed(result, 500, 1, seen)
+    result, seen, waits = run([error(503, "server_error", {"retry-after": "60"}), image_ok], gen, **image)
+    assert result.json()["data"][0]["b64_json"] and len(seen) == 2 and waits == [60.0]
+    print("image 500: 1 request, ProviderError; image 503 retry-after 60 in a 120 s budget: "
+          "waited 60.0 s, retried once")
 
-    result, seen, _ = run([httpx.ReadTimeout], body)
-    assert isinstance(result, ProviderError) and result.kind == "timeout" and len(seen) == 1
-    result, seen, _ = run([httpx.RemoteProtocolError], body)
-    assert isinstance(result, ProviderError) and result.kind == "transport_error"
-    assert len(seen) == 1
-    result, seen, _ = run([httpx.ConnectTimeout, ok], body)
-    assert result.status_code == 200 and len(seen) == 2
+    result, seen, waits = run([httpx.ReadTimeout, ok], body)
+    assert failed(result, None, 1, seen) and result.kind == "timeout" and not waits
+    result, seen, _ = run([httpx.RemoteProtocolError, ok], body)
+    assert failed(result, None, 1, seen) and result.kind == "transport_error"
+    result, seen, waits = run([httpx.ConnectTimeout, ok], body)
+    assert result.status_code == 200 and len(seen) == 2 and 0.5 <= waits[0] <= 1.0
     result, seen, _ = run([httpx.ConnectError] * 2, body)
-    assert isinstance(result, ProviderError) and result.kind == "transport_error"
-    assert len(seen) == 2
+    assert failed(result, None, 2, seen) and result.kind == "transport_error"
     print("ReadTimeout and RemoteProtocolError: 1 request, ProviderError; "
           "ConnectTimeout and ConnectError: retried once")
 

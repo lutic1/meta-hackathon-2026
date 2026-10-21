@@ -14,6 +14,8 @@ import json
 import logging
 import re
 import sys
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from importlib.metadata import version
 from pathlib import Path
 
@@ -89,19 +91,30 @@ def failure(status: int, retry_after: str | None = None, body: bool = True) -> h
                           content=json.dumps(envelope).encode() if body else b"")
 
 
-def call(ns: dict, *responses: httpx.Response):
+def call(ns: dict, *responses, **retry_options):
+    """Each item is an httpx.Response to return or an httpx exception class to raise."""
     queue, seen, sleeps = list(responses), [], []
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return queue.pop(0)
+        item = queue.pop(0)
+        if isinstance(item, type):
+            raise item("simulated", request=request)
+        return item
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     body = ns["sam_request_body"]("mug", b"\xff\xd8\xff\xe0not-a-real-jpeg")
     try:
-        return ns["call_with_one_retry"](client, "test-key", body, sleep=sleeps.append), seen, sleeps
+        result = ns["call_with_one_retry"](client, "test-key", body, sleep=sleeps.append, **retry_options)
+        return result, seen, sleeps
     except ns["SamError"] as error:
         return error, seen, sleeps
+
+
+def clock_at(*readings: float):
+    """A fake monotonic clock that returns the given readings in order."""
+    values = iter(readings)
+    return lambda: next(values)
 
 
 async def aiter_list(items):
@@ -178,28 +191,62 @@ def main() -> int:
         check(f"{label} -> malformed_stream, no retry",
               isinstance(error, ns["SamError"]) and error.code == "malformed_stream" and len(seen) == 1)
 
-    check("AD-13 retry set: 429 and every 5xx, no other status",
-          ns["RETRYABLE_STATUS"] == frozenset({429, *range(500, 600)}))
+    check("AD-13 retry set: 429, 500 and 503 only (Meta's documented set)",
+          ns["SAM_RETRYABLE_STATUS"] == frozenset({429, 500, 503}))
+    check("AD-13 stream codes: the 429, 500 and 503 codes, never gateway_timeout",
+          ns["SAM_RETRYABLE_STREAM_CODES"] == frozenset({"rate_limit_exceeded", "server_error",
+                                                         "server_shutting_down", "service_overloaded",
+                                                         "backend_unavailable"}))
+    check("AD-13 connect errors: ConnectError and ConnectTimeout",
+          ns["RETRY_ON_CONNECT"] == (httpx.ConnectError, httpx.ConnectTimeout))
     for status in (400, 401, 403, 404, 413):
         error, seen, _ = call(ns, failure(status))
         check(f"{status} raised without retry", error.status == status and len(seen) == 1)
     error, seen, _ = call(ns, failure(404, body=False))
     check("404 with empty body handled", error.status == 404 and error.code is None and len(seen) == 1)
+    for status in (501, 502, 504, 599):
+        error, seen, sleeps = call(ns, failure(status, retry_after="1"), sse(events_for(LINE)))
+        check(f"{status} raised at once, no retry (not in Meta's retryable set)",
+              error.status == status and len(seen) == 1 and not sleeps)
     error, seen, _ = call(ns, failure(429), failure(429))
     check("second 429 raised (one retry only)", error.status == 429 and len(seen) == 2)
-    for status in (429, 500, 502, 503, 504):
+    for status in (429, 500, 503):
         ok, seen, sleeps = call(ns, failure(status, retry_after="2"), sse(events_for(LINE)))
         check(f"{status} retried once after Retry-After", len(seen) == 2 and sleeps == [2.0] and len(ok.records) == 4)
+    soon = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=5), usegmt=True)
+    ok, seen, sleeps = call(ns, failure(429, retry_after=soon), sse(events_for(LINE)))
+    check("HTTP-date Retry-After honoured (about 5 s)",
+          len(seen) == 2 and len(sleeps) == 1 and 3.0 <= sleeps[0] <= 5.0 and len(ok.records) == 4)
     ok, seen, sleeps = call(ns, failure(500), sse(events_for(LINE)))
-    check("5xx without Retry-After retried once after 0.5 to 1 s of jitter",
+    check("500 without Retry-After retried once after 0.5 to 1 s of jitter",
           len(seen) == 2 and len(sleeps) == 1 and 0.5 <= sleeps[0] <= 1.0 and len(ok.records) == 4)
-    error, seen, sleeps = call(ns, failure(503, retry_after="60"), failure(503, retry_after="60"))
-    check("Retry-After 60 waited at the 10 s cap, one retry, then raised",
-          error.status == 503 and len(seen) == 2 and sleeps == [10.0])
-    for code in sorted(ns["RETRYABLE_STREAM_CODES"]):
+    error, seen, sleeps = call(ns, failure(503, retry_after="60"), sse(events_for(LINE)))
+    check("503 Retry-After 60 exceeds the 10 s segment budget: raised at once, no wait",
+          error.status == 503 and len(seen) == 1 and not sleeps)
+    error, seen, sleeps = call(ns, failure(429, retry_after="2"), sse(events_for(LINE)), clock=clock_at(0.0, 9.0))
+    check("Retry-After 2 with 1 s of budget left (first attempt took 9 s): raised at once",
+          error.status == 429 and len(seen) == 1 and not sleeps)
+    ok, seen, sleeps = call(ns, failure(503, retry_after="60"), sse(events_for(LINE)), budget_s=90.0)
+    check("Retry-After 60 inside a 90 s budget: waited 60 s, retried once",
+          len(seen) == 2 and sleeps == [60.0] and len(ok.records) == 4)
+    for code in sorted(ns["SAM_RETRYABLE_STREAM_CODES"]):
         stream_error = sse([{"type": "error", "code": code, "message": "x"}])
         ok, seen, _ = call(ns, stream_error, sse(events_for(LINE)))
         check(f"mid-stream {code} retried once", len(seen) == 2 and len(ok.records) == 4)
+    error, seen, _ = call(ns, sse([{"type": "error", "code": "gateway_timeout", "message": "x"}]),
+                          sse(events_for(LINE)))
+    check("mid-stream gateway_timeout (a 504) raised, no retry",
+          error.code == "gateway_timeout" and len(seen) == 1)
+    for exc in (httpx.ConnectError, httpx.ConnectTimeout):
+        ok, seen, sleeps = call(ns, exc, sse(events_for(LINE)))
+        check(f"{exc.__name__} retried once after jitter",
+              len(seen) == 2 and len(sleeps) == 1 and 0.5 <= sleeps[0] <= 1.0 and len(ok.records) == 4)
+    error, seen, _ = call(ns, httpx.ConnectError, httpx.ConnectError)
+    check("second ConnectError raised (code connect)", error.code == "connect" and len(seen) == 2)
+    for exc, code in ((httpx.ReadTimeout, "timeout"), (httpx.RemoteProtocolError, "transport")):
+        error, seen, sleeps = call(ns, exc, sse(events_for(LINE)))
+        check(f"{exc.__name__} raised as {code}, never retried",
+              error.code == code and len(seen) == 1 and not sleeps)
     failed = sse([{"type": "response.failed",
                    "response": {"status": "failed", "error": {"code": "invalid_prompt", "message": "no"}}}])
     error, seen, _ = call(ns, failed)

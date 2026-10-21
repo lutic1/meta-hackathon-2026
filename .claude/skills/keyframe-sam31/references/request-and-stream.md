@@ -32,7 +32,9 @@ import json
 import logging
 import random
 import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 import httpx
 from meta_sam_parser import (
@@ -46,11 +48,13 @@ log = logging.getLogger(__name__)
 
 SAM_URL = "https://api.meta.ai/v1/responses"
 SAM_MODEL = "sam-3.1"
-RETRYABLE_STATUS = frozenset({429, *range(500, 600)})  # AD-13, binding: 429 and every 5xx
-# The 429 and 5xx codes in Meta's error guide, as a mid-stream error event carries them (AD-13).
-RETRYABLE_STREAM_CODES = frozenset({"rate_limit_exceeded", "server_error", "server_shutting_down",
-                                    "service_overloaded", "backend_unavailable", "gateway_timeout"})
-MAX_RETRY_WAIT_S = 10.0  # the segment budget; a longer Retry-After (overload sends 60) is cut to it
+SEGMENT_BUDGET_S = 10.0  # budgets.md: all labels in parallel
+# AD-13: Meta documents 429, 500 and 503 as retryable; never 502, 504 or an undocumented 5xx.
+SAM_RETRYABLE_STATUS = frozenset({429, 500, 503})
+# The same classes as a mid-stream error event carries them (no gateway_timeout: that is the 504).
+SAM_RETRYABLE_STREAM_CODES = frozenset({"rate_limit_exceeded", "server_error", "server_shutting_down",
+                                        "service_overloaded", "backend_unavailable"})
+RETRY_ON_CONNECT = (httpx.ConnectError, httpx.ConnectTimeout)  # nothing was sent, so nothing was billed
 # Anything wrong with the body of a 200 stream. DecodingError is an HTTPError but not a TransportError.
 MALFORMED_STREAM = (ValueError, KeyError, AttributeError, TypeError, httpx.HTTPError)
 
@@ -131,7 +135,7 @@ def read_output(events: Iterable[dict]) -> tuple[str, CompletedOutcome | Incompl
             error = (event.get("response") or {}).get("error") or event.get("error") or event
             code = error.get("code")
             raise SamError(error.get("message") or kind, code=code,
-                           retryable=code in RETRYABLE_STREAM_CODES)
+                           retryable=code in SAM_RETRYABLE_STREAM_CODES)
     return lane_text(deltas, final), IncompleteOutcome(reason="eof")
 
 
@@ -150,6 +154,10 @@ def post_sam(client: httpx.Client, api_key: str, body: dict) -> ImageSegmentatio
                 raise _http_error(response)
             text, outcome = read_output(sse_events(response.iter_lines()))
         return parse_output(text, outcome)
+    except RETRY_ON_CONNECT as error:
+        raise SamError(f"connect: {error!r}", code="connect", retryable=True) from error
+    except httpx.TimeoutException as error:  # read, write or pool: the server may still bill
+        raise SamError(f"timeout: {error!r}", code="timeout") from error
     except httpx.TransportError as error:
         raise SamError(f"transport: {error!r}", code="transport") from error
     except MALFORMED_STREAM as error:
@@ -161,32 +169,51 @@ def _http_error(response: httpx.Response) -> SamError:
         error = dict(response.json().get("error") or {})
     except (ValueError, AttributeError, TypeError):
         error = {}  # an unknown path returns 404 with an empty body; other bodies may not be envelopes
-    after = response.headers.get("retry-after")
     return SamError(error.get("message") or response.reason_phrase,
                     status=response.status_code, code=error.get("code"),
-                    retryable=response.status_code in RETRYABLE_STATUS,
-                    retry_after=float(after) if after and after.isdigit() else None)
+                    retryable=response.status_code in SAM_RETRYABLE_STATUS,
+                    retry_after=retry_after_s(response.headers))
 
 
-def call_with_one_retry(client: httpx.Client, api_key: str, body: dict,
-                        sleep=time.sleep) -> ImageSegmentationResult:
-    """One retry with backoff, on 429, any 5xx or their stream error codes only (AD-13)."""
+def retry_after_s(headers: Mapping[str, str]) -> float | None:
+    """Retry-After in seconds, from delta-seconds or an HTTP-date; None when absent or unreadable."""
+    value = headers.get("retry-after")
+    if value is None:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
+
+
+def retry_wait_s(retry_after: float | None, remaining_s: float) -> float | None:
+    """AD-13: Retry-After, else 0.5 to 1 s of jitter; None (fail at once) past the remaining budget."""
+    wait = retry_after if retry_after is not None else 0.5 + random.random() * 0.5
+    return wait if wait <= remaining_s else None
+
+
+def call_with_one_retry(client: httpx.Client, api_key: str, body: dict, *,
+                        budget_s: float = SEGMENT_BUDGET_S,
+                        sleep: Callable[[float], None] = time.sleep,
+                        clock: Callable[[], float] = time.monotonic) -> ImageSegmentationResult:
+    """AD-13: one retry with backoff, only on a retryable status, stream code or connect error."""
+    started = clock()
     try:
         return post_sam(client, api_key, body)
     except SamError as error:
-        wait = _retry_wait(error)
+        remaining = budget_s - (clock() - started)
+        wait = retry_wait_s(error.retry_after, remaining) if error.retryable else None
         if wait is None:
             raise
     sleep(wait)
     return post_sam(client, api_key, body)
-
-
-def _retry_wait(error: SamError) -> float | None:
-    """min(Retry-After or 0.5 to 1 s of jitter, MAX_RETRY_WAIT_S); None means do not retry."""
-    if not error.retryable:
-        return None
-    wait = error.retry_after if error.retry_after is not None else 0.5 + random.random() * 0.5
-    return min(wait, MAX_RETRY_WAIT_S)
 
 
 def check_result(result: ImageSegmentationResult) -> None:
@@ -201,9 +228,9 @@ def check_result(result: ImageSegmentationResult) -> None:
 
 Use one `httpx.Client` per adapter, built with `timeout=httpx.Timeout(10.0, connect=3.0)` and `limits=httpx.Limits(max_connections=12)` to match the segment fan-out (AD-5).
 
-The timeout comes from the segment budget: 10 s total for all labels in parallel (`docs/specs/spec-keyframe/budgets.md`). httpx's read timeout bounds the wait for each chunk, not the whole response (https://www.python-httpx.org/advanced/timeouts/). A sam-3.1 stream sends almost nothing until inference ends, so the read timeout is in effect the time to first event, and 10 s makes a stalled attempt give up at about the budget instead of three times it. A label's worst case is two attempts plus the retry wait: about 27 s with the default backoff, about 36 s when a `Retry-After` of 10 s or more is honoured. That overruns the stage target, but it is bounded and only happens on the error path. Raising the timeout is fine if the first live calls show slower first events; record the measured value in SKILL.md.
+The timeout comes from the segment budget: 10 s total for all labels in parallel (`docs/specs/spec-keyframe/budgets.md`). httpx's read timeout bounds the wait for each chunk, not the whole response (https://www.python-httpx.org/advanced/timeouts/). A sam-3.1 stream sends almost nothing until inference ends, so the read timeout is in effect the time to first event, and 10 s makes a stalled attempt give up at about the budget instead of three times it. A read timeout is never retried, and the retry starts only while the budget lasts, so a label's worst case is the 10 s budget plus one more attempt (connect 3 s, first event 10 s): about 23 s. That overruns the stage target, but it is bounded and only happens on the error path. Raising the timeout is fine if the first live calls show slower first events; record the measured value in SKILL.md.
 
-The retry follows AD-13 as written: one retry with backoff on 429 and every 5xx, and on the same classes when they arrive as a mid-stream error event, inside the one ledger entry `_sam_raw` holds (AD-6). The wait is `Retry-After` when the server sends one, otherwise 0.5 to 1 s of jitter, and never more than `MAX_RETRY_WAIT_S`. That 10 s cap is the segment budget, a Keyframe choice, not a vendor number. A 503 overload or backend-unavailable answer asks for 60 s, so its retry goes out 50 s early, usually gets another 503, and the label fails with `ProviderError`. Meta's guide is narrower (no 504 retry unchanged, no 502); following it is a proposed deviation in SKILL.md, Known issues.
+The retry implements AD-13: one retry with backoff, inside the one ledger entry `_sam_raw` holds (AD-6), only on what Meta documents as retryable. That is `SAM_RETRYABLE_STATUS` (429, 500, 503), the same classes when they arrive as a mid-stream error event (`SAM_RETRYABLE_STREAM_CODES`), and a connect error (`RETRY_ON_CONNECT`), where nothing reached the server. A 502, a 504 or any other 5xx is not retried, nor is a read timeout, because the server may still be working and billing. The wait is `Retry-After` when the server sends one (delta-seconds or an HTTP-date), otherwise 0.5 to 1 s of jitter. When that wait is longer than what is left of `budget_s`, the call fails at once instead of waiting: a 503 overload or backend-unavailable answer asks for 60 s, more than the whole 10 s segment budget, so that label fails at once with `ProviderError`.
 
 ## Why push/finish and not `parse_responses_stream`
 
@@ -245,8 +272,8 @@ Cross-reference only (Keyframe has no `openai` dependency): Meta's cookbook make
 | `response.output_text.done` | the alternative finalizer, which the live API does not emit | final text |
 | `response.completed` | normal end, including zero matches | `CompletedOutcome()` |
 | `response.incomplete` | ended early, with `response.incomplete_details.reason` | `IncompleteOutcome(reason="response")`, then `check_result` raises |
-| `response.failed` | failure, with `response.error.code` | `SamError`, retried once if the code is a 429 or 5xx code (`RETRYABLE_STREAM_CODES`) |
-| `error` | the stream itself failed, for example `server_shutting_down` | `SamError`, retried once if the code is a 429 or 5xx code (`RETRYABLE_STREAM_CODES`) |
+| `response.failed` | failure, with `response.error.code` | `SamError`, retried once if the code is a 429, 500 or 503 code (`SAM_RETRYABLE_STREAM_CODES`); `gateway_timeout` is not |
+| `error` | the stream itself failed, for example `server_shutting_down` | `SamError`, retried once if the code is a 429, 500 or 503 code (`SAM_RETRYABLE_STREAM_CODES`); `gateway_timeout` is not |
 | refusal events, or a `refusal` content part | the model refused | `SamError(code="response_refusal")`, not retried |
 | end of body without a terminal event | transport cut | `IncompleteOutcome(reason="eof")`, then `check_result` raises |
 | finalized text that differs from the joined deltas | conflicting or truncated lane | `SamError(code="response_lane")`, not retried |
