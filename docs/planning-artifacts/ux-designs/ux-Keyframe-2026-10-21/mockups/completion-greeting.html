@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Keyframe Completion and greeting</title>
+<style>
+/*
+  Key-screen mock: Completion and greeting (Local mode).
+  Author: Luis Ticas. The spines are the contract; where this mock and a spine disagree, the spine wins.
+
+  Section 1: Completion screen at the end of room 1 (Local mode, no Disclosure applies).
+  Section 2: the opening line modal over the first Scene. Canonical: the First-room welcome (room 1,
+  fresh Player profile). Alternates beside it: the Greeting for room 2 (template line chosen from the
+  Derived block, names no object) and the Guide's thinking state while that Greeting is phrased.
+
+  Governing spine sections
+  DESIGN.md
+    - Frontmatter tokens: colors, typography, rounded, spacing, elevation, components
+      (completion-sheet, greeting-overlay, wizard-portrait, button-primary, button-secondary,
+      timer, mode-indicator, scene-frame)
+    - Brand & Style (two registers; the Guide's surfaces; portrait art direction and placeholders)
+    - Colors and Contrast (ink on parchment; lamp-ink on parchment; text-muted on the scrim;
+      lamp never on parchment)
+    - Typography (display-lg for the Completion heading; wizard-line-lg for the opening line;
+      mono-timer for the Completion stats; label for stat labels)
+    - Layout & Spacing: "The frame, 1440 x 900"; "Completion screen, Greeting / First-room welcome"
+      (every scrim starts below the top bar; the top bar stays undimmed and inert)
+    - Elevation & Depth (Level 3 overlays over the scrim; the Guide's thinking state is a static
+      lamp ring plus a label, never a glow or a loop)
+    - Shapes (rounded.lg sheets and cards; rounded.full portraits)
+    - Components: Shared controls (Primary button, Secondary button, Focus ring, Mode indicator);
+      Play screen (Timer, Scene frame, Wizard portrait); Completion, Greeting, Build view
+      (Completion screen, Greeting / First-room welcome)
+    - Do's and Don'ts
+  EXPERIENCE.md
+    - Information Architecture: Surface map (Greeting / First-room welcome row; Completion screen row)
+    - Voice and Tone: Register rule; Wizard introductions (Guide row, Local role line);
+      Exact strings: Greeting and First-room welcome; Completion screen; Play screen (Top bar,
+      Guide thinking label); Capture screen (Timer label)
+    - Component Patterns: Completion, Greeting, Build view (Completion screen; Greeting / First-room welcome)
+    - State Patterns: Greeting / First-room welcome (Loading, Success, Focus); Completion screen (Success)
+    - Accessibility Floor (live region with the Guide's introduction; speaker prefixes)
+    - Key Flows: UJ-1 steps 5 and 9; UJ-4 steps 2 and 3
+    - Demo Mode and Disclosure (scrims start below the top bar)
+
+  No Disclosure applies in either section (Local mode, Demo timescale 1, live Trickster, freshly built
+  room), so neither frame has a Disclosure banner. Photos and wizard portraits are CSS placeholders:
+  no real room, no real person.
+*/
+:root {
+  --canvas: #14100C;
+  --chrome: #1E1812;
+  --chrome-raised: #2A2119;
+  --hairline: #4A3C2C;
+  --gilt: #B08A4E;
+  --scrim: #0A0806CC;
+  --parchment: #E8DBBE;
+  --parchment-shade: #D8C7A2;
+  --parchment-rule: #5A463040;
+  --ink: #2A1D11;
+  --ink-muted: #5A4630;
+  --text: #F0E6D2;
+  --text-muted: #B8A98E;
+  --lamp: #E9A94B;
+  --lamp-ink: #6E400C;
+  --on-lamp: #1A1208;
+  --focus-ring: #FFD27A;
+  --focus-ring-inner: #14100C;
+  --success: #8CC48A;
+  --success-ink: #275A2C;
+  --pending-ink: #5A4630;
+
+  --serif: "EB Garamond", Georgia, serif;
+  --sans: "Source Sans 3", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --r-sm: 4px; --r-md: 8px; --r-lg: 12px;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+
+  --paper: 0 1px 0 #00000040, 0 6px 16px #00000059;
+  --overlay: 0 24px 64px #000000A6;
+  --vignette: inset 0 0 80px #000000A6;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #0B0907; }
+body { width: 1440px; color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+table { border-collapse: collapse; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Type scale (DESIGN.md typography tokens) */
+.display-lg { font-family: var(--serif); font-size: 40px; font-weight: 500; line-height: 1.15; letter-spacing: -0.01em; }
+.display-sm { font-family: var(--serif); font-size: 22px; font-weight: 500; line-height: 1.3; }
+.wizard-line-lg { font-family: var(--serif); font-size: 24px; font-weight: 400; line-height: 1.4; }
+.wizard-line { font-family: var(--serif); font-size: 19px; font-weight: 400; line-height: 1.5; }
+.body-sm { font-size: 14px; line-height: 1.45; }
+.label { font-size: 13px; font-weight: 600; line-height: 1.3; letter-spacing: 0.02em; }
+.caption { font-size: 12px; line-height: 1.4; }
+.mono-timer { font-family: var(--mono); font-size: 28px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+.mono-sm { font-family: var(--mono); font-size: 13px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+
+/* ---------- Mock annotations (outside the product frame) ---------- */
+.note { padding: 28px 24px 16px; color: #D9CFBE; font-size: 14px; line-height: 1.45; }
+.note h2 { font-family: var(--serif); font-size: 22px; font-weight: 500; line-height: 1.3; color: var(--text); margin-bottom: 4px; }
+.note p { max-width: 1100px; }
+
+/* ---------- Browser frame (device frame, not product UI) ---------- */
+.browser { width: 1440px; background: var(--canvas); }
+.browser-bar { height: 40px; background: #2B2B2E; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-bottom: 1px solid #3A3A3E; }
+.dots { display: flex; gap: 8px; }
+.dots i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.dots i:nth-child(1) { background: #FF5F57; } .dots i:nth-child(2) { background: #FEBC2E; } .dots i:nth-child(3) { background: #28C840; }
+.tab { height: 30px; align-self: flex-end; background: #3A3A3E; border-radius: 8px 8px 0 0; padding: 0 16px; display: flex; align-items: center; font-size: 12px; color: #E6E6E6; min-width: 180px; }
+.url { flex: 0 0 640px; height: 26px; border-radius: 13px; background: #1F1F22; color: #C9C9CC; font-size: 12px; display: flex; align-items: center; padding: 0 14px; }
+.viewport { width: 1440px; height: 900px; background: var(--canvas); position: relative; overflow: hidden; }
+
+/* ---------- Top bar (undimmed, inert while an overlay is open) ---------- */
+.topbar { position: relative; z-index: 2; height: 48px; background: var(--chrome); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 var(--s5); }
+.topbar .left { display: flex; align-items: baseline; gap: var(--s4); }
+.wordmark { color: var(--text); }
+.mode { color: var(--text-muted); }
+.timer { display: flex; align-items: center; gap: 10px; }
+.timer .t-label { color: var(--text-muted); }
+.timer .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lamp); }
+.timer .digits.running { color: var(--text); }
+.timer .digits.stopped { color: var(--success); }
+.topbar .right { display: flex; justify-content: flex-end; gap: var(--s2); }
+
+/* Buttons */
+.btn-primary { height: 44px; padding: 0 var(--s5); background: var(--lamp); color: var(--on-lamp); border-radius: var(--r-md); white-space: nowrap; display: inline-flex; align-items: center; }
+.btn-secondary { height: 40px; padding: 0 var(--s4); border: 1px solid var(--lamp); border-radius: var(--r-md); color: var(--lamp); display: inline-flex; align-items: center; white-space: nowrap; }
+.btn-secondary.on-paper { border-color: var(--lamp-ink); color: var(--lamp-ink); }
+/* Focus ring: 2 px focus-ring outside 2 px focus-ring-inner, 2 px offset (drawn here for a control on parchment) */
+.focused { box-shadow: 0 0 0 2px var(--parchment), 0 0 0 4px var(--focus-ring-inner); outline: 2px solid var(--focus-ring); outline-offset: 4px; }
+
+/* ---------- Play screen body, drawn under the scrim ---------- */
+.body { display: grid; grid-template-columns: 968px 400px; column-gap: 24px; padding: 24px; height: 852px; }
+.scene-col { display: grid; grid-template-rows: 692px 88px; row-gap: 24px; min-width: 0; }
+.frame { border: 1px solid var(--gilt); background: var(--chrome); padding: var(--s3); box-shadow: var(--vignette); }
+.ground { background: var(--canvas); height: 100%; display: flex; align-items: center; justify-content: center; }
+.photo { position: relative; width: 888px; height: 666px; border-radius: var(--r-sm); overflow: hidden; }
+.ph { position: absolute; }
+.ph-wall { inset: 0; background: linear-gradient(180deg, #4B3B2D 0%, #5A4837 52%, #47372A 76%); }
+.ph-light { inset: 0; background: radial-gradient(ellipse 360px 280px at 690px 170px, #8A775C55, transparent 70%); }
+.ph-floor { left: 0; right: 0; top: 76%; bottom: 0; background: linear-gradient(180deg, #3A2B1F, #271D15); }
+.ph-window { left: 600px; top: 64px; width: 184px; height: 196px; background: linear-gradient(160deg, #948972, #6E6555); border: 8px solid #3B2D21; }
+.ph-shelf { left: 90px; top: 110px; width: 280px; height: 404px; background: #2C2017; border: 10px solid #3E2C1E; }
+.ph-board { left: 100px; width: 260px; height: 10px; background: #5A4128; }
+.ph-desk { left: 470px; top: 456px; width: 390px; height: 18px; background: #5C4330; }
+.ph-apron { left: 480px; top: 474px; width: 370px; height: 22px; background: #47331F; }
+.ph-mug { left: 600px; top: 400px; width: 52px; height: 52px; background: linear-gradient(90deg, #988D7D, #D2C7B3 42%, #A39886); border-radius: 0 0 7px 7px; }
+.ph-shade { left: 722px; top: 300px; width: 92px; height: 52px; background: linear-gradient(180deg, #D4B47A, #B8935A); clip-path: polygon(22% 0, 78% 0, 100% 100%, 0 100%); }
+.ph-stem { left: 765px; top: 352px; width: 6px; height: 92px; background: #2C2219; }
+.ph-rug { left: 420px; top: 590px; width: 420px; height: 40px; background: #5B3426; border-radius: 50%; opacity: .7; }
+/* last Scene of room 1: a second view of the same placeholder room */
+.ph-door { left: 120px; top: 96px; width: 200px; height: 412px; background: linear-gradient(180deg, #5B4330, #463324); border: 10px solid #3B2D21; }
+.ph-knob { left: 284px; top: 300px; width: 14px; height: 14px; border-radius: 50%; background: #B8935A; }
+.ph-chest { left: 470px; top: 380px; width: 300px; height: 130px; background: linear-gradient(180deg, #5C4330, #3F2E1E); border-radius: 6px 6px 2px 2px; }
+.ph-clasp { left: 606px; top: 430px; width: 28px; height: 22px; background: #8A775C; border-radius: 3px; }
+.ph-frame-art { left: 520px; top: 120px; width: 200px; height: 140px; background: linear-gradient(135deg, #6E6555, #4E463A); border: 10px solid #5A4128; }
+
+.strip-row { display: grid; grid-template-columns: 1fr 288px; column-gap: 24px; }
+.thumbs { display: flex; gap: 8px; align-items: center; overflow: hidden; }
+.thumb { flex: 0 0 96px; height: 72px; border-radius: var(--r-sm); opacity: .8; background: linear-gradient(180deg, #4B3B2D 70%, #2A1F16 70%); }
+.thumb.current { opacity: 1; box-shadow: 0 0 0 2px var(--lamp); }
+.inventory { background: var(--chrome-raised); border-radius: var(--r-md); padding: 12px; display: flex; gap: 12px; align-items: center; }
+.slot { width: 64px; height: 64px; border: 1px dashed var(--hairline); border-radius: var(--r-sm); flex: none; }
+.inv-line { color: var(--text-muted); }
+.inventory.held { padding: 4px 12px; align-items: flex-start; }
+.cell { display: flex; flex-direction: column; align-items: center; }
+.cell .caption { color: var(--text); margin-top: 1px; }
+.slot.item { border-color: transparent; display: flex; align-items: center; justify-content: center; }
+.crop { width: 56px; height: 56px; border-radius: var(--r-sm); background: linear-gradient(180deg, #514033, #3E3024); position: relative; overflow: hidden; }
+.crop .shade { position: absolute; left: 12px; top: 8px; width: 32px; height: 18px; background: linear-gradient(180deg, #D4B47A, #B8935A); clip-path: polygon(22% 0, 78% 0, 100% 100%, 0 100%); }
+.crop .stem { position: absolute; left: 27px; top: 26px; width: 3px; height: 20px; background: #241B13; }
+.crop .base { position: absolute; left: 19px; top: 45px; width: 18px; height: 5px; background: #241B13; border-radius: 3px 3px 0 0; }
+/* Wizard notes entry under the scrim: Evidence card and code field */
+.evidence { display: grid; grid-template-columns: 64px 1fr; gap: var(--s3); align-items: center; background: var(--parchment-shade); border-radius: var(--r-md); padding: var(--s2); margin-top: var(--s3); }
+.ev-thumb { width: 64px; height: 64px; border-radius: var(--r-sm); position: relative; overflow: hidden; background: linear-gradient(180deg, #5A4837, #47372A 70%, #5C4330 70%); }
+.ev-thumb .m { position: absolute; left: 18px; top: 18px; width: 24px; height: 26px; background: linear-gradient(90deg, #988D7D, #D2C7B3 42%, #A39886); border-radius: 0 0 4px 4px; }
+.ev-attr { color: var(--ink-muted); }
+.lock { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s3); }
+.code-field { width: 168px; height: 44px; background: var(--parchment-shade); border-radius: var(--r-sm); box-shadow: inset 0 0 0 1px #5A463040; }
+
+.side { display: flex; flex-direction: column; gap: 24px; height: 804px; }
+.notes { flex: 1 1 auto; background: var(--parchment); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--paper); padding: var(--s5); overflow: hidden; }
+.entry { padding: var(--s4) 0; border-top: 1px solid var(--parchment-rule); display: flex; justify-content: space-between; align-items: center; }
+.entry:first-child { border-top: 0; padding-top: 0; }
+.chip-open { color: var(--success-ink); border: 1px solid var(--success-ink); border-radius: var(--r-sm); height: 28px; padding: 0 var(--s2); display: inline-flex; align-items: center; }
+.clue-under { display: grid; grid-template-columns: 32px 1fr; gap: var(--s2); margin-top: var(--s3); }
+.hint { flex: none; height: 280px; background: var(--chrome-raised); border-radius: var(--r-lg); padding: var(--s4); display: flex; flex-direction: column; justify-content: flex-end; gap: var(--s2); }
+.ask { display: flex; gap: var(--s2); }
+.field { flex: 1 1 auto; height: 44px; background: var(--chrome); border: 1px solid var(--hairline); border-radius: var(--r-md); display: flex; align-items: center; padding: 0 var(--s3); color: var(--text-muted); font-size: 14px; white-space: nowrap; overflow: hidden; }
+.helper { color: var(--text-muted); }
+
+/* ---------- Wizard portraits: painted-portrait placeholders in CSS (abstract, no real person) ---------- */
+.portrait { border-radius: 50%; border: 2px solid var(--gilt); flex: none; position: relative; overflow: hidden; background:
+  radial-gradient(circle at 26% 34%, #E9A94B55, transparent 42%),
+  radial-gradient(ellipse 26% 32% at 52% 42%, #8A5A2E 0 62%, transparent 66%),
+  radial-gradient(ellipse 58% 40% at 52% 108%, #4E3219 0 70%, transparent 73%),
+  #17110B; }
+.portrait.guide { background:
+  radial-gradient(circle at 30% 82%, #F4C47088, transparent 26%),
+  radial-gradient(circle at 26% 34%, #E9A94B55, transparent 42%),
+  radial-gradient(ellipse 26% 32% at 54% 40%, #93623A 0 62%, transparent 66%),
+  radial-gradient(ellipse 58% 40% at 54% 108%, #3F2A17 0 70%, transparent 73%),
+  #16100A; }
+.portrait.riddler::after { content: ""; position: absolute; left: 62%; top: 66%; width: 22%; height: 16%; background: #D8C7A2; transform: rotate(-14deg); }
+.p32 { width: 32px; height: 32px; }
+.p48 { width: 48px; height: 48px; }
+.p96 { width: 96px; height: 96px; }
+/* Guide thinking: static lamp ring in place of the gilt ring (no pulse, no loop) */
+.portrait.thinking { border-color: var(--lamp); }
+
+/* ---------- Scrim: starts below the top bar, never dims the top bar or a Disclosure ---------- */
+.scrim { position: absolute; left: 0; right: 0; top: 48px; bottom: 0; background: var(--scrim); z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s4); }
+
+/* ---------- Completion sheet ---------- */
+.sheet { width: 720px; background: var(--parchment); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--overlay); padding: var(--s7); }
+.sheet h1 { color: var(--ink); }
+.signoff { display: grid; grid-template-columns: 48px 1fr; gap: var(--s3); align-items: center; margin-top: var(--s5); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s5); margin-top: var(--s6); padding-top: var(--s5); border-top: 1px solid var(--parchment-rule); }
+.stat .s-label { color: var(--ink-muted); margin-bottom: var(--s2); }
+.stat .mono-timer { color: var(--ink); }
+.per-puzzle { margin-top: var(--s5); }
+.per-puzzle .s-label { color: var(--ink-muted); margin-bottom: var(--s2); }
+.per-puzzle table { width: 100%; }
+.per-puzzle th, .per-puzzle td { padding: 6px 0; border-top: 1px solid var(--parchment-rule); text-align: left; color: var(--ink); }
+.per-puzzle td { text-align: right; }
+.per-puzzle tr:first-child th, .per-puzzle tr:first-child td { border-top: 0; }
+.actions { display: flex; gap: var(--s3); align-items: center; margin-top: var(--s6); }
+
+/* ---------- Greeting / First-room welcome card ---------- */
+.greet { width: 560px; background: var(--parchment); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--overlay); padding: var(--s6); }
+.intro { display: grid; grid-template-columns: 96px 1fr; gap: var(--s4); align-items: center; }
+.intro h2 { color: var(--ink); }
+.intro .role { color: var(--ink-muted); margin-top: var(--s1); }
+.opening { margin-top: var(--s5); color: var(--ink); }
+.voice { margin-top: var(--s3); color: var(--ink); }
+.greet .actions { margin-top: var(--s5); }
+.thinking-label { margin-top: var(--s5); color: var(--pending-ink); }
+.thinking-label + .voice { margin-top: var(--s3); }
+.tip { color: var(--text-muted); }
+
+/* ---------- Alternate states row ---------- */
+.alts { display: grid; grid-template-columns: 672px 672px; column-gap: 48px; padding: 0 24px 48px; }
+.alt-cap { color: var(--text-muted); margin-bottom: var(--s3); min-height: 38px; }
+.alt-stage { height: 480px; border-radius: var(--r-lg); background:
+  radial-gradient(ellipse 70% 60% at 50% 45%, #1A140F, #0A0806 80%); display: flex; align-items: center; justify-content: center; outline: 1px dashed var(--hairline); outline-offset: 6px; }
+</style>
+</head>
+<body>
+
+<!-- ===================== Section 1: Completion screen, room 1 ===================== -->
+<div class="note">
+  <h2>Completion screen</h2>
+  <p>Room 1, Local mode, after the Exit puzzle's open state. The last Scene dims under the scrim, which starts below the top bar; the top bar stays undimmed and inert with the Timer frozen under "Playable in". The Room result is recorded once, so the mode indicator reads "1 room played". Hints used is 3, so the Guide's sign-off is the 1 to 3 Rungs line. Focus goes to the heading. Not cut 2, so there is no "Save profile file"; not a Judge room, so there is no deletion line.</p>
+</div>
+
+<div class="browser">
+  <div class="browser-bar" aria-hidden="true">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab">Keyframe</div>
+    <div class="url">localhost/#/done/{session_id}?profile=demo</div>
+  </div>
+  <div class="viewport">
+    <header class="topbar" inert>
+      <div class="left">
+        <span class="wordmark display-sm">Keyframe</span>
+        <span class="mode body-sm">Local mode · Cache off · profile demo · 1 room played</span>
+      </div>
+      <div class="timer" aria-label="Playable in 1:52">
+        <span class="t-label label">Playable in</span>
+        <span class="digits stopped mono-timer">1:52</span>
+      </div>
+      <div class="right">
+        <button class="btn-secondary label" aria-pressed="false">Show all objects</button>
+        <button class="btn-secondary label">Card log</button>
+        <button class="btn-secondary label">Leave room</button>
+      </div>
+    </header>
+
+    <div class="body" inert aria-hidden="true">
+      <section class="scene-col">
+        <div class="frame"><div class="ground"><div class="photo">
+          <div class="ph ph-wall"></div>
+          <div class="ph ph-light"></div>
+          <div class="ph ph-floor"></div>
+          <div class="ph ph-door"></div>
+          <div class="ph ph-knob"></div>
+          <div class="ph ph-frame-art"></div>
+          <div class="ph ph-chest"></div>
+          <div class="ph ph-clasp"></div>
+          <div class="ph ph-rug"></div>
+        </div></div></div>
+        <div class="strip-row">
+          <div class="thumbs">
+            <span class="thumb"></span><span class="thumb"></span><span class="thumb"></span><span class="thumb"></span>
+            <span class="thumb"></span><span class="thumb"></span><span class="thumb"></span><span class="thumb current"></span>
+          </div>
+          <div class="inventory held">
+            <span class="cell"><span class="slot item"><span class="crop"><span class="shade"></span><span class="stem"></span><span class="base"></span></span></span><span class="caption">lamp</span></span>
+            <span class="slot"></span><span class="slot"></span>
+          </div>
+        </div>
+      </section>
+      <aside class="side">
+        <section class="notes">
+          <div class="entry"><span class="display-sm">Puzzle 1</span><span class="chip-open label">Open</span></div>
+          <div class="entry"><span class="display-sm">Puzzle 2</span><span class="chip-open label">Open</span></div>
+          <div class="entry"><span class="display-sm">Puzzle 3</span><span class="chip-open label">Open</span></div>
+          <div class="entry"><span class="display-sm">Puzzle 4</span><span class="chip-open label">Open</span></div>
+          <div class="entry"><span class="display-sm">Puzzle 5</span><span class="chip-open label">Open</span></div>
+        </section>
+        <section class="hint">
+          <div class="ask"><span class="field">Stuck? Ask the Guide for a hint</span><span class="btn-primary label">Ask the Guide</span></div>
+          <p class="helper body-sm">Your words stay in this browser. The Guide only hears that you asked.</p>
+          <div><span class="btn-secondary label">Triggers <span class="mono-sm">(3)</span></span></div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="scrim">
+      <section class="sheet" role="region" aria-labelledby="done-h">
+        <h1 id="done-h" class="display-lg" tabindex="-1">The room is open.</h1>
+        <div class="signoff">
+          <span class="portrait guide p48" aria-hidden="true"></span>
+          <p class="wizard-line"><span class="sr">The Guide: </span>You let me help a little. I enjoyed every word.</p>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="s-label label">Time</div><div class="mono-timer">21:47</div></div>
+          <div class="stat"><div class="s-label label">Hints used</div><div class="mono-timer">3</div></div>
+          <div class="stat"><div class="s-label label">Wrong attempts</div><div class="mono-timer">4</div></div>
+        </div>
+        <div class="per-puzzle">
+          <div class="s-label label" id="tpp">Time per puzzle</div>
+          <table aria-labelledby="tpp">
+            <tr><th scope="row" class="body-sm">Puzzle 1</th><td class="mono-sm">3:12</td></tr>
+            <tr><th scope="row" class="body-sm">Puzzle 2</th><td class="mono-sm">6:05</td></tr>
+            <tr><th scope="row" class="body-sm">Puzzle 3</th><td class="mono-sm">4:38</td></tr>
+            <tr><th scope="row" class="body-sm">Puzzle 4</th><td class="mono-sm">5:20</td></tr>
+            <tr><th scope="row" class="body-sm">Puzzle 5</th><td class="mono-sm">2:32</td></tr>
+          </table>
+        </div>
+        <div class="actions">
+          <button class="btn-primary label">Build another room</button>
+          <button class="btn-secondary on-paper label">How this room was built</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Section 2: opening line modal over the first Scene ===================== -->
+<div class="note">
+  <h2>Greeting / First-room welcome</h2>
+  <p>Canonical: the First-room welcome over room 1's first Scene, fresh Player profile, Local mode. The card introduces the Guide in place (portrait at 96 px, "The Guide", the Local role line), then the opening line, the Guide's voice line and "Begin", the only control, focused. The one-time plain tip sits under the card on the scrim. The Timer keeps running above the scrim under "Photos to play".</p>
+</div>
+
+<div class="browser">
+  <div class="browser-bar" aria-hidden="true">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab">Keyframe</div>
+    <div class="url">localhost/#/play/{session_id}?profile=demo</div>
+  </div>
+  <div class="viewport">
+    <header class="topbar" inert>
+      <div class="left">
+        <span class="wordmark display-sm">Keyframe</span>
+        <span class="mode body-sm">Local mode · Cache off · profile demo · 0 rooms played</span>
+      </div>
+      <div class="timer" aria-label="Photos to play 1:47">
+        <span class="t-label label">Photos to play</span>
+        <span class="dot"></span>
+        <span class="digits running mono-timer">1:47</span>
+      </div>
+      <div class="right">
+        <button class="btn-secondary label" aria-pressed="false">Show all objects</button>
+        <button class="btn-secondary label">Card log</button>
+        <button class="btn-secondary label">Leave room</button>
+      </div>
+    </header>
+
+    <div class="body" inert aria-hidden="true">
+      <section class="scene-col">
+        <div class="frame"><div class="ground"><div class="photo">
+          <div class="ph ph-wall"></div>
+          <div class="ph ph-light"></div>
+          <div class="ph ph-floor"></div>
+          <div class="ph ph-window"></div>
+          <div class="ph ph-rug"></div>
+          <div class="ph ph-shelf"></div>
+          <div class="ph ph-board" style="top:208px"></div>
+          <div class="ph ph-board" style="top:300px"></div>
+          <div class="ph ph-board" style="top:392px"></div>
+          <div class="ph ph-desk"></div>
+          <div class="ph ph-apron"></div>
+          <div class="ph ph-mug"></div>
+          <div class="ph ph-shade"></div>
+          <div class="ph ph-stem"></div>
+        </div></div></div>
+        <div class="strip-row">
+          <div class="thumbs">
+            <span class="thumb current"></span><span class="thumb"></span><span class="thumb"></span><span class="thumb"></span>
+            <span class="thumb"></span><span class="thumb"></span><span class="thumb"></span><span class="thumb"></span>
+          </div>
+          <div class="inventory"><span class="slot"></span><span class="inv-line body-sm">Nothing in hand yet.</span></div>
+        </div>
+      </section>
+      <aside class="side">
+        <section class="notes">
+          <div class="entry"><span class="display-sm">Puzzle 1</span><span class="label" style="color:var(--ink-muted)">1 evidence card</span></div>
+          <div class="clue-under">
+            <span class="portrait riddler p32"></span>
+            <p class="wizard-line">Someone in this room is very proud of the year they were made. Ask the mug.</p>
+          </div>
+          <div class="evidence">
+            <span class="ev-thumb"><span class="m"></span></span>
+            <div><div class="label">mug</div><div class="ev-attr body-sm">a year printed on the side</div></div>
+          </div>
+          <div class="lock"><span class="code-field"></span><span class="btn-secondary on-paper label">Submit</span></div>
+        </section>
+        <section class="hint">
+          <div class="ask"><span class="field">Stuck? Ask the Guide for a hint</span><span class="btn-primary label">Ask the Guide</span></div>
+          <p class="helper body-sm">Your words stay in this browser. The Guide only hears that you asked.</p>
+          <div><span class="btn-secondary label">Triggers <span class="mono-sm">(0)</span></span></div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="scrim">
+      <section class="greet" role="dialog" aria-modal="true" aria-labelledby="g1-h">
+        <div class="intro">
+          <span class="portrait guide p96" aria-hidden="true"></span>
+          <div>
+            <h2 id="g1-h" class="display-sm">The Guide</h2>
+            <p class="role body-sm">Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac.</p>
+          </div>
+        </div>
+        <p class="opening wizard-line-lg">Welcome to your own room. Find what doesn't belong.</p>
+        <p class="voice wizard-line">Get stuck as often as you like. I'll help, a little at a time.</p>
+        <div class="actions"><button class="btn-primary label focused">Begin</button></div>
+      </section>
+      <p class="tip body-sm">Tip: 'Show all objects' in the top bar outlines everything you can click.</p>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <h2>Greeting for room 2, and the Guide thinking before it</h2>
+  <p>Same card anatomy over room 2's first Scene, Local mode, the same Player profile (mode indicator "profile demo · 1 room played"), Derived block with sessions 1 and positive persistence. No tip under a Greeting. Both cards sit over the same scrim as above; the Scene behind them is left out here.</p>
+</div>
+
+<div class="alts">
+  <div>
+    <p class="alt-cap mono-sm">Success: the line has arrived; the template phrase for persistence of 0.34 or more, about how Ana plays, never about Ana's objects; "Begin" focused</p>
+    <div class="alt-stage">
+      <section class="greet" role="dialog" aria-modal="true" aria-labelledby="g2-h">
+        <div class="intro">
+          <span class="portrait guide p96" aria-hidden="true"></span>
+          <div>
+            <h2 id="g2-h" class="display-sm">The Guide</h2>
+            <p class="role body-sm">Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac.</p>
+          </div>
+        </div>
+        <p class="opening wizard-line-lg">Welcome back. Last time you kept going long past my first nudge; let's see what this room makes of you.</p>
+        <p class="voice wizard-line">Get stuck as often as you like. I'll help, a little at a time.</p>
+        <div class="actions"><button class="btn-primary label focused">Begin</button></div>
+      </section>
+    </div>
+  </div>
+  <div>
+    <p class="alt-cap mono-sm">Loading: the Greeting is being phrased on this Mac (up to 5 s plus one poll); static lamp ring on the portrait and the thinking label in place of the opening line; no "Begin" yet, so focus sits on the heading until the line and "Begin" arrive</p>
+    <div class="alt-stage">
+      <section class="greet" role="dialog" aria-modal="true" aria-labelledby="g3-h">
+        <div class="intro">
+          <span class="portrait guide p96 thinking" aria-hidden="true"></span>
+          <div>
+            <h2 id="g3-h" class="display-sm" tabindex="-1">The Guide</h2>
+            <p class="role body-sm">Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac.</p>
+          </div>
+        </div>
+        <p class="thinking-label label">thinking on this Mac</p>
+        <p class="voice wizard-line">Get stuck as often as you like. I'll help, a little at a time.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
