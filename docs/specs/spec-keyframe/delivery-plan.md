@@ -4,7 +4,7 @@ Companion to `SPEC.md`. Dates are 2026, ET.
 
 ## Tiers
 
-- Tier 1, the floor: CAP-1 to CAP-9 (CAP-7 portraits only; room 2 and the CAP-6 greeting move to Sun Nov 1 afternoon under cut 8), plus the backup video. Protected above everything else.
+- Tier 1, the floor: CAP-1 to CAP-9 and CAP-14 (CAP-14 is cut 0, the first cut taken; CAP-7 portraits only; room 2 and the CAP-6 greeting move to Sun Nov 1 afternoon under cut 8), plus the backup video. Protected above everything else.
 - Tier 1.5, once the backup video exists: cuts restored in reverse, then clue cards, the hosted URL (CAP-10, Nov 5 to 9), and voice last (CAP-12), only if everything else is done Mon Nov 2.
 - Tier 2 (CAP-11) is a default no-go: it is attempted Sun Nov 1 only if the Tier 1 backup video already exists Sat Oct 31 night, and gated Mon Nov 2. Expected: not attempted. No second epic is planned until that gate passes.
 - Tier 3 (splat shell) never gates a deliverable.
@@ -20,7 +20,7 @@ Companion to `SPEC.md`. Dates are 2026, ET.
 
 ## Effort and cut order
 
-Effort estimates (Oct 20) for Tier 1 sum to 35 h; the builder's own time is about 32 h in-window (3 h weekday evenings, 0 h Fri Oct 30, 4 h Sat Oct 31, 8 h Sun Nov 1, 2 h Wed Nov 4) plus about 8 h Oct 21 to 25, with 16 h through Sat Oct 31. Implementation runs on coding agents around the clock against the mock provider and the Schema v1 contract, schema-first with one owner per module; the builder's hours are review, integration, playtesting, and recording. The cut ladder is the fallback if reviewed output lags; cuts are made nightly and never carried.
+Effort estimates for Tier 1 sum to 37.5 h with the Build view (2.5 h, Oct 21 estimate), 35 h without it (Oct 20); the builder's own time is about 32 h in-window (3 h weekday evenings, 0 h Fri Oct 30, 4 h Sat Oct 31, 8 h Sun Nov 1, 2 h Wed Nov 4) plus about 8 h Oct 21 to 25, with 16 h through Sat Oct 31. Implementation runs on coding agents around the clock against the mock provider and the Schema v1 contract, schema-first with one owner per module; the builder's hours are review, integration, playtesting, and recording. The cut ladder is the fallback if reviewed output lags; cuts are made nightly and never carried.
 
 | Item | Effort |
 |---|---|
@@ -37,10 +37,12 @@ Effort estimates (Oct 20) for Tier 1 sum to 35 h; the builder's own time is abou
 | Four portraits, cached | 1.0 h |
 | Stage timings, `SPEND_CAP_USD` counter, `CACHE` and `DEMO_TIMESCALE` flags | 1.5 h |
 | Backup video v0 and v1, persuasion script | 2.0 h |
+| Build view (CAP-14) | 2.5 h |
 | Room 2 through the pipeline | 2.5 h |
 
 | Cut | Ships instead | Recovers | Running total | Effect |
 |---|---|---|---|---|
+| 0 | No Build view; the main demo shows the puzzle JSON and the model table from the README | 2.5 h | 35 h | CAP-14 dropped |
 | 1 | Trickster pre-authored edits plus a scripted reject | 2.0 h | 33 h | CAP-5 proposals come from the scripted source (no live Spark path); the validator still runs on every card (AD-15) |
 | 2 | Profile as a JSON file | 1.0 h | 32 h | None |
 | 3 | Rung text verbatim, no Ollama phrasing | 1.5 h | 30.5 h | CAP-4 met trivially; the README drops the phrasing claim; the privacy line stays |
@@ -70,7 +72,7 @@ Build window (each evening line names what is attempted; a 3 h evening holds abo
 - Thu Oct 29 (3 h): event log, rung selection, rung text verbatim, four portraits; Trickster if time remains.
 - Fri Oct 30: no build.
 - Sat Oct 31 (4 h): Tier 1 with cuts; backup video v1 if it lands (the early gate).
-- Sun Nov 1 (8 h): Tier 2 only if the video exists; else finish Tier 1 and record by 2:00 PM. A Tier 2 attempt runs 10 objects from the demo rooms through `fal-ai/sam-3/3d-objects` as the second staged check (the first is the pre-Oct 26 five-object verification); both feed the Mon Nov 2 gate. Afternoon (about 2 h): playtest on `PROFILE=playtest` first, then room 2 through the pipeline (may finish Mon Nov 2). Cuts reversed only with time left, last cut first; only cuts 1 to 3 are realistic before Nov 3.
+- Sun Nov 1 (8 h): Tier 2 only if the video exists; else finish Tier 1 and record by 2:00 PM. A Tier 2 attempt runs 10 objects from the demo rooms through `fal-ai/sam-3/3d-objects` as the second staged check (the first is the pre-Oct 26 five-object verification); both feed the Mon Nov 2 gate. Afternoon (about 2 h): playtest on `PROFILE=playtest` first, then room 2 through the pipeline (may finish Mon Nov 2). Cuts reversed only with time left, last cut first; only cuts 0 to 3 are realistic before Nov 3.
 - Mon Nov 2 (3 h): Tier 2 gate if attempted; else play room 1 for real on `PROFILE=demo`; playtest here if the tester missed Nov 1, else the builder's cold run of room 2.
 - Tue Nov 3 (3 h): video only: fresh room-2 photo set, cache cleared on camera, capture proof, three main-demo takes, captions, unlisted upload.
 - Wed Nov 4 (2 h before work): repo hygiene (`git rm -r --cached _bmad/ .claude/` plus `.gitignore` entries; the BMAD brief folder stays the single source of truth; `PRODUCT_BRIEF.md` stays removed); README model table, diagram, pre-existing-code section with the baseline diffstat, screenshots, portal description; submit before 9:00 AM.

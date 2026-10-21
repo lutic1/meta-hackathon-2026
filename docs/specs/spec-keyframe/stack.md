@@ -39,7 +39,7 @@ Companion to `SPEC.md`. Two modes, local and hosted; in both, Chrome on the M1 i
 
 ## Privacy line
 
-Verbatim for the README and the capture screen: "the player profile stays on your machine." It holds in every build: the profile is stored in the browser and read by the selection code on the player's machine; when Ollama phrasing ships, the phrasing runs there too; the hosted URL never runs a Guide model. Photos and puzzle text go to the Meta Model API and, in Tier 2, to fal.ai; the capture screen summarizes both services' retention terms.
+Verbatim for the README and the capture screen: "the player profile stays on your machine." It holds in every build: the profile is stored in the browser and read by the selection code on the player's machine; when Ollama phrasing ships, the phrasing runs there too; the hosted URL never runs a Guide model, and its sessions start from a fresh derived block, so no profile number leaves the browser. Photos and puzzle text go to the Meta Model API and, in Tier 2, to fal.ai; the capture screen summarizes both services' retention terms.
 
 ## Runtime flags
 

@@ -27,4 +27,4 @@ At most one change per 3-minute window, only between puzzles, from the fixed men
 
 ## Profiles
 
-`PROFILE=dev|playtest|demo` selects the IndexedDB database name (a JSON file under cut 2). The video and the playtest use fresh profiles. Room 1 is played for real on `PROFILE=demo` on Mon Nov 2 so room 2's greeting has a true record to cite. The greeting is phrased from the derived block only and names no object and no solution.
+`PROFILE=dev|playtest|demo` selects the IndexedDB database name (a JSON file under cut 2). The video and the playtest use fresh profiles. Room 1 is played for real on `PROFILE=demo` on Mon Nov 2 so room 2's greeting has a true record to cite. The greeting is phrased from the derived block only and names no object and no solution. In hosted mode the client always sends a fresh derived block, so hosted rooms show the first-room welcome instead of a greeting.

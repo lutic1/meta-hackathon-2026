@@ -61,7 +61,10 @@ Escape rooms are scripted once for everyone and never about the player's own thi
   - **success:** A spoken request triggers the same rung logic as a click; the browser's own speech recognition is the fallback.
 - **CAP-13** Privacy guarantees
   - **intent:** The player profile stays on the player's machine; raw room photos never enter the public repo.
-  - **success:** Profile writes go only to IndexedDB (a local JSON file under cut 2); only the profile's derived block reaches the Guide model and the greeting; `rooms/`, `photos/`, `captures/`, `uploads/`, `*.heic`, and the cache are git-ignored; a retention summary is shown on the capture screen.
+  - **success:** Profile writes go only to IndexedDB (a local JSON file under cut 2); only the profile's derived block reaches the Guide model and the greeting; `rooms/`, `photos/`, `captures/`, `uploads/`, `*.heic`, and the cache are git-ignored; a retention summary is shown on the capture screen; in hosted mode every session starts from a fresh derived block, so no profile number reaches the hosted server.
+- **CAP-14** Build view (Tier 1, cut 0)
+  - **intent:** The player, a judge, or the builder can see how a room was built and verified, with no solution exposed.
+  - **success:** For a finished build the view shows mask overlays per photo, the puzzle graph with the exit marked, a verdict per validator rule, dry-run pass or fail per puzzle (absent under cut 4), the regeneration count, and the model table; a sentinel-solution test finds no solution in its response; it opens after a build ends `done` and from the completion screen.
 
 ## Constraints
 
@@ -80,6 +83,8 @@ Escape rooms are scripted once for everyone and never about the player's own thi
 - Build model: multiple coding agents (Muse Code and the BMAD build loop) around the clock, schema-first, one owner per module; the builder reviews everything that ships, with about 32 h in-window for review, direction, playtesting, and recording.
 - Submission: public MIT repo; `_bmad/` and `.claude/` removed before the repo goes public; `pre-hackathon-baseline` tag Sun Oct 25 plus a dated CHANGELOG; README model table and pre-existing-code section with the baseline diffstat; two videos (edited main demo, 2:00 target, 2:30 cap; unedited capture proof kept only under 200 s with at most one visible retry); raw photos never committed; household consent for what appears in video and screenshots.
 - Client and server per `stack.md`; Tier 1 photo scenes use the renderer Tier 2 would reuse.
+- Accessibility floor: every hotspot reachable by Tab with a visible focus ring and Enter as a click; a "Show all objects" toggle; select-then-click as an alternative to drag for `use_on`; WCAG AA contrast on the dark theme; rungs, cards and the greeting announced in a polite live region; reduced motion respected.
+- Look and voice (UX contract): Lamplit study, dark theme only, wry and playful wizard voice, painted candlelit portraits.
 
 ## Non-goals
 
