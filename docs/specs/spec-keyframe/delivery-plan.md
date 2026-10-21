@@ -4,9 +4,9 @@ Companion to `SPEC.md`. Dates are 2026, ET.
 
 ## Tiers
 
-- Tier 1, the floor: CAP-1 to CAP-9 (CAP-7 portraits only), plus the backup video. Protected above everything else.
-- Tier 1.5, cuts restored in reverse once the backup video exists: second room, cross-session greeting (CAP-6), clue cards, hosted URL (CAP-10, Nov 5 to 9), voice last (CAP-12).
-- Tier 2 (CAP-11) is a default no-go: it is attempted Sun Nov 1 only if the Tier 1 backup video already exists Sat Oct 31 night, and gated Mon Nov 2. Expected: not attempted.
+- Tier 1, the floor: CAP-1 to CAP-9 (CAP-7 portraits only; room 2 and the CAP-6 greeting move to Sun Nov 1 afternoon under cut 8), plus the backup video. Protected above everything else.
+- Tier 1.5, once the backup video exists: cuts restored in reverse, then clue cards, the hosted URL (CAP-10, Nov 5 to 9), and voice last (CAP-12), only if everything else is done Mon Nov 2.
+- Tier 2 (CAP-11) is a default no-go: it is attempted Sun Nov 1 only if the Tier 1 backup video already exists Sat Oct 31 night, and gated Mon Nov 2. Expected: not attempted. No second epic is planned until that gate passes.
 - Tier 3 (splat shell) never gates a deliverable.
 
 ## Gates
@@ -60,7 +60,7 @@ Pre-kickoff, Wed Oct 21 to Sun Oct 25 (about 8 h), each item dated when done:
 - Verifications: Meta Model API key and a `sam-3.1` mask on an own photo; Meta and fal retention terms read and summarized for the capture screen; fal.ai and Modal accounts with payment methods; five objects from the photographed rooms through `fal-ai/sam-3/3d-objects` on original-resolution photos (512 px short side minimum, about $0.10), each GLB opened in Three.js, latency dated; a hello-world `modal deploy` with the async job pattern; the Ollama benchmark.
 - Spikes: a `sam-3.1` mask decoded with `meta-sam-parser` to a hotspot polygon in Chrome; three Riddler calls against the draft schema, failure modes recorded.
 - Both rooms photographed (6 to 10 photos each, originals kept; no faces, documents, or others' belongings). MIT LICENSE. Hugging Face `sam-3d-objects` access request, optional.
-- Sun Oct 25 night: `git tag -a pre-hackathon-baseline`, CHANGELOG baseline entry; accept the Official Rules if published.
+- Sun Oct 25 night: `git tag -a pre-hackathon-baseline` pushed; CHANGELOG entry "Before Oct 26 (baseline): provider interface, mock provider, Meta API stub, tests. No front end, no model calls."; small dated commits from then on; accept the Official Rules if published.
 
 Build window (each evening line names what is attempted; a 3 h evening holds about half of it, so the nightly cut decision is part of the line):
 
@@ -70,7 +70,7 @@ Build window (each evening line names what is attempted; a 3 h evening holds abo
 - Thu Oct 29 (3 h): event log, rung selection, rung text verbatim, four portraits; Trickster if time remains.
 - Fri Oct 30: no build.
 - Sat Oct 31 (4 h): Tier 1 with cuts; backup video v1 if it lands (the early gate).
-- Sun Nov 1 (8 h): Tier 2 only if the video exists; else finish Tier 1 and record by 2:00 PM. Afternoon (about 2 h): playtest on `PROFILE=playtest` first, then room 2 through the pipeline (may finish Mon Nov 2). Cuts reversed only with time left, last cut first; only cuts 1 to 3 are realistic before Nov 3.
+- Sun Nov 1 (8 h): Tier 2 only if the video exists; else finish Tier 1 and record by 2:00 PM. A Tier 2 attempt runs 10 objects from the demo rooms through `fal-ai/sam-3/3d-objects` as the second staged check (the first is the pre-Oct 26 five-object verification); both feed the Mon Nov 2 gate. Afternoon (about 2 h): playtest on `PROFILE=playtest` first, then room 2 through the pipeline (may finish Mon Nov 2). Cuts reversed only with time left, last cut first; only cuts 1 to 3 are realistic before Nov 3.
 - Mon Nov 2 (3 h): Tier 2 gate if attempted; else play room 1 for real on `PROFILE=demo`; playtest here if the tester missed Nov 1, else the builder's cold run of room 2.
 - Tue Nov 3 (3 h): video only: fresh room-2 photo set, cache cleared on camera, capture proof, three main-demo takes, captions, unlisted upload.
 - Wed Nov 4 (2 h before work): repo hygiene (`git rm -r --cached _bmad/ .claude/` plus `.gitignore` entries; the BMAD brief folder stays the single source of truth; `PRODUCT_BRIEF.md` stays removed); README model table, diagram, pre-existing-code section with the baseline diffstat, screenshots, portal description; submit before 9:00 AM.

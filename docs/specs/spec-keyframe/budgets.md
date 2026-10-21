@@ -56,6 +56,7 @@ Contributor-tier Spark ($0.10 and $0.20 per million, 150 RPM) is never used: Met
 | Vite dev server and Node | 0.6 GB | 0.6 GB |
 | Python backend (FastAPI, Pillow, mask decode) | 0.5 GB | 0.5 GB |
 | Ollama, Llama 3.2 3B Q4_K_M, 4k context | 3.0 GB | 3.0 GB |
+| whisper.cpp base (not planned) | 0.7 GB | 0 |
 | Screen recorder (QuickTime about 0.3 GB, OBS about 1 GB) | 0 | 1.0 GB |
 | Slack, Discord, other tabs | 1.5 GB | 0 |
 | Total | about 13.8 GB (swap likely) | about 10.6 GB |

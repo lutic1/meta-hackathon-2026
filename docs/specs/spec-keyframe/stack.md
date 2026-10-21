@@ -24,7 +24,7 @@ Companion to `SPEC.md`. Two modes, local and hosted; in both, Chrome on the M1 i
 | Tier 3 splat shell (never gating) | Phone, then browser | Scaniverse export, `@sparkjsdev/spark`, under 1M splats | None |
 | Hosted URL | Modal CPU | `@modal.asgi_app()`, `@modal.concurrent(max_inputs=20)`, `MIN_CONTAINERS=1` Thu Nov 5 to Mon Nov 9 | Local mode screen-shared; cached rooms; the video |
 | Cache | Mac disk or Modal Volume | SHA-256 of downscaled image bytes plus prompt and model id | `CACHE=off` for proof takes |
-| Provider interface | Code | `src/providers/base.py` `ModelProvider`: `chat` gains image input; add `segment(label, image)` and `reconstruct3d(image, mask)`; mock, Meta API, Baseten, and fal implement it | None |
+| Provider interface | Code | `src/providers/base.py` `ModelProvider`: `chat` gains image input; add `segment(label, image)` and `reconstruct3d(image, mask)`; mock, Meta API, OpenAI-compatible hosts (Baseten, Fireworks) by `base_url`, and fal implement it | None |
 
 ## Protocols
 

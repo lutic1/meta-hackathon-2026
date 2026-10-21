@@ -12,7 +12,7 @@ Recomputed after each room: `time_to_first_hint` (median seconds), `mean_rung_pe
 
 ## Thresholds, applied in code
 
-- Nudge threshold = 90 s × (1 + 0.5 × persistence), so 45 to 135 s, then clamped to 60 to 180 s. A new profile has persistence 0, threshold 90 s.
+- Nudge threshold = 90 s × (1 + 0.5 × persistence), so 45 to 135 s, with a 60 s floor: 60 to 135 s in practice. A new profile has persistence 0, threshold 90 s.
 - A nudge also fires on 3 wrong attempts at one lock, whichever comes first.
 - Direction and near-answer follow at least 90 s apart, each needing a further stall or 3 further wrong attempts. The 90 s spacing is fixed; only the nudge threshold scales.
 - Rung selection is code over the event log; the Guide model only phrases the selected rung (about 40 tokens from a prompt under 400 tokens with a fixed prefix). Under cut 3 the rung text is shown verbatim and the privacy line still holds.

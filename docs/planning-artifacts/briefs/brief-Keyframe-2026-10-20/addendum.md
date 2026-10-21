@@ -116,7 +116,7 @@ Stored per room: timings, per-puzzle {`lock_type`, `attempts`, `wrong_attempts`,
 
 Thresholds, applied in code:
 
-- Nudge threshold = 90 s × (1 + 0.5 × persistence), so 45 to 135 s, then clamped to 60 to 180 s. A new profile has persistence 0, threshold 90 s.
+- Nudge threshold = 90 s × (1 + 0.5 × persistence), so 45 to 135 s, with a 60 s floor: 60 to 135 s in practice. A new profile has persistence 0, threshold 90 s.
 - A nudge also fires on 3 wrong attempts at one lock, whichever comes first.
 - Direction and near-answer follow at least 90 s apart, each needing a further stall or 3 further wrong attempts.
 - The Trickster proposes at most one change per 3-minute window, only between puzzles, from the fixed menu and a game-state summary (open locks, time, rungs used), never the profile; at most 6 Spark calls per session.
