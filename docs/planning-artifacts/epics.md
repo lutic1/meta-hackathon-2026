@@ -4106,6 +4106,11 @@ _Covers NFR-13, AR-28, AR-29, FR-36. Owner: repo root. Depends on: 6.7. Tier 1, 
 **And** `scripts/check.sh` passes in a fresh clone and CI is green on the hygiene commit
 **And** `PRODUCT_BRIEF.md` is absent and not recreated, and the BMAD brief folder under `docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/` stays tracked
 
+**Given** the doc scrub in the delivery-plan list
+**When** the hygiene commit is prepared
+**Then** every tracked file under `docs/` (memlogs included) and `README.md` is free of `.claude/` paths, the dev skill names, `--claude` flags, `CLAUDE_*` variables and any other mention of the coding tools, each touched sentence still reads, and the delivery-plan path list is replaced by its one-line removal statement
+**And** `git grep -niE 'claude|keyframe-(sam31|muse|sam3d-fal|modal|devops)' -- docs README.md` returns nothing
+
 **Given** the full git history
 **When** every commit is scanned for image files
 **Then** the only images found are synthetic fixtures under `tests/fixtures/`, portraits under `web/public/portraits/`, and outputs whose paths the sprint status lists (screenshots, Clue cards), with no raw room photo
