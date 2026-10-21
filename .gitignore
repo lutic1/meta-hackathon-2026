@@ -22,3 +22,5 @@ uploads/
 # Pipeline cache (downscaled photos, masks, model responses)
 .cache/
 cache/
+# Live spend ledger (daily exports under spend/exports/ are committed)
+spend/*.jsonl

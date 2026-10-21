@@ -24,7 +24,7 @@ Escape rooms are scripted once for everyone and never about the player's own thi
 ## Capabilities
 
 - **CAP-1** Capture to interactables
-  - **intent:** A player uploads 6 to 10 photos of a room and gets 5 to 12 typed interactables, each with a label, clearest photo, box, mask hotspot, and readable attributes.
+  - **intent:** A player uploads 6 to 10 JPEG photos of a room and gets 5 to 12 typed interactables, each with a label, clearest photo, box, mask hotspot, and readable attributes.
   - **success:** On the M1 with `CACHE=off` and a photo set never sent to the pipeline, Upload click (T0) to the first hotspot responding (T1) takes 120 s or less. Fewer than 5 survivors asks for more photos before any authoring.
 - **CAP-2** Puzzle authoring with guaranteed solvability
   - **intent:** From the interactables, author 4 to 6 puzzles (one exit; lock types `code`, `order`, `use_on`, `find`; clue, lore of at most 60 words, three hint rungs each) that reference only the player's objects and attributes the vision call read.
@@ -71,7 +71,7 @@ Escape rooms are scripted once for everyone and never about the player's own thi
 - Meta Model API, standard tier only (never contributor); models, endpoints, and call protocols per `stack.md`.
 - SAM 3D Objects only through fal.ai `fal-ai/sam-3/3d-objects` at $0.02 per call, Tier 2 only, at most 20 GLBs from original-resolution hero photos. Never on a Modal GPU, never local.
 - Hosted mode is Modal CPU; every build is an async job polled by id because web requests time out at 150 s; local mode serves the same endpoints in-process (`stack.md`).
-- Spend: `SPEND_CAP_USD` 80 through Wed Nov 4 and 25 from Thu Nov 5, enforced per call with a persisted counter; fal at most $6 cash; agent dev loops use the mock provider with `CACHE=on`.
+- Spend: `SPEND_CAP_USD` 80 through Wed Nov 4 and 25 from Thu Nov 5, enforced per call with a persisted counter; the ledger is exported daily and the export committed, so the spend record survives a lost store (`budgets.md`); fal at most $6 cash; agent dev loops use the mock provider with `CACHE=on`.
 - Caps and latency: 6 to 10 photos downscaled to 1280 px (originals kept for Tier 2); 5 to 12 interactables; 4 to 6 puzzles; vision 15 s, SAM 10 s, Riddler 45 s, dry run 30 s, UI 10 s (110 s); a regeneration about 75 s, at most 2. If the Oct 27 to 28 measurements miss 120 s, the target becomes measured p50 plus 25%.
 - Schema v1 (`schema-v1.md`) is the Tier 1 and Tier 2 contract: reviewed Thu Oct 22 against the spikes, frozen Mon Oct 26; later changes only through `bmad-correct-course`.
 - Every model call goes through the repo's `ModelProvider` interface (`chat` with image input, `segment`, `reconstruct3d`); mock, Meta API, OpenAI-compatible hosts (Baseten, Fireworks), and fal implement it; stories are built against the mock provider.

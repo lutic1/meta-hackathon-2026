@@ -39,7 +39,8 @@ Contributor-tier Spark ($0.10 and $0.20 per million, 150 RPM) is never used: Met
 
 ## Spend rules
 
-- `SPEND_CAP_USD` is a per-call refusal. The provider prices each call from returned usage and adds it to a counter persisted on disk (local) or the Volume (hosted); a call that would pass the cap is refused and surfaced. The pre-call estimate is the last observed cost of the same call kind or, before any observation, a seed per kind: vision $0.03, SAM $0.0025, Riddler $0.03, dry run $0.03, Trickster $0.01, image $0.01. The counter is corrected from returned usage after each call.
+- `SPEND_CAP_USD` is a per-call refusal. The provider prices each call from returned usage and adds it to an append-only ledger (local `spend/ledger.jsonl`, outside the cache; hosted, `modal.Dict` entries); a call that would pass the cap is refused and surfaced.
+- Daily ledger export, the record of spend against the credit: a scheduled hosted function snapshots the Dict to the Volume every day at 06:00 ET; locally, `scripts/ledger.py export` writes `spend/exports/ledger-<date>.json` at API startup and after every build, committed with each day's work from Mon Oct 26; the Nov 5 reset refuses to run without that day's export. The pre-call estimate is the last observed cost of the same call kind or, before any observation, a seed per kind: vision $0.03, SAM $0.0025, Riddler $0.03, dry run $0.03, Trickster $0.01, image $0.01. The counter is corrected from returned usage after each call.
 - Cap $80 through Wed Nov 4; from Thu Nov 5 the counter resets and the cap is $25 for judging and finals, which run pay-as-you-go with a card on file (the $150 credit states no issue date or expiry).
 - Wed Oct 21 to Sun Oct 25: up to about $5 cash on the Meta API for verifications and spikes, outside the ceilings and any credit.
 - fal: about $1 cash (5 test objects before Oct 26, then at most 20 GLBs plus retries in Tier 2); ceiling $6.

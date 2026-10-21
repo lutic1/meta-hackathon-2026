@@ -7,7 +7,7 @@ Companion to `SPEC.md`. Two modes, local and hosted; in both, Chrome on the M1 i
 | Component | Runs on | Model or service | Fallback |
 |---|---|---|---|
 | Front end | Browser | Vite, Three.js; Tier 1 photo scenes as textured planes with polygon hotspots | DOM-only scenes if Three.js costs more than 2 h |
-| Photo capture, downscale | Browser, then backend | Canvas downscale to 1280 px; originals kept for Tier 2 | None |
+| Photo capture, downscale | Browser, then backend | JPEG input only (HEIC and PNG rejected; iPhone set to Most Compatible); Canvas downscale to 1280 px; originals kept for Tier 2 | None |
 | Architect (object list) | Meta Model API | `muse-spark-1.3`, Chat Completions, image input, JSON schema, reasoning low | Same call, boxes only, if SAM masks are unusable after 60 minutes |
 | Masks | Meta Model API | `sam-3.1` via `POST /v1/responses`, one noun phrase per call, decoded with `meta-sam-parser` | Spark boxes as hotspots |
 | Riddler | Meta Model API | `muse-spark-1.3`, Chat Completions, JSON schema, reasoning medium | Muse Spark Open on Baseten by `base_url` swap |

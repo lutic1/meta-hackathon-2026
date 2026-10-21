@@ -15,6 +15,10 @@ and the Trickster proposes bounded difficulty changes
 mid-game. Muse Image paints the wizards and clue cards, Muse Voice
 Transcribe lets you talk to them.
 
+**Input:** 6 to 10 JPEG photos of one room. On an iPhone, set
+Settings > Camera > Formats to Most Compatible before shooting;
+HEIC and PNG photos are rejected.
+
 Product brief (BMAD):
 [docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/brief.md](docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/brief.md),
 with the technical depth in

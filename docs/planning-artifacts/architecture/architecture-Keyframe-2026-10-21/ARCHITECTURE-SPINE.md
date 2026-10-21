@@ -80,7 +80,7 @@ graph TD
 
 - **Binds:** CAP-1, CAP-2, CAP-10
 - **Prevents:** in-memory job state; the 150 s web timeout killing a build; two byte streams for one photo
-- **Rule:** the client produces the downscaled JPEG (Canvas, EXIF orientation applied, long edge 1280, quality 0.85) and uploads it with the original in one multipart `POST /builds`; ingest stores both byte for byte and re-encodes neither, rejects fewer than 6 or more than 10 photos, rejects HEIC and anything but JPEG or PNG with `UnsupportedImage`, and rejects (422) a downscaled file whose long edge is not 1280 or whose orientation tag is not 1; `photos[i].hash` is sha256 of the stored downscaled bytes and every model call, cache key and mask uses those bytes; the README says to export JPEG. Stages `ingest → architect → segment → author → validate → dryrun → scene` run in order through `JobRunner.start(job_id)` and persist job state plus stage artifacts through `JobStore` and `ArtifactStore` after each stage with timings; every stage rereads job state from `JobStore` on entry so a restarted runner resumes at the last persisted stage; no request blocks on a stage; `GET /builds/<job_id>` reads persisted state only. Segment issues one `segment` call per label concurrently (at most 12); mask selection (IoU, plural grouping, the 1% and 12 caps) is `domain/masks.py`, pure, called by segment; segment ends the job with status `needs_more_photos` when fewer than 5 interactables survive and no authoring call is made. The author stage persists a `RoomDraft` (Riddler raw output, kept for provenance and the regeneration count); the job's `room` artifact, the only key play routes read, is written once `validate` and (unless `DRY_RUN=off`) the dry run pass. Hosted: the stage runner is a separate `@app.function(timeout=900)` invoked with `.spawn()` and is the one writer per job; the ASGI function keeps its default timeout and never owns a build; `ArtifactStore.put` ends with `Volume.commit()` and every read begins with `Volume.reload()` from a container holding no open Volume files; the `modal.Dict` holds in-flight job state only (entries expire after 7 idle days); on scene the final job record is written to the Volume beside the Room and `GET /builds` falls through Dict then Volume; a job whose runner dies is marked `failed` with its stage by a watchdog read of the `FunctionCall` id stored in the job record. The local `ArtifactStore` writes under `rooms/` only.
+- **Rule:** the client produces the downscaled JPEG (Canvas, EXIF orientation applied, long edge 1280, quality 0.85) and uploads it with the original in one multipart `POST /builds`; ingest stores both byte for byte and re-encodes neither, rejects fewer than 6 or more than 10 photos, accepts JPEG only (HEIC, PNG and every other format raise `UnsupportedImage`), and rejects (422) a downscaled file whose long edge is not 1280 or whose orientation tag is not 1; `photos[i].hash` is sha256 of the stored downscaled bytes and every model call, cache key and mask uses those bytes; the README and the capture screen state the input requirement as "6 to 10 JPEG photos". Stages `ingest → architect → segment → author → validate → dryrun → scene` run in order through `JobRunner.start(job_id)` and persist job state plus stage artifacts through `JobStore` and `ArtifactStore` after each stage with timings; every stage rereads job state from `JobStore` on entry so a restarted runner resumes at the last persisted stage; no request blocks on a stage; `GET /builds/<job_id>` reads persisted state only. Segment issues one `segment` call per label concurrently (at most 12); mask selection (IoU, plural grouping, the 1% and 12 caps) is `domain/masks.py`, pure, called by segment; segment ends the job with status `needs_more_photos` when fewer than 5 interactables survive and no authoring call is made. The author stage persists a `RoomDraft` (Riddler raw output, kept for provenance and the regeneration count); the job's `room` artifact, the only key play routes read, is written once `validate` and (unless `DRY_RUN=off`) the dry run pass. Hosted: the stage runner is a separate `@app.function(timeout=900)` invoked with `.spawn()` and is the one writer per job; the ASGI function keeps its default timeout and never owns a build; `ArtifactStore.put` ends with `Volume.commit()` and every read begins with `Volume.reload()` from a container holding no open Volume files; the `modal.Dict` holds in-flight job state only (entries expire after 7 idle days); on scene the final job record is written to the Volume beside the Room and `GET /builds` falls through Dict then Volume; a job whose runner dies is marked `failed` with its stage by a watchdog read of the `FunctionCall` id stored in the job record. The local `ArtifactStore` writes under `rooms/` only.
 
 ### AD-8 — The browser owns the profile
 
@@ -92,7 +92,7 @@ graph TD
 
 - **Binds:** CAP-10 and every capability it hosts
 - **Prevents:** a forked hosted code path; two origins; an unbounded judge quota
-- **Rule:** `MODE=local|hosted` selects adapters only (`JobStore`, `ArtifactStore`, `JobRunner`, `SessionStore`, `LedgerStore`, `Cache`) in `src/infra`; `GUIDE` is the only selector of `HintPhraser`; no mode branch exists outside `src/infra` and `src/api` wiring; the HTTP surface (Conventions) is identical in both modes. `JobRunner`: local, an in-process task; hosted, `modal.Function.spawn` of the stage runner (AD-7). `SessionStore` (`append`, `read_all`, `list_ids`, `delete`): local, JSON under `rooms/sessions/`; hosted, `modal.Dict`; no session state in a process variable. `LedgerStore` (`append`, `entries`), append-only: local, `.cache/ledger.jsonl` under a file lock; hosted, one `modal.Dict` key per entry summed on read, exported to the Volume by `scripts/ledger.py export` as the durable record; no ledger on the Volume otherwise. `Cache` (`get`, `put`): local, `.cache/`; hosted, the Volume through the same adapter as artifacts. FastAPI mounts `web/dist` at `/` in both modes (one origin, no CORS); API routes live under `/api/`; in development the Vite server proxies `/api/*` to FastAPI. Hosted mode guards `POST /builds` and `GET /builds/<job_id>/room` with `X-Access-Code`, every other route is open; the hosted `JobStore` keeps a build counter and refuses the 21st build with `build_quota_exceeded`; demo rooms are seeded onto the Volume by `scripts/seed_rooms.py` under `rooms/demo/`, judge rooms land under `rooms/judge/`, and `scripts/purge_judge_rooms.py` deletes only the latter; `modal_app.py` sets `max_containers=1` (raising it is Deferred).
+- **Rule:** `MODE=local|hosted` selects adapters only (`JobStore`, `ArtifactStore`, `JobRunner`, `SessionStore`, `LedgerStore`, `Cache`) in `src/infra`; `GUIDE` is the only selector of `HintPhraser`; no mode branch exists outside `src/infra` and `src/api` wiring; the HTTP surface (Conventions) is identical in both modes. `JobRunner`: local, an in-process task; hosted, `modal.Function.spawn` of the stage runner (AD-7). `SessionStore` (`append`, `read_all`, `list_ids`, `delete`): local, JSON under `rooms/sessions/`; hosted, `modal.Dict`; no session state in a process variable. `LedgerStore` (`append`, `entries`), append-only: local, `spend/ledger.jsonl` under a file lock (git-ignored, outside `.cache/` so clearing the cache never touches it); hosted, one `modal.Dict` key per entry summed on read. A daily export is the durable record of spend against the credit: hosted, a scheduled function in `modal_app.py`, `@app.function(schedule=modal.Cron("0 6 * * *", timezone="America/New_York"))`, writes every Dict entry to the Volume as `spend/hosted-<date>.jsonl` each day (Dict entries expire after 7 idle days); locally, `scripts/ledger.py export` merges the local entries and the latest hosted snapshot into `spend/exports/ledger-<date>.json` (committed), runs at API startup and after every completed build, and the export is committed with each day's work from Mon Oct 26; `scripts/ledger.py reset` refuses to run unless today's export exists. `Cache` (`get`, `put`): local, `.cache/`; hosted, the Volume through the same adapter as artifacts. FastAPI mounts `web/dist` at `/` in both modes (one origin, no CORS); API routes live under `/api/`; in development the Vite server proxies `/api/*` to FastAPI. Hosted mode guards `POST /builds` and `GET /builds/<job_id>/room` with `X-Access-Code`, every other route is open; the hosted `JobStore` keeps a build counter and refuses the 21st build with `build_quota_exceeded`; demo rooms are seeded onto the Volume by `scripts/seed_rooms.py` under `rooms/demo/`, judge rooms land under `rooms/judge/`, and `scripts/purge_judge_rooms.py` deletes only the latter; `modal_app.py` sets `max_containers=1` (raising it is Deferred).
 
 ### AD-10 — Two clocks
 
@@ -134,7 +134,7 @@ graph TD
 
 - **Binds:** CAP-1, CAP-9
 - **Prevents:** unexplainable rooms in the submission
-- **Rule:** the pipeline writes `provenance` (model ids, prompt hashes, stage timings, regeneration count, spend per stage from the ledger) into every Room; spend per stage and applied edit ids are added to the schema's provenance list in the Thu Oct 22 schema review, before the freeze; the spend log export is derived from the ledger, never hand-kept.
+- **Rule:** the pipeline writes `provenance` (model ids, prompt hashes, stage timings, regeneration count, spend per stage from the ledger) into every Room; spend per stage and applied edit ids are part of the schema's provenance (approved Oct 21); the spend log export is derived from the ledger, never hand-kept.
 
 ### AD-17 — One owner per package; offline tests per story
 
@@ -205,6 +205,7 @@ scripts/       portraits.py (generate_image once), seed_rooms.py, purge_judge_ro
 web/           Vite + TypeScript + three: scene/, api/, profile/ (IndexedDB), wizards/, types/ (generated), public/portraits/ (committed)
 tests/         test_boundaries.py, domain/, council/, pipeline/, providers/, api/, fixtures/
 rooms/, photos/, captures/, uploads/, *.heic, .cache/   git-ignored inputs and cache (asserted by a test)
+spend/         ledger.jsonl (git-ignored live ledger), exports/ledger-<date>.json (committed daily)
 .env (ignored), .env.example (committed)
 ```
 
@@ -213,7 +214,7 @@ flowchart LR
   subgraph Mac["Local mode (M1)"]
     B1[Chrome: web/] --> A1["FastAPI serving web/dist and /api"]
     A1 --> O[Ollama llama3.2:3b]
-    A1 --> FS[("rooms/: job state, artifacts, sessions. .cache/: cache and ledger.jsonl")]
+    A1 --> FS[("rooms/: job state, artifacts, sessions. .cache/: cache. spend/: ledger and daily exports")]
   end
   subgraph Modal["Hosted mode (Modal CPU)"]
     B2[Judge browser] --> A2["@modal.asgi_app FastAPI, max_containers=1"]
@@ -223,7 +224,9 @@ flowchart LR
     A2 --> L[("modal.Dict: ledger entries")]
     R --> D
     R --> L
-    R --> V[("Volume: artifacts, cache, final job records. One adapter")]
+    R --> V[("Volume: artifacts, cache, final job records, daily ledger snapshots. One adapter")]
+    C["ledger_export, modal.Cron daily 06:00 ET"] --> L
+    C --> V
     A2 --> V
     A2 -. verbatim rungs .-> A2
   end
@@ -291,7 +294,7 @@ erDiagram
 
 ## Deferred
 
-- Carried to the Thu Oct 22 schema review, before the Oct 26 freeze: `Interactable.mask` becomes `polygons: polygon[] | null`; drop `Room.profile_name`; keep `Puzzle.is_exit` and drop `Room.exit_puzzle_id`; rule 5 token matching (Conventions); a field for an accepted decoy (`Room.decoys[]` or `Puzzle.evidence` entries with `is_decoy`); `Derived`, `RoomResult`, `RoomDraft`, `PlayView`, `ArchitectResponse`, `DryRunAnswers` and the event models as schema models; provenance gains spend per stage and applied edit ids.
+- Thu Oct 22 schema review is one pick: the decoy storage shape (three options with tradeoffs in `schema-v1.md`). The reviewers' other schema changes (`polygons`, `is_exit` only, no `profile_name`, rule 5 token matching, the API models, provenance fields) were approved Oct 21 and are applied in `schema-v1.md`; the schema freezes Mon Oct 26.
 - Tier 2 object placement when fal's per-object translation, rotation and scale metadata does not compose into a room layout (hand-placed transforms in `tier2` versus a layout stage): decided by the pre-Oct 26 spike, inside the Tier 2 epic.
 - Clue cards (Tier 1.5) as an optional post-scene stage.
 - Tier 3 splat integration (`@sparkjsdev/spark` in the same scene graph): never gating.

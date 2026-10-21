@@ -59,7 +59,7 @@ Pre-kickoff, Wed Oct 21 to Sun Oct 25 (about 8 h), each item dated when done:
 - Wed Oct 21: README patch. Thu Oct 22: Schema v1 review against the spikes.
 - Verifications: Meta Model API key and a `sam-3.1` mask on an own photo; Meta and fal retention terms read and summarized for the capture screen; fal.ai and Modal accounts with payment methods; five objects from the photographed rooms through `fal-ai/sam-3/3d-objects` on original-resolution photos (512 px short side minimum, about $0.10), each GLB opened in Three.js, latency dated; a hello-world `modal deploy` with the async job pattern; the Ollama benchmark.
 - Spikes: a `sam-3.1` mask decoded with `meta-sam-parser` to a hotspot polygon in Chrome; three Riddler calls against the draft schema, failure modes recorded.
-- Both rooms photographed (6 to 10 photos each, originals kept; no faces, documents, or others' belongings). MIT LICENSE. Hugging Face `sam-3d-objects` access request, optional.
+- Phone set to Most Compatible (JPEG) first; then both rooms photographed (6 to 10 JPEG photos each, originals kept; no faces, documents, or others' belongings). MIT LICENSE. Hugging Face `sam-3d-objects` access request, optional.
 - Sun Oct 25 night: `git tag -a pre-hackathon-baseline` pushed; CHANGELOG entry "Before Oct 26 (baseline): provider interface, mock provider, Meta API stub, tests. No front end, no model calls."; small dated commits from then on; accept the Official Rules if published.
 
 Build window (each evening line names what is attempted; a 3 h evening holds about half of it, so the nightly cut decision is part of the line):
@@ -74,7 +74,8 @@ Build window (each evening line names what is attempted; a 3 h evening holds abo
 - Mon Nov 2 (3 h): Tier 2 gate if attempted; else play room 1 for real on `PROFILE=demo`; playtest here if the tester missed Nov 1, else the builder's cold run of room 2.
 - Tue Nov 3 (3 h): video only: fresh room-2 photo set, cache cleared on camera, capture proof, three main-demo takes, captions, unlisted upload.
 - Wed Nov 4 (2 h before work): repo hygiene (`git rm -r --cached _bmad/ .claude/` plus `.gitignore` entries; the BMAD brief folder stays the single source of truth; `PRODUCT_BRIEF.md` stays removed); README model table, diagram, pre-existing-code section with the baseline diffstat, screenshots, portal description; submit before 9:00 AM.
-- Thu Nov 5 to Sun Nov 8: hosted-URL redeploy, `MIN_CONTAINERS=1` through Mon Nov 9, finals preparation. Mon Nov 9: live finals, local mode screen-shared from the M1.
+- Every build day from Mon Oct 26: the daily ledger export in `spend/exports/` is committed with the day's work.
+- Thu Nov 5: ledger export, then `scripts/ledger.py reset` (cap $25). Thu Nov 5 to Sun Nov 8: hosted-URL redeploy, `MIN_CONTAINERS=1` through Mon Nov 9, finals preparation. Mon Nov 9: live finals, local mode screen-shared from the M1.
 
 ## Videos
 
