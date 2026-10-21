@@ -111,7 +111,7 @@ The adapter retries at most once, and the single regeneration loop lives in `pip
 
 Before the retry the adapter waits `min(Retry-After or 0.5 to 1 s of jitter, 10 s)`. The 10 s cap (`MAX_RETRY_WAIT_S`) is the segment budget, a Keyframe choice, not a vendor number. A 503 overload or backend-unavailable answer asks for 60 s, so its retry goes out 50 s early, usually gets another 503, and the label fails with `ProviderError`.
 
-**Proposed deviation, pending approval through `bmad-correct-course`.** Rows marked "Proposed" show Meta's narrower policy, described under Known issues. Until it is approved, AD-13 governs and the code does what the rows say first.
+**Proposed deviation, pending approval through `bmad-correct-course`.** Rows marked "Proposed" show Meta's narrower policy, described under Known issues. Until it is approved, AD-13 governs, and the code does what each row says before "Proposed".
 
 | Symptom or status | Cause | What the code does | Retry |
 |---|---|---|---|
@@ -144,8 +144,8 @@ Every entry below was run on 2026-10-21 in this repo's container, with no networ
 
 | Command or snippet | What it proves | Result observed | Where |
 |---|---|---|---|
-| `uv run --no-project --with meta-sam-parser==0.1.0 --with httpx==0.28.1 python .claude/skills/keyframe-sam31/scripts/selfcheck.py` | See the list below the table | 48 PASS, 0 FAIL, exit 0 (uv 0.11.32, CPython 3.13.16) | Offline |
-| The same script under a second venv (meta-sam-parser 0.1.0, httpx 0.28.1, pydantic 2.14.1) | The same checks under a second interpreter setup | 48 PASS, exit 0 | Offline |
+| `uv run --no-project --with meta-sam-parser==0.1.0 --with httpx==0.28.1 python .claude/skills/keyframe-sam31/scripts/selfcheck.py` | See the list below the table | 56 PASS, 0 FAIL, exit 0, ending `OK: 0 failure(s)` (uv 0.11.32, CPython 3.13.16; re-run on 2026-10-21 after the AD-13 retry alignment) | Offline |
+| The same script under a second venv (meta-sam-parser 0.1.0, httpx 0.28.1, pydantic 2.14.1) | The same checks under a second interpreter setup | 56 PASS, exit 0, ending `OK: 0 failure(s)` (re-run on 2026-10-21) | Offline |
 | Replay of Meta's conformance corpus (`conformance/cases/*.json` from meta-models/meta-sam, fetched as data) through `parse_responses_stream`, converted to wire-shaped events | The documented async form matches Meta's expected rasters, COCO RLE, SVG paths, outcomes and error codes. The captured live lossless case shows an 11x11 mask for an 11x11 box on a 1440x900 frame | 38 cases matched; 4 source-failure cases skipped (they need a failing iterator); 0 failed. The same harness's httpx and retry checks (39/39 PASS) ran against an earlier draft of the call code, not the blocks shipped here; those cases now live in the selfcheck | Offline, harness not shipped |
 | Replay of the 33 image cases of that corpus through the shipped `read_output` + `parse_output` | How the canonical sync path compares with the strict lane rules | 25 agree, 8 differ, 9 skipped (source-failure or video). All 8 are lane-strictness cases the reader accepts by design: 5 come back incomplete (so `check_result` raises), 3 come back completed (`lane-completed-before-done` with a warning, and two repeated identical finalizers). Both conflicting-finalizer cases now raise `response_lane` | Offline, harness not shipped |
 | `decode_mask_to_svg_path` on the docs' 27x60 lossless mask, compared with `decode_mask_to_raster` | SVG pixel centers sit on integers | SVG x from -0.5 to 59.5 for raster columns 0 to 59; y from -0.5 to 26.5 | Offline |
@@ -162,7 +162,7 @@ What the selfcheck covers:
 - zero matches with a finalized lane (no warning) and without one (warning logged);
 - a finalized text that conflicts with its deltas (`response_lane`, no retry);
 - malformed streams: a non-JSON line, a non-object line, a delta without `delta`, an undecodable gzip body (`malformed_stream`, no retry);
-- no retry on 400, 401, 403, 404 (with and without a body), 413 and 504; one retry on 429, 500 and 503, and a second 429 raised; a `Retry-After` above the cap; a mid-stream `server_shutting_down`; a non-retryable `response.failed`; a refusal content part;
+- the AD-13 retry set (429 and every 5xx); no retry on 400, 401, 403, 404 (with and without a body) and 413; one retry after `Retry-After` on 429, 500, 502, 503 and 504, and a second 429 raised; jittered backoff without `Retry-After`; a 60 s `Retry-After` waited at the 10 s cap, then one retry and the second 503 raised; one retry on each mid-stream 429 or 5xx code; a non-retryable `response.failed`; a refusal content part;
 - EOF reported as incomplete, and `check_result` rejecting it;
 - the `parse_responses_stream` variant;
 - the selection rules.
