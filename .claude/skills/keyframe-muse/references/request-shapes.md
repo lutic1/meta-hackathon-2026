@@ -83,7 +83,7 @@ Limits checked before decoding. Exceeding any of them returns 400, whatever `str
 - Every object lists all of its `properties` in `required`.
 - The rules also apply inside `$defs` and `definitions`.
 
-Pydantic emits discriminated unions (AD-2's tagged unions) as `oneOf` with a `discriminator` keyword, and `dict[str, X]` as an object whose `additionalProperties` is a schema. Neither fits the strict subset. `strict_schema()` in the self-check inlines `$defs`, rewrites `oneOf` to `anyOf`, drops `discriminator`, closes every object, fills `required`, and refuses map-typed fields.
+Pydantic emits discriminated unions (AD-2's tagged unions) as `oneOf` with a `discriminator` keyword, and `dict[str, X]` as an object whose `additionalProperties` is a schema. Neither fits the strict subset. `strict_schema()` in the self-check inlines `$defs`, rewrites `oneOf` to `anyOf`, drops `discriminator`, closes every object, fills `required`, and refuses map-typed fields. AD-2 keeps map-typed fields out of every model-response schema (`DryRunAnswers` is a list of `{puzzle_id, answer}`, AD-12; `RoomDraft` uses fixed `p1` to `p6` keys), and sends any schema holding a tagged union with `strict: false` on Meta.
 
 `json_schema.name` allows `a-z`, `A-Z`, `0-9`, `_` and `-`, up to 64 characters. Pydantic class names fit.
 
@@ -105,7 +105,7 @@ Pydantic emits discriminated unions (AD-2's tagged unions) as `oneOf` with a `di
 - `size` takes a `"WxH"` string that sets only the aspect ratio. Aspect ratios beyond 16:1 return 400.
 - Meta extensions sit at the top level: `reasoning_strength` (`high` by default, or `low`) and `tool_enablement` {`enable_image_search`, `enable_web_search`, `enable_shell`}. The price is the same either way.
 - Any unknown top-level field, `seed` included, returns 400 with the field named in `param`. `moderation` returns 400 on `muse-image-1.0`.
-- A content-safety block is 400 `content_policy_violation` with `param: prompt`. A retryable generation failure is 503 `server_error`. A non-retryable failure is 500.
+- A content-safety block is 400 `content_policy_violation` with `param: prompt`. A retryable generation failure is 503 `server_error`. A non-retryable failure is 500. So the image endpoint's AD-13 set is 429 and 503 only (`IMAGE_RETRYABLE_STATUS` in the self-check).
 - A request is billed $0.01 per returned image (`n` images cost `n` cents). Images that fail or are filtered are not billed. The limit is 150 requests per minute per team.
 - For a matched set of four portraits, the documented consistency technique chains turns with `previous_response_id` on the Responses API (anchored image series cookbook). That would be a change to the spine's `generate_image(prompt)` port, so raise it first rather than doing it silently.
 

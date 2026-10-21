@@ -141,8 +141,37 @@ class FakeQueue:
                 body = {"status": state, "request_id": "req_1", "queue_position": 0, "logs": None}
                 return httpx.Response(200, json=body)
             return httpx.Response(200, json={"status": "COMPLETED", "request_id": "req_1", "logs": None})
-        status, body = self.results.pop(0) if len(self.results) > 1 else self.results[0]
-        return httpx.Response(status, json=body, headers={"x-fal-request-id": "req_1"})
+        status, body, *extra = self.results.pop(0) if len(self.results) > 1 else self.results[0]
+        headers = {"x-fal-request-id": "req_1", **(extra[0] if extra else {})}
+        return httpx.Response(status, json=body, headers=headers)
+
+
+def http_error(status: int, headers: dict | None = None) -> fal_client.FalClientHTTPError:
+    """A FalClientHTTPError as fal-client raises it once its own retries are spent."""
+    response = httpx.Response(status, json={"detail": "x"}, headers=headers or {},
+                              request=httpx.Request("GET", f"{QUEUE}/requests/req_1"))
+    return fal_client.FalClientHTTPError("x", status, dict(response.headers), response)
+
+
+def failing(*outcomes):
+    """A call that raises each exception in turn and returns any other item; counts its calls."""
+    queue = list(outcomes)
+
+    def call():
+        call.count += 1
+        item = queue.pop(0)
+        if isinstance(item, BaseException):
+            raise item
+        return item
+
+    call.count = 0
+    return call
+
+
+def clock_at(*readings: float):
+    """A fake monotonic clock that returns the given readings in order."""
+    values = iter(readings)
+    return lambda: next(values)
 
 
 def mock_client(queue: FakeQueue) -> fal_client.SyncClient:
@@ -197,18 +226,21 @@ def main() -> int:
 
     square = [(100.0, 100.0), (300.0, 100.0), (300.0, 300.0), (100.0, 300.0)]
     second = [(800.0, 500.0), (900.0, 500.0), (900.0, 600.0)]
-    mask = ref["mask_png"]([square, second], (1280, 960), (4032, 3024))
+    mask3d = ref["Mask3D"](label="brass desk lamp", polygons=[square, second], frame_size=(1280, 960))
+    check("Mask3D carries label, polygons (frame pixels) and frame_size (AD-5)",
+          [f.name for f in dataclasses.fields(ref["Mask3D"])] == ["label", "polygons", "frame_size"])
+    mask = ref["mask_png"](mask3d, (4032, 3024))
     with Image.open(io.BytesIO(mask)) as m:
         pixels = (m.size, m.mode, m.getpixel((630, 630)), m.getpixel((200, 200)), m.getpixel((2700, 1620)))
-    check("mask PNG is 4032x3024 L, polygons scaled and filled, background 0",
+    check("mask PNG from Mask3D is 4032x3024 L, polygons scaled and filled, background 0",
           pixels == ((4032, 3024), "L", 255, 0, 255))
 
     # Arguments against the live input schema.
-    args = ref["build_arguments"](plain, mask, "brass desk lamp")
+    args = ref["build_arguments"](plain, mask, mask3d.label)
     errors = list(validator("Sam33dObjectsInput").iter_errors(args))
     check("arguments validate against SAM3DObjectInput", not errors)
     check("every argument key is a declared property", set(args) <= set(SCHEMAS["Sam33dObjectsInput"]["properties"]))
-    check("prompt is the label, never the 'car' default", args["prompt"] == "brass desk lamp")
+    check("prompt is Mask3D.label, never the 'car' default", args["prompt"] == mask3d.label == "brass desk lamp")
     check("image_url and mask_urls are data URIs that round-trip",
           args["image_url"].startswith("data:image/jpeg;base64,") and decode_data_uri(args["image_url"]) == plain
           and len(args["mask_urls"]) == 1 and decode_data_uri(args["mask_urls"][0]) == mask)
@@ -298,23 +330,68 @@ def main() -> int:
     check("500 model error maps to its detail type and is settled unbilled",
           exc is not None and ref["classify"](exc) == ref["Failure"]("internal_server_error", 500, False))
 
+    # AD-13 retry set: 429, a 5xx only when X-Fal-Needs-Retry allows it, a connect error.
+    retry_once, is_retryable = ref["retry_once"], ref["is_retryable"]
+    check("fal's retryable status set is 429 alone; 5xx is gated by X-Fal-Needs-Retry",
+          ref["FAL_RETRYABLE_STATUS"] == frozenset({429}) and ref["NEEDS_RETRY_HEADER"] == "x-fal-needs-retry")
+    check("RETRY_ON_CONNECT is ConnectError and ConnectTimeout",
+          ref["RETRY_ON_CONNECT"] == (httpx.ConnectError, httpx.ConnectTimeout))
+    check("is_retryable: 429, 5xx with needs-retry true or 1, connect errors; nothing else",
+          is_retryable(http_error(429)) and is_retryable(http_error(500, {"X-Fal-Needs-Retry": "true"}))
+          and is_retryable(http_error(504, {"X-Fal-Needs-Retry": "1"}))
+          and is_retryable(httpx.ConnectError("x")) and is_retryable(httpx.ConnectTimeout("x"))
+          and not is_retryable(http_error(500)) and not is_retryable(http_error(503, {"X-Fal-Needs-Retry": "false"}))
+          and not is_retryable(http_error(422, {"X-Fal-Needs-Retry": "true"}))
+          and not is_retryable(httpx.ReadTimeout("x"))
+          and not is_retryable(fal_client.FalClientTimeoutError(300, "req_1")))
+
     sleeps: list[float] = []
-    client = mock_client(queue := FakeQueue(result=[runner_503, (200, result)], steps=0))
-    out = ref["retry_once"](lambda: ref["run_queued"](client, args), sleep=sleeps.append)
-    check("retry_once retries a surfaced 5xx once, after 2 to 4 s, and returns the result",
-          out == result and queue.count("POST") == 2 and len(sleeps) == 1 and 2.0 <= sleeps[0] <= 4.0)
+    needs_retry = (500, model_500, {"X-Fal-Needs-Retry": "true"})
+    client = mock_client(queue := FakeQueue(result=[needs_retry, (200, result)], steps=0))
+    out = retry_once(lambda: ref["run_queued"](client, args), sleep=sleeps.append)
+    check("500 model error with X-Fal-Needs-Retry: true is retried once after 0.5 to 1 s, then returns",
+          out == result and queue.count("POST") == 2 and len(sleeps) == 1 and 0.5 <= sleeps[0] <= 1.0)
 
     sleeps.clear()
-    client = mock_client(queue := FakeQueue(result=runner_503, steps=0))
-    exc = raises(fal_client.FalClientHTTPError, ref["retry_once"], lambda: ref["run_queued"](client, args),
+    client = mock_client(queue := FakeQueue(result=needs_retry, steps=0))
+    exc = raises(fal_client.FalClientHTTPError, retry_once, lambda: ref["run_queued"](client, args),
                  sleep=sleeps.append)
-    check("retry_once gives up after the second 5xx", exc is not None and queue.count("POST") == 2 and len(sleeps) == 1)
+    check("retry_once gives up after the second retryable 5xx", exc is not None and queue.count("POST") == 2 and len(sleeps) == 1)
+
+    for label, outcome in (("500 model error with X-Fal-Needs-Retry: false", (500, model_500, {"X-Fal-Needs-Retry": "false"})),
+                           ("runner 503 with no X-Fal-Needs-Retry header", runner_503),
+                           ("504 start timeout (X-Fal-Request-Timeout-Type: user)",
+                            (504, {"detail": "no runner", "error_type": "startup_timeout"},
+                             {"X-Fal-Request-Timeout-Type": "user"})),
+                           ("422 model error", (422, model_error))):
+        sleeps.clear()
+        client = mock_client(queue := FakeQueue(result=outcome, steps=0))
+        exc = raises(fal_client.FalClientHTTPError, retry_once, lambda: ref["run_queued"](client, args),
+                     sleep=sleeps.append)
+        check(f"{label}: raised, never retried", exc is not None and queue.count("POST") == 1 and not sleeps)
 
     sleeps.clear()
-    client = mock_client(queue := FakeQueue(result=(422, model_error), steps=0))
-    exc = raises(fal_client.FalClientHTTPError, ref["retry_once"], lambda: ref["run_queued"](client, args),
-                 sleep=sleeps.append)
-    check("retry_once never retries a 422", exc is not None and queue.count("POST") == 1 and not sleeps)
+    call = failing(http_error(429, {"Retry-After": "2"}), result)
+    check("surfaced 429 with Retry-After 2: waited 2 s, retried once",
+          retry_once(call, sleep=sleeps.append) == result and call.count == 2 and sleeps == [2.0])
+    sleeps.clear()
+    call = failing(http_error(429, {"Retry-After": "600"}), result)
+    exc = raises(fal_client.FalClientHTTPError, retry_once, call, sleep=sleeps.append)
+    check("surfaced 429 with Retry-After 600, past the 300 s budget: raised at once, no wait",
+          exc is not None and call.count == 1 and not sleeps)
+    sleeps.clear()
+    call = failing(http_error(429, {"Retry-After": "30"}), result)
+    exc = raises(fal_client.FalClientHTTPError, retry_once, call, sleep=sleeps.append, clock=clock_at(0.0, 280.0))
+    check("Retry-After 30 with 20 s of budget left (first attempt took 280 s): raised at once",
+          exc is not None and call.count == 1 and not sleeps)
+    sleeps.clear()
+    call = failing(httpx.ConnectError("x"), result)
+    check("connect error retried once after 0.5 to 1 s",
+          retry_once(call, sleep=sleeps.append) == result and call.count == 2 and 0.5 <= sleeps[0] <= 1.0)
+    sleeps.clear()
+    call = failing(fal_client.FalClientTimeoutError(300, "req_1"), result)
+    exc = raises(fal_client.FalClientTimeoutError, retry_once, call, sleep=sleeps.append)
+    check("client timeout (FalClientTimeoutError) never retried", exc is not None and call.count == 1 and not sleeps)
 
     check("classify settles every caught type: NoMeshError and a plain FalClientError are billed",
           ref["classify"](no_mesh("x")) == ref["Failure"]("fal_bad_output", 200, True)

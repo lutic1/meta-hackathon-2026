@@ -6,11 +6,14 @@ Volume and Secret handles) constructs lazily with network access blocked,
 that the 1.0 renames fail loudly, and how FunctionCall.get(timeout=0)
 reports each runner outcome at this version.
 
-Section 5 loads POLL_ERRORS and runner_state from the code block in
-references/hosted-code.md, so the documented classifier is the one tested.
-It drives them through modal's private _Invocation.poll_function and
-modal_proto messages; those imports are stable only at the pinned version,
-so expect to update section 5 on any modal upgrade.
+Sections 5 and 6 execute the src/infra and src/api code blocks of
+references/hosted-code.md, so the documented code is the code tested.
+Section 5 drives runner_state through modal's private
+_Invocation.poll_function and modal_proto messages; those imports are stable
+only at the pinned version, so expect to update it on any modal upgrade.
+Section 6 runs the spine's hosted rules (AD-7 to AD-9) on in-memory fakes:
+the AD-9 names, the call:<job_id> key, the 20 quota slots, the ORPHAN_S and
+DEADLINE_S backstops, 202 while queued or running, and the session sweep.
 
     uv run --no-project --with modal==1.6.2 \
         python .claude/skills/keyframe-modal/scripts/selfcheck.py
@@ -20,14 +23,20 @@ from __future__ import annotations
 
 import asyncio
 import builtins
+import dataclasses
 import inspect
+import re
 import socket
+import tempfile
 import warnings
+from datetime import UTC, datetime, timedelta
 from importlib.metadata import version
 from pathlib import Path
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 PIN = "1.6.2"
+HOSTED_CODE = Path(__file__).resolve().parents[1] / "references" / "hosted-code.md"
 
 
 def _no_network(*_args, **_kwargs):
@@ -90,11 +99,13 @@ check("Function.autoscaler namespace exists (update_autoscaler is deprecated in 
 with warnings.catch_warnings():
     warnings.simplefilter("error")
     image = (modal.Image.debian_slim(python_version="3.13")
-             .uv_pip_install("fastapi==0.156.4")
+             .uv_sync(uv_version="0.11.32", extra_options="--no-dev")
              .env({"MODE": "hosted", "GUIDE": "verbatim"}))
     secret = modal.Secret.from_name("keyframe", required_keys=["META_MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"])
     volume = modal.Volume.from_name("keyframe-data", create_if_missing=True)
     jobs = modal.Dict.from_name("keyframe-jobs", create_if_missing=True)
+    sessions = modal.Dict.from_name("keyframe-sessions", create_if_missing=True)
+    ledger = modal.Dict.from_name("keyframe-ledger", create_if_missing=True)
     app = modal.App("keyframe", image=image, secrets=[secret], volumes={"/data": volume})
 
     @app.function(timeout=900, serialized=True)
@@ -111,10 +122,15 @@ with warnings.catch_warnings():
     @app.function(schedule=modal.Cron("0 6 * * *", timezone="America/New_York"), serialized=True)
     def ledger_export() -> None: ...
 
-check("web is an ASGI web function, runner and export are plain functions",
-      web._is_web_endpoint() and not run_build._is_web_endpoint() and not ledger_export._is_web_endpoint())
-check("Dict, Volume, Secret and Functions stay unhydrated (lazy, no credentials)",
-      not any(o._is_hydrated for o in (jobs, volume, secret, web, run_build, ledger_export)))
+    @app.function(schedule=modal.Cron("17 * * * *"), serialized=True)
+    def session_sweep() -> None: ...
+
+check("web is an ASGI web function; runner, export and sweep are plain functions",
+      web._is_web_endpoint()
+      and not any(f._is_web_endpoint() for f in (run_build, ledger_export, session_sweep)))
+check("Dicts, Volume, Secret and Functions stay unhydrated (lazy, no credentials)",
+      not any(o._is_hydrated for o in (jobs, sessions, ledger, volume, secret,
+                                       web, run_build, ledger_export, session_sweep)))
 check("Cron accepts any timezone string offline, so check the IANA name here",
       modal.Cron("0 6 * * *", timezone="Not/AZone") is not None and ZoneInfo("America/New_York").key == "America/New_York")
 check(".spawn() outside a running or deployed app raises ExecutionError (live-only)",
@@ -175,17 +191,21 @@ from modal._serialization import serialize  # noqa: E402
 from modal_proto import api_pb2  # noqa: E402
 
 
-def load_classifier():
-    """Exec POLL_ERRORS and runner_state exactly as references/hosted-code.md writes them."""
-    text = (Path(__file__).resolve().parents[1] / "references" / "hosted-code.md").read_text()
-    start = text.index("POLL_ERRORS = (")
-    end = text.index('    return "finished"\n', start) + len('    return "finished"\n')
-    ns = {"modal": modal, "mexc": mexc}
-    exec(text[start:end], ns)
-    return ns["POLL_ERRORS"], ns["runner_state"]
+BLOCKS = re.findall(r"```python\n(.*?)```", HOSTED_CODE.read_text(), re.S)
+APP_BLOCK = BLOCKS[0]  # src/api/modal_app.py: imports src.config, so it is read, not executed
 
 
-POLL_ERRORS, runner_state = load_classifier()
+def load_hosted_code() -> dict:
+    """Exec the src/infra and src/api blocks of references/hosted-code.md as written."""
+    ns: dict = {"__name__": "hosted_code"}
+    for block in BLOCKS[1:]:
+        if not block.startswith("# scripts/"):  # the purge sketch is a fragment, not a module
+            exec(compile(block, "hosted-code.md", "exec", dont_inherit=True), ns)  # no __future__ flags
+    return ns
+
+
+HOSTED = load_hosted_code()
+POLL_ERRORS, runner_state = HOSTED["POLL_ERRORS"], HOSTED["runner_state"]
 
 
 class CannedCall:
@@ -237,5 +257,137 @@ for exc in POLL_ERRORS:
 check("a runner that itself raised modal ConnectionError also reads unknown (hence DEADLINE_S)",
       runner_state(CannedCall(output(G.GENERIC_STATUS_FAILURE, serialize(mexc.ConnectionError("runner side")))))
       == "unknown")
+
+
+# 6. The spine's hosted rules on in-memory fakes (AD-7 to AD-9)
+def decorated(block: str) -> list[str]:
+    return re.findall(r"@app\.function\([^\n]*\n(?:@[^\n]*\n)*def (\w+)\(", block)
+
+
+check("AD-9 names: Dicts keyframe-jobs, keyframe-sessions, keyframe-ledger",
+      re.findall(r'Dict\.from_name\("([^"]+)"', APP_BLOCK) == ["keyframe-jobs", "keyframe-sessions", "keyframe-ledger"])
+check("AD-9 names: Volume keyframe-data mounted at /data, Secret keyframe",
+      re.findall(r'Volume\.from_name\("([^"]+)"', APP_BLOCK) == ["keyframe-data"] and 'DATA = "/data"' in APP_BLOCK
+      and re.findall(r'Secret\.from_name\("([^"]+)"', APP_BLOCK) == ["keyframe"])
+check("AD-9 names: functions web, run_build, ledger_export, session_sweep",
+      sorted(decorated(APP_BLOCK)) == ["ledger_export", "run_build", "session_sweep", "web"])
+check("AD-7 runner timeout=900 and AD-9 max_containers=1 in modal_app.py",
+      "@app.function(timeout=900)" in APP_BLOCK and "max_containers=1" in APP_BLOCK)
+
+
+class FakeDict(dict):
+    """modal.Dict's surface used by the adapters, in memory."""
+
+    def put(self, key, value, *, skip_if_exists=False) -> bool:
+        if skip_if_exists and key in self:
+            return False
+        self[key] = value
+        return True
+
+
+@dataclasses.dataclass(frozen=True)
+class JobState:
+    """Stand-in for the pydantic job state the stories will write."""
+
+    status: str
+    stage: str | None
+    created_at: datetime
+
+    @classmethod
+    def model_validate(cls, raw: dict) -> "JobState":
+        return cls(raw["status"], raw.get("stage"), datetime.fromisoformat(raw["created_at"]))
+
+    def model_dump(self, mode: str = "json") -> dict:
+        return {"status": self.status, "stage": self.stage, "created_at": self.created_at.isoformat()}
+
+    def model_copy(self, update: dict) -> "JobState":
+        return dataclasses.replace(self, **update)
+
+
+class QuotaExceeded(Exception):
+    pass
+
+
+class FakeVolume:
+    def __init__(self) -> None:
+        self.commits = 0
+
+    def commit(self) -> None:
+        self.commits += 1
+
+    def reload(self) -> None:
+        pass
+
+
+canned: dict[str, CannedCall] = {}
+HOSTED.update(JobState=JobState, BuildQuotaExceeded=QuotaExceeded,
+              modal=SimpleNamespace(FunctionCall=SimpleNamespace(from_id=canned.__getitem__)))
+tmp = tempfile.TemporaryDirectory()
+h = HOSTED["ModalHandles"](jobs=FakeDict(), sessions=FakeDict(), ledger=FakeDict(), volume=FakeVolume(),
+                           root=tmp.name, runner=SimpleNamespace(spawn=lambda job_id: SimpleNamespace(object_id="fc-1")))
+store = HOSTED["ModalJobStore"](h, files=None)
+
+
+def job(status: str, stage: str | None, age_s: float) -> JobState:
+    return JobState(status, stage, datetime.now(UTC) - timedelta(seconds=age_s))
+
+
+check("AD-7 backstops: ORPHAN_S 60 s, DEADLINE_S 1,200 s",
+      HOSTED["ORPHAN_S"] == 60 and HOSTED["DEADLINE_S"] == 1200)
+HOSTED["ModalJobRunner"](h).start("job_1")
+check("AD-7 JobRunner.start stores the FunctionCall id under call:<job_id>, never in the record",
+      h.jobs == {"call:job_1": "fc-1"})
+slots = [store.reserve_build(f"job_{n}") for n in range(1, 21)]
+check("AD-9 quota: 20 slot keys claimed with skip_if_exists, numbered 1 to 20",
+      slots == list(range(1, 21)) and all(f"build:{n}" in h.jobs for n in slots))
+check("AD-9 quota: the 21st build raises BuildQuotaExceeded",
+      raises(lambda: store.reserve_build("job_21"), QuotaExceeded))
+
+store.put("job_young", job("queued", "ingest", 30))
+check("queued job with no call key under ORPHAN_S is left queued",
+      store.get("job_young").status == "queued" and h.jobs["job_young"]["status"] == "queued")
+store.put("job_orphan", job("queued", "ingest", 61))
+check("queued job with no call key past ORPHAN_S is marked failed, keeping its stage",
+      (store.get("job_orphan").status, h.jobs["job_orphan"]["stage"]) == ("failed", "ingest"))
+
+canned.update({
+    "fc-running": CannedCall(api_pb2.FunctionGetOutputsResponse(num_unfinished_inputs=1)),
+    "fc-unknown": CannedCall(poll_error=mexc.ConnectionError("transient")),
+    "fc-crashed": CannedCall(output(G.GENERIC_STATUS_FAILURE, serialize(ValueError("runner raised")))),
+    "fc-finished": CannedCall(output(G.GENERIC_STATUS_SUCCESS, serialize(None))),
+})
+for job_id, call_id, age, expected in (("job_run", "fc-running", 2000, "running"),
+                                       ("job_unk", "fc-unknown", 100, "running"),
+                                       ("job_dead", "fc-unknown", 1201, "failed"),
+                                       ("job_crash", "fc-crashed", 100, "failed")):
+    store.put(job_id, job("running", "segment", age))
+    h.jobs[f"call:{job_id}"] = call_id
+    got = store.get(job_id)
+    check(f"watchdog: {call_id.removeprefix('fc-')} runner, job {age} s old -> {expected}"
+          + (", stage kept" if expected == "failed" else ""),
+          got.status == expected and got.stage == "segment" and h.jobs[job_id]["status"] == expected)
+store.put("job_raced", job("done", "scene", 100))
+h.jobs["call:job_raced"] = "fc-finished"
+check("watchdog: a runner that finished meanwhile wins (its terminal record is returned, not overwritten)",
+      store._watchdog("job_raced", job("running", "scene", 100)).status == "done"
+      and h.jobs["job_raced"]["status"] == "done")
+
+poll = HOSTED["build_poll_status"]
+check("AD-7 GET /builds/<job_id>: 202 while queued or running, 200 when terminal",
+      [poll(s) for s in ("queued", "running")] == [202, 202]
+      and all(poll(s) == 200 for s in HOSTED["TERMINAL"]))
+
+now = datetime.now(UTC)
+h.sessions.update({"sess_old": {"room_id": "room_a", "last_event_at": (now - timedelta(hours=25)).isoformat()},
+                   "sess_new": {"room_id": "room_a", "last_event_at": (now - timedelta(hours=1)).isoformat()}})
+HOSTED["sweep_sessions"](h, now=now)
+check("AD-8 session_sweep: deletes sessions 24 h after their last event, keeps the rest",
+      HOSTED["SESSION_TTL"] == timedelta(hours=24) and list(h.sessions) == ["sess_new"])
+h.ledger.update({"call_1": {"kind": "segment", "usd": 0.0025}})
+HOSTED["export_ledger"](h, day=now.date())
+snapshot = Path(tmp.name, "spend", f"hosted-{now.date().isoformat()}.jsonl").read_text()
+check("AD-9 ledger_export: one JSON line per ledger entry under spend/, then commit",
+      snapshot.strip() == '{"key": "call_1", "kind": "segment", "usd": 0.0025}' and h.volume.commits == 1)
+tmp.cleanup()
 
 print("selfcheck passed")

@@ -115,10 +115,11 @@ Built to the strictest Cerebral Valley precedent (public open-source repo, 2-min
   - `_bmad/`: BMAD Method v6.12.4 install (Oct 20).
   - `.claude/skills/bmad-*/`: the 30 BMAD skills (Oct 20).
   - `.claude/skills/modal/`: Modal's official skill (Oct 21, `modal skills install --claude --no-docs`).
-  - `.claude/skills/keyframe-*/`: the four Keyframe dev skills (Oct 21).
-  - Command (the shell glob expands the `bmad-*` and `keyframe-*` skill folders; `--ignore-unmatch` keeps it from aborting on a listed path that was never committed): `git rm -r --cached --ignore-unmatch _bmad .claude/skills/modal .claude/skills/bmad-* .claude/skills/keyframe-*`
-  - `.gitignore` entries: `_bmad/`, `.claude/skills/bmad-*/`, `.claude/skills/keyframe-*/`, `.claude/skills/modal/` (the existing `_bmad/config.user.toml` line is subsumed).
-  - Check before committing: `git diff --cached --name-status` lists only `D` entries under the paths above; any other path staged (any other `.claude/` file such as `settings.json`, `settings.local.json`, `commands/`, `agents/`, hooks or another skill) stops the pass until it is unstaged.
+  - `.claude/skills/keyframe-*/`: the Keyframe dev skills (keyframe-sam31, keyframe-muse, keyframe-sam3d-fal, keyframe-modal, keyframe-devops; Oct 21).
+  - `.claude/hooks/session-start.sh` and `.claude/settings.json`: the cloud-container SessionStart hook and its registration, created by the deps-foundation story (Mon Oct 26). If a `.claude/settings.json` existed before that story, only the hook entry is removed from it and the file stays.
+  - Command (the shell glob expands the `bmad-*` and `keyframe-*` skill folders; `--ignore-unmatch` keeps it from aborting on a listed path that was never committed): `git rm -r --cached --ignore-unmatch _bmad .claude/skills/modal .claude/skills/bmad-* .claude/skills/keyframe-* .claude/hooks/session-start.sh .claude/settings.json`
+  - `.gitignore` entries: `_bmad/`, `.claude/skills/bmad-*/`, `.claude/skills/keyframe-*/`, `.claude/skills/modal/`, `.claude/hooks/session-start.sh`, `.claude/settings.json` (the existing `_bmad/config.user.toml` line is subsumed).
+  - Check before committing: `git diff --cached --name-status` lists only `D` entries under the paths above; any other path staged (any other `.claude/` file such as `settings.local.json`, `commands/`, `agents/`, another hook or another skill) stops the pass until it is unstaged. Then: no tracked `.env`, raw photo or cache path (`git ls-files` grep); nothing in `src/`, `tests/`, `scripts/` or `web/src/` references `.claude/`; `scripts/check.sh` passes in a fresh clone; CI is green on the hygiene commit.
   - Out of scope and kept: everything else under `.claude/`.
   - The BMAD brief folder under `docs/planning-artifacts/` stays the single source of truth for the brief; `PRODUCT_BRIEF.md` stays removed (merging `keyframe/bmad-brief` into `master` deletes it there; do not recreate).
 

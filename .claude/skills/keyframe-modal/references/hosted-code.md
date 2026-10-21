@@ -23,10 +23,7 @@ settings = Settings.from_env()  # read at deploy time for MIN_CONTAINERS (AD-14)
 
 image = (
     modal.Image.debian_slim(python_version="3.13")
-    .uv_pip_install(
-        "fastapi==0.156.4", "pydantic==2.14.1", "httpx==0.28.1", "Pillow==13.0.0",
-        "meta-sam-parser==0.1.0", "fal-client==1.0.3", "python-dotenv==1.2.4",
-    )
+    .uv_sync(uv_version="0.11.32", extra_options="--no-dev")  # installs uv.lock exactly, no pytest (keyframe-devops)
     .env({"MODE": "hosted", "GUIDE": "verbatim"})       # not secret, so it goes on the image
     .add_local_python_source("src")                       # .py files only; .env never ships
     .add_local_dir("web/dist", "/root/web/dist")          # lazy: a missing build fails only at serve or deploy
@@ -93,9 +90,10 @@ import modal
 import modal.exception as mexc
 
 TERMINAL = {"done", "failed", "needs_more_photos", "needs_recapture"}
-BUILD_QUOTA = 20          # AD-9: the 21st build is refused
-ORPHAN_S = 60             # a queued job whose spawn was never recorded
-DEADLINE_S = 900 + 300    # runner timeout plus a scheduling margin (Keyframe's choice, not a Modal figure)
+BUILD_QUOTA = 20          # AD-9: 20 slot keys; the 21st build is refused
+ORPHAN_S = 60             # AD-7: a queued job whose spawn was never recorded
+DEADLINE_S = 900 + 300    # AD-7: runner timeout plus margin; past it an unknown poll counts as dead
+SESSION_TTL = timedelta(hours=24)   # AD-8: sessions are deleted 24 h after their last event
 
 
 @dataclass(frozen=True)
@@ -140,7 +138,7 @@ class ModalJobRunner:                        # JobRunner port
 
     def start(self, job_id: str) -> None:
         call = self.h.runner.spawn(job_id)                 # input is the id only
-        self.h.jobs[f"call:{job_id}"] = call.object_id     # own key, not in the record (Known issues)
+        self.h.jobs[f"call:{job_id}"] = call.object_id     # AD-7: its own key; the runner owns <job_id>
 
 
 class ModalJobStore:                         # JobStore port: in-flight in the Dict, final on the Volume
@@ -211,13 +209,26 @@ class VolumeFiles:
 Notes:
 - **Job state.** Store job state, sessions and ledger entries as plain JSON dicts (`model_dump(mode="json")`), not pickled pydantic objects. During a rolling redeploy an old container and a new container read the same keys, and the `modal dict items` CLI can show plain dicts.
 - **Order in `POST /builds`.** Check the access code, then `reserve_build` (release the slot with `jobs.pop(f"build:{n}")` if ingest rejects the upload). Store both photo streams through `ArtifactStore` (each write commits). Then write the `queued` job record, then call `JobRunner.start`. A runner spawned before the commit would `reload()` and find no photos. If `start` raises, the route writes `failed` with stage `ingest` itself and answers with the error envelope; the watchdog's `orphaned` branch is the backstop for a web container that died in between.
-- **Build counter.** AD-9 asks for a counter; a read-modify-write on one Dict key would let concurrent requests read the same count. Each slot is a separate key claimed with `put(..., skip_if_exists=True)`, which returns `False` when the key already exists (SDK docstring). That the check is atomic under concurrent writers is not documented: confirm it on the first live build. `POST /access/check` reports `builds_left` as `BUILD_QUOTA` minus the slots present.
-- **Response codes.** `GET /builds/<job_id>` returns the job state from `JobStore.get` with 202 while the status is `queued` or `running`, and 200 once it is terminal. A missing record is 404. The local `JobStore` must return the same codes (AD-9).
-- **Who writes `<job_id>`.** The runner writes it after each stage. The web container writes it twice: the `queued` record before the spawn, and the watchdog's `failed`.
+- **Build counter (AD-9).** AD-9 keeps the counter as 20 slot keys, because a read-modify-write on one Dict key would let concurrent requests read the same count. Each slot is claimed with `put(..., skip_if_exists=True)`, which returns `False` when the key already exists (SDK docstring). AD-9 requires the hosted story to verify that the claim is atomic under concurrent writers before relying on it (Tested commands). `POST /access/check` reports `builds_left` as `BUILD_QUOTA` minus the slots present.
+- **Response codes (AD-7).** `GET /builds/<job_id>` returns the job state from `JobStore.get` with `build_poll_status` (below): 202 while the status is `queued` or `running`, and 200 once it is terminal. A missing record is 404. The local `JobStore` returns the same codes, since AD-7 and the HTTP conventions fix them for both modes.
+- **Who writes `<job_id>` (AD-7).** The runner owns the record and writes it after each stage; the web container never writes progress back. It writes the key only twice: the `queued` record before the spawn, and the watchdog's `failed`.
   - On `timed_out`, `crashed`, `expired` or `finished`, Modal has reported that the call ended, so the runner can no longer write and the watchdog cannot race it.
   - On `unknown` (the poll itself failed) the job is left unchanged. A runner that itself raised one of the `POLL_ERRORS` classes reads the same way, because `get()` re-raises the runner's exception class; so `unknown` past `DEADLINE_S` counts as dead.
-  - `orphaned` and the deadline are backstops, and the runner may in principle still be live. The runner therefore stops when it rereads a terminal status at a stage entry. A stage that finishes between the watchdog's write and that reread can still overwrite `failed` with its progress; this is rare and accepted.
-- **Sessions.** Each `keyframe-sessions` value carries `room_id` and `last_event_at` (ISO 8601 UTC) beside its events. `session_sweep` deletes a session 24 h after its last event (AD-8), and the judge-room purge deletes a purged room's sessions. The Dict's own 7-day idle expiry is not a retention control.
+  - `orphaned` (`ORPHAN_S`, 60 s) and the deadline (`DEADLINE_S`, 1,200 s) are AD-7's backstops, and the runner may in principle still be live. The runner therefore stops when it rereads a terminal status at a stage entry. A stage that finishes between the watchdog's write and that reread can still overwrite `failed` with its progress; this is rare and accepted.
+- **Sessions (AD-8).** Each `keyframe-sessions` value carries `room_id` and `last_event_at` (ISO 8601 UTC) beside its events. The hourly `session_sweep` Cron deletes a session 24 h after its last event, and the judge-room purge deletes a purged room's sessions. The Dict's own 7-day idle expiry is not a retention control.
+
+## `GET /builds/<job_id>` status code (`src/api`, both modes)
+
+```python
+POLLING = {"queued", "running"}
+
+
+def build_poll_status(status: str) -> int:
+    """AD-7 and the HTTP conventions: 202 while queued or running, 200 once terminal."""
+    return 202 if status in POLLING else 200
+```
+
+The route calls it after `JobStore.get`, which has already run the watchdog, so a dead runner answers 200 with `failed`. It lives with the routes, not in `src/infra`, because both modes answer the same way.
 
 ## Daily ledger export (AD-9, `budgets.md`)
 
@@ -233,7 +244,7 @@ def export_ledger(h: ModalHandles, day: date) -> None:
 
 def sweep_sessions(h: ModalHandles, now: datetime) -> None:
     """AD-8: delete each session 24 h after its last event (hourly Cron, so at most an hour late)."""
-    cutoff = (now - timedelta(hours=24)).isoformat()
+    cutoff = (now - SESSION_TTL).isoformat()
     stale = [key for key, s in h.sessions.items() if s["last_event_at"] < cutoff]   # collect, then delete
     for key in stale:
         h.sessions.pop(key, None)
@@ -253,7 +264,7 @@ Handles: `modal.Volume.from_name("keyframe-data", environment_name=ENV)` and `mo
 | `scripts/purge_judge_rooms.py` | the sketch below | Run Tue Nov 10 |
 | `scripts/ledger.py export` | `b"".join(volume.read_file("/spend/hosted-<date>.jsonl"))` | Merges the latest hosted snapshot into `spend/exports/ledger-<date>.json` |
 
-AD-8 deletes a judge room's originals, sessions and cache entries together with the room. That works only if the build leaves a way to find them:
+AD-8 deletes a judge room's originals, sessions and the cache entries listed in its `cache-keys.json` together with the room. The build leaves a way to find each:
 - `ArtifactStore` writes every artifact of a hosted judge build, downscaled photos and originals included, under the build's `rooms/judge/<room_id>/` prefix.
 - Cache files are keyed by content hash with no room index, so the runner (the one writer per job) writes `cache-keys.json` beside the final record, listing every cache key the build read or wrote. A key shared with another build is deleted too; that only costs a cache miss later.
 - Session values carry `room_id` (see Sessions above).
@@ -274,4 +285,4 @@ jobs.pop(f"call:{job_id}", None)
 
 ## Offline tests
 
-Tests under `tests/` never reach Modal (AD-17). The adapters take `ModalHandles`, so tests can pass a plain `dict` for each Dict, a temporary directory for `root`, and a stub with no-op `commit()` and `reload()` for the Volume. The runner can be a stub whose `spawn()` returns an object with an `object_id`; the watchdog tests pass a stub whose `get()` raises each outcome. Calling `.spawn()` on a real Function outside a running app raises `ExecutionError` ("has not been hydrated"), and any Dict access raises `AuthError` with no token. `scripts/selfcheck.py` covers the SDK side: it loads `POLL_ERRORS` and `runner_state` from this file's code block and runs them against Modal's real poll code, so the two cannot drift apart.
+Tests under `tests/` never reach Modal (AD-17). The adapters take `ModalHandles`, so tests can pass a plain `dict` for each Dict, a temporary directory for `root`, and a stub with no-op `commit()` and `reload()` for the Volume. The runner can be a stub whose `spawn()` returns an object with an `object_id`; the watchdog tests pass a stub whose `get()` raises each outcome. Calling `.spawn()` on a real Function outside a running app raises `ExecutionError` ("has not been hydrated"), and any Dict access raises `AuthError` with no token. `scripts/selfcheck.py` executes this file's `src/infra` and `src/api` blocks as written: it runs `runner_state` against Modal's real poll code, and the job store, runner, watchdog, `build_poll_status`, `sweep_sessions` and `export_ledger` against the same kind of in-memory fakes, so the code here and the checks cannot drift apart.

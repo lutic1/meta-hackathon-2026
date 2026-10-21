@@ -49,18 +49,20 @@ There is one path. Council modules build text only, and the adapter owns the HTT
 3. The adapter runs AD-6 guarded calls:
    - `Cache.get_or_call(key)`, where `key = sha256(model id || schema hash || full prompt including system || reasoning_effort || sha256 of each image in order || attempt)`. A hit is never priced or refused.
    - On a miss only, `SpendLedger.guard(kind, estimate)`. A call that would pass `SPEND_CAP_USD` raises `SpendCapExceeded` before any HTTP. The ledger keeps one entry per call, and a retried call is still one entry.
-   - The adapter builds the body, POSTs with `post_with_retry` (AD-13), parses the result, and settles the ledger from `usage`.
+   - The adapter builds the body, POSTs with `post_with_retry` (AD-13: one retry, only on the endpoint's retryable set, within the role's budget), parses the result, and settles the ledger from `usage`.
 4. The result is validated with pydantic into the AD-2 model and returned as `ChatResponse`.
 
 ```python
-# src/wiring.py: one provider per role; the budget is fixed at construction
+# src/wiring.py: one provider per role; output and time budgets are fixed at construction
 riddler = MetaModelProvider(client, model=settings.model_riddler,
-                            max_completion_tokens=settings.max_completion_tokens_riddler)
+                            max_completion_tokens=settings.max_completion_tokens_riddler,
+                            budget_s=45.0)                         # budgets.md, Riddler row
 
 # src/providers/meta_api.py, inside MetaModelProvider.chat (shape only; helpers as in scripts/selfcheck.py)
 body = chat_body(system, user_text, images, response_schema, reasoning_effort,
                  self.max_completion_tokens)                       # strict=False on Meta
-resp = post_with_retry(self.client, "/chat/completions", body, retryable=AD13_RETRYABLE)
+resp = post_with_retry(self.client, "/chat/completions", body,
+                       retryable=CHAT_RETRYABLE_STATUS, budget_s=self.budget_s)
 choice = resp.json()["choices"][0]
 if choice["finish_reason"] != "stop":                              # "length" means truncated JSON
     raise ProviderError(200, choice["finish_reason"], "incomplete structured output")
@@ -68,19 +70,19 @@ parsed = response_schema.model_validate_json(choice["message"]["content"])
 ledger.settle(call_id, chat_cost_usd(resp.json()["usage"]))
 ```
 
-- **Client.** Use one `httpx.Client(base_url="https://api.meta.ai/v1", headers={"Authorization": f"Bearer {key}"}, timeout=...)` per provider. The key comes from `Settings.meta_model_api_key`. Read it in no other module (AD-14). Locally it lives in `.env`; hosted, in the `keyframe` `modal.Secret`.
+- **Client.** Use one `httpx.Client(base_url="https://api.meta.ai/v1", headers={"Authorization": f"Bearer {key}"}, timeout=...)` per provider. The key comes from `Settings.meta_model_api_key`, read from `META_MODEL_API_KEY` (AD-14 keeps that name, not Meta's documented `MODEL_API_KEY`). Read it in no other module. Locally it lives in `.env`; hosted, in the `keyframe` `modal.Secret`.
 - **Images.** Send the stored downscaled 1280 px JPEG bytes from ingest (AD-7) as `data:image/jpeg;base64,...` parts in the user message, in upload order. Never re-encode them, because the cache key and the masks use the same bytes.
 - **Boxes.** Boxes come back on a 0 to 1000 grid of the image as sent. The segment stage converts them to frame pixels and clamps them (AD-18, Conventions). The model may return 1001 at an edge.
-- **Schemas.** On Meta, send `Model.model_json_schema()` with `strict: false`, which is the API default and AD-5's first option. Output is still constrained to the schema. Use `strict_schema(Model)` with `strict: true` only where the host requires strict mode: Baseten's reference fixes `strict` to `true`. Meta's strict subset forbids `oneOf` and open maps, so `strict_schema` rewrites the `oneOf` that AD-2's tagged unions produce and refuses map-typed fields. Baseten documents no subset of its own. That it enforces Meta's is an assumption to confirm in the Tue Oct 27 live call.
+- **Schemas.** On Meta, send `Model.model_json_schema()` with `strict: false`, which is the API default and AD-5's first option; AD-2 requires it for any schema holding a tagged union. Output is still constrained to the schema. Use `strict_schema(Model)` with `strict: true` only where the host requires strict mode: Baseten's reference fixes `strict` to `true`. Meta's strict subset forbids `oneOf` and open maps, so `strict_schema` rewrites the `oneOf` that AD-2's tagged unions produce and refuses map-typed fields. AD-2 keeps map-typed fields out of every model-response schema (`RoomDraft`, `DryRunAnswers`, `ArchitectResponse`: lists or fixed `p1` to `p6` keys), so the refusal only catches a regression. Baseten documents no subset of its own. That it enforces Meta's is an assumption to confirm in the Tue Oct 27 live call.
 
-| Role | Effort | Images | Response model | Budget (`budgets.md`) |
+| Role | Effort | Images | Response model | Budget (`budgets.md`), passed as `budget_s` |
 |---|---|---|---|---|
 | Architect | `low` | all 6 to 10 photos | `ArchitectResponse` (AD-18) | 15 s |
 | Riddler | `medium` | none (prompt view: interactables only) | `RoomDraft` (AD-7), ordinal keys `p1` to `p6` | 45 s; past that, retry at `low` |
-| Dry run | `low` | photos, plus labels, clues and rungs | `DryRunAnswers` (AD-12) | 30 s |
-| Trickster | `low` | none named in the spec | edit proposal from the fixed menu (`decoy`, `merge`, `loosen`, `shortcut`) | at most 6 calls per session |
+| Dry run | `low` | photos, plus labels, clues and rungs | `DryRunAnswers` (AD-12): a list of `{puzzle_id, answer}`, never a map | 30 s |
+| Trickster | `low` | none named in the spec | edit proposal from the fixed menu (`decoy`, `merge`, `loosen`, `shortcut`) | at most 6 calls per session; no time budget, so `budget_s=30` (Keyframe choice) |
 
-- **Portraits.** `scripts/portraits.py` calls `generate_image(prompt)` (AD-5) once per wizard through the same guarded path, with kind `image` and a seed estimate of $0.01. It decodes `data[0].b64_json` and writes `web/public/portraits/*.webp`. Play never calls it (CAP-7).
+- **Portraits.** `scripts/portraits.py` calls `generate_image(prompt)` (AD-5) once per wizard through the same guarded path, with kind `image` and a seed estimate of $0.01, `retryable=IMAGE_RETRYABLE_STATUS` and `budget_s=120` (Keyframe choice, so a 60 s overload `Retry-After` fits). It decodes `data[0].b64_json` and writes `web/public/portraits/*.webp`. Play never calls it (CAP-7).
 - **Output budget.** `max_completion_tokens` is a constructor argument of the adapter, not a port argument (AD-5's `chat` has no role). Its per-role value needs a new setting, for example `MAX_COMPLETION_TOKENS_<ROLE>` next to `PROVIDER_<ROLE>`. AD-14 lists every adapter setting and has none for this, so the setting needs an AD-14 amendment approved by the architect, plus a `.env.example` entry, before the providers story reads it. A starting value of 16384 per role is an assumption to tune from `usage.completion_tokens_details.reasoning_tokens` on the first live calls. Reasoning tokens count against this budget.
 
 ## API constraints
@@ -109,18 +111,20 @@ ledger.settle(call_id, chat_cost_usd(resp.json()["usage"]))
 | Image model and endpoint | `muse-image-1.0`, `POST /v1/images/generations`; `n` 1 to 10; `b64_json` by default; `webp` by default | https://dev.meta.ai/docs/image-generation.md |
 | Image rejects | any unknown top-level field (`seed`), `moderation`, aspect ratio over 16:1, bad `n` or formats: 400; non-JSON content type: 415 | https://dev.meta.ai/docs/image-generation.md |
 | Image price and limit | $0.01 per returned image, failed or filtered images free; 150 RPM, no TPM limit | https://dev.meta.ai/docs/pricing-rate-limits.md |
-| Retry rules (vendor) | retry 429, 500 and 503 with backoff (start at 0.5 to 1 s, add jitter, honor `Retry-After`); 503 overload and backend-unavailable send `Retry-After: 60`, a deploy drain a few seconds; never retry 400, 401, 402, 403, 404 or 413; do not retry 504 unchanged | https://dev.meta.ai/docs/error-handling.md |
+| Retry rules (vendor) | retry 429, 500 and 503 with backoff (start at 0.5 to 1 s, add jitter, honor `Retry-After`); 503 overload and backend-unavailable send `Retry-After: 60`, a deploy drain a few seconds; never retry 400, 401, 402, 403, 404 or 413; do not retry 504 unchanged. AD-13 adopts this set | https://dev.meta.ai/docs/error-handling.md |
 | Baseten fallback | `https://inference.baseten.co/v1`, model `meta-models/muse-spark-open`, OpenAI-compatible | https://dev.meta.ai/docs/muse-spark-open/deploy.md |
 | Baseten request fields | `json_schema.strict` is `const: true`, with no schema subset documented; `max_tokens` defaults to 4096 | https://docs.baseten.co/reference/inference-api/chat-completions.md |
 | Spark Open effort default | `xhigh` (strength 512); `medium` is 32 | https://dev.meta.ai/docs/muse-spark-open/settings.md |
 
 ## Failure scenarios
 
-The adapter retries at most once, and the single regeneration loop lives in `pipeline/regenerate.py`, never in the adapter (AD-13). AD-13 is binding: retry once with backoff on 429 and every 5xx (`AD13_RETRYABLE` in the self-check). Every other failure surfaces as a typed `ProviderError`, never a raw httpx exception.
+The adapter retries at most once, and the single regeneration loop lives in `pipeline/regenerate.py`, never in the adapter (AD-13). AD-13 retries only what the vendor documents as retryable, and the adapter declares its sets (in the self-check):
+- `CHAT_RETRYABLE_STATUS`: 429, 500 and 503 on `/chat/completions`.
+- `IMAGE_RETRYABLE_STATUS`: 429 and 503 on `/images/generations`. A `muse-image-1.0` 500 is the vendor's non-retryable class.
+- Never 502, 504 or any other 5xx. A 504 re-sent unchanged times out again.
+- `RETRY_ON_CONNECT`: `httpx.ConnectError` and `httpx.ConnectTimeout`, where nothing reached the server. A read timeout is never re-sent.
 
-Before the retry the adapter waits `min(Retry-After or 0.5 to 1.5 s of jitter, max_wait_s)`. `max_wait_s` defaults to 30 s. That is a Keyframe choice to fit stage budgets, not a vendor number. A 503 overload or backend-unavailable answer asks for 60 s, so with the default the retry goes out 30 s early, usually gets another 503, and the stage fails with `ProviderError`. A build stage with room in its budget, or `portraits.py`, can pass `max_wait_s=60`.
-
-**Proposed spine change, for the architect to approve.** Until it is approved, AD-13 governs. The proposal is to follow the vendor and not retry a 504 (re-sent unchanged, it times out again) or a `muse-image-1.0` 500 (the vendor's non-retryable class). In the self-check these are `PROPOSED_CHAT_RETRYABLE` and `PROPOSED_IMAGE_RETRYABLE`.
+The retry runs inside one ledger entry (AD-6). Before it, `post_with_retry` waits `Retry-After` (delta-seconds or an HTTP-date), or 0.5 to 1 s of jitter when there is none. If that wait is longer than what is left of the role's `budget_s`, the call fails at once with `ProviderError` (`retry_wait_s`): a 503 overload or backend-unavailable answer asks for 60 s, so in a 15, 30 or 45 s stage it fails at once, while `portraits.py`, with 120 s, waits and retries. Every other failure surfaces as a typed `ProviderError`, never a raw httpx exception.
 
 | Symptom or status | Cause | What the code does | Retry |
 |---|---|---|---|
@@ -133,11 +137,12 @@ Before the retry the adapter waits `min(Retry-After or 0.5 to 1.5 s of jitter, m
 | 404 with `model_not_found` | wrong model id (see Known issues) | `ProviderError` | no |
 | 404 with an empty body | wrong path or base URL | `ProviderError` with `type: no_body` | no |
 | error body without the `{error: {...}}` envelope | proxy or gateway page | `ProviderError` with `type: unparsed` | per status |
-| 429 `rate_limit_error` | team RPM or TPM exceeded | waits `Retry-After` (or 0.5 to 1.5 s), capped at `max_wait_s`, then one retry | once |
+| 429 `rate_limit_error` | team RPM or TPM exceeded | waits `Retry-After` (or 0.5 to 1 s), then one retry; a wait past the remaining `budget_s` is `ProviderError` at once | once |
 | 500 on chat | transient, or the model produced malformed output | jittered backoff, one retry | once |
-| 500 on images | generation failure Meta did not classify as retryable | AD-13: one retry, then `ProviderError`. Proposed: `ProviderError` at once | once (proposed: no) |
-| 503 | deploy drain (`Retry-After` of a few seconds), overload or backend down (`Retry-After: 60`), retryable image failure | waits `min(Retry-After, max_wait_s)`, then one retry. With the 30 s default, a 60 s overload is retried early and usually ends in `ProviderError` | once |
-| 504 `gateway_timeout` | non-streaming call ran past the server limit | AD-13: one retry, then `ProviderError`. Proposed: `ProviderError` at once. Either way the stage then lowers effort or input (Riddler: re-issue at `low` per `budgets.md`) | once (proposed: no) |
+| 500 on images | generation failure Meta did not classify as retryable | `ProviderError` at once | no (AD-13) |
+| 502, or any other 5xx Meta does not document | gateway or proxy error | `ProviderError` at once | no (AD-13) |
+| 503 | deploy drain (`Retry-After` of a few seconds), overload or backend down (`Retry-After: 60`), retryable image failure | waits `Retry-After`, then one retry, if the wait fits the remaining `budget_s`; otherwise `ProviderError` at once (a 60 s overload in any build stage) | once, if it fits |
+| 504 `gateway_timeout` | non-streaming call ran past the server limit | `ProviderError` at once; the stage then lowers effort or input (Riddler: re-issue at `low` per `budgets.md`) | no (AD-13) |
 | `httpx.ConnectError`, `httpx.ConnectTimeout` | the connection was never made, so nothing was sent or billed | jittered backoff, one retry; a second failure is `ProviderError(None, "transport_error" or "timeout")` | once |
 | `httpx.ReadTimeout`, `WriteTimeout`, `PoolTimeout` | client timeout | `ProviderError(None, "timeout")`, not re-sent because the server may still be generating and billing | no |
 | any other `httpx.RequestError` (`RemoteProtocolError`, `ReadError`, ...) | connection dropped mid-request | `ProviderError(None, "transport_error")` | no |
@@ -150,8 +155,7 @@ Before the retry the adapter waits `min(Retry-After or 0.5 to 1.5 s of jitter, m
 
 | Command | What it proves | Result on 2026-10-21 | Where |
 |---|---|---|---|
-| `<scratch venv>/bin/python .claude/skills/keyframe-muse/scripts/selfcheck.py` (Python 3.13.16, httpx 0.28.1, pydantic 2.14.1) | Pinned versions. The Architect chat body built with `httpx.Request`: model, `reasoning_effort` low, image parts only in the user message as JPEG data URLs, `strict` false, a valid schema name, no rejected parameters. `strict_schema` output fits the strict subset (oneOf rewritten to anyOf, objects closed, all keys required) and refuses a map-keyed `DryRunAnswers`. The image body has `muse-image-1.0`, `b64_json` and no `seed`. On `httpx.MockTransport`: 200 parsed into `ArchitectResponse` with cost $0.006475; 400 made 1 request and no retry; 429 with `retry-after: 2` waited 2.0 s then succeeded; 429 twice gave up after 2 requests; `retry-after: 0` waited 0.0 s and an HTTP-date `Retry-After` was honored; 503 with `retry-after: 60` waited 30.0 s, retried once, then raised; chat 500 retried once; 504 and image 500 retried once under AD-13 and not at all under the proposed sets; image 503 retried once; `ReadTimeout` and `RemoteProtocolError` raised `ProviderError` after 1 request; `ConnectTimeout` and `ConnectError` retried once; a non-envelope error body and an empty 404 raised `ProviderError` | pass: all 16 lines printed, ending `selfcheck passed` | offline here |
-| `uv run --no-project --with httpx==0.28.1 --with pydantic==2.14.1 python .claude/skills/keyframe-muse/scripts/selfcheck.py` | The same checks in a clean throwaway environment with only the two pins. `--no-project` keeps uv from creating a `.venv` for the repo's `pyproject.toml` | pass: the same 16 lines, ending `selfcheck passed` (the first run printed `Installed 11 packages`; re-runs use uv's cache) | offline here (uv fetched the packages from PyPI; no Meta host contacted) |
+| `uv run --no-project --with httpx==0.28.1 --with pydantic==2.14.1 python .claude/skills/keyframe-muse/scripts/selfcheck.py` (uv 0.11.32, Python 3.13.16) | Pinned versions, in a clean throwaway environment with only the two pins (`--no-project` keeps uv from creating a `.venv` for the repo's `pyproject.toml`). The Architect chat body built with `httpx.Request`: model, `reasoning_effort` low, image parts only in the user message as JPEG data URLs, `strict` false, a valid schema name, no rejected parameters. `strict_schema` output fits the strict subset (oneOf rewritten to anyOf, objects closed, all keys required) for `ArchitectResponse` and for `DryRunAnswers` as a list of `{puzzle_id, answer}` (AD-12), and refuses a map-typed field (AD-2). The image body has `muse-image-1.0`, `b64_json` and no `seed`. The AD-13 sets: chat 429, 500, 503; image 429, 503; connect errors `ConnectError`, `ConnectTimeout`. On `httpx.MockTransport`: 200 parsed into `ArchitectResponse` with cost $0.006475; 400 made 1 request and no retry; 429 with `retry-after: 2` waited 2.0 s then succeeded; 429 twice gave up after 2 requests; `retry-after: 0` waited 0.0 s and an HTTP-date `Retry-After` was honored; 503 with `retry-after: 60` in a 30 s budget, and `retry-after: 2` with 1 s of budget left (fake clock), each failed at once after 1 request with no wait; chat 500 retried once after 0.5 to 1 s; chat 502, 504 and 501 failed after 1 request; image 500 failed after 1 request; image 503 with `retry-after: 60` in a 120 s budget waited 60.0 s and retried once; `ReadTimeout` and `RemoteProtocolError` raised `ProviderError` after 1 request; `ConnectTimeout` and `ConnectError` retried once; a non-envelope error body and an empty 404 raised `ProviderError` | pass: 17 lines printed, ending `selfcheck passed`, exit 0 (re-run on 2026-10-21 after the amended AD-13) | offline here (packages from uv's cache; no Meta host contacted) |
 | `claude plugin validate .claude/skills` | The frontmatter of this skill (and its siblings) parses and validates | pass: `Validation passed` | offline here |
 | One Architect call with 2 real downscaled photos and `ArchitectResponse` | the live API accepts the pydantic schema with `strict: false`, including the `discriminator` keyword on unions; real image token counts; `reasoning_tokens` at `low` | not run | live-only: confirm on the first live call |
 | One Riddler call at `medium` | latency against the 45 s budget, 504 risk, and whether 16384 `max_completion_tokens` is enough | not run | live-only |
@@ -161,10 +165,8 @@ Before the retry the adapter waits `min(Retry-After or 0.5 to 1.5 s of jitter, m
 ## Known issues
 
 - `src/providers/meta_api.py` sets `IMAGE_MODEL_PLACEHOLDER = "muse-image"`, but the model id is `muse-image-1.0`. As written, image calls would return 404 `model_not_found`. The same scaffold also has `DEFAULT_BASE_URL = "https://api.meta.com/v1"` (it should be `https://api.meta.ai/v1`, as the Conventions row says) and `CHAT_MODEL_PLACEHOLDER = "muse-spark"` (it should be `muse-spark-1.3`). It uses urllib and defaults `temperature` to 0.7, which AD-5's port drops. Fix all of these in the first providers story.
-- AD-13 says adapters retry "on 429 and 5xx", while the vendor says not to retry 504 unchanged and treats a `muse-image-1.0` 500 as non-retryable. The code follows AD-13. Narrowing it is the proposed spine change under Failure scenarios, which needs the architect's approval.
-- The 30 s `max_wait_s` default is shorter than the 60 s `Retry-After` on 503 overload and backend-unavailable answers. Those retries go out early and usually fail, so the stage fails with `ProviderError`.
-- AD-2 emits tagged unions as `oneOf`, which strict mode rejects. AD-12's `DryRunAnswers`, keyed by puzzle id, is a map, which strict mode cannot express. Both are fine on Meta with `strict: false`. Only the Baseten path forces strict mode. Baseten documents no strict subset, so assume Meta's until the Tue Oct 27 live call shows otherwise: under that assumption the Riddler's `RoomDraft` must contain no map-typed field (use a list or fixed `p1` to `p6` keys) for the fallback to work.
-- The vendor docs disagree in three places. The reasoning page names `max_tokens` for Chat Completions while the protocol page names `max_completion_tokens`; use `max_completion_tokens`. The error-retry cookbook retries every 5xx while the error-handling guide excludes 504. The reasoning page and the API reference list a `max` effort that the protocol page's parameter table omits; AD-5 does not allow it either, so Keyframe never sends it.
+- Baseten documents no strict subset. The code assumes Meta's (no `oneOf`, no open maps) until the Tue Oct 27 live call shows otherwise. The schema side is settled in AD-2 and AD-12: tagged unions go with `strict: false` on Meta, and no model-response schema has a map-typed field, so `strict_schema(RoomDraft)` can express the fallback.
+- The vendor docs disagree in three places. The reasoning page names `max_tokens` for Chat Completions while the protocol page names `max_completion_tokens`; use `max_completion_tokens`. The error-retry cookbook retries every 5xx while the error-handling guide excludes 504; AD-13 follows the guide. The reasoning page and the API reference list a `max` effort that the protocol page's parameter table omits; AD-5 does not allow it either, so Keyframe never sends it.
 
 ## References
 
