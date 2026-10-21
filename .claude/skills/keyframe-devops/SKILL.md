@@ -220,17 +220,16 @@ All run on 2026-10-21 with uv 0.11.32, Python 3.13.16, Node 24.22.1 and npm 11.1
 | `modal serve -e dev`, `modal deploy` from the image block | image builds; `required_keys` enforced | not run | deploy only (keyframe-modal) |
 | the CI job on GitHub | setup-uv, setup-node cache, runner overhead | not run | first deps-foundation PR |
 
-## Proposed spine changes
+## Spine changes (applied)
 
-For Luis (architect owner) to approve on Mon Oct 26 with the deps-foundation story; not applied. Until then `doctor.py` fails "web exact versions" on the Stack's `~6.0.3`, and the first web story waits.
-- **Conventions, new row:** `| Dependencies | Python: uv. `pyproject.toml` holds the runtime Stack pins as `==` in `[project.dependencies]` and `pytest` in `[dependency-groups] dev`. `.python-version` is `3.13`. `[tool.uv]` sets `environments` and `required-environments` (macOS arm64, Linux x86_64), `no-build = true` and `required-version = ">=0.11.32"`. `[tool.pytest.ini_options]` sets `pythonpath = ["."]`. `uv.lock` is committed and changes only in the PR that changes a pin. Install with `uv sync --locked` (never `--frozen`, never `uv pip install`) and test with `uv run pytest -q`. Node: npm, with `web/package-lock.json` committed. Versions in `web/package.json` are exact, and `web/.npmrc` sets `save-exact=true` and `engine-strict=true`. Install with `npm ci`. Every dependency change follows the keyframe-devops checklist. From Mon Oct 26, a pin moves only for a blocking bug or a security fix. `scripts/check.sh` is both the pre-push check and the whole CI job. |`
-- **Conventions, Code style row:** in the first-providers-story clause, `moves the Stack table into [project.dependencies] with == pins` becomes `moves the Python Stack pins into [project.dependencies] with == pins (pytest into [dependency-groups] dev)`, and append `, adds `.python-version`, commits `uv.lock`, and adds `pythonpath = ["."]` to `[tool.pytest.ini_options]``.
-- **Stack table:** add `| uv | 0.11.32 (CI and Modal image exact; local floor via `required-version`) |`; change TypeScript to `| TypeScript | 6.0.3 (exact; strict is the TS 6 default) |`; add `| @types/three | 0.186.0 (three ships no types) |`; change Node to `| Node | 24.22 (Maintenance LTS from Oct 20, supported to Apr 2028; `.nvmrc` = 24, `engines.node` = "24.x"; npm with `web/package-lock.json`) |`; change the Ollama row to `| Ollama runtime, `llama3.2:3b` | v0.40.6 (benchmarked; 0.40.x accepted, macOS auto-update may move the patch) |`.
-- **Structural Seed, `scripts/` line, append:** `check.sh (pre-push check and the whole CI job; --predeploy before modal deploy), doctor.py (Mac and cloud environment check, stdlib only), sit.py (live seams, Mac only)`. Root additions: `.python-version, .nvmrc, uv.lock, .github/workflows/ci.yml`. `web/` additions: `package-lock.json, .npmrc`.
-- **Deferred, last bullet:** replace `CI beyond `pytest`, `test_boundaries.py` and the type-staleness test` with `CI beyond the single job that runs `scripts/check.sh` (lock and wheel checks, offline `pytest` including `test_boundaries.py` and the type-staleness test, the web build and type check); CD`.
-- **Applied Oct 21 (not spine), `delivery-plan.md`:** the hygiene list names the five Keyframe dev skills, adds `.claude/hooks/session-start.sh` and `.claude/settings.json` (created by the deps-foundation story), and adds the post-checks: no tracked `.env`, raw photo or cache path; no reference to `.claude/` from `src/`, `tests/`, `scripts/` or `web/src/`; `scripts/check.sh` passes in a fresh clone; CI green on the hygiene commit.
-- **Conventions, AD-14:** add `scripts/doctor.py is exempt (stdlib, runs before uv sync).`
-- **Applied Oct 21 (not spine):** keyframe-modal `references/hosted-code.md` and its selfcheck now use `.uv_sync(uv_version="0.11.32", extra_options="--no-dev")` instead of a `uv_pip_install` list, and its `runbook.md` deploy step runs `check.sh --predeploy`. keyframe-modal owns the image block; templates.md keeps a copy that this selfcheck compares. The repo `.gitignore` gained `.env.*`, `!.env.example` and `*.env`.
+Luis approved these on Oct 21 and they are in `ARCHITECTURE-SPINE.md` (docs/planning-artifacts/architecture/architecture-Keyframe-2026-10-21/):
+- **Consistency Conventions:** the Dependencies row; the Code style row's first-providers-story clause (Python pins, `.python-version`, `uv.lock`, `pythonpath`).
+- **AD-14:** `scripts/doctor.py` is exempt (stdlib, runs before uv sync).
+- **Stack:** uv 0.11.32, Node 24.22, TypeScript 6.0.3 exact, `@types/three` 0.186.0, Ollama v0.40.6 (0.40.x accepted).
+- **Structural Seed:** `check.sh`, `doctor.py`, `sit.py` in `scripts/`; root `.python-version`, `.nvmrc`, `uv.lock`, `.github/workflows/ci.yml`; `web/package-lock.json`, `web/.npmrc`.
+- **Deferred:** CI beyond the single `scripts/check.sh` job; CD.
+
+Outside the spine, also applied Oct 21: the `delivery-plan.md` hygiene list and post-checks; keyframe-modal `references/hosted-code.md`, its selfcheck (`.uv_sync(uv_version="0.11.32", extra_options="--no-dev")`) and `runbook.md` (`check.sh --predeploy`); the repo `.gitignore` (`.env.*`, `!.env.example`, `*.env`).
 
 ## Known issues
 

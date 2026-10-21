@@ -1,6 +1,6 @@
 # Templates for the deps-foundation story and the first web story
 
-Copy these files as written (two `web/package.json` lines wait for a Stack approval; see that section). Every block marked `<!-- file: ... -->` is extracted and run by [../scripts/selfcheck.py](../scripts/selfcheck.py), which builds a scratch project from them and runs `scripts/check.sh` with negative controls. If you change a block here, rerun the selfcheck.
+Copy these files as written. Every block marked `<!-- file: ... -->` is extracted and run by [../scripts/selfcheck.py](../scripts/selfcheck.py), which builds a scratch project from them and runs `scripts/check.sh` with negative controls. If you change a block here, rerun the selfcheck.
 
 Who adds what:
 - **Deps-foundation story (first providers story, Mon Oct 26):** `pyproject.toml` changes, `.python-version`, `.nvmrc`, `uv.lock`, `tests/conftest.py`, `scripts/check.sh`, `scripts/doctor.py` (copied from this skill's `scripts/doctor.py`), `.github/workflows/ci.yml` (without the npm cache lines), `.claude/hooks/session-start.sh` with its `.claude/settings.json` entry, and the deletion of `requirements.txt`.
@@ -260,7 +260,7 @@ jobs:
 }
 ```
 
-Two lines here wait for Luis to approve the proposed Stack edit (SKILL.md, Proposed spine changes) on Mon Oct 26 with the deps-foundation story: `"typescript": "6.0.3"` (the Stack says `~6.0.3`; exact is what `save-exact`, `check.sh` and `doctor.py` expect) and `"@types/three": "0.186.0"` (not in the Stack yet, but the build fails with TS7016 without it). Until then the first web story does not start.
+Two lines here follow the Stack (SKILL.md, Spine changes): `"typescript": "6.0.3"` exact, as `save-exact`, `check.sh` and `doctor.py` expect, and `"@types/three": "0.186.0"`, without which the build fails with TS7016.
 
 If the first web story picks `json-schema-to-typescript` (Deferred), add `"json-schema-to-typescript": "16.0.0"` to `devDependencies` with `npm install -D json-schema-to-typescript@16.0.0`.
 

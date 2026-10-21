@@ -39,7 +39,7 @@ FR-8: Every Room passes the eight Validator rules of Schema v1 before it is stor
 FR-9: A Dry run (`muse-spark-1.3`, reasoning effort low) that sees only photos, labels, Clues and Rungs, never solutions, must reach every answer: a sentinel-solution test finds no solution in its prompt; any mismatched answer fails the Room; a passing Dry run proves the Clues and three Rungs suffice, so the near-answer is always enough to solve; under cut 4 the Dry run is skipped and the Validator alone gates the Room.
 FR-10: A failed Room is regenerated (Riddler plus Dry run) with its failure reason list only, never the previous draft, at most 2 times (1 under cut 7); Riddler output that fails the response schema or exact-id parsing, and Dry run output missing or unparseable for any Puzzle, count as a failed attempt with a fixed reason (A-24); after the last failed Regeneration the Build ends `needs_recapture` and the Capture screen keeps the photos visible and asks for brighter, closer shots where labels and printed text are readable, with Start over; provenance records the Regeneration count.
 FR-11: The player plays the Room as photo Scenes with mask Hotspots in the stored 1280 px photo's pixel space (a click inside a polygon at any rendered size posts a click for that Interactable; hover reveals it), a Thumbnail strip reaching every photo in upload order (A-12), an Inventory that persists across Scene changes for the whole Session, and Wizard notes showing, for each available Puzzle, its Clue, Lore, Evidence cards (Interactable label, thumbnail crop, read attribute), opened Rungs and lock input, with Puzzles behind unmet prerequisites hidden; after an accepted Decoy, real and Decoy Evidence cards are indistinguishable and keep a stable order (one test); reloading resumes the Session from its Event log (Scenes, Inventory, open locks, current Rungs), and an unreachable server disables inputs with a reconnecting state and counts nothing.
-FR-12: A lock opens only on its correct input, judged by the server, with each available Puzzle's lock input in its Wizard-notes entry: `code` is a 3 to 6 character field with Submit, compared trimmed and case-folded (A-20); `order` is judged on Hotspot clicks made while the sequence is armed from the Puzzle's entry ("Start the sequence"), a completed non-matching sequence counts one Wrong attempt and clears the buffer, which stays armed (spine AD-4 and Schema v1, which supersede the PRD's "most recent clicks" wording, logged for `bmad-correct-course`); `find` is a click on the target Hotspot; `use_on` drags an Inventory item onto a Hotspot, or selects it and then clicks the Hotspot with the Thumbnail strip usable meanwhile; a submitted input shows a pending state and a lock shows open only after the server confirms; a Wrong attempt shows "Not this" with the per-lock count, a click alone never counts, and a click on a non-target Hotspot shows only the Interactable's label; solving a `find` Puzzle visibly moves its Interactable into the Inventory, and an empty Inventory has its own empty state; an opened lock shows a short open state, then the next available Puzzle appears; input for a Puzzle whose prerequisites are not open never opens it and is not a Wrong attempt, and a `use_on` with an item not in the Inventory is refused.
+FR-12: A lock opens only on its correct input, judged by the server, with each available Puzzle's lock input in its Wizard-notes entry: `code` is a 3 to 6 character field with Submit, compared trimmed and case-folded (A-20); `order` is armed only by "Start the sequence" in the order Puzzle's entry, only Hotspot clicks made while armed count (in any Scene), a full-length mismatch counts one Wrong attempt and clears the buffer, which stays armed, "Stop the sequence" disarms with no Wrong attempt, and exploring clicks made while unarmed never count (spine AD-4 and Schema v1; the PRD was aligned to them Oct 21); `find` is a click on the target Hotspot; `use_on` drags an Inventory item onto a Hotspot, or selects it and then clicks the Hotspot with the Thumbnail strip usable meanwhile; a submitted input shows a pending state and a lock shows open only after the server confirms; a Wrong attempt shows "Not this" with the per-lock count, a click alone never counts, and a click on a non-target Hotspot shows only the Interactable's label; solving a `find` Puzzle visibly moves its Interactable into the Inventory, and an empty Inventory has its own empty state; an opened lock shows a short open state, then the next available Puzzle appears; input for a Puzzle whose prerequisites are not open never opens it and is not a Wrong attempt, and a `use_on` with an item not in the Inventory is refused.
 FR-13: Opening the Exit puzzle shows the Completion screen with elapsed time, Rungs used, Wrong attempts and per-Puzzle time, with active Disclosures still visible; its one action is "Build another room" (the Capture screen in Local mode, the Hosted landing in Hosted mode), and it links the Build view (FR-38); the Room result is recorded into the Player profile.
 FR-14: Anything the player types into the hint field becomes a Hint request for the Active puzzle (the Puzzle most recently attempted by lock input or click) and the typed text never leaves the browser; the Scripted attack suite, led by "just tell me the answer", returns only the current Rung, or the No-hint line when none is open, and opens nothing; the No-hint line is an in-world Guide line that acknowledges the ask, says help is coming and points back to the Scene, never reads as a refusal and never names an object or solution; it is logged as an Early ask that lowers persistence and does not release the nudge (§13 Q9 resolved: log only); a fixture test finds no solution in any play response; free conversation with any wizard is out of scope.
 FR-15: The Guide selects the Rung in code from the Event log, with Rungs, Wrong attempts and Idle seconds tracked per Puzzle: Idle counts from the player's last click, lock input or Hint request and server idle ticks never reset it; the Active puzzle's nudge fires after the nudge threshold of Idle, 90 s × (1 + 0.5 × persistence) clamped to 60 to 135 s (90 s on a fresh Player profile), or after 3 Wrong attempts at that lock, whichever comes first; direction and near-answer each need a further stall (Idle equal to the nudge threshold) or 3 further Wrong attempts and arrive at least 90 s after the previous Rung, a spacing that never scales with persistence; an accepted Trickster Loosen opens its named Rung at once and is not counted against the spacing; replaying an Event log yields the same Rung changes as live play; after the near-answer there is no reveal or skip and a further Hint request repeats the near-answer (A-21).
@@ -86,8 +86,8 @@ NFR-14: Accessibility floor: every Hotspot is reachable by Tab with a visible fo
 
 ### Additional Requirements
 
-AR-1: Starter template: none beyond the Vite 8 vanilla-ts template for `web/` (TypeScript ~6.0.3, three 0.186.1, Node 24 LTS with `.nvmrc` = 24 and `engines.node` = "24.x") and the existing Python scaffold (`src/providers` `ModelProvider` ABC with the mock provider and the Meta stub, `src/config.py` `Settings`, `pytest` under `tests/`), which is ratified as the backend base. This shapes the first implementation stories: 1.2 ratifies the backend scaffold and 1.4 creates `web/` from the Vite template, right after 1.1 tags the untouched scaffold as the pre-hackathon baseline. The scaffold is not expanded before Mon Oct 26.
-AR-2: Stack pins (spine §Stack), exact: Python 3.13, FastAPI 0.156.4, uvicorn 0.54.0, pydantic 2.14.1, httpx 0.28.1, Pillow 13.0.0, meta-sam-parser 0.1.0, fal-client 1.0.3, ollama (Python client) 0.6.3, Ollama runtime v0.40.6 with `llama3.2:3b`, modal 1.6.2, pytest 9.1.1, python-dotenv 1.2.4, Node 24.22, Vite 8.3.4, three 0.186.1, TypeScript ~6.0.3, json-schema-to-typescript 16.0.0, @sparkjsdev/spark 2.4.0 (Tier 3 only). The first providers story bumps `requires-python` to `>=3.13`, moves the Stack table into `[project.dependencies]` with `==` pins, and drops `requirements.txt`.
+AR-1: Starter template: none beyond the Vite 8 vanilla-ts template for `web/` (TypeScript 6.0.3 exact, three 0.186.1 with @types/three 0.186.0, Node 24 LTS with the root `.nvmrc` = 24 and `engines.node` = "24.x", npm with a committed `web/package-lock.json`) and the existing Python scaffold (`src/providers` `ModelProvider` ABC with the mock provider and the Meta stub, `src/config.py` `Settings`, `pytest` under `tests/`), which is ratified as the backend base. This shapes the first implementation stories: 1.2 ratifies the backend scaffold and 1.4 creates `web/` from the Vite template, right after 1.1 tags the untouched scaffold as the pre-hackathon baseline. The scaffold is not expanded before Mon Oct 26.
+AR-2: Stack pins (spine §Stack) and the Dependencies convention, exact: Python 3.13, uv 0.11.32 (CI and Modal image exact; local floor via `required-version`), FastAPI 0.156.4, uvicorn 0.54.0, pydantic 2.14.1, httpx 0.28.1, Pillow 13.0.0, meta-sam-parser 0.1.0, fal-client 1.0.3, ollama (Python client) 0.6.3, Ollama runtime v0.40.6 with `llama3.2:3b` (0.40.x accepted, macOS auto-update may move the patch), modal 1.6.2, pytest 9.1.1, python-dotenv 1.2.4, Node 24.22 (`.nvmrc` = 24, `engines.node` = "24.x", npm with `web/package-lock.json`), Vite 8.3.4, three 0.186.1, @types/three 0.186.0, TypeScript 6.0.3 (exact), json-schema-to-typescript 16.0.0, @sparkjsdev/spark 2.4.0 (Tier 3 only). The first providers story bumps `requires-python` to `>=3.13`, moves the Python Stack pins into `[project.dependencies]` with `==` pins (pytest into `[dependency-groups] dev`), drops `requirements.txt`, adds `.python-version` (`3.13`), commits `uv.lock`, sets `[tool.uv]` `environments` and `required-environments` (macOS arm64, Linux x86_64), `no-build = true` and `required-version = ">=0.11.32"`, and adds `pythonpath = ["."]` to `[tool.pytest.ini_options]`; install is `uv sync --locked` (never `--frozen`, never `uv pip install`) and `npm ci`; `web/package.json` versions are exact and `web/.npmrc` sets `save-exact=true` and `engine-strict=true`; every dependency change follows the keyframe-devops checklist, and from the deps-foundation merge on Mon Oct 26 a pin moves only for a blocking bug or a security fix.
 AR-3: Scaffold fixes found by the dev skills, made in the first providers story: `src/providers/meta_api.py` sets `DEFAULT_BASE_URL` to `https://api.meta.ai/v1` (it reads `https://api.meta.com/v1`), the chat model id to `muse-spark-1.3` (it reads `muse-spark`) and the image model id to `muse-image-1.0` (it reads `muse-image`, which returns 404 `model_not_found`), replaces urllib with httpx, drops the `temperature` default of 0.7 and `max_tokens` (AD-5's port has neither) and takes its key from `Settings`, never `os.environ`; `src/config.py` `Settings` gains `fal_key` from `FAL_KEY` plus the AD-14 product flags and per-role adapter settings (`CHAT_MODEL` and `IMAGE_MODEL` retire); `.env.example` lists every key `Settings` reads, blank, including `META_MODEL_API_KEY` and `FAL_KEY`, and a test asserts it. A per-role output-token setting (`MAX_COMPLETION_TOKENS_<ROLE>`) is not in AD-14 and needs an AD-14 amendment before any story reads it.
 AR-4: Paradigm, boundaries and ownership (AD-1, AD-17): hexagonal core; `src/domain` is pure (standard library and pydantic only; no network, filesystem or clock); `src/council` and `src/pipeline` import only the domain and port modules; adapters in `src/providers` and `src/infra` import only ports and the domain and never each other; only `src/providers`, `src/infra` and `src/api` import adapters; `Clock` is a Protocol in `src/domain/clock.py`; `tests/test_boundaries.py` walks every module's imports and fails on a violation; one owner per top-level package (`domain`, `council`, `pipeline`, `providers`, `api`, `infra`, `web`), and a story touches one package plus tests or first declares the port change it needs.
 AR-5: One data shape and generated client types (AD-2): Schema v1 is realized once as pydantic models in `src/domain/schema.py`; `GET /schema` returns every model the API accepts or returns (`Room`, `RoomDraft`, `PlayView`, `BuildView`, `RoomView`, `RoomSummary`, `AccessCheck`, `Derived`, `RoomResult`, `Meta`, job state, session state, event models, error envelope); `web/types` are generated from it (json-schema-to-typescript 16.0.0 or quicktype, picked by the first `web/` story), committed, never hand-written, with a test that fails when stale; `Puzzle.solution` and `TricksterEdit.payload` are tagged unions emitted as `oneOf`, sent with `strict: false` on the Meta path; no model-response schema (`RoomDraft`, `DryRunAnswers`, `ArchitectResponse`) has a map-typed field; `Room.name` is optional (at most 40 characters, set only on seeded Demo rooms); JSON keys are snake_case end to end.
@@ -95,21 +95,21 @@ AR-6: Solution boundary (AD-3): `src/domain/redact.py` exposes `to_prompt_view(r
 AR-7: Event-sourced sessions (AD-4): append-only event log with pydantic event models: client `ClickEvent(interactable_id)`, `LockInputEvent(CodeInput | UseOnInput | OrderStartInput | OrderStopInput)`, `HintRequestEvent(puzzle_id | null)`; server `IdleTickEvent`, `OpeningLineEvent(kind, text)`, `TricksterCardEvent(edit_id, accepted, reason, room_revision)`, `RungChangeEvent(puzzle_id, rung, triggered_by)`; `t_ms` stamped by the API at append and a client timestamp rejected with 422; `use_on` carries no `puzzle_id` and the server resolves it from the pair; the `order` buffer is armed only by `order_start`, a full-length mismatch is one Wrong attempt and keeps it armed, `order_stop` disarms with no Wrong attempt; `idle_tick` appended on a `GET /sessions/<id>` read after 5000 ms with no event (client polls every 2000 ms, no background ticker); `SessionStateMachine.apply` is the sole writer of session state, with `select_rung` pure inside it, so replay equals live; session state exposes `active_puzzle_id`, `opening_line`, `phrasing` and `disclosure`; a Trickster `SpendCapExceeded` or `ProviderError` closes the window as a skipped card (`reason: provider_unavailable`).
 AR-8: Model ports (AD-5): `ModelProvider` is the only way to reach a model, synchronous, with a bounded thread pool for segment fan-out (at most 12); signatures `chat(messages, *, images=[], response_schema=None, reasoning_effort='low', model=None)`, `segment(label, image) -> list[Polygon] | None`, `reconstruct3d(image, mask: Mask3D) -> GlbRef` with `Mask3D {label, polygons (frame pixels), frame_size}` in `src/domain/schema.py` (the fal prompt is its `label`), `generate_image(prompt)`, `transcribe(wav)`; one `strict_schema(model)` helper for strict hosts; `reasoning_effort` never `none` (the mock refuses it too); adapters `mock`, `meta` (Chat Completions for the council, Responses for `sam-3.1`, standard tier only), `openai_compatible` (Baseten, Fireworks by `base_url`), `fal`, `ollama`; `wiring.py` resolves one provider per council role (`architect`, `riddler`, `dryrun`, `trickster`, `image`), fallbacks replacing a role's provider only; `HintPhraser` (`phrase(rung_text, derived)`, `greet(derived)`) is implemented only by the Ollama and verbatim adapters, selected by `GUIDE`, with a fixed prefix under 400 tokens and a 5 s timeout logged as `phraser_fallback`; `POST /sessions` returns `opening_line {kind: greeting | welcome, text}` and `phrasing`; the Riddler prompt carries the generated-line voice rules.
 AR-9: Guarded calls (AD-6): every hosted adapter call runs `Cache.get_or_call(key)` and, on a miss only, `SpendLedger.guard(kind, estimate)` inside `src/providers`; the mock bypasses both; key = sha256(model id, schema hash, full prompt with system message, reasoning effort, sha256 of each image in order, attempt), where `regenerate.py` passes the regeneration count and `trickster.py` the window index; `CACHE=off` bypasses the cache, never the ledger; `domain/ledger.py` is pure arithmetic, `providers/spend.py` one `SpendLedger` per process serializing `guard` under a lock, appending a `reserved` entry replaced by observed cost, one `call_` entry per priced call (a retried call is one entry), estimates seeded from `budgets.md` plus `reconstruct3d` $0.02; hosted containers may overshoot the cap by in-flight estimates (accepted); `scripts/ledger.py reset|export` is the only reset path and the source of the spend export.
-AR-10: Persisted build job (AD-7): the client produces the downscaled JPEG (Canvas, EXIF orientation applied, long edge 1280, quality 0.85) and posts it with the original in one multipart `POST /builds`; ingest stores both byte for byte, rejects fewer than 6 or more than 10 photos, accepts JPEG only (`UnsupportedImage`), and rejects (422) a downscale whose long edge is not 1280 or orientation tag not 1; `photos[i].hash` is sha256 of the stored downscaled bytes; stages `ingest → architect → segment → author → validate → dryrun → scene` run through `JobRunner`, `JobStore` and `ArtifactStore`, persisting state, artifacts and timings after each stage and rereading state on entry so a restarted runner resumes; segment persists the mask preview (`id`, `label`, `photo`, `polygons`) or ends `needs_more_photos`; the author stage persists a `RoomDraft`; the `room` artifact is written only after validate and the Dry run pass; hosted, the runner is `@app.function(timeout=900)` invoked with `.spawn()` as the one writer per job, `ArtifactStore.put` ends with `Volume.commit()` and reads begin with `Volume.reload()`, the Dict holds in-flight state only, the `FunctionCall` id sits under `call:<job_id>`, and a watchdog marks a dead runner's job `failed` (`ORPHAN_S` 60 s, `DEADLINE_S` 1,200 s); `GET /builds/<job_id>` answers 202 while `queued` or `running` and 200 when terminal, in both modes; job statuses `queued`, `running` (with `stage`), `done`, `failed`, `needs_more_photos`, `needs_recapture`; `scripts/seed_rooms.py` writes a final job record and `Room.name` for each Demo room.
+AR-10: Persisted build job (AD-7): the client produces the downscaled JPEG (Canvas, EXIF orientation applied, long edge 1280, quality 0.85) and posts it with the original in one multipart `POST /builds`; ingest stores both byte for byte, rejects fewer than 6 or more than 10 photos (422 `photo_count`), accepts JPEG only (`UnsupportedImage`, code `unsupported_image`), and rejects a downscale whose long edge is not 1280 or orientation tag not 1 (422 `bad_downscale`), each in the AD-13 error envelope; `photos[i].hash` is sha256 of the stored downscaled bytes; stages `ingest → architect → segment → author → validate → dryrun → scene` run through `JobRunner`, `JobStore` and `ArtifactStore`, persisting state, artifacts and timings after each stage and rereading state on entry so a restarted runner resumes; segment persists the mask preview (`id`, `label`, `photo`, `polygons`) or ends `needs_more_photos`; the author stage persists a `RoomDraft`; the `room` artifact is written only after validate and the Dry run pass; hosted, the runner is `@app.function(timeout=900)` invoked with `.spawn()` as the one writer per job, `ArtifactStore.put` ends with `Volume.commit()` and reads begin with `Volume.reload()`, the Dict holds in-flight state only, the `FunctionCall` id sits under `call:<job_id>`, and a watchdog marks a dead runner's job `failed` (`ORPHAN_S` 60 s, `DEADLINE_S` 1,200 s); `GET /builds/<job_id>` answers 202 while `queued` or `running` and 200 when terminal, in both modes; job statuses `queued`, `running` (with `stage`), `done`, `failed`, `needs_more_photos`, `needs_recapture`; `scripts/seed_rooms.py` writes a final job record and `Room.name` for each Demo room.
 AR-11: Profile ownership and retention (AD-8): `Derived` and `RoomResult` are pydantic models with bounds (422 outside) and `Derived.fresh()`; the nudge threshold `clamp(90000 * (1 + 0.5 * persistence), 60000, 135000)` ms lives only in `domain/rungs.py`; `POST /sessions {room_id, derived}`; `GET /sessions/<id>/result` returns `RoomResult` with `demo: DEMO_TIMESCALE > 1`; `web/profile` is the only profile writer, keyed by `room_id`; the cut-2 `GET|PUT /profile/<name>` route exists only in local mode, writing `rooms/profiles/<name>.json`; hosted session logs are deleted by the hourly `session_sweep` Cron 24 h after their last event; each judge Build writes `cache-keys.json` beside its originals under `rooms/judge/<room_id>/`; `scripts/purge_judge_rooms.py` deletes judge rooms, originals, sessions and listed cache entries together and keeps an ids-only deletion record; the Retention summary is one string per mode in `src/api/meta.py`; a test asserts the `.gitignore` entries.
-AR-12: Two modes, hosted names (AD-9): `MODE=local|hosted` selects only `JobStore`, `ArtifactStore`, `JobRunner`, `SessionStore`, `LedgerStore` and `Cache` in `src/infra`, and no mode branch exists outside `src/infra` and `src/api` wiring; FastAPI mounts `web/dist` at `/` with routes under `/api/` (one origin, no CORS; the Vite dev server proxies `/api/*`); hosted mode guards `POST /builds` and `GET /builds/<job_id>/room` with `X-Access-Code`; the build quota is 20 slot keys claimed with `Dict.put(key, value, skip_if_exists=True)` (atomicity verified in the hosted story before it is relied on), the 21st refused with `build_quota_exceeded`; hosted names: Dicts `keyframe-jobs`, `keyframe-sessions`, `keyframe-ledger`, Volume `keyframe-data` mounted at `/data`, Secret `keyframe`, functions `web`, `run_build`, `ledger_export` (`modal.Cron("0 6 * * *", timezone="America/New_York")`, writing `spend/hosted-<date>.jsonl`) and `session_sweep` (hourly); `max_containers=1`; `MIN_CONTAINERS=1` Thu Nov 5 to Mon Nov 9; local stores: JSON sessions under `rooms/sessions/`, `spend/ledger.jsonl` under a file lock (git-ignored), `.cache/`; `scripts/ledger.py export` merges local entries and the latest hosted snapshot into the committed `spend/exports/ledger-<date>.json`; Demo rooms seeded under `rooms/demo/`, Judge rooms under `rooms/judge/`, deletion records under `rooms/deleted/`.
-AR-13: HTTP routes, all under `/api/`, including the Oct 21 amendments: `POST /builds`; `GET /builds/<job_id>` (job state, mask preview once segment completes, 202 while `queued` or `running`, 200 when terminal); `GET /builds/<job_id>/room` (full Room, access-coded in hosted mode); `GET /builds/<job_id>/view` (BuildView, open in both modes); `GET /rooms` (`RoomSummary {room_id, name, cover_photo, puzzle_count, job_id, built_at}` list: local, every stored Room; hosted, Demo rooms only); `GET /rooms/<room_id>` (PlayView); `GET /rooms/<room_id>/photos/<i>`; `POST /sessions {room_id, derived}` (returns the opening line and `phrasing`); `GET /sessions/<id>` (state with `active_puzzle_id`, `opening_line`, `phrasing`, `disclosure`); `GET /sessions/<id>/room` (Effective room PlayView, refetched when `room_revision` changes); `POST /sessions/<id>/events`; `POST /sessions/<id>/trickster`; `GET /sessions/<id>/result`; `GET /schema`; `GET /meta`; hosted only `POST /access/check {code}` returning `{ok, builds_left}`, rate-limited, starting no Build; local cut 2 only `GET|PUT /profile/<name>`; a room-keyed route answers 410 `room_deleted` for a purged Judge room and 404 `room_not_found` for an unknown id.
+AR-12: Two modes, hosted names (AD-9): `MODE=local|hosted` selects only `JobStore`, `ArtifactStore`, `JobRunner`, `SessionStore`, `LedgerStore` and `Cache` in `src/infra`, and no mode branch exists outside `src/infra` and `src/api` wiring; FastAPI mounts `web/dist` at `/` with routes under `/api/` (one origin, no CORS; the Vite dev server proxies `/api/*`); hosted mode guards `POST /builds` and `GET /builds/<job_id>/room` with `X-Access-Code` (refusals and the per-IP attempt limit in AR-13); the build quota is 20 slot keys claimed with `Dict.put(key, value, skip_if_exists=True)` (atomicity verified in the hosted story before it is relied on), the 21st refused with `build_quota_exceeded` (code and status unchanged); hosted names: Dicts `keyframe-jobs`, `keyframe-sessions`, `keyframe-ledger`, Volume `keyframe-data` mounted at `/data`, Secret `keyframe`, functions `web`, `run_build`, `ledger_export` (`modal.Cron("0 6 * * *", timezone="America/New_York")`, writing `spend/hosted-<date>.jsonl`) and `session_sweep` (hourly); `max_containers=1`; `MIN_CONTAINERS=1` Thu Nov 5 to Mon Nov 9; local stores: JSON sessions under `rooms/sessions/`, `spend/ledger.jsonl` under a file lock (git-ignored), `.cache/`; `scripts/ledger.py export` merges local entries and the latest hosted snapshot into the committed `spend/exports/ledger-<date>.json`; Demo rooms seeded under `rooms/demo/`, Judge rooms under `rooms/judge/`, deletion records under `rooms/deleted/`.
+AR-13: HTTP routes, all under `/api/`, including the Oct 21 amendments: `POST /builds` (ingest refusals 422 `photo_count` and 422 `bad_downscale`, a non-JPEG `unsupported_image`); `GET /builds/<job_id>` (job state, mask preview once segment completes, 202 while `queued` or `running`, 200 when terminal); `GET /builds/<job_id>/room` (full Room, access-coded in hosted mode); `GET /builds/<job_id>/view` (BuildView, open in both modes; 409 `build_not_ready` with the job `status` in the envelope until `done`); `GET /rooms` (`RoomSummary {room_id, name, cover_photo, puzzle_count, job_id, built_at}` list: local, every stored Room; hosted, Demo rooms only); `GET /rooms/<room_id>` (PlayView); `GET /rooms/<room_id>/photos/<i>`; `POST /sessions {room_id, derived}` (returns the opening line and `phrasing`); `GET /sessions/<id>` (state with `active_puzzle_id`, `opening_line`, `phrasing`, `disclosure`); `GET /sessions/<id>/room` (Effective room PlayView, refetched when `room_revision` changes); `POST /sessions/<id>/events`; `POST /sessions/<id>/trickster` (outside an open window: 200 with the unchanged session state, no event, no error envelope); `GET /sessions/<id>/result`; `GET /schema`; `GET /meta`; hosted only `POST /access/check {code}` returning `{ok, builds_left}` (a wrong code: 200 `{ok: false, builds_left: null}`), starting no Build; in Hosted mode a missing or wrong `X-Access-Code` on `POST /builds` or `GET /builds/<job_id>/room` answers 403 `access_denied`, and more than 10 access attempts (`POST /access/check` or a guarded route, wrong or right code) per client IP in 10 minutes answer 429 `too_many_attempts` with `Retry-After`; local cut 2 only `GET|PUT /profile/<name>`; a room-keyed route answers 410 `room_deleted` for a purged Judge room and 404 `room_not_found` for an unknown id.
 AR-14: Two clocks (AD-10): a `Clock` port supplies all time; the session clock applies `DEMO_TIMESCALE` only to the thresholds passed into `apply` (nudge threshold, Rung spacing, Trickster window), never to `t_ms` or the poll cadence, and the client never reads it for timing; the build clock never applies it and stamps stage timings and the capture Timer.
 AR-15: Scene contract (AD-11, AD-18): Tier 1 scenes are Three.js textured planes with polygon Hotspots in the scene graph Tier 2 reuses; Hotspot id equals Interactable id; a Hotspot is the union of the Interactable's `polygons[]` in the pixel space of the stored downscaled JPEG served by `GET /rooms/<room_id>/photos/<i>`, never an in-memory canvas; the box fallback is written as a polygon at segment, so the client never reads `box`; the client sends ids and lock inputs, never puzzle logic; the DOM-only fallback keeps the same id contract; geometry conventions: Spark boxes on the 0 to 1000 grid converted to frame pixels and clamped, SAM rasters scaled to the frame, the `meta-sam-parser` SVG path (M/L/Z) parsed to `[[x, y], ...]` and simplified in `domain/masks.py`.
 AR-16: Validation gate and session-scoped edits (AD-12): `validate(room)` and `check_dry_run(room, answers)` in `domain/validator.py` are pure; `council/dryrun.py` builds the prompt over `RoomView` and the pipeline dryrun stage makes the call and is the only place answers meet solutions; `DryRunAnswers` is a list of `{puzzle_id, answer}`, never a map; `DRY_RUN=off` realizes cut 4; the build Room is immutable; `domain/edits.py` `validate_edit(room, state, edit)` and `apply_edit(room, edit)`; a proposal is accepted only if `validate_edit` and `validate(apply_edit(...))` rules 1 to 8 pass; results are appended as `trickster_card` events, the Effective room is `apply_edit` folded over accepted edits at replay with `room_revision` = accepted count, `loosen` is applied to `current_rung` by `apply`, and edits never reach `ArtifactStore`; validator token matching follows the Conventions (code strings and digits as exact whole tokens at any length; the three-character floor applies to label words only; `is_exit` checked first in rule 7).
-AR-17: Typed errors and retry policy (AD-13): stages raise `ProviderError`, `ValidationError`, `DryRunError`, `TooFewInteractables`, `UnsupportedImage`, `BuildQuotaExceeded` or `SpendCapExceeded`; room-keyed routes raise `RoomNotFound` (404) or `RoomDeleted` (410); `src/pipeline/regenerate.py` is the sole regeneration loop (`REGEN_MAX`, default 2, then `needs_recapture`) and sole writer of the count; adapters retry once with backoff, inside one ledger entry, only on what the vendor documents as retryable, each declaring its set: 429 always; Meta Model API 500 and 503 (never 504, 502, an undocumented 5xx or a `muse-image-1.0` 500); fal 5xx only when `X-Fal-Needs-Retry` allows; `ConnectError` and `ConnectTimeout` once; client or read timeouts never; `Retry-After` honored, failing at once with `ProviderError` when it exceeds the stage's remaining budget; error envelope `{error: {code, message, stage}}` (codes are the class names in snake_case, `stage: null` outside the pipeline) on build, session-creation and room-keyed routes only; no `regen_exhausted` class (the UI keys on job status); a Trickster call error is a skipped card, a Validator failure the rejected card.
-AR-18: Configuration (AD-14): environment read once by `Settings` (`src/config.py`) and injected, no module reads `os.environ`; product flags `MODE`, `CACHE`, `SPEND_CAP_USD`, `DEMO_TIMESCALE`, `DEMO_TRICKSTER`, `MIN_CONTAINERS`, `GUIDE=ollama|verbatim` (default `ollama` local, `verbatim` hosted; `MODE=hosted` with `GUIDE=ollama` fails at startup), `DRY_RUN=on|off`, `REGEN_MAX`; adapter settings `MODEL_PROVIDER` as default for `PROVIDER_<ROLE>` (`ARCHITECT`, `RIDDLER`, `DRYRUN`, `TRICKSTER`, `IMAGE`) with per-role model ids, `META_MODEL_API_KEY`, `META_MODEL_API_BASE_URL`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY`, `FAL_KEY`, `OLLAMA_HOST`, `ACCESS_CODE`; `Settings` gains `mode` and `min_containers` in the first hosted story; `.env` git-ignored, `.env.example` committed with every key blank (tested); hosted secrets in the `modal.Secret` `keyframe` attached to the app and the runner; the client reads `PROFILE` from `?profile=` (default `dev`) and `GET /meta` echoes it.
-AR-19: Demo mode and the status model (AD-15): `DEMO_TRICKSTER=scripted` replaces only the proposal source (a recorded proposals artifact) and cut 1 uses the same source with pre-authored proposals and no live path; `GET /meta` returns exactly `{mode, guide, guide_model: {id, host} | null, trickster: live | scripted | cut1, demo_timescale, cache, profile, disclosure, retention}`, `guide_model` null in hosted mode, `retention` the running mode's text (hosted replaces the local storage sentence, never appends); session state and `BuildView` carry a per-Room `disclosure: [string]` with the global lines plus "This room was built earlier, on <date>." for a Demo room, a Room with an earlier session, or a Build with any cached call; one function in `src/api/meta.py` composes every list.
+AR-17: Typed errors and retry policy (AD-13): stages raise `ProviderError`, `ValidationError`, `DryRunError`, `TooFewInteractables`, `UnsupportedImage`, `BuildQuotaExceeded` or `SpendCapExceeded`; room-keyed routes raise `RoomNotFound` (404) or `RoomDeleted` (410); `src/pipeline/regenerate.py` is the sole regeneration loop (`REGEN_MAX`, default 2, then `needs_recapture`) and sole writer of the count; adapters retry once with backoff, inside one ledger entry, only on what the vendor documents as retryable, each declaring its set: 429 always; Meta Model API 500 and 503 (never 504, 502, an undocumented 5xx or a `muse-image-1.0` 500); fal 5xx only when `X-Fal-Needs-Retry` allows; `ConnectError` and `ConnectTimeout` once; client or read timeouts never; `Retry-After` honored, failing at once with `ProviderError` when it exceeds the stage's remaining budget; error envelope `{error: {code, message, stage}}` (codes are the class names in snake_case, `stage: null` outside the pipeline, plus `status`, the job status, on `build_not_ready` only) on build, access, session-creation and room-keyed routes only; request codes outside the typed classes: 422 `photo_count` and 422 `bad_downscale` (AD-7), 409 `build_not_ready` (AD-3), 403 `access_denied` and 429 `too_many_attempts` with `Retry-After` (AD-9); `unsupported_image` and `build_quota_exceeded` keep their codes; no `regen_exhausted` class (the UI keys on job status); a Trickster call error is a skipped card, a Validator failure the rejected card.
+AR-18: Configuration (AD-14): environment read once by `Settings` (`src/config.py`) and injected, no module reads `os.environ` (`scripts/doctor.py` is exempt: stdlib, runs before `uv sync`); product flags `MODE`, `CACHE`, `SPEND_CAP_USD`, `DEMO_TIMESCALE`, `DEMO_TRICKSTER=live|record|scripted|authored` (`MODE=hosted` with `record` fails at startup), `MIN_CONTAINERS`, `GUIDE=ollama|verbatim` (default `ollama` local, `verbatim` hosted; `MODE=hosted` with `GUIDE=ollama` fails at startup), `DRY_RUN=on|off`, `REGEN_MAX`; adapter settings `MODEL_PROVIDER` as default for `PROVIDER_<ROLE>` (`ARCHITECT`, `RIDDLER`, `DRYRUN`, `TRICKSTER`, `IMAGE`) with per-role model ids, `META_MODEL_API_KEY`, `META_MODEL_API_BASE_URL`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY`, `FAL_KEY`, `OLLAMA_HOST`, `ACCESS_CODE`; `Settings` gains `mode` and `min_containers` in the first hosted story; `.env` git-ignored, `.env.example` committed with every key blank (tested); hosted secrets in the `modal.Secret` `keyframe` attached to the app and the runner; the client reads `PROFILE` from `?profile=` (default `dev`) and `GET /meta` echoes it.
+AR-19: Demo mode and the status model (AD-15): `DEMO_TRICKSTER` selects only the proposal source: `live`, live proposals; `record`, live proposals plus the recorder writing them into the recorded-proposals artifact (Local mode only, refused at startup in Hosted mode); `scripted`, replay of the recorded proposals; `authored`, cut 1, the pre-authored proposals file with no live path; the Validator runs live and card rendering is unchanged under every value; `GET /meta` returns exactly `{mode, guide, guide_model: {id, host} | null, trickster: live | scripted | cut1, demo_timescale, cache, profile, disclosure, retention}`, `trickster` being `live` for `live` and `record`, `scripted` for `scripted` and `cut1` for `authored`, the cut 1 Disclosure line served only under `authored`, `guide_model` null in hosted mode, `retention` the running mode's text (hosted replaces the local storage sentence, never appends); session state and `BuildView` carry a per-Room `disclosure: [string]` with the global lines plus "This room was built earlier, on <date>." for a Demo room, a Room with an earlier session, or a Build with any cached call; one function in `src/api/meta.py` composes every list.
 AR-20: Provenance (AD-16): the pipeline writes `provenance` (model ids, prompt hashes, stage timings, regeneration count, spend per stage from the ledger, applied edit ids) into every Room; the job record keeps one call row per model call (role, model id, host, cached or billed, spend) and the build time, read by `BuildView`; the spend log export derives from the ledger, never hand-kept.
 AR-21: Identity (AD-18): `ix_` ids are minted only by the segment stage after mask selection and the 12 cap; `ArchitectResponse` is correlated by list position; the Riddler's schema uses ordinal keys `p1`..`p6` mapped to `pz_` ULIDs before `validate`; model output references `ix_` ids parsed back by exact match, never by label; `box` converted to pixels at segment; `tier2` is the only field in original pixels; `Interactable.photo` indexes `photos[]` in upload order; ids are prefixed ULIDs (`room_`, `job_`, `sess_`, `pz_`, `ix_`, `te_`, `call_`) assigned only by server code.
 AR-22: Conventions: snake_case JSON and TypeScript keys, PascalCase pydantic models; ISO 8601 UTC times and `t_ms` session milliseconds; one JSON log line per event with `job_id` or `session_id`, stage, `duration_ms` and `spend_usd`; domain functions return new values and only `SessionStateMachine.apply` and the stage runner write state; Python 3.13 type hints, pydantic v2, ruff defaults; TypeScript strict; tests under `tests/<package>/` mirroring `src/`, fixtures under `tests/fixtures/`.
 AR-23: Offline tests per story with the mock provider (AD-17, NFR-8): `pytest` runs offline against the mock provider for every story and a story is done only when it passes; adapter tests replay recorded fixtures under `tests/fixtures`; the offline suite holds `tests/test_boundaries.py`, the `web/types` staleness test, the `.gitignore` and `.env.example` tests, and the sentinel-solution tests.
-AR-24: Continuous integration: one GitHub Actions job on push and pull request runs the offline `pytest` suite plus the `web/` build and type check (`vite build`, `tsc --noEmit`); no secrets, no deploy step, no CD; `modal deploy` stays a manual step.
+AR-24: Continuous integration and build checks: one GitHub Actions job `check` on push to master and on every pull request runs `bash scripts/check.sh`, which is also the pre-push check: the privacy check (no secret, env file, raw photo or cache tracked), the lock check (`uv lock --check`, `uv sync --locked`, wheels for macOS arm64 and Linux x86_64 with glibc 2.28), the offline `pytest` suite, and the `web/` build and type check (`npm ci`, `vite build`, `tsc --noEmit`) once `web/package.json` exists; CI installs uv 0.11.32 and takes Node from `.nvmrc`; `scripts/check.sh --predeploy` runs before every manual `modal deploy`; `scripts/doctor.py` (stdlib only) checks the Mac and cloud environments; a SessionStart hook prepares cloud containers; no secrets, no deploy step, no CD; `modal deploy` stays a manual step.
 AR-25: Lean SIT: a checklist plus `scripts/sit.py`, which runs about 10 live-seam cases (real provider calls across the adapter and pipeline seams, within the Spend cap) and records their responses as fixtures for the offline suite, run at the end of each build day from Tue Oct 27, with a full pass Sat Oct 31; no separate sign-off.
 AR-26: Guide placement: the Guide model runs only on the Mac (Llama 3.2 3B Instruct Q4_K_M via Ollama, `OLLAMA_KEEP_ALIVE=-1`); hosted mode shows Rungs verbatim and never runs a Guide model.
 AR-27: Schema timeline and carried decisions: the Thu Oct 22 review makes one pick, decoy storage (options A, B, C in `schema-v1.md`; A, `Room.decoys[]`, recommended), which adds validator rule 9; the Oct 21 approvals (`polygons`, `is_exit` only, no `profile_name`, rule 5 over `clue` and `evidence.visible_attribute`, optional `Room.name`, the order start and stop inputs, API models, provenance fields) are applied; Schema v1 freezes Mon Oct 26 and later changes go through `bmad-correct-course`; carried to Mon Oct 26: the Fireworks Trickster fallback model id (confirmed before a fixture is recorded), the `GET /meta` retention wording (§13 Q3) and the hosted full-Room download route (§13 Q4); the Meta adapter is wired only after the pre-kickoff verifications passed, else API wiring moves to Tue Oct 27 and later work slips a day.
@@ -379,12 +379,12 @@ Generated from the story covers fields (116 stories; every id below has at least
 - AR-16: Epic 1: 1.6; Epic 2: 2.20, 2.24; Epic 4: 4.1
 - AR-17: Epic 1: 1.11; Epic 2: 2.7, 2.8, 2.10, 2.21; Epic 7: 7.11, 7.20
 - AR-18: Epic 1: 1.2; Epic 7: 7.2
-- AR-19: Epic 1: 1.14; Epic 4: 4.4; Epic 6: 6.2
+- AR-19: Epic 1: 1.14; Epic 4: 4.3, 4.4, 4.8; Epic 6: 6.2
 - AR-20: Epic 2: 2.10, 2.20, 2.22
 - AR-21: Epic 1: 1.5; Epic 2: 2.13, 2.14, 2.15, 2.20
 - AR-22: Epic 1: 1.2, 1.12; Epic 2: 2.10
 - AR-23: Epic 1: 1.2, 1.3, 1.15; Epic 2: 2.1
-- AR-24: Epic 1: 1.3
+- AR-24: Epic 1: 1.2, 1.3
 - AR-25: Epic 2: 2.9
 - AR-26: Epic 3: 3.2, 3.7; Epic 7: 7.2
 - AR-27: Epic 1: 1.5, 1.14; Epic 2: 2.7; Epic 4: 4.8
@@ -504,22 +504,34 @@ As a builder,
 I want the existing backend scaffold pinned, configured through one `Settings`, fixed where the dev skills found errors, and guarded by ignore-file and boundary tests,
 So that every later story builds on the same dependencies, reads flags the same way, and cannot leak raw photos or cross a package boundary.
 
-_Covers FR-36, AR-1, AR-2, AR-3, AR-4, AR-18, AR-22, AR-23, AR-29, NFR-4, NFR-8, AD-1, AD-14, AD-17. Owner: providers (with src/config.py and repo root). Depends on: 1.1. Tier 1, Mon Oct 26, the first implementation story (the scaffold is untouched before it). Load keyframe-muse for the Meta adapter fixes and keyframe-devops for the pins and ignore files._
+_Covers FR-36, AR-1, AR-2, AR-3, AR-4, AR-18, AR-22, AR-23, AR-24, AR-29, NFR-4, NFR-8, AD-1, AD-14, AD-17. Owner: providers (with src/config.py and repo root). Depends on: 1.1. Tier 1, Mon Oct 26, the first implementation story (the scaffold is untouched before it); this is the deps-foundation story, and its merge starts the dependency freeze. Load keyframe-muse for the Meta adapter fixes and keyframe-devops for uv and `uv.lock`, the pins, `.python-version`, `.nvmrc`, `tests/conftest.py`, `scripts/doctor.py`, the cloud SessionStart hook, the ignore files and the freeze rule (copy the files from its references/templates.md)._
 
 **Acceptance Criteria:**
 
 **Given** this story's changes
 **When** the builder opens `pyproject.toml`
-**Then** `requires-python` is `>=3.13`, and `[project.dependencies]` pins the Python rows of the spine Stack table with `==` (FastAPI 0.156.4, uvicorn 0.54.0, pydantic 2.14.1, httpx 0.28.1, Pillow 13.0.0, meta-sam-parser 0.1.0, fal-client 1.0.3, ollama 0.6.3, modal 1.6.2, pytest 9.1.1, python-dotenv 1.2.4)
-**And** `requirements.txt` no longer exists
+**Then** `requires-python` is `>=3.13`, and `[project.dependencies]` pins the runtime Python rows of the spine Stack table with `==` (FastAPI 0.156.4, uvicorn 0.54.0, pydantic 2.14.1, httpx 0.28.1, Pillow 13.0.0, meta-sam-parser 0.1.0, fal-client 1.0.3, ollama 0.6.3, modal 1.6.2, python-dotenv 1.2.4), and `pytest==9.1.1` sits in `[dependency-groups] dev`, not in `[project.dependencies]`
+**And** `[tool.uv]` sets `environments` and `required-environments` to macOS arm64 and Linux x86_64, `no-build = true` and `required-version = ">=0.11.32"`, there is no `[build-system]`, and `[tool.pytest.ini_options]` sets `testpaths = ["tests"]` and `pythonpath = ["."]`
+**And** `.python-version` at the repo root reads `3.13` and `.nvmrc` at the repo root reads `24`
+**And** `requirements.txt` no longer exists (`git rm`), and nothing in the repo installs from it
 **And** code style follows AR-22: ruff defaults, Python 3.13 type hints, pydantic v2, tests under `tests/<package>/` mirroring `src/`, and fixtures under `tests/fixtures/`
+
+**Given** the committed `uv.lock` and uv 0.11.32
+**When** the builder runs `uv lock --check`, then `uv sync --locked`, then `uv run pytest -q`
+**Then** each exits 0, the lock resolves with wheels only (no package is built from source) for both platforms, and `uv tree --depth 1` shows pytest as `(group: dev)`
+**And** editing a pin in `pyproject.toml` without re-locking makes `uv lock --check` exit 1, and the repo never runs `uv sync --frozen`, `uv pip install` or `uv lock --upgrade`
+
+**Given** `tests/conftest.py` from the keyframe-devops template
+**When** pytest imports it, before any `src` module
+**Then** it sets `MODEL_PROVIDER=mock`, `PROVIDER_<ROLE>=mock` for every role and the four secret keys (`META_MODEL_API_KEY`, `FAL_KEY`, `OPENAI_COMPATIBLE_API_KEY`, `ACCESS_CODE`) to `""`, so a Mac `.env` never reaches a module-level `Settings`, and repeats that per test
+**And** a test that opens a non-loopback socket fails with `OSError("tests run offline (AD-17) ...")`, while `httpx.MockTransport` tests still pass
 
 **Given** an environment that sets none of the product flags
 **When** `Settings` is constructed
-**Then** it reads each AD-14 product flag it owns exactly once, with the defaults `CACHE=on`, `SPEND_CAP_USD=80`, `DEMO_TIMESCALE=1`, `DEMO_TRICKSTER=live`, `DRY_RUN=on`, `REGEN_MAX=2` and `GUIDE=ollama`, plus the adapter settings: `MODEL_PROVIDER` (default `meta`) as the default for each `PROVIDER_<ROLE>` (`ARCHITECT`, `RIDDLER`, `DRYRUN`, `TRICKSTER`, `IMAGE`), the per-role model ids, `META_MODEL_API_KEY`, `META_MODEL_API_BASE_URL`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY`, `fal_key` from `FAL_KEY`, `OLLAMA_HOST` and `ACCESS_CODE`
-**And** it reads no `MODE` and has no `mode` or `min_containers` field. Those fields, the `verbatim` default under `MODE=hosted`, and the startup failure on `MODE=hosted` with `GUIDE=ollama` land in 7.2
+**Then** it reads each AD-14 product flag it owns exactly once, with the defaults `CACHE=on`, `SPEND_CAP_USD=80`, `DEMO_TIMESCALE=1`, `DEMO_TRICKSTER=live` (accepting `live`, `record`, `scripted` and `authored`, and failing at startup on any other value), `DRY_RUN=on`, `REGEN_MAX=2` and `GUIDE=ollama`, plus the adapter settings: `MODEL_PROVIDER` (default `meta`) as the default for each `PROVIDER_<ROLE>` (`ARCHITECT`, `RIDDLER`, `DRYRUN`, `TRICKSTER`, `IMAGE`), the per-role model ids, `META_MODEL_API_KEY`, `META_MODEL_API_BASE_URL`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY`, `fal_key` from `FAL_KEY`, `OLLAMA_HOST` and `ACCESS_CODE`
+**And** it reads no `MODE` and has no `mode` or `min_containers` field. Those fields, the `verbatim` default under `MODE=hosted`, and the startup failures on `MODE=hosted` with `GUIDE=ollama` or with `DEMO_TRICKSTER=record` land in 7.2
 **And** `CHAT_MODEL`, `IMAGE_MODEL` and any `MAX_COMPLETION_TOKENS_<ROLE>` are not read
-**And** a test fails if any module under `src/` other than `src/config.py` reads `os.environ`
+**And** a test fails if any module under `src/` other than `src/config.py` reads `os.environ`; `scripts/doctor.py` is exempt (stdlib, runs before `uv sync`; spine AD-14)
 
 **Given** `src/providers/meta_api.py`
 **When** its request is built against a stubbed httpx transport offline
@@ -528,7 +540,7 @@ _Covers FR-36, AR-1, AR-2, AR-3, AR-4, AR-18, AR-22, AR-23, AR-29, NFR-4, NFR-8,
 
 **Given** the repo's `.gitignore` and `.env.example`
 **When** the ignore-file tests run
-**Then** each of `rooms/`, `photos/`, `captures/`, `uploads/`, `*.heic`, `.cache/`, `.env` and `spend/ledger.jsonl` is ignored by git, so raw room photos are never committed (AR-29)
+**Then** each of `rooms/`, `photos/`, `captures/`, `uploads/`, `*.heic`, `.cache/`, `.env`, `.env.local`, `keyframe-hosted.env` and `spend/ledger.jsonl` is ignored by git (the `.env.*`, `!.env.example` and `*.env` lines stay), so raw room photos and env files are never committed (AR-29)
 **And** `.env.example` lists every key `Settings` reads, each with a blank value, including `META_MODEL_API_KEY` and `FAL_KEY`
 
 **Given** `tests/test_boundaries.py`
@@ -537,7 +549,20 @@ _Covers FR-36, AR-1, AR-2, AR-3, AR-4, AR-18, AR-22, AR-23, AR-29, NFR-4, NFR-8,
 
 **Given** the cloud containers
 **When** this story merges
-**Then** `.claude/hooks/session-start.sh` exists registered in `.claude/settings.json` (both on the delivery-plan hygiene path list), and `scripts/check.sh` runs the same steps as the CI job
+**Then** `.claude/hooks/session-start.sh` from the keyframe-devops template exists, registered in `.claude/settings.json` as a SessionStart hook with the matcher `startup|resume` (both files on the delivery-plan hygiene path list; merged into an existing `.claude/settings.json`)
+**And** run without `CLAUDE_CODE_REMOTE=true` (on the Mac) the hook exits 0 and does nothing
+**And** run with `CLAUDE_CODE_REMOTE=true` it installs Node 24 through nvm (`source "$NVM_DIR/nvm.sh" --no-use`), writes Node 24's directory to `$CLAUDE_ENV_FILE` so later shells print `v24.x`, runs `uv sync --locked` when `uv.lock` exists, runs `npm ci` in `web/` once `web/package.json` exists and `node_modules` is older than the lock, then runs `python3 scripts/doctor.py --cloud`, and a failed `uv sync` or `npm ci` prints a `session-start:` note, while the hook exits 0 whatever those steps or `doctor.py` report
+
+**Given** `scripts/doctor.py`, copied from the keyframe-devops skill (a copy, never an import from `.claude/`, so it survives the Nov 4 hygiene)
+**When** it runs as `python3 scripts/doctor.py --cloud` in a container after this story, or with `--ci` or `--json`
+**Then** it uses the standard library only and imports no `src` module in its own process (its 'Settings loads' check runs in a `.venv` subprocess and only after `uv sync`), and reports no FAIL (Ollama checks warn in a container), and `--json` prints valid JSON
+**And** it fails on a tracked or staged private path (`.env`, `.env.*` other than `.env.example`, `*.env`, a raw photo outside `web/public/` and `docs/screenshots/`), on a wrong Node major or a uv below 0.11.32, and on a broken `/dev/null`
+**And** Luis runs `python3 scripts/doctor.py` on the M1 (Ollama 0.40.x with `llama3.2:3b` resident) and records the result in the sprint status
+
+**Given** the dependency freeze, which starts when this story merges on Mon Oct 26 and runs through Nov 9
+**When** a later change touches `pyproject.toml`, `uv.lock`, `web/package.json` or `web/package-lock.json`
+**Then** it is a dependency PR touching only those files plus the spine Stack table, the README license line and the affected skill pins, it follows the keyframe-devops checklist (need, license, wheels on both platforms, Python 3.13, size, exact version, lock diff read, selfchecks, `scripts/check.sh` green), and it moves a pinned version only for a blocking bug or a security fix, one package per PR, with Luis's explicit approval in the PR; the one exception is 1.4, which creates `web/package.json` and `web/package-lock.json` at the Stack pins (three 0.186.1, Vite 8.3.4, TypeScript 6.0.3, @types/three 0.186.0, plus json-schema-to-typescript 16.0.0 if picked; quicktype only through the checklist)
+**And** nothing moves Mon Nov 2 to Wed Nov 4 except a security fix, a lock diff outside a dependency PR is refused in review, and `@sparkjsdev/spark` 2.4.0 (Tier 3) and 1.4's type generator are the only pre-approved additions
 
 **Given** this story's changes
 **When** `pytest` runs offline against the mock provider, with `tests/conftest.py` forcing `MODEL_PROVIDER=mock`
@@ -546,21 +571,32 @@ _Covers FR-36, AR-1, AR-2, AR-3, AR-4, AR-18, AR-22, AR-23, AR-29, NFR-4, NFR-8,
 ### Story 1.3: One CI job: offline pytest plus the web build and type check
 
 As a builder,
-I want one GitHub Actions job that runs the offline suite and the web build on every push and pull request,
+I want one GitHub Actions job that runs the offline suite and the web build on every push to master and every pull request,
 So that a red test or a broken client build is caught before review, with no secret and no deploy anywhere in CI.
 
-_Covers AR-24, AR-23, AR-32, NFR-8. Owner: repo root (.github/workflows). Depends on: 1.2. Tier 1, Mon Oct 26, right after the scaffold. Load keyframe-devops._
+_Covers AR-24, AR-23, AR-32, NFR-8. Owner: repo root (.github/workflows). Depends on: 1.2. Tier 1, Mon Oct 26, right after the scaffold. Load keyframe-devops (copy `scripts/check.sh` and `.github/workflows/ci.yml` from its references/templates.md; the two npm cache lines wait for 1.4)._
 
 **Acceptance Criteria:**
 
-**Given** the workflow under `.github/workflows/`
-**When** a commit is pushed or a pull request is opened
-**Then** exactly one job runs: it sets up Python 3.13 and runs the offline `pytest` suite on the mock provider with sockets disabled, so any test that opens a network connection fails
+**Given** `.github/workflows/ci.yml`
+**When** a commit is pushed to master or a pull request is opened
+**Then** exactly one job, `check`, runs on `ubuntu-latest` with `timeout-minutes: 10`, `permissions: contents: read` and `MODEL_PROVIDER: mock`, and its steps are `actions/checkout@v7`, `astral-sh/setup-uv` pinned to the v10.3.0 commit SHA with `version: "0.11.32"`, `actions/setup-node@v7` with `node-version-file: .nvmrc`, and `run: bash scripts/check.sh`
+**And** there is no `setup-python` step (uv reads `.python-version` and installs Python 3.13), and the `cache: npm` and `cache-dependency-path: web/package-lock.json` lines are present only if `web/package-lock.json` is already committed (1.4 adds them otherwise)
 
-**Given** the same job
-**When** it reaches the web steps
-**Then** `npm ci`, the Vite build (`vite build`) and `tsc --noEmit` run in `web/`, each guarded by `hashFiles('web/package.json')`
-**And** before 1.4 creates `web/package.json` the guarded steps are skipped and the job is green, and after 1.4 they run and a type error fails the job
+**Given** `scripts/check.sh`, the pre-push check and the whole CI job
+**When** it runs from a clean clone
+**Then** it runs, in order and stopping at the first failure: the privacy step (fails on any tracked `.env`, `.env.*` other than `.env.example`, `*.env`, `.jpg`, `.jpeg`, `.png` or `.heic` outside `web/public/` and `docs/screenshots/`, or path under `rooms/`, `photos/`, `captures/`, `uploads/` or `.cache/`); the lock step (`uv lock --check`, `uv sync --locked`); the offline `uv run pytest -q`; the wheel step (the exported lock compiles wheels-only for `aarch64-apple-darwin` and for `x86_64-manylinux_2_28`, writing to scratch files, never `/dev/null`); once `src/api/modal_app.py` exists, the hosted step (the module imports offline, the image installs `uv.lock` through `.uv_sync(uv_version=` CI's uv version, has no `pip_install(` list, and its `python_version` equals `.python-version`); and once `web/package.json` exists, the web step (`npm ci`, `npm run build`, `npx tsc --noEmit`, and the lock still records `@rolldown/binding-darwin-arm64`), then prints `check.sh: all green`
+**And** before 1.4 creates `web/package.json` the web step is skipped and the job is green; after 1.4 it runs, and a type error, a `web/package.json` edited without its lock, or a Node other than 24 under `engine-strict` fails the job
+**And** a tracked fixture `.jpg` or `keyframe-hosted.env` fails the privacy step, a pin edited without re-locking fails the lock step, a test opening a non-loopback socket fails the pytest step, and a lock with a package lacking a macOS arm64 or glibc 2.28 wheel fails the wheel step
+
+**Given** `scripts/check.sh --predeploy`
+**When** the builder runs it before every manual `modal deploy` (and after any merged dependency PR)
+**Then** it runs every step above and then fails unless the working tree is clean and `web/dist/index.html` exists
+
+**Given** the first green `check` run on master
+**When** the story is closed
+**Then** the sprint status records either that branch protection requires the `check` status before merging or, where the plan cannot enforce it for a private repo, that 'CI green before merge' is kept by hand
+**And** the README's contributing note says to run `bash scripts/check.sh` before every push
 
 **Given** the workflow file
 **When** it is read
@@ -568,12 +604,12 @@ _Covers AR-24, AR-23, AR-32, NFR-8. Owner: repo root (.github/workflows). Depend
 **And** it adds nothing beyond AR-24 (no matrix, no extra jobs, no coverage upload; AR-32)
 
 **Given** a test that deliberately fails on a branch
-**When** that branch is pushed
+**When** that branch is pushed with a pull request open
 **Then** the job reports failure on the commit, and it passes again once the test is fixed
 
 **Given** this story's changes
 **When** `pytest` runs offline against the mock provider
-**Then** it passes with new tests covering this story's criteria, including an offline check that the workflow has one job, no `secrets.` reference and no deploy step
+**Then** it passes with new tests covering this story's criteria, including an offline check that the workflow has one job, no `secrets.` reference and no deploy step, installs uv `0.11.32` and runs only `bash scripts/check.sh`
 
 ### Story 1.4: Create the web client from the Vite 8 vanilla-ts template
 
@@ -581,14 +617,15 @@ As a builder,
 I want `web/` created from the Vite 8 vanilla-ts template with three and a dev proxy to FastAPI,
 So that every play story has one strict TypeScript client that builds into the `web/dist` FastAPI serves from one origin.
 
-_Covers AR-1, AR-2, AR-5, AR-12, NFR-10, AD-9, AD-11. Owner: web. Depends on: 1.2. Tier 1, Mon Oct 26. Load keyframe-devops._
+_Covers AR-1, AR-2, AR-5, AR-12, NFR-10, AD-9, AD-11. Owner: web. Depends on: 1.2. Tier 1, Mon Oct 26. Load keyframe-devops (the first web story in its references/templates.md: `web/package.json`, `web/.npmrc`, `web/package-lock.json`)._
 
 **Acceptance Criteria:**
 
 **Given** a fresh `web/` directory
 **When** it is created from the Vite 8 vanilla-ts template
-**Then** `web/package.json` pins Vite 8.3.4, three 0.186.1 and TypeScript ~6.0.3, and sets `engines.node` to `"24.x"`
-**And** `web/.nvmrc` contains `24`, and the TypeScript config has `strict` enabled
+**Then** `web/package.json` pins exact versions (no `^` or `~`): three 0.186.1, and in `devDependencies` Vite 8.3.4, TypeScript 6.0.3 and @types/three 0.186.0, and sets `engines.node` to `"24.x"`
+**And** `web/.npmrc` sets `save-exact=true` and `engine-strict=true`, the repo-root `.nvmrc` from 1.2 (`24`) is the only Node version file, and the TypeScript config has `strict` enabled
+**And** `web/package-lock.json` (lockfileVersion 3, generated once from a clean tree under Node 24) is committed and records the macOS arm64 bindings, `node_modules/` is added to the root `.gitignore` in the same commit, and, if 1.3 has merged, `ci.yml` gains its `cache: npm` and `cache-dependency-path: web/package-lock.json` lines in the same commit
 
 **Given** `web/vite.config.ts`
 **When** the dev server runs
@@ -608,7 +645,7 @@ _Covers AR-1, AR-2, AR-5, AR-12, NFR-10, AD-9, AD-11. Owner: web. Depends on: 1.
 **Then** exactly one generator, json-schema-to-typescript 16.0.0 or quicktype, is pinned to an exact version in `devDependencies`, and no types are generated yet (1.15 generates them)
 
 **Given** this story's changes
-**When** the web build and type check run, and the CI web steps from 1.3 now execute
+**When** the web build and type check run, and, once 1.3 has merged, the web step of `scripts/check.sh` executes (`npm ci`, build, `tsc --noEmit`)
 **Then** they pass with new tests covering this story's criteria, and `pytest` stays green offline against the mock provider
 
 ### Story 1.5: Schema v1 and every AD-2 API model as one set of pydantic models
@@ -617,7 +654,7 @@ As a builder,
 I want Schema v1 and every model `GET /schema` returns declared once in `src/domain/schema.py` and frozen on Mon Oct 26,
 So that the API, the job artifacts and the client share one data shape, and no later story has to reopen a frozen model.
 
-_Covers AR-5, AR-7, AR-11, AR-21, AR-27, AR-31, FR-21, NFR-11, AD-2, AD-4, AD-18. Owner: domain. Depends on: 1.2. Tier 1, Mon Oct 26 freeze. Gate: the Thu Oct 22 decoy pick (option A, `Room.decoys[]`, recommended) and the Oct 21 approvals applied; the same review settles with the architect the three HTTP answers AD-13 does not name yet (the ingest refusal codes for a wrong photo count and for a bad downscale, used in 2.10 and 2.12, and the status `GET /builds/<job_id>/view` answers for a job not yet `done`, used in 2.28), recorded in the spine before the freeze. Later changes only through bmad-correct-course._
+_Covers AR-5, AR-7, AR-11, AR-21, AR-27, AR-31, FR-21, NFR-11, AD-2, AD-4, AD-18. Owner: domain. Depends on: 1.2. Tier 1, Mon Oct 26 freeze. Gate: the Thu Oct 22 decoy pick (option A, `Room.decoys[]`, recommended) and the Oct 21 approvals applied. The HTTP answers were settled in the spine on Oct 21 (AD-3, AD-7, AD-9, AD-13): 422 `photo_count` and 422 `bad_downscale` at ingest (2.10, 2.12), 409 `build_not_ready` with the job `status` in the envelope for a Build view of a job not yet `done` (2.28), and 403 `access_denied`, 429 `too_many_attempts` and the wrong-code `{ok: false, builds_left: null}` in Hosted mode (7.11, 7.12). Later changes only through bmad-correct-course._
 
 **Acceptance Criteria:**
 
@@ -654,7 +691,7 @@ _Covers AR-5, AR-7, AR-11, AR-21, AR-27, AR-31, FR-21, NFR-11, AD-2, AD-4, AD-18
 
 **Given** the models later stories only fill in
 **When** `schema.py` is frozen on Mon Oct 26
-**Then** it also declares the job state (status `queued`, `running` with `stage`, `done`, `failed`, `needs_more_photos` or `needs_recapture`; per-stage timings, done-row counts and model id; the fixed messages that sent back each failed attempt; call rows; build time; the solution-free mask preview), the session state (the session's `room_id`, `locks_open`, `inventory`, `current_rung`, `wrong_attempts`, `rungs_used`, the order buffer and its armed puzzle, `active_puzzle_id`, `opening_line`, `phrasing`, `rung_changes`, `trickster_window` (with the open window's index), `trickster_calls`, `room_revision`, `disclosure`, `judge_room` (false until 7.21 sets it for a Room under `rooms/judge/`), and the effective nudge threshold and Rung spacing with their 1× values and source), `RoomSummary {room_id, name, cover_photo, puzzle_count, job_id, built_at}`, `BuildView`, `AccessCheck {ok, builds_left}`, the session-start request `{room_id, derived}` and the error envelope `{error: {code, message, stage}}`
+**Then** it also declares the job state (status `queued`, `running` with `stage`, `done`, `failed`, `needs_more_photos` or `needs_recapture`; per-stage timings, done-row counts and model id; the fixed messages that sent back each failed attempt; call rows; build time; the solution-free mask preview), the session state (the session's `room_id`, `locks_open`, `inventory`, `current_rung`, `wrong_attempts`, `rungs_used`, the order buffer and its armed puzzle, `active_puzzle_id`, `opening_line`, `phrasing`, `rung_changes`, `trickster_window` (with the open window's index), `trickster_calls`, `room_revision`, `disclosure`, `judge_room` (false until 7.21 sets it for a Room under `rooms/judge/`), and the effective nudge threshold and Rung spacing with their 1× values and source), `RoomSummary {room_id, name, cover_photo, puzzle_count, job_id, built_at}`, `BuildView`, `AccessCheck {ok, builds_left}` (`builds_left` null when `ok` is false), the session-start request `{room_id, derived}` and the error envelope `{error: {code, message, stage}}` with an optional `status` (a job status) set only when `code` is `build_not_ready` (spine AD-13)
 **And** `PlayView` holds each Puzzle's evidence as a list of Evidence cards, with no field that marks a card as a Decoy, and carries no Rung text (Rung text reaches the client only in hint replies and `rung_changes[]`, 3.3)
 **And** `Mask3D` is not declared (Tier 2, AD-5). Any AR-31 field that cannot be settled by Mon Oct 26 goes through bmad-correct-course before the story that needs it
 
@@ -984,12 +1021,12 @@ _Covers FR-26, FR-6, AR-5, AR-12, AR-13, AR-19, AR-27, UX-DR79, AD-2, AD-9, AD-1
 **When** the client calls `GET /api/meta`
 **Then** it returns exactly `{mode, guide, guide_model, trickster, demo_timescale, cache, profile, disclosure, retention}`, with `mode` set to the constant `"local"` by wiring (only local adapters exist until 7.2 adds `Settings.mode`), `guide` from `GUIDE`, and `guide_model` is `{id: "llama3.2:3b", host: the OLLAMA_HOST value}` when `GUIDE=ollama` and `null` when `GUIDE=verbatim`
 **And** `GET /api/meta?profile=demo` returns `profile: "demo"`, and no parameter returns `profile: "dev"`
-**And** with `DEMO_TRICKSTER=live` or `DEMO_TRICKSTER=scripted`, `trickster` is `live` or `scripted` to match, and `cut1` is never served until the cut-1 selector is settled through bmad-correct-course (the AD-14 item raised in 4.3)
+**And** `trickster` is `live` under `DEMO_TRICKSTER=live` or `record`, `scripted` under `scripted`, and `cut1` under `authored` (spine AD-15)
 
 **Given** `src/api/meta.py`
 **When** it composes the global Disclosure lines
 **Then** at the defaults `disclosure` is empty; at `DEMO_TIMESCALE=6` it holds exactly "Hint and Trickster timings run at 6× speed; the build timer is real time."; and under `DEMO_TRICKSTER=scripted` it holds exactly "Trickster proposals replayed from a recording; the Validator ran live.", with the lines joined when both apply
-**And** `meta.py` holds the cut 1 line "Trickster proposals were written in advance; the Validator ran live on each." verbatim, composed only when `trickster` is `cut1` (not served until the cut-1 selector is settled)
+**And** `meta.py` holds the cut 1 line "Trickster proposals were written in advance; the Validator ran live on each." verbatim, composed only under `DEMO_TRICKSTER=authored` (`trickster` reading `cut1`), and the scripted line is not composed under `authored` or `record`
 **And** one function composes every list, so no other module writes a Disclosure line, and the session state's `disclosure` from `GET /api/sessions/<id>` carries the same global lines (the per-Room line joins in 6.2)
 
 **Given** Local mode
@@ -1865,7 +1902,7 @@ As a builder,
 I want the Build to run as a persisted, resumable stage job whose first stage ingests the photos exactly as uploaded,
 So that a Build outlives any single request and every later model call, cache key and mask uses the same bytes.
 
-_Covers FR-1, FR-5, FR-28, FR-30, AR-10, AR-17, AR-20, AR-22, AR-31, NFR-7, AD-7, AD-13, AD-16. Owner: pipeline (declares `JobStore` and `JobRunner` in `src/pipeline/ports.py` first). Depends on: 1.5, 1.10, 2.1, 2.3. Tier 1, Tue Oct 27. Declares `JobStore` and `JobRunner`; fills the job state model 1.5 declared (per-stage timings, done-row counts and model id, per-attempt sent-back messages, call rows, build time); stages run in order and persist after each with build-clock timings; a restarted runner resumes at the last persisted stage; ingest stores downscale and original byte for byte, hash = sha256 of the downscale, rejects counts outside 6 to 10, non-JPEG by bytes (`UnsupportedImage`) and a downscale whose long edge is not 1280 or orientation not 1 (422); a typed error ends the job failed with its stage and code (`spend_cap_exceeded` for `SpendCapExceeded`); one JSON log line per stage with `job_id`, stage, `duration_ms` and `spend_usd` (AR-22); `DEMO_TIMESCALE` never scales timings; the count-rejection code is not in AD-13 (settled with the architect at the Thu Oct 22 review, the 1.5 gate; never invented)._
+_Covers FR-1, FR-5, FR-28, FR-30, AR-10, AR-17, AR-20, AR-22, AR-31, NFR-7, AD-7, AD-13, AD-16. Owner: pipeline (declares `JobStore` and `JobRunner` in `src/pipeline/ports.py` first). Depends on: 1.5, 1.10, 2.1, 2.3. Tier 1, Tue Oct 27. Declares `JobStore` and `JobRunner`; fills the job state model 1.5 declared (per-stage timings, done-row counts and model id, per-attempt sent-back messages, call rows, build time); stages run in order and persist after each with build-clock timings; a restarted runner resumes at the last persisted stage; ingest stores downscale and original byte for byte, hash = sha256 of the downscale, rejects counts outside 6 to 10 (422 `photo_count`), non-JPEG by bytes (`UnsupportedImage`, code `unsupported_image`) and a downscale whose long edge is not 1280 or orientation not 1 (422 `bad_downscale`), the codes settled in spine AD-7 and AD-13 on Oct 21; a typed error ends the job failed with its stage and code (`spend_cap_exceeded` for `SpendCapExceeded`); one JSON log line per stage with `job_id`, stage, `duration_ms` and `spend_usd` (AR-22); `DEMO_TIMESCALE` never scales timings._
 
 **Acceptance Criteria:**
 
@@ -1885,7 +1922,7 @@ _Covers FR-1, FR-5, FR-28, FR-30, AR-10, AR-17, AR-20, AR-22, AR-31, NFR-7, AD-7
 
 **Given** fewer than 6 or more than 10 photos, a file that is HEIC, PNG or any other non-JPEG format (detected from the bytes, not the file name), or a downscale whose long edge is not 1280 px or whose EXIF orientation tag is present and not 1
 **When** ingest validates the upload
-**Then** a non-JPEG file raises `UnsupportedImage`, a bad downscale is refused as a 422 ingest refusal, and a wrong count is refused under the code the architect assigned at the Thu Oct 22 review (the 1.5 gate; no code is invented)
+**Then** a non-JPEG file raises `UnsupportedImage` (code `unsupported_image`), a bad downscale is refused with 422 `bad_downscale`, and a wrong count is refused with 422 `photo_count` (spine AD-7, AD-13), each in the AD-13 error envelope
 **And** nothing is stored and no model call is made
 **And** when `POST /builds` receives an upload, the API calls ingest's validation function from `src/pipeline` (count, JPEG by bytes, 1280 px long edge, orientation) before any job exists, so a refusal creates and queues no job, and the ingest stage only stores the bytes of an accepted upload
 
@@ -1934,7 +1971,7 @@ As a builder,
 I want the build routes, one provider per council role and the Ledger export hooks wired in the API,
 So that a browser can submit photos, poll a Build without blocking and fetch the finished room, while spend is exported at the right moments.
 
-_Covers FR-1, FR-5, FR-29, AR-8, AR-10, AR-13, NFR-7, AD-5, AD-7, AD-9. Owner: api. Depends on: 1.11, 2.6, 2.7, 2.8, 2.11. Tier 1, Tue Oct 27. `wiring.py` resolves one provider per role and `PROVIDER_<ROLE>` replaces only that role (`MODEL_PROVIDER` as the default); multipart `POST /builds` returns a `job_id` without blocking on a stage; ingest refusals answer 422 with the envelope (stage ingest; `unsupported_image`) and queue no job; `GET /builds/<job_id>` reads persisted state only, 202 while queued or running and 200 when terminal, never a solution, the same after a restart; `GET /builds/<job_id>/room` returns the full Room with no access code locally; the 2.6 ledger export runs at API startup and after every completed Build._
+_Covers FR-1, FR-5, FR-29, AR-8, AR-10, AR-13, NFR-7, AD-5, AD-7, AD-9. Owner: api. Depends on: 1.11, 2.6, 2.7, 2.8, 2.11. Tier 1, Tue Oct 27. `wiring.py` resolves one provider per role and `PROVIDER_<ROLE>` replaces only that role (`MODEL_PROVIDER` as the default); multipart `POST /builds` returns a `job_id` without blocking on a stage; ingest refusals answer 422 with the envelope (stage ingest; `photo_count`, `unsupported_image` or `bad_downscale`) and queue no job; `GET /builds/<job_id>` reads persisted state only, 202 while queued or running and 200 when terminal, never a solution, the same after a restart; `GET /builds/<job_id>/room` returns the full Room with no access code locally; the 2.6 ledger export runs at API startup and after every completed Build._
 
 **Acceptance Criteria:**
 
@@ -1950,7 +1987,7 @@ _Covers FR-1, FR-5, FR-29, AR-8, AR-10, AR-13, NFR-7, AD-5, AD-7, AD-9. Owner: a
 **Given** an upload that ingest refuses (wrong count, non-JPEG bytes, or a downscale that fails the 1280 px or orientation check)
 **When** `POST /builds` responds
 **Then** the status is 422 with the envelope `{error: {code, message, stage}}`, `stage` is `ingest`, a non-JPEG file has the code `unsupported_image`, and no job is queued
-**And** the other two refusals use the codes the architect assigned at the Thu Oct 22 review (the 1.5 gate), and no code is invented
+**And** a wrong count has the code `photo_count` and a downscale failing the 1280 px or orientation check has the code `bad_downscale` (spine AD-7, AD-13)
 
 **Given** a job in any state
 **When** `GET /builds/<job_id>` is called, including after an API restart
@@ -2114,7 +2151,7 @@ _Covers FR-1, FR-6, NFR-4, UX-DR14, UX-DR15, UX-DR20, UX-DR21, UX-DR62, UX-DR75,
 
 **Given** an upload refused with a 422, or one that fails for any other reason
 **When** the response arrives
-**Then** `unsupported_image` shows the FR-1 banner, any other 422 ingest refusal shows "Keyframe couldn't read these photos. Choose them again.", and a network error or 5xx shows "Your photos didn't reach Keyframe." with "Nothing was built. Check the connection and try again." and "Try again", which re-sends the same set
+**Then** `unsupported_image` or `photo_count` shows the FR-1 banner, `bad_downscale` shows "Keyframe couldn't read these photos. Choose them again.", and a network error or 5xx shows "Your photos didn't reach Keyframe." with "Nothing was built. Check the connection and try again." and "Try again", which re-sends the same set
 **And** the photos stay in the tray, banners use the `error-banner` (the 1.17 component; one at a time, a newer state replacing an older one), and during a Build everything except the Retention summary and banners is disabled
 
 **Given** the before-upload layout
@@ -2537,7 +2574,7 @@ As a builder,
 I want `GET /builds/<job_id>/view` to serve the `BuildView` to anyone with the link,
 So that a judge or player can see how a room was built with no Access code, and with no way to see its answers.
 
-_Covers FR-38, AR-13, AD-15. Owner: api. Depends on: 2.12, 2.27. Tier 1; cut 0 drops it; Thu Oct 29. `GET /builds/<job_id>/view` returns the `BuildView`, open in both modes with no Access code; 404 for an unknown job; API sentinel test: no solution, pairing or Dry run answer in the response._
+_Covers FR-38, AR-13, AD-15. Owner: api. Depends on: 2.12, 2.27. Tier 1; cut 0 drops it; Thu Oct 29. `GET /builds/<job_id>/view` returns the `BuildView`, open in both modes with no Access code; 409 `build_not_ready` with the job `status` in the envelope for a job not yet `done` (spine AD-3, AD-13); 404 for an unknown job; API sentinel test: no solution, pairing or Dry run answer in the response._
 
 **Acceptance Criteria:**
 
@@ -2553,9 +2590,10 @@ _Covers FR-38, AR-13, AD-15. Owner: api. Depends on: 2.12, 2.27. Tier 1; cut 0 d
 **When** the route is called
 **Then** it answers 404
 
-**Given** a known job that has not reached `done`
+**Given** a known job that has not reached `done` (`queued`, `running`, `failed`, `needs_more_photos` or `needs_recapture`)
 **When** `GET /builds/<job_id>/view` is called
-**Then** it answers without a `BuildView`, using the status recorded in the spine's HTTP surface at the Thu Oct 22 review (the 1.5 gate), and 2.29's not-ready state keys on that answer
+**Then** it answers 409 without a `BuildView`, with the envelope `{error: {code: "build_not_ready", message, stage: null, status}}` where `status` is the job status (spine AD-3, AD-13), and 2.29's not-ready state keys on that `status`
+**And** `status` appears in the envelope on `build_not_ready` only, never on another error code
 
 **Given** a Room fixture with sentinel solutions, whose sentinel solutions name ids and a code string that appear nowhere else in the fixture (not among its Interactables)
 **When** the API sentinel test calls the route
@@ -2601,7 +2639,7 @@ _Covers FR-38, UX-DR48, UX-DR53, UX-DR54, UX-DR67, UX-DR8, UX-DR78. Owner: web. 
 
 **Given** a Build that is not `done`, or a failed load of the view
 **When** the page renders
-**Then** a not-done Build shows the header, "This room is still being built." and a link to its Capture screen, with no panels; a failed load shows "Keyframe couldn't load how this room was built." with "Try again"
+**Then** a not-done Build, recognized by the 409 `build_not_ready` answer from 2.28 and keyed on the job `status` in its envelope, shows the header, "This room is still being built." and a link to its Capture screen, with no panels; a failed load (any other error or no answer) shows "Keyframe couldn't load how this room was built." with "Try again"
 **And** under cut 0 the route and surface are absent
 
 **Given** the Build view
@@ -3097,7 +3135,7 @@ As a builder,
 I want a `TricksterSource` port, a recorded-proposals artifact bound to one Room, and a scripted source in `src/council/trickster.py` that replays it,
 So that the Main demo and cut 1 replay real proposals while the live Validator decides every Card.
 
-_Covers FR-25, NFR-12, AR-8, AD-12. Owner: council. Depends on: 1.7, 2.1, 2.3, 4.2. Tier 1, Sat Oct 31; this is the cut 1 path._
+_Covers FR-25, NFR-12, AR-8, AR-19, AD-12. Owner: council. Depends on: 1.7, 2.1, 2.3, 4.2. Tier 1, Sat Oct 31; this is the cut 1 path._
 
 **Acceptance Criteria:**
 
@@ -3121,10 +3159,10 @@ _Covers FR-25, NFR-12, AR-8, AD-12. Owner: council. Depends on: 1.7, 2.1, 2.3, 4
 **Then** one passes and the one written to fail is rejected with a Validator fixed message
 **And** neither file contains a solution, and no proposal text holds a rule 5 solution token of its Room
 
-**Given** the open question of how cut 1 is selected (an artifact flag or a `DEMO_TRICKSTER` value)
-**When** this story is done
-**Then** a `bmad-correct-course` item against AD-14 records both options
-**And** no code reads a cut-1 selector and `Settings` gains no flag for it until the item is settled
+**Given** the `DEMO_TRICKSTER` values settled in spine AD-14 and AD-15 (`live`, `record`, `scripted`, `authored`)
+**When** the source table in `src/council/trickster.py` is read
+**Then** `scripted` maps to the scripted source over the recorded-proposals artifact and `authored` (cut 1) to the same scripted source over the committed pre-authored proposals file, neither with a live path; `live` and `record` register with the live source in 4.8
+**And** under `authored` and `scripted` no `ModelProvider` call is made, and the Validator still decides every Card live (4.4)
 
 **Given** the story's changes
 **When** pytest runs offline against the mock provider
@@ -3143,7 +3181,7 @@ _Covers FR-25, FR-19, FR-26, FR-28, AR-7, AR-13, AR-19, AR-31, NFR-12, AD-12, AD
 **Given** a Session whose `trickster_window` is closed, including a Session already at 6 Trickster calls
 **When** a client calls `POST /sessions/<id>/trickster`
 **Then** the source is never called, no event is appended, `trickster_calls` is unchanged, and the route answers with the unchanged session state, never the error envelope
-**And** no new status code is added for this case; the status code the route answers with is recorded as a `bmad-correct-course` item
+**And** the status is 200 (spine AD-4 and the HTTP surface), and no new status code is added for this case
 
 **Given** `DEMO_TRICKSTER=scripted`, wiring that resolves the scripted source from its source table (the live entry registers in 4.8), and an open window
 **When** `POST /sessions/<id>/trickster` is called
@@ -3176,7 +3214,8 @@ _Covers FR-25, FR-19, FR-26, FR-28, AR-7, AR-13, AR-19, AR-31, NFR-12, AD-12, AD
 **When** a client calls `GET /sessions/<id>/room`
 **Then** it returns the `PlayView` of the Effective room, with the accepted edit and without the rejected one, and any Decoy unflagged in `evidence_cards`
 **And** `GET /rooms/<room_id>` still serves the unedited `PlayView`, and the build's stored Room is unchanged
-**And** `GET /meta` keeps exactly the `Meta` fields, with `trickster` reading `scripted` under `DEMO_TRICKSTER=scripted` and `live` under `DEMO_TRICKSTER=live`; `cut1` is reported only once its selector is settled
+**And** `GET /meta` keeps exactly the `Meta` fields, with `trickster` reading `live` under `DEMO_TRICKSTER=live` or `record`, `scripted` under `scripted`, and `cut1` under `authored` (spine AD-15)
+**And** under `DEMO_TRICKSTER=authored` the route resolves the 4.3 scripted source over the pre-authored proposals file, so the same replay and live-Validator criteria above hold for the cut-1 file
 
 **Given** the story's changes
 **When** pytest runs offline against the mock provider
@@ -3339,7 +3378,7 @@ As a player,
 I want the Trickster to propose its change live from how my game is going,
 So that the room reacts to my play, not to a script.
 
-_Covers FR-18, FR-25, AR-8, AR-9, AR-27, NFR-4, NFR-5, AD-3, AD-6. Owner: council. Depends on: 2.7, 2.8, 2.9, 2.12, 4.3, 4.4. Tier 1, Sat Oct 31; cut 1 drops it; gate: the Fireworks fallback model id is confirmed Mon Oct 26 (2.9 checklist) before a fixture is recorded. Load the keyframe-muse skill (it covers the shared openai_compatible request path, not Fireworks specifics)._
+_Covers FR-18, FR-25, AR-8, AR-9, AR-19, AR-27, NFR-4, NFR-5, AD-3, AD-6. Owner: council. Depends on: 2.7, 2.8, 2.9, 2.12, 4.3, 4.4. Tier 1, Sat Oct 31; cut 1 drops it; gate: the Fireworks fallback model id is confirmed Mon Oct 26 (2.9 checklist) before a fixture is recorded. Load the keyframe-muse skill (it covers the shared openai_compatible request path, not Fireworks specifics)._
 
 **Acceptance Criteria:**
 
@@ -3375,7 +3414,7 @@ _Covers FR-18, FR-25, AR-8, AR-9, AR-27, NFR-4, NFR-5, AD-3, AD-6. Owner: counci
 **When** each window's proposal arrives
 **Then** it is written into the 4.3 recorded-proposals artifact for R, in window order, with no verdict
 **And** `DEMO_TRICKSTER=scripted` on R then replays those proposals, and the live Validator decides each Card again (FR-25)
-**And** how recording mode is switched on is added to the 4.3 `bmad-correct-course` item on AD-14; until it is settled, `Settings` gains no flag for it and no code reads a recording selector
+**And** recording is switched on by `DEMO_TRICKSTER=record` (spine AD-14, AD-15): wiring registers the live source with the recorder behind it, so each live proposal is both carded through the live Validator and written to the artifact, while `live` never calls the recorder; `GET /meta` reports `trickster: live` under `record`, and `record` is refused at startup in Hosted mode (the `Settings` check lands in 7.2)
 
 **Given** the story's changes
 **When** pytest runs offline against the mock provider
@@ -3775,10 +3814,10 @@ _Covers FR-26, NFR-12, AR-19, UX-DR79, UX-DR80, AD-15. Owner: api. Depends on: 1
 **Then** `disclosure` holds exactly "Hint and Trickster timings run at 6× speed; the build timer is real time." and "Trickster proposals replayed from a recording; the Validator ran live.", in the order of the EXPERIENCE.md Disclosure copy table, composed by the one function in `src/api/meta.py`
 **And** with `DEMO_TIMESCALE=1` and `DEMO_TRICKSTER=live`, `disclosure` is an empty list and `trickster` reads `live`
 
-**Given** the cut-1 selector settled through bmad-correct-course (raised in 4.3) selects the cut-1 source
+**Given** `DEMO_TRICKSTER=authored`, the cut-1 source (spine AD-14, AD-15)
 **When** any list is composed
 **Then** it holds "Trickster proposals were written in advance; the Validator ran live on each." and `GET /meta` `trickster` reads `cut1`
-**And** no list ever holds the scripted line and the cut-1 line together
+**And** no list ever holds the scripted line and the cut-1 line together, and under `DEMO_TRICKSTER=record` no list holds either line and `trickster` reads `live`
 
 **Given** a Room that is a Demo room, has an earlier session, or comes from a Build whose job call rows include any call served from the Cache
 **When** `POST /sessions {room_id, derived}` starts a Session on it and `GET /sessions/<id>` is read
@@ -4186,6 +4225,7 @@ _Covers FR-6, FR-17, FR-20, FR-26, AR-18, AR-26, NFR-3, NFR-4, AD-14, AD-15. Own
 **When** `Settings` reads the environment
 **Then** it gains `mode` (from `MODE`, `local` or `hosted`) and `min_containers` (from `MIN_CONTAINERS`, default 0), as AD-14 assigns to the first hosted story
 **And** `GUIDE` defaults to `verbatim` under `MODE=hosted`, and `MODE=hosted` with `GUIDE=ollama` fails at startup
+**And** `MODE=hosted` with `DEMO_TRICKSTER=record` fails at startup (spine AD-14: the recorder runs in Local mode only), while `live`, `scripted` and `authored` start
 **And** no module reads `os.environ`, and the `.env.example` test still finds every key `Settings` reads
 
 **Given** `MODE=hosted`
@@ -4196,7 +4236,7 @@ _Covers FR-6, FR-17, FR-20, FR-26, AR-18, AR-26, NFR-3, NFR-4, AD-14, AD-15. Own
 
 **Given** `MODE=hosted` before 7.11 injects the access guard
 **When** `POST /builds` or `GET /builds/<job_id>/room` is called
-**Then** wiring refuses both with the error envelope (`stage: null`), and no photo is stored, no job is created and no Room is returned
+**Then** wiring refuses both with 403 and the error envelope (`code: access_denied`, `stage: null`; spine AD-9, AD-13), and no photo is stored, no job is created and no Room is returned
 **And** a route test asserts both refusals, and 7.11 replaces this refusal with the guard and quota
 
 **Given** `src/api/modal_app.py`
@@ -4519,7 +4559,7 @@ _Covers FR-32, AR-13, AR-17, AD-9, AD-13. Owner: api. Depends on: 2.12, 7.10. Ti
 
 **Given** hosted mode with `ACCESS_CODE` from the `keyframe` Secret
 **When** `POST /builds` arrives with no `X-Access-Code` header or a wrong one
-**Then** it is refused with the error envelope `{error: {code, message, stage: null}}`, using the access-refusal code and HTTP status settled through bmad-correct-course before this story starts (AD-13 names no access error class)
+**Then** it is refused with 403 and the error envelope `{error: {code: "access_denied", message, stage: null}}` (spine AD-9, AD-13), replacing the 7.2 placeholder refusal
 **And** the refusal happens before any photo is stored: no job is created, no slot is claimed and the `ArtifactStore` is untouched
 
 **Given** hosted mode
@@ -4533,7 +4573,7 @@ _Covers FR-32, AR-13, AR-17, AD-9, AD-13. Owner: api. Depends on: 2.12, 7.10. Ti
 
 **Given** 20 slots already claimed
 **When** a 21st `POST /builds` arrives with the correct code
-**Then** it answers `{error: {code: "build_quota_exceeded", message, stage: null}}` from `BuildQuotaExceeded`, stores no photo and spawns no runner
+**Then** it answers `{error: {code: "build_quota_exceeded", message, stage: null}}` from `BuildQuotaExceeded`, its code and status unchanged by the Oct 21 access amendment (spine AD-9), stores no photo and spawns no runner
 **And** `GET /rooms` and Demo room Sessions are still served
 
 **Given** the correct code and an upload ingest refuses with 422
@@ -4566,13 +4606,13 @@ _Covers FR-32, AR-5, AR-13, AD-9. Owner: api. Depends on: 7.11. Tier 1.5._
 
 **Given** hosted mode and a wrong code
 **When** `POST /access/check {code}` is called
-**Then** it returns `ok: false`, starts no Build and claims no slot
+**Then** it answers 200 `{ok: false, builds_left: null}` (spine AD-9), never the error envelope, starts no Build and claims no slot
 
-**Given** more checks within the window than the limit allows (the limit, window and key are one named constant in `src/api`, and the count lives in a hosted store, not process memory)
-**When** the check past the limit arrives
-**Then** it is refused without the code being compared, with an answer the client maps to the too-many-tries state (its code is settled alongside the access refusal through bmad-correct-course)
-**And** the test drives limit + 1 checks, and only the last is refused
-**And** a check after the wait answers normally
+**Given** more than 10 access attempts from one client IP within 10 minutes, counting every `POST /access/check` and every `POST /builds` or `GET /builds/<job_id>/room` from 7.11, with a wrong or the right code (the limit, the window and the per-IP key are one named constant in `src/api`, and the count lives in a hosted store, not process memory)
+**When** the attempt past the limit arrives
+**Then** it is refused with 429 and the error envelope `{error: {code: "too_many_attempts", message, stage: null}}` plus a `Retry-After` header, without the code being compared (spine AD-9, AD-13), and the client maps it to the too-many-tries state
+**And** the test drives 11 attempts mixing checks and guarded routes with right and wrong codes, and only the 11th is refused
+**And** an attempt after the `Retry-After` wait answers normally
 
 **Given** `MODE=local`
 **When** `POST /access/check` is called
@@ -4580,7 +4620,7 @@ _Covers FR-32, AR-5, AR-13, AD-9. Owner: api. Depends on: 7.11. Tier 1.5._
 
 **Given** a check that answered `ok: true`
 **When** the last slot is claimed by another Build, or the code changes, before this judge's `POST /builds`
-**Then** `POST /builds` re-checks and answers `build_quota_exceeded` or the access refusal, and starts no Build
+**Then** `POST /builds` re-checks and answers `build_quota_exceeded` or 403 `access_denied`, and starts no Build
 
 **Given** this story's changes
 **When** pytest runs offline against the mock provider
@@ -4747,7 +4787,7 @@ _Covers FR-32, FR-5, FR-20, UX-DR59, UX-DR17, UX-DR18, UX-DR21, UX-DR63, UX-DR81
 **Given** the "Build your own room" panel, with the 44 px `mono-code` field labelled "Access code" and "Check code" (`{components.access-code-field}`)
 **When** the judge submits
 **Then** an empty submit shows "Enter the access code from the submission." and sends nothing, and a submitted code shows the button's pending label while `POST /access/check {code}` is in flight
-**And** a refusal shows the compact error banner "That access code isn't right. No photos were sent.", too many tries shows the compact warning "Too many tries. Wait a moment, then check the code again.", and `builds_left` 0 shows the warning "All 20 judge builds have been used. The demo rooms are still open." with the Demo room cards still active
+**And** a refusal (`{ok: false, builds_left: null}` from the check, or 403 `access_denied` on `POST /builds`) shows the compact error banner "That access code isn't right. No photos were sent.", too many tries (429 `too_many_attempts`) shows the compact warning "Too many tries. Wait a moment, then check the code again.", and `builds_left` 0 shows the warning "All 20 judge builds have been used. The demo rooms are still open." with the Demo room cards still active
 
 **Given** an accepted code
 **When** the panel shows "{n} of 20 builds left" in `success`

@@ -10,7 +10,7 @@ updated: 2026-10-21
 Luis Ticas · 2026-10-21 · Indie track, Meta Global AI Developer Hackathon (Cerebral Valley)
 
 **At a glance**
-- **Status:** draft.
+- **Status:** final.
 - **Tier 1 floor, protected above everything:** FR-1 to FR-30, FR-36, and FR-38 (FR-38 is cut 0, the first Cut taken), plus the Backup video (§10.1).
 - **Decisions due Mon Oct 26:** §13 Q2 to Q4 (Q1, decoy storage, is the Thu Oct 22 schema review pick; Q9, Q10, Q12 and Q13 were resolved Oct 21).
 
@@ -156,9 +156,9 @@ Ana and Priya are fictional personas.
 - **Event log** — The append-only, server-timestamped record of a Session; Session state replays from it.
 - **Puzzle** — One lock in the chain: Lock type, prerequisites, solution, Evidence, Clue, Lore, three Rungs.
 - **Active puzzle** — The Puzzle of the most recent lock input or attempted click; Idle time and Hint requests apply to it (architecture spine AD-4).
-- **Lock type** — `code` (typed, 3 to 6 characters), `order` (3 to 5 Hotspot clicks in sequence), `use_on` (Inventory item dragged onto a target), `find` (click the target).
+- **Lock type** — `code` (typed, 3 to 6 characters), `order` (3 to 5 Hotspot clicks in sequence, counted only while armed by "Start the sequence"), `use_on` (Inventory item dragged onto a target), `find` (click the target).
 - **Exit puzzle** — The one Puzzle per Room whose opening ends the Room.
-- **Wrong attempt** — A failed `code` or `use_on` input, or a completed non-matching `order` sequence; never a click alone.
+- **Wrong attempt** — A failed `code` or `use_on` input, or a full-length non-matching armed `order` sequence; never a click alone.
 - **Idle** — Seconds since the player's last event (click, lock input, or Hint request) on the session clock; any click resets it; server idle ticks never do.
 - **Clue** — Player-facing text pointing at a Puzzle's Evidence. Validator rule 5 checks the Clue and every displayed Evidence attribute (`evidence.visible_attribute`) like a nudge or direction: no solution token, same matching rules; each displayed attribute says where to look (§13 Q12, resolved).
 - **Lore** — In-world flavor text per Puzzle, at most 60 words.
@@ -377,7 +377,7 @@ The player can play the Room as Scenes with mask Hotspots, a Thumbnail strip, a 
 The player can open a lock only with its correct input, judged by the server. Realizes UJ-1, UJ-2.
 
 **Consequences (testable):**
-- Each available Puzzle's lock input sits in its Wizard-notes entry. `code`: a 3 to 6 character field with Submit. `order`: Hotspot clicks in any Scene; the most recent clicks are judged against the sequence; a completed non-matching sequence counts one Wrong attempt and resets. `find`: a click on the target Hotspot. `use_on`: drag an Inventory item onto a Hotspot, or select it and then click the Hotspot, with the Thumbnail strip usable while it is selected.
+- Each available Puzzle's lock input sits in its Wizard-notes entry. `code`: a 3 to 6 character field with Submit. `order`: the sequence is armed only by "Start the sequence" in the order Puzzle's entry; only Hotspot clicks made while armed count, in any Scene; a full-length mismatch counts one Wrong attempt and clears the buffer; "Stop the sequence" disarms with no Wrong attempt; exploring clicks made while unarmed never count (architecture spine AD-4, Schema v1). `find`: a click on the target Hotspot. `use_on`: drag an Inventory item onto a Hotspot, or select it and then click the Hotspot, with the Thumbnail strip usable while it is selected.
 - Code input is compared trimmed and case-folded. `[ASSUMPTION A-20: code comparison rule, confirm]`
 - A lock shows as open only after the server confirms it; a submitted input shows a pending state until the server answers.
 - A Wrong attempt shows a plain "Not this" state and the per-lock count; a click alone never counts; a click on a Hotspot that is not a target shows the Interactable's label only.
@@ -919,6 +919,7 @@ Tracked in the spec and not blocking this PRD: Baseten credit coverage (Tue Oct 
 
 **Upstream wording fixes (via `bmad-correct-course`)**
 - `stack.md` and spine AD-8 are aligned with Q10 option (a) in the same Oct 21 update.
+- FR-12's `order` consequence is aligned with spine AD-4 and Schema v1 (Oct 21, approved with the UX Finalize spine fixes): clicks count only while the sequence is armed by "Start the sequence"; the earlier "most recent clicks are judged" wording is withdrawn.
 - Architecture spine AD-13 says Trickster errors become a "rejected card" while AD-4 says a skipped Card; this PRD follows AD-4. The AD-13 wording fix is applied (Oct 21): there is no `regen_exhausted` error class (the UI keys on job status `needs_recapture`), Trickster call errors produce a skipped Card, and only a Validator failure is the rejected Card.
 
 ## 13a. Risks and Dependencies
