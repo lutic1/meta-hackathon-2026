@@ -168,7 +168,7 @@ Cut order, with the hours each recovers (Oct 20 estimates) and the success crite
 
 | Cut | What ships instead | Recovers | Running total | Criterion affected |
 |---|---|---|---|---|
-| 1 | Trickster pre-authored edits plus a scripted reject | 2.0 h | 33 h | Criterion 5 becomes a scripted replay; the reject is not evaluated live |
+| 1 | Trickster pre-authored edits plus a scripted reject | 2.0 h | 33 h | Criterion 5 proposals come from the scripted source (no live Spark path); the validator still runs on every card |
 | 2 | Profile as a JSON file | 1.0 h | 32 h | None |
 | 3 | Rung text verbatim; no Ollama phrasing | 1.5 h | 30.5 h | Criterion 4 met trivially (verbatim rungs); the Guide phrasing claim is dropped from the README; the privacy line stays |
 | 4 | Validator only; no dry run | 1.0 h | 29.5 h | Criterion 2 reduced to validator only |

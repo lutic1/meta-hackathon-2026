@@ -7,6 +7,7 @@ companions:
   - delivery-plan.md
   - glossary.md
   - ../../planning-artifacts/briefs/brief-Keyframe-2026-10-20/schema-v1.md
+  - ../../planning-artifacts/architecture/architecture-Keyframe-2026-10-21/ARCHITECTURE-SPINE.md
 sources:
   - ../../planning-artifacts/briefs/brief-Keyframe-2026-10-20/brief.md
   - ../../planning-artifacts/briefs/brief-Keyframe-2026-10-20/addendum.md

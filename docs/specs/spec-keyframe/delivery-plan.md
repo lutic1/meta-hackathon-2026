@@ -41,7 +41,7 @@ Effort estimates (Oct 20) for Tier 1 sum to 35 h; the builder's own time is abou
 
 | Cut | Ships instead | Recovers | Running total | Effect |
 |---|---|---|---|---|
-| 1 | Trickster pre-authored edits plus a scripted reject | 2.0 h | 33 h | CAP-5 becomes a scripted replay; the reject is not evaluated live |
+| 1 | Trickster pre-authored edits plus a scripted reject | 2.0 h | 33 h | CAP-5 proposals come from the scripted source (no live Spark path); the validator still runs on every card (AD-15) |
 | 2 | Profile as a JSON file | 1.0 h | 32 h | None |
 | 3 | Rung text verbatim, no Ollama phrasing | 1.5 h | 30.5 h | CAP-4 met trivially; the README drops the phrasing claim; the privacy line stays |
 | 4 | Validator only, no dry run | 1.0 h | 29.5 h | CAP-2 reduced to validator only |
