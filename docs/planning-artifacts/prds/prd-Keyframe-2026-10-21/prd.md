@@ -12,7 +12,7 @@ Luis Ticas · 2026-10-21 · Indie track, Meta Global AI Developer Hackathon (Cer
 **At a glance**
 - **Status:** draft.
 - **Tier 1 floor, protected above everything:** FR-1 to FR-30, FR-36, and FR-38 (FR-38 is cut 0, the first Cut taken), plus the Backup video (§10.1).
-- **Decisions due Mon Oct 26:** §13 Q2 to Q4 and Q12 (Q1, decoy storage, is the Thu Oct 22 schema review pick; Q9, Q10 and Q13 were resolved Oct 21).
+- **Decisions due Mon Oct 26:** §13 Q2 to Q4 (Q1, decoy storage, is the Thu Oct 22 schema review pick; Q9, Q10, Q12 and Q13 were resolved Oct 21).
 
 ## 0. Document Purpose
 
@@ -160,7 +160,7 @@ Ana and Priya are fictional personas.
 - **Exit puzzle** — The one Puzzle per Room whose opening ends the Room.
 - **Wrong attempt** — A failed `code` or `use_on` input, or a completed non-matching `order` sequence; never a click alone.
 - **Idle** — Seconds since the player's last event (click, lock input, or Hint request) on the session clock; any click resets it; server idle ticks never do.
-- **Clue** — Player-facing text pointing at a Puzzle's Evidence. Validator rule 5 checks the Rungs, and the near-answer against the Clue, but not the Clue itself (§13 Q12).
+- **Clue** — Player-facing text pointing at a Puzzle's Evidence. Validator rule 5 checks the Clue and every displayed Evidence attribute (`evidence.visible_attribute`) like a nudge or direction: no solution token, same matching rules; each displayed attribute says where to look (§13 Q12, resolved).
 - **Lore** — In-world flavor text per Puzzle, at most 60 words.
 - **Evidence** — The Interactable and read attribute a Puzzle's solution depends on.
 - **Evidence card** — How the Wizard notes show one piece of Evidence: Interactable label, thumbnail crop, read attribute. Real and Decoy cards look identical and keep a stable order.
@@ -321,7 +321,7 @@ The system can apply the eight Validator rules of Schema v1 (`docs/planning-arti
 
 **Consequences (testable):**
 - A Room failing any rule is never stored or playable.
-- No nudge or direction contains a solution token; near-answers stay within the Rule 5 allowance and are also checked against the Clue.
+- No nudge, direction, Clue, or displayed Evidence attribute contains a solution token (same matching rules); near-answers stay within the Rule 5 allowance and are also checked against the Clue.
 - A `code` is 3 to 6 characters; an `order` sequence is 3 to 5 Hotspots (rule 7).
 - Reasons are structured (rule, Puzzle, field) with a fixed message and never quote a solution token or answer.
 
@@ -748,7 +748,7 @@ Detail for NFR-11.
 
 ## 7. Aesthetic and Tone
 
-Visual direction, color mode, voice and portrait style are Luis's decisions from the UX discovery round; sample lines are drafts the UX contract owns.
+Visual direction, color mode, voice and portrait style are Luis's decisions from the UX discovery round. Sample lines are illustrative: the UX contract may reword any of them if the rewrite keeps the line's functional intent; this PRD protects requirements, not sentences.
 
 - **Visual direction:** Lamplit study. Warm dark chrome, parchment-toned cards and notes, serif headings; the UI frames the player's own photos like a wizard's study. Dark mode only.
 - **Scenes:** the player's real photos, full-bleed, traversed by thumbnails, Hotspots revealed on hover (and by the "Show all objects" toggle, NFR-14) rather than outlined at rest. Lead with what the room knows, never with photorealism.
@@ -760,7 +760,7 @@ Visual direction, color mode, voice and portrait style are Luis's decisions from
 - **No-hint line:** in-world and encouraging, never a refusal and never "no hint available"; it acknowledges the ask, says the Guide is watching and help is coming, and invites one more look, with no content about any Puzzle. Sample: "Look around a little longer; I'll speak up if you stay stuck."
 - **Greeting:** wry, warm and specific about play style, never about objects, never surveillance-flavored. Template when phrasing is unavailable, sample: "Welcome back. Last time you held out {persistence phrase} before asking; let's see what this room makes of you." First-room welcome, sample: "Welcome to your own room. Find what doesn't belong."
 - **Cards:** one plain effect sentence in the Trickster's voice. Samples: Decoy "A new clue has appeared."; Merge "This lock now needs another opened first."; Loosen "The Guide is feeling generous." plus the Rung; Shortcut "A door just opened early."; rejected "The Validator says that wouldn't be fair. Spoilsport."; skipped "The Trickster is quiet this time."
-- **Disclosure copy:** plain, out of character, literal. "Timings shown at n× speed." / "Trickster proposals replayed from a recording; the Validator ran live." / cut 1: "Trickster proposals were written in advance; the Validator ran live on each." / "Hosted mode: hints are shown as written; no hint model runs here."
+- **Disclosure copy:** plain, out of character, literal. "Hint and Trickster timings run at n× speed; the build timer is real time." / "Trickster proposals replayed from a recording; the Validator ran live." / cut 1: "Trickster proposals were written in advance; the Validator ran live on each." / "Hosted mode: hints are shown as written; no hint model runs here."
 - **Errors:** plain and actionable ("Keyframe needs 6 to 10 JPEG photos."; Spend cap: "Keyframe has reached its spending limit, so this room can't be built right now."; the cap is a running total, not a daily limit).
 - **Motion, sound, density:** slow and warm (fades, lamplight glow on Hotspot hover), nothing over 300 ms, reduced motion respected; no sound in v1; designed for a 1440 × 900 MacBook viewport, the Scene taking most of the width with the Wizard notes and Hint area in one side column.
 
@@ -912,14 +912,14 @@ Tier 2 is judged only by the FR-34 gate, not by a success metric.
 | 9 | **Early Hint request: resolved Oct 21 (Luis): log only.** A Hint request with no Rung open returns the No-hint line, is logged as an Early ask, and lowers persistence; the nudge still waits for its threshold (architecture spine AD-4). | Luis | Resolved | FR-14, FR-15, §7 |
 | 10 | **Hosted-mode Derived block: resolved Oct 21 (Luis): option (a).** Hosted mode sends `Derived.fresh()`, no Player profile field leaves the browser, and hosted rooms show the First-room welcome instead of a Greeting; the Privacy line holds literally in every mode (architecture spine AD-8 amended). | Luis | Resolved | FR-6, FR-20, FR-21, FR-31, NFR-4 |
 | 11 | **Hosted Trickster source:** live under the Spend cap, or scripted. | Luis | Before Thu Nov 5 (Wed Nov 4 if a live link is required) | FR-31 |
-| 12 | **Clue solution-token check:** Schema v1 rule 5 checks the Rungs, and the near-answer against the Clue; it does not check the Clue itself. Add a Clue check as a rule-5 amendment through `bmad-correct-course` before the Mon Oct 26 freeze, or keep rule 5 as written? Separate from the Thu Oct 22 pick. | Luis | Before Mon Oct 26 | FR-8, Schema v1 |
+| 12 | **Clue solution-token check: resolved Oct 21 (Luis): rule 5 extended.** The Clue and `evidence.visible_attribute` are checked like nudge and direction (no solution token, same matching rules); every displayed attribute says where to look and never holds a solution token. Schema v1 also gains optional `Room.name` (string, at most 40 characters, set when a Demo room is seeded; absent on ordinary Builds; the UI falls back to the build time). | Luis | Resolved | FR-8, Schema v1 |
 | 13 | **Build view data route (FR-38): resolved Oct 21.** `GET /builds/<job_id>/view` returns a solution-free `BuildView` projection (mask polygons per photo, the puzzle graph without solutions, per-rule Validator verdicts, Dry run pass or fail per Puzzle, Regeneration count, Model table from provenance); open in both modes; covered by the sentinel-solution test (architecture spine AD-3 amended). | Spine owner | Resolved | FR-38 |
 
 Tracked in the spec and not blocking this PRD: Baseten credit coverage (Tue Oct 27 test), fal.ai pose metadata (pre-Oct 26 spike), and whether about 32 h of builder time holds (if not, Cuts apply earlier).
 
 **Upstream wording fixes (via `bmad-correct-course`)**
 - `stack.md` and spine AD-8 are aligned with Q10 option (a) in the same Oct 21 update.
-- Architecture spine AD-13 says Trickster errors become a "rejected card" while AD-4 says a skipped Card; this PRD follows AD-4, and the AD-13 wording fix is queued.
+- Architecture spine AD-13 says Trickster errors become a "rejected card" while AD-4 says a skipped Card; this PRD follows AD-4. The AD-13 wording fix is applied (Oct 21): there is no `regen_exhausted` error class (the UI keys on job status `needs_recapture`), Trickster call errors produce a skipped Card, and only a Validator failure is the rejected Card.
 
 ## 13a. Risks and Dependencies
 

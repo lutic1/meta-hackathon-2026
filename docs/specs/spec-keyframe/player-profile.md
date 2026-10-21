@@ -23,7 +23,7 @@ At most one change per 3-minute window, only between puzzles, from the fixed men
 
 ## Demo timescale
 
-`DEMO_TIMESCALE=n` divides the nudge threshold, the rung spacing, and the Trickster window by n; it never changes the capture timer. At 6x the three rungs take 30 s when the nudge fires on 3 wrong codes, 45 s on idle alone; the video uses wrong codes.
+`DEMO_TIMESCALE=n` divides the nudge threshold, the rung spacing, and the Trickster window by n; it never changes the capture timer, which runs in real time. The disclosure reads "Hint and Trickster timings run at n× speed; the build timer is real time." At 6x the three rungs take 30 s when the nudge fires on 3 wrong codes, 45 s on idle alone; the video uses wrong codes.
 
 ## Profiles
 

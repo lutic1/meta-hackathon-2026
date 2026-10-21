@@ -48,6 +48,6 @@ Verbatim for the README and the capture screen: "the player profile stays on you
 | `PROFILE` | `dev`, `playtest`, `demo` | `dev` | IndexedDB database name; video and playtest use fresh profiles |
 | `CACHE` | `on`, `off` | `on` | Serve identical calls from the cache; `off` for proof takes |
 | `SPEND_CAP_USD` | dollars | 80 through Nov 4, 25 from Thu Nov 5 | Per-call refusal with a persisted counter |
-| `DEMO_TIMESCALE` | integer n, 1 or more | 1 | Divides the nudge threshold, rung spacing, and Trickster window by n; never the capture timer |
+| `DEMO_TIMESCALE` | integer n, 1 or more | 1 | Divides the nudge threshold, rung spacing, and Trickster window by n; never the capture (build) timer, which runs in real time |
 | `DEMO_TRICKSTER` | `live`, `scripted` | `live` | `scripted` replays two recorded proposals; the validator still runs live |
 | `MIN_CONTAINERS` | 0, 1 | 0 | Warm hosted container, Thu Nov 5 to Mon Nov 9 only |

@@ -64,7 +64,7 @@ Escape rooms are scripted once for everyone and never about the player's own thi
   - **success:** Profile writes go only to IndexedDB (a local JSON file under cut 2); only the profile's derived block reaches the Guide model and the greeting; `rooms/`, `photos/`, `captures/`, `uploads/`, `*.heic`, and the cache are git-ignored; a retention summary is shown on the capture screen; in hosted mode every session starts from a fresh derived block, so no profile number reaches the hosted server.
 - **CAP-14** Build view (Tier 1, cut 0)
   - **intent:** The player, a judge, or the builder can see how a room was built and verified, with no solution exposed.
-  - **success:** For a finished build the view shows mask overlays per photo, the puzzle graph with the exit marked, a verdict per validator rule, dry-run pass or fail per puzzle (absent under cut 4), the regeneration count, and the model table; a sentinel-solution test finds no solution in its response; it opens after a build ends `done` and from the completion screen.
+  - **success:** For a finished build the view shows mask overlays per photo, the puzzle graph with the exit marked, a verdict per validator rule, dry-run pass or fail per puzzle (rows show "skipped" under cut 4), the regeneration count, and the model table; a sentinel-solution test finds no solution in its response; it opens after a build ends `done` and from the completion screen.
 
 ## Constraints
 
