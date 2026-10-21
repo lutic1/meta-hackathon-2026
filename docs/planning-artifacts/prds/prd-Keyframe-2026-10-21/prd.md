@@ -868,7 +868,7 @@ Submission checklist (detail in `docs/specs/spec-keyframe/delivery-plan.md` §Su
 - The submission includes 4 to 6 screenshots (capture with masks, puzzle JSON, a Rung with its events, Trickster Cards, room-2 Greeting, model table).
 - A 300 to 400 word portal write-up repeating the pre-existing-code statement (Indie track, solo, theme named).
 - The Spend log (FR-30).
-- Repo hygiene: before the repo goes public (Wed Nov 4 morning at the latest), `_bmad/` and the local tool-config folder named in the delivery plan's Wed Nov 4 hygiene line are removed from the index; the BMAD brief folder under `docs/planning-artifacts/` stays the single source of truth; `PRODUCT_BRIEF.md` stays removed.
+- Repo hygiene: before the repo goes public (Wed Nov 4 morning at the latest), only the hackathon tooling paths listed in the delivery plan (§Submission package, Repo hygiene: `_bmad/`, `.claude/skills/bmad-*/`, `.claude/skills/modal/`, `.claude/skills/keyframe-*/`) are removed from the index, and other `.claude/` configuration stays; the BMAD brief folder under `docs/planning-artifacts/` stays the single source of truth; `PRODUCT_BRIEF.md` stays removed.
 
 Delivery checks (not FR acceptance criteria): room 2 is a different physical room, and at least 80% of its Interactable labels differ from room 1's (SM-5); a real room-1 record exists on `PROFILE=demo` before room 2 is recorded; portraits appear in the Main demo.
 

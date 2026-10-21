@@ -53,7 +53,14 @@ src/providers/meta_api.py  Meta Model API stub, wire up Oct 26
 tests/test_providers.py    smoke tests, all offline
 docs/MONDAY.md             the Oct 26 plug-in checklist
 docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
-_bmad/, .claude/skills/    BMAD Method v6 tooling (bmad-* skills) (removed before the repo goes public)
+_bmad/                     BMAD Method v6 install (hackathon tooling)
+.claude/skills/bmad-*/     BMAD skills (hackathon tooling)
+.claude/skills/modal/      Modal's official skill (hackathon tooling)
+.claude/skills/keyframe-*/ Keyframe dev skills (hackathon tooling)
+                           the four hackathon tooling paths above are removed
+                           before the repo goes public (list: docs/specs/
+                           spec-keyframe/delivery-plan.md, Repo hygiene);
+                           other .claude/ configuration stays
 ```
 
 ## Run it today

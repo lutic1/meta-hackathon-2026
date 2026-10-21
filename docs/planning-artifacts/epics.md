@@ -73,7 +73,7 @@ NFR9: Rate limits: within Meta Model API limits (Spark 3,000 RPM and 4,000,000 T
 NFR10: Platform: Chrome on the Mac; Tier 1 scenes as Three.js textured planes; the Tier 2 gate requires 30 fps or better on the M1.
 NFR11: Schedule: the backup video is recorded Sun Nov 1 by 2:00 PM from whatever runs; Tier 2 is a default no-go unless that video exists Sat Oct 31 night; Fri Oct 30 no build; Tue Nov 3 video only; submit Wed Nov 4 before 9:00 AM ET (deadline 9:00 PM ET); cuts are made nightly in the published order.
 NFR12: Demo honesty: the 6x timescale, the scripted Trickster replay, and earlier builds of a room are disclosed in the video and the README; the README states which cuts shipped.
-NFR13: Submission and hygiene: public MIT repo with third-party and model licenses listed; `_bmad/` and `.claude/` removed from the index before the repo goes public (Wed Nov 4 morning at the latest); `PRODUCT_BRIEF.md` stays removed; pre-existing code disclosed with the `pre-hackathon-baseline` tag and diffstat; the scaffold is not expanded before Mon Oct 26.
+NFR13: Submission and hygiene: public MIT repo with third-party and model licenses listed; only the hackathon tooling paths listed in `delivery-plan.md` (§Submission package, Repo hygiene: `_bmad/`, `.claude/skills/bmad-*/`, `.claude/skills/modal/`, `.claude/skills/keyframe-*/`) removed from the index before the repo goes public (Wed Nov 4 morning at the latest), other `.claude/` configuration kept; `PRODUCT_BRIEF.md` stays removed; pre-existing code disclosed with the `pre-hackathon-baseline` tag and diffstat; the scaffold is not expanded before Mon Oct 26.
 
 ### Additional Requirements
 
@@ -171,7 +171,7 @@ A returning player starts a second room and is greeted from how they played the 
 ### Epic 6: Record the demo and submit
 The builder records the backup video by Sun Nov 1 2:00 PM, the capture proof and main demo on Tue Nov 3, and submits on Wed Nov 4 before 9:00 AM ET, with every demo shortcut disclosed, the README complete, and the repo cleaned for the public.
 **FRs covered:** FR26 (disclosure UI)
-**Implementation notes:** carries NFR11 to NFR13; builder stories (videos, submission) sit beside agent stories (disclosure overlay, README model table, architecture diagram, pre-existing-code section, CHANGELOG, hygiene pass); the hygiene pass (`_bmad/` and `.claude/` out, `PRODUCT_BRIEF.md` stays deleted) is the Wed Nov 4 morning story.
+**Implementation notes:** carries NFR11 to NFR13; builder stories (videos, submission) sit beside agent stories (disclosure overlay, README model table, architecture diagram, pre-existing-code section, CHANGELOG, hygiene pass); the hygiene pass (the hackathon tooling paths in the delivery plan's Repo hygiene list out of the index, other `.claude/` configuration kept, `PRODUCT_BRIEF.md` stays deleted) is the Wed Nov 4 morning story.
 
 ### Epic 7: Judges play it themselves
 A judge opens the hosted URL, plays the cached demo rooms, and can build their own room behind an access code, with builds surviving the host's web timeout and judge data deleted on Tue Nov 10.

@@ -2,7 +2,7 @@
 title: "Product Brief Addendum: Keyframe"
 status: final
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 # Product Brief Addendum: Keyframe
 
@@ -200,7 +200,7 @@ Pre-kickoff, Wed Oct 21 to Sun Oct 25 (about 8 h); each verification and spike i
 - Spike: a `sam-3.1` mask decoded with `meta-sam-parser` to a hotspot polygon in Chrome.
 - Spike: three Riddler calls against the draft schema, failure modes recorded.
 - Both rooms photographed (6 to 10 photos each, originals kept; no faces, documents, or others' belongings).
-- MIT LICENSE; `_bmad/` and `.claude/` out of the index before the repo goes public (§Submission package); Hugging Face `sam-3d-objects` access request, optional.
+- MIT LICENSE; the hackathon tooling paths (the hackathon tooling path list in `docs/specs/spec-keyframe/delivery-plan.md` (§Submission package, Repo hygiene)) out of the index before the repo goes public, other `.claude/` configuration kept (§Submission package); Hugging Face `sam-3d-objects` access request, optional.
 - Sun Oct 25 night: baseline tag and CHANGELOG (§Submission package); accept the Official Rules if published.
 
 Build window. Each evening line names what is attempted; by the item table a 3 h evening holds about half of what its line names, so the nightly cut decision is part of the line.
@@ -214,7 +214,7 @@ Build window. Each evening line names what is attempted; by the item table a 3 h
 - Sun Nov 1 (8 h): Tier 2 if the video exists; else (the expected case) finish Tier 1 and record by 2 PM. The afternoon (about 2 h) is the playtest on `PROFILE=playtest` first (it needs the tester), then room 2 through the pipeline, which may finish Mon Nov 2. Cuts are reversed only with time left, last cut first, and only cuts 1 to 3 are realistic candidates before Nov 3.
 - Mon Nov 2 (3 h): Tier 2 gate if attempted; else play room 1 for real on `PROFILE=demo` so the cross-session greeting has a record to cite; playtest here if the tester missed Nov 1, else the builder's cold run of room 2.
 - Tue Nov 3 (3 h): video only: fresh room-2 photo set, cache cleared on camera, capture proof, three main-demo takes, captions, unlisted upload.
-- Wed Nov 4 (2 h before work): repo hygiene at the latest here, before the repo goes public: `git rm -r --cached _bmad/ .claude/` plus `.gitignore` entries, the BMAD brief folder kept as the single source of truth, `PRODUCT_BRIEF.md` left removed; README model table, diagram, pre-existing-code section with the baseline diffstat, screenshots, portal description; submit before 9:00 AM ET; 6 to 9 PM is slack for a failed upload or a required live link (deadline 9:00 PM ET).
+- Wed Nov 4 (2 h before work): repo hygiene at the latest here, before the repo goes public: the `git rm -r --cached` command, `.gitignore` entries and staged-diff check over the hackathon tooling path list in `docs/specs/spec-keyframe/delivery-plan.md` (§Submission package, Repo hygiene), other `.claude/` configuration kept, the BMAD brief folder kept as the single source of truth, `PRODUCT_BRIEF.md` left removed; README model table, diagram, pre-existing-code section with the baseline diffstat, screenshots, portal description; submit before 9:00 AM ET; 6 to 9 PM is slack for a failed upload or a required live link (deadline 9:00 PM ET).
 - Thu Nov 5 to Sun Nov 8: hosted-URL redeploy, `MIN_CONTAINERS=1` kept through Mon Nov 9, finals preparation.
 - Mon Nov 9: live finals, local mode screen-shared from the M1.
 
@@ -266,7 +266,7 @@ Built to the strictest Cerebral Valley precedent (public open-source repo, 2-min
 - [ ] Dated CHANGELOG.md from the baseline entry through Nov 4.
 - [ ] Portal: Indie track, solo, theme named; fields checked when the form opens.
 - [ ] Raw room photos never enter the public repo, consent or not: the photo input folders are git-ignored; only outputs ship (screenshots, clue cards, the demo video), with household consent for what appears in them; judge-uploaded rooms deleted from the Volume Tue Nov 10.
-- [ ] Repo hygiene before the repo goes public, Wed Nov 4 morning at the latest: `_bmad/` and `.claude/` removed (`git rm -r --cached` plus `.gitignore`); the BMAD brief folder under `docs/planning-artifacts/` stays as the single source of truth; `PRODUCT_BRIEF.md` stays removed (it still exists on `master`; merging `keyframe/bmad-brief` into `master` deletes it; do not recreate it).
+- [ ] Repo hygiene before the repo goes public, Wed Nov 4 morning at the latest: only the hackathon tooling paths removed (`git rm -r --cached` plus `.gitignore`, both over the hackathon tooling path list in `docs/specs/spec-keyframe/delivery-plan.md` (§Submission package, Repo hygiene), which is the single source of truth); other `.claude/` configuration stays; the BMAD brief folder under `docs/planning-artifacts/` stays as the single source of truth; `PRODUCT_BRIEF.md` stays removed (it still exists on `master`; merging `keyframe/bmad-brief` into `master` deletes it; do not recreate it).
 
 Pre-existing-code practice: as of Oct 20 the repo holds about 400 lines of Python (provider interface, mock provider, Meta API stub, tests) and no product code. Sun Oct 25 night: `git tag -a pre-hackathon-baseline` pushed, CHANGELOG entry "Before Oct 26 (baseline): provider interface, mock provider, Meta API stub, tests. No front end, no model calls." Then small dated commits; the README carries the diffstat at submission. If the Official Rules ban prior code outright, the scaffold is rewritten on Mon Oct 26 in under an hour; it is not expanded before kickoff so that option stays open.
 
