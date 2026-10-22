@@ -6,13 +6,13 @@ updated: 2026-10-22
 ---
 # Schema v1: Keyframe
 
-The Tier 1 / Tier 2 contract referenced by `addendum.md` §Schema v1 and realized once in `src/domain/schema.py` (architecture spine AD-2). The reviewers' changes were approved Oct 21 and are applied below. One pick remains for the Thu Oct 22 review: the decoy storage shape (§Open pick). The schema freezes Mon Oct 26; later changes go through `bmad-correct-course`.
+The Tier 1 / Tier 2 contract referenced by `addendum.md` §Schema v1 and realized once in `src/domain/schema.py` (architecture spine AD-2). The reviewers' changes were approved Oct 21 and are applied below. The Thu Oct 22 review picked option A for decoy storage (§Decoy storage). The schema freezes Mon Oct 26; later changes go through `bmad-correct-course`.
 
 ## Fields
 
 Ids are prefixed ULIDs assigned by server code only: `room_`, `pz_`, `ix_`, `te_` (spine AD-18). Pixel coordinates are in the space of the stored downscaled 1280 px JPEG unless a field says otherwise.
 
-Room: `id`, `created`, `name` (optional string, at most 40 characters, set when a Demo room is seeded; absent on ordinary Builds; the UI falls back to the build time; resolves PRD Q12), `photos[]` (`hash` = sha256 of the stored downscaled JPEG bytes, `size`, downscaled and original paths; JPEG only), `interactables[]`, `puzzles[]`, `provenance` (model ids, prompt hashes, stage timings, regeneration count, spend per stage, `applied_edits[]`: ids of accepted Trickster edits folded into a session's effective Room, empty on the stored build Room). No `profile_name`; no `exit_puzzle_id`.
+Room: `id`, `created`, `name` (optional string, at most 40 characters, set when a Demo room is seeded; absent on ordinary Builds; the UI falls back to the build time; resolves PRD Q12), `photos[]` (`hash` = sha256 of the stored downscaled JPEG bytes, `size`, downscaled and original paths; JPEG only), `interactables[]`, `puzzles[]`, `decoys[]` (`[{id: te_, puzzle: pz_, interactable: ix_, visible_attribute}]`, empty on the stored build Room; written only by `apply_edit` on an accepted `decoy` edit, into the session's Effective room), `provenance` (model ids, prompt hashes, stage timings, regeneration count, spend per stage, `applied_edits[]`: ids of accepted Trickster edits folded into a session's effective Room, empty on the stored build Room). No `profile_name`; no `exit_puzzle_id`.
 
 Interactable: `id` (`ix_`, minted by the segment stage after mask selection), `label` (the noun phrase sent to SAM), `photo` (index into `photos[]` in upload order), `box` (`[x0, y0, x1, y1]` in pixels, converted from the vision call's 0 to 1000 grid at segment time), `polygons` (list of polygons `[[x, y], ...]`, one per instance; `null` only before the segment stage completes; when SAM returns nothing the segment stage writes the box rectangle as the single polygon), `instances` (count when plurals are grouped), `attributes[]` (what the vision call reported, verbatim), `tier2` (optional GLB path and placement; the only field in original-photo pixels; pose from fal's metadata JSON if present, else hand-placed).
 
@@ -20,7 +20,7 @@ Puzzle: `id` (`pz_`; the Riddler emits ordinal keys `p1` to `p6`, mapped by the 
 
 TricksterEdit: `id` (`te_`), `type` one of `decoy`, `merge`, `loosen`, `shortcut`; `puzzle`; `payload`, a tagged union by `type`; `validator_result` {`ok`, `reasons[]`}; `accepted`; `window`. Edits live in the session log as `trickster_card` events, server-side only, and never on the stored Room (spine AD-12); session state carries each card's `TricksterCard` projection (ids, type, outcome, reason and fixed message, no payload), never the edit (spine AD-3). Both outcomes render as cards.
 
-Payload by type: `decoy`: {`interactable`, `visible_attribute`} adds a false evidence card for `puzzle`, which is never the exit puzzle (storage per §Open pick); `merge`: {`puzzle_a`, `puzzle_b`} makes `puzzle_b` require `puzzle_a`; `loosen`: {`puzzle`, `rung`} unlocks that rung immediately (applied to session state, not the Room); `shortcut`: {`puzzle`} removes one `requires` edge. Re-validation runs validator rules 1 to 8 (and rule 9 once the decoy pick is made) on `apply_edit(room, edit)` (no dry run); a failing result is shown as the rejected card and the effective Room is unchanged.
+Payload by type: `decoy`: {`interactable`, `visible_attribute`} adds a false evidence card for `puzzle`, which is never the exit puzzle (stored in `Room.decoys[]`, §Decoy storage); `merge`: {`puzzle_a`, `puzzle_b`} makes `puzzle_b` require `puzzle_a`; `loosen`: {`puzzle`, `rung`} unlocks that rung immediately (applied to session state, not the Room); `shortcut`: {`puzzle`} removes one `requires` edge. Re-validation runs validator rules 1 to 8 and rule 9 on `apply_edit(room, edit)` (no dry run); a failing result is shown as the rejected card and the effective Room is unchanged.
 
 API models, shapes defined in the architecture spine: `RoomDraft` (AD-7), `RoomView`, `PlayView`, `BuildView` and `TricksterCard` (AD-3; `TricksterCard` is `to_card_view` over a `trickster_card` event: `edit_id`, `accepted`, `edit_type`, `puzzle_id`, `related_puzzle_id`, `room_revision`, `reason`, `message`, `t_ms`, and no payload or content field; session state exposes `cards`, never a `TricksterEdit` or the event log), `ArchitectResponse` (AD-18), `DryRunAnswers` (AD-12, a list of `{puzzle_id, answer}` reusing the solution union, never a map), `RoomSummary` and `AccessCheck` (AD-9), `Derived` and `RoomResult` (AD-8), `Meta` (AD-15), and the event models (AD-4). `GET /schema` returns all of them.
 
@@ -30,7 +30,7 @@ API models, shapes defined in the architecture spine: `RoomDraft` (AD-7), `RoomV
 
 ## Validator rules
 
-All deterministic. Reasons are structured `{rule, puzzle_id, field}` with a fixed message per rule and never quote an offending token or an answer (spine AD-3).
+All deterministic. Rules 1 to 8 gate the stored build Room; a Trickster edit is re-validated with rules 1 to 9. Reasons are structured `{rule, puzzle_id, field}` with a fixed message per rule and never quote an offending token or an answer (spine AD-3).
 
 1. `requires` forms a DAG.
 2. Every puzzle is reachable from the puzzles with no prerequisites; the exit is reachable from every other puzzle.
@@ -40,6 +40,7 @@ All deterministic. Reasons are structured `{rule, puzzle_id, field}` with a fixe
 6. `lore` is 60 words or fewer; the three rungs are non-empty and increase in length.
 7. Exactly one puzzle has `is_exit: true` (checked first); payloads are well-formed: `code` 3 to 6 characters, `order` 3 to 5 ids, `use_on` two distinct ids, `find` one.
 8. Every `use_on.item` is the interactable of a `find` puzzle listed in that puzzle's `requires`.
+9. A `decoy` names an interactable that exists; its `visible_attribute` is one the vision call reported for that interactable; the pair differs from every puzzle's real `evidence`; the target puzzle is not the exit; at most one decoy per puzzle; the attribute text contains no solution token under rule 5. Fixed message: "A false clue breaks the decoy rules."
 
 ## Dry run
 
@@ -49,17 +50,6 @@ A second `muse-spark-1.3` call receives the photos, the labels, every `clue`, an
 
 One `sam-3.1` call per label on its clearest photo; selection runs in `domain/masks.py`. The mask with the best IoU against the vision box is kept; for a plural label ("books") every mask with IoU above 0.2 is grouped as instances of one interactable; masks under 1% of the image are dropped; the room is capped at 12 interactables, highest vision confidence first. Polygons come from `meta-sam-parser`'s SVG path, scaled from the mask raster to the frame and simplified. [ASSUMPTION] Minimum: if fewer than 5 survive, the build ends with status `needs_more_photos` before any Riddler call, since four to six puzzles need that many distinct objects.
 
-## Open pick for Thu Oct 22: decoy storage
+## Decoy storage (picked Thu Oct 22: option A)
 
-An accepted `decoy` edit has to live somewhere `apply_edit(room, edit)` can write and `PlayView` can render, without telling the player which card is false. The payload is the same in every option: {`interactable`, `visible_attribute`} plus the edit's `puzzle`. Whichever option is picked adds validator rule 9: the decoy's interactable exists; its `visible_attribute` is one the vision call reported for that interactable; the pair differs from every puzzle's real `evidence`; the target puzzle is not the exit; at most one decoy per puzzle; the attribute text contains no solution token, checked like `evidence.visible_attribute` under rule 5.
-
-| | A. `Room.decoys[]` (recommended) | B. `Puzzle.evidence` becomes a list with `is_decoy` | C. No Room field; cards from the session log |
-|---|---|---|---|
-| Shape | `decoys: [{id: te_, puzzle: pz_, interactable: ix_, visible_attribute}]`, empty on the stored build Room | `evidence: [{interactable, visible_attribute, is_decoy}]`; the Riddler writes one real entry, `apply_edit` appends a decoy | Accepted `trickster_card` events carry the payload; the session's `PlayView` adds them as extra cards; `apply_edit` is a no-op for `decoy` |
-| What changes | One new Room field; `to_play_view` merges real evidence and decoys into one unflagged `evidence_cards` list per puzzle, in a stable order seeded by room id | The Riddler response schema, rule 4 (iterates the list), `to_prompt_view` and `to_play_view` (both must strip `is_decoy`) | AD-12's fold rule (the effective Room no longer shows every accepted edit) and `PlayView` assembly (reads the Room and the log) |
-| Leak risk | One merge function, one test asserting decoy and real cards are indistinguishable in `PlayView` | A redaction slip exposes `is_decoy`, the same class of leak as a solution; every consumer of `evidence` must remember it | Low for the flag, but what the player sees is defined in two places |
-| Validation | Rule 9 runs inside `validate(apply_edit(room, edit))` like every other edit | Same, after rule 4 is reworked | `validate(apply_edit(...))` cannot see the decoy; all decoy checks move into `validate_edit` |
-| Provenance | `applied_edits` maps 1:1 to `decoys[].id` | `applied_edits` maps to list entries | `applied_edits` has nothing on the Room to point at |
-| Cost to build | About 1 h (field, merge, rule 9, two tests) | About 2 h plus re-testing the Riddler prompt | About 1 h, plus an amendment to AD-12 |
-
-Recommendation: A. It leaves the already-approved `evidence` field, the Riddler schema, rules 1 to 8, and both views untouched except for one merge, and it keeps AD-12 as written.
+An accepted `decoy` edit lives in `Room.decoys[]`: `[{id: te_, puzzle: pz_, interactable: ix_, visible_attribute}]`, empty on the stored build Room and written only by `apply_edit` into the session's Effective room, so each `decoys[].id` is an accepted edit id listed in `provenance.applied_edits`. Rule 9 runs inside `validate(apply_edit(room, edit))` like every other edit check. `to_play_view` merges each puzzle's real `evidence` and its decoys into one unflagged `evidence_cards` list in a stable order seeded by the room id, so `PlayView` never marks which card is false and carries no `decoys` key. One test asserts decoy and real cards are indistinguishable in `PlayView` and in the serialized session responses (the `TricksterCard` projection carries no payload). A was picked over B (a decoy flag on the evidence list that every consumer must strip, the same class of leak as a solution) and C (cards defined in two places, the Room and the session log) because it leaves `evidence`, the Riddler schema, rules 1 to 8 and both views untouched except for one merge, and keeps AD-12 as written.

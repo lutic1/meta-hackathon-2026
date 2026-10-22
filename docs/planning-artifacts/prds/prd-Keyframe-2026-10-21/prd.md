@@ -12,7 +12,7 @@ Luis Ticas · 2026-10-21 · Indie track, Meta Global AI Developer Hackathon (Cer
 **At a glance**
 - **Status:** final.
 - **Tier 1 floor, protected above everything:** FR-1 to FR-30, FR-36, and FR-38 (FR-38 is cut 0, the first Cut taken), plus the Backup video (§10.1).
-- **Decisions due Mon Oct 26:** §13 Q2 to Q4 and Q14, the Official Rules check at kickoff (Q1, decoy storage, is the Thu Oct 22 schema review pick; Q9, Q10, Q12 and Q13 were resolved Oct 21).
+- **Decisions due Mon Oct 26:** §13 Q2 to Q4 and Q14, the Official Rules check at kickoff (Q1, decoy storage, was resolved Oct 22; Q9, Q10, Q12 and Q13 were resolved Oct 21).
 
 ## 0. Document Purpose
 
@@ -193,7 +193,7 @@ Ana and Priya are fictional personas.
 - **First-room welcome** — A fixed Guide line shown instead of a Greeting when the Player profile has no Room result.
 
 **Build and verification**
-- **Validator** — The eight deterministic rules of Schema v1 (plus rule 9 after the decoy pick), applied to every Room and Trickster edit; reasons never quote a solution token or answer.
+- **Validator** — The eight deterministic rules of Schema v1 (rule 9 covers Decoys), applied to every Room and Trickster edit; reasons never quote a solution token or answer.
 - **Schema v1** — The Room, Puzzle, Interactable and Trickster edit contract in `schema-v1.md`; frozen Mon Oct 26, later changes only through `bmad-correct-course`.
 - **Dry run** — A `muse-spark-1.3` call that sees photos, labels, Clues, and Rungs, never solutions, and must reach every answer.
 - **Regeneration** — Riddler plus Dry run repeated with the failure reasons only; at most 2.
@@ -369,7 +369,7 @@ The player can play the Room as Scenes with mask Hotspots, a Thumbnail strip, a 
 - The Thumbnail strip reaches every photo. `[ASSUMPTION A-12: thumbnails in upload order, confirm]`
 - The Inventory persists across Scene changes for the whole Session.
 - Wizard notes show, for each available Puzzle, its Clue, Lore, Evidence cards (Interactable label, thumbnail crop, read attribute), opened Rungs and lock input; Puzzles with unmet prerequisites are hidden.
-- After an accepted Decoy, real and Decoy Evidence cards are indistinguishable and appear in a stable order (one test; architecture spine AD-3; Schema v1 §Open pick).
+- After an accepted Decoy, real and Decoy Evidence cards are indistinguishable and appear in a stable order (one test; architecture spine AD-3; Schema v1 §Decoy storage).
 - Reloading the Play screen resumes the Session from its Event log (Scenes, Inventory, open locks, current Rungs); if the server is unreachable, inputs disable with a reconnecting state and nothing is counted.
 
 #### FR-12: Open locks only on correct input
@@ -461,14 +461,14 @@ The Trickster can propose one Decoy, Merge, Loosen, or Shortcut between Puzzles.
 The player can see every Trickster edit as a Card after re-validation; the Effective room changes only on acceptance. Realizes UJ-3.
 
 **Consequences (testable):**
-- An edit is accepted only if the Room with it applied passes Validator rules 1 to 8 (plus rule 9 after the decoy pick); no Dry run. At most one Decoy per Puzzle.
+- An edit is accepted only if the Room with it applied passes Validator rules 1 to 8 (rule 9 covers Decoys); no Dry run. At most one Decoy per Puzzle.
 - On acceptance the Play screen reflects the edit at once: a new Evidence card (Decoy), a Puzzle now locked behind another (Merge), a Rung in the Hint area (Loosen), or a Puzzle becoming available (Shortcut).
 - A Card appears in the Hint area after the lock-open state, stays until dismissed, and is kept in the Card log. Each Card names the edit type and its effect in one plain sentence; a Decoy Card never identifies which Evidence is false.
 - A rejected Card shows a plain one-line reason derived from the Validator rule's fixed message, never a token; the Effective room is unchanged; the stored Room is never mutated.
 - A provider error or reached Spend cap during a window shows a skipped Card with the same one-line message for either cause, and play continues.
 - A window after the sixth Trickster call opens no proposal and shows no Card.
 
-**Notes:** decoy storage follows the Thu Oct 22 pick (§13, Q1).
+**Notes:** decoy storage is `Room.decoys[]` (option A, picked Thu Oct 22; §13 Q1).
 
 ### 4.6 Player memory
 
@@ -812,7 +812,7 @@ Visual direction, color mode, voice and portrait style are Luis's decisions from
 
 | When (2026, ET) | Gate | Rule |
 |---|---|---|
-| Thu Oct 22 | Schema review | One pick only: decoy storage (§13 Q1) |
+| Thu Oct 22 | Schema review | Decoy storage picked: option A, `Room.decoys[]` (§13 Q1) |
 | Sun Oct 25, night | Baseline | `pre-hackathon-baseline` tag pushed with MIT LICENSE and the baseline CHANGELOG entry; both rooms photographed (no faces, documents, or others' belongings) |
 | Mon Oct 26 | Schema v1 freeze | Schema v1 is the Tier 1 and Tier 2 contract; after the freeze it changes only through `bmad-correct-course` |
 | Mon Oct 26 onward | Daily Ledger export | Committed with each build day's work |
@@ -901,7 +901,7 @@ Tier 2 is judged only by the FR-34 gate, not by a success metric.
 
 | # | Question and options | Owner | Needed by | Affects |
 |---|---|---|---|---|
-| 1 | **Decoy storage:** option A (`Room.decoys[]`, recommended), B (Evidence list with a decoy flag), or C (Cards from the Event log only); see `schema-v1.md`. | Luis (schema review) | Thu Oct 22 | FR-11, FR-19, Schema v1 |
+| 1 | **Decoy storage: resolved Oct 22 (Luis): option A.** `Room.decoys[]`, empty on the stored build Room and written by `apply_edit`; validator rule 9; `to_play_view` merges real and decoy cards into one unflagged list per Puzzle in a stable order (architecture spine AD-3, AD-12; Schema v1). | Luis (schema review) | Resolved | FR-11, FR-19, Schema v1 |
 | 2 | **Fireworks Trickster fallback model id.** | Luis | Mon Oct 26 | FR-18, §6.1 |
 | 3 | **Retention wording on the status endpoint**, from the pre-kickoff retention verification. | Luis | Mon Oct 26 | FR-6, FR-26 |
 | 4 | **Hosted full-Room download route** (access-coded). | Luis | Mon Oct 26 | §6.2, NFR-5 |

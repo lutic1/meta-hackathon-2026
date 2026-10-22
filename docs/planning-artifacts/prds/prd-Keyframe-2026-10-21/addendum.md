@@ -3,7 +3,7 @@ title: "PRD Addendum: Keyframe"
 status: final
 author: Luis Ticas
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 
 # PRD Addendum: Keyframe
@@ -121,7 +121,7 @@ The Build view (FR-38) and the accessibility floor (NFR-14) are not in the Oct 2
 | Profile fields, derived block, and nudge threshold | `docs/specs/spec-keyframe/player-profile.md`; `docs/planning-artifacts/architecture/architecture-Keyframe-2026-10-21/ARCHITECTURE-SPINE.md` AD-8 |
 | Tiers, gates, cut ladder, day plan, videos, and submission package | `docs/specs/spec-keyframe/delivery-plan.md` |
 | Terms (rung, interactable, Tier 1.5, cut) | `docs/specs/spec-keyframe/glossary.md` |
-| Room fields, eight validator rules, dry run, mask selection, and decoy pick | `docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/schema-v1.md` |
+| Room fields, nine validator rules, dry run, mask selection, and decoy storage | `docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/schema-v1.md` |
 | Invariants AD-1 to AD-18, conventions, pinned versions, and structural seed | `docs/planning-artifacts/architecture/architecture-Keyframe-2026-10-21/ARCHITECTURE-SPINE.md` |
 | Capability-to-package and AD map | `docs/planning-artifacts/architecture/architecture-Keyframe-2026-10-21/ARCHITECTURE-SPINE.md` §Capability → Architecture Map |
 | Deferred items (clue card stage, Tier 2 placement, and voice transport) | `docs/planning-artifacts/architecture/architecture-Keyframe-2026-10-21/ARCHITECTURE-SPINE.md` §Deferred |
@@ -134,7 +134,7 @@ The Build view (FR-38) and the accessibility floor (NFR-14) are not in the Oct 2
 
 These decisions are held outside this PRD.
 
-- Thu Oct 22 schema review: one open pick (decoy storage: option A, B, or C; A recommended). See `docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/schema-v1.md` §Open pick.
+- Thu Oct 22 schema review: done; decoy storage is option A, `Room.decoys[]`, with validator rule 9. See `docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/schema-v1.md` §Decoy storage.
 - Carried to Mon Oct 26: the Fireworks Trickster fallback model id, the `GET /meta` retention wording, and the hosted full-Room download route.
 - Open with Luis: the two rooms; payment methods on dev.meta.ai, fal.ai, and Modal; the playtester for Sun Nov 1 or Mon Nov 2; and availability Mon Nov 9.
 - Raised by the PRD review (PRD §13 Q9 to Q13): whether an early hint request releases the nudge; whether the hosted-mode Derived block uses `Derived.fresh()` or transient numbers; the hosted Trickster source; whether to add a Clue check to rule 5 before the Mon Oct 26 freeze; the Build view data route.

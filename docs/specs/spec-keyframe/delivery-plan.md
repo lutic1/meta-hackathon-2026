@@ -59,7 +59,7 @@ CAP-1, CAP-3, and the playtest survive every cut; the README states which cuts s
 
 Pre-kickoff, Wed Oct 21 to Sun Oct 25 (about 8 h), each item dated when done:
 
-- Wed Oct 21: README patch. Thu Oct 22: Schema v1 review against the spikes.
+- Wed Oct 21: README patch. Thu Oct 22: Schema v1 review against the spikes, done: decoy storage is option A, `Room.decoys[]`, with validator rule 9 (`schema-v1.md` §Decoy storage).
 - Verifications: Meta Model API key and a `sam-3.1` mask on an own photo; Meta and fal retention terms read and summarized for the capture screen; fal.ai and Modal accounts with payment methods; five objects from the photographed rooms through `fal-ai/sam-3/3d-objects` on original-resolution photos (512 px short side minimum, about $0.10), each GLB opened in Three.js, latency dated; a hello-world `modal deploy` with the async job pattern; the Ollama benchmark.
 - Spikes: a `sam-3.1` mask decoded with `meta-sam-parser` to a hotspot polygon in Chrome; three Riddler calls against the draft schema, failure modes recorded.
 - Phone set to Most Compatible (JPEG) first; then both rooms photographed (6 to 10 JPEG photos each, originals kept; no faces, documents, or others' belongings). MIT LICENSE. Hugging Face `sam-3d-objects` access request, optional.

@@ -12,7 +12,7 @@ Companion to `SPEC.md`.
 | Interactable | A typed object from the player's photos: label, photo, box, mask hotspot, instances, attributes (`schema-v1.md`). Capped at 12 per room, minimum 5. |
 | Puzzle, lock type | A lock on the chain: `code` (typed), `order` (click sequence), `use_on` (inventory item onto a target), `find` (click the target). 4 to 6 per room, exactly one exit. |
 | Rung | A hint level: nudge, direction, near-answer. Three per puzzle, increasing in length, none holding a solution token except the near-answer allowance in validator rule 5. |
-| Validator | The eight deterministic rules in `schema-v1.md` applied to a room or a Trickster edit. |
+| Validator | The nine deterministic rules in `schema-v1.md`: rules 1 to 8 on every room, rules 1 to 9 on a Trickster edit (rule 9 covers Decoys, stored as `Room.decoys[]`). |
 | Dry run | A second Spark call that sees photos, labels, clues, and rungs, never solutions, and must reach every answer; failure regenerates the room. |
 | Regeneration | A repeat of Riddler plus dry run after a failure; at most 2, then re-capture. |
 | Cut n | One of the eight scope reductions in `delivery-plan.md`, applied nightly in order and never carried. |

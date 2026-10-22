@@ -282,7 +282,7 @@ A Decoy Card never says which Evidence card is false (FR-19), and no flourish hi
 | 6 | "Lore and hints keep to the length rules" | "Lore or a hint breaks the length rules." |
 | 7 | "Every lock has a valid shape" | "A lock doesn't have a valid shape." |
 | 8 | "Every needed item can be picked up first" | "A puzzle needs an item that can't be picked up yet." |
-| 9 (after the decoy pick) | "False evidence follows the decoy rules" | "A false clue breaks the decoy rules." |
+| 9 | "False evidence follows the decoy rules" | "A false clue breaks the decoy rules." |
 | `validate_edit` bounds | none (no pass row) | "The change is outside the Trickster's limits." |
 
 **Build view captions (plain, one per table)** `[ASSUMPTION]`:
