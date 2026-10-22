@@ -2,7 +2,7 @@
 title: "Schema v1: Keyframe"
 status: final
 created: 2026-10-20
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 # Schema v1: Keyframe
 
@@ -18,11 +18,11 @@ Interactable: `id` (`ix_`, minted by the segment stage after mask selection), `l
 
 Puzzle: `id` (`pz_`; the Riddler emits ordinal keys `p1` to `p6`, mapped by the author stage), `lock_type` one of `code`, `order`, `use_on`, `find`; `requires[]` (puzzles that must be open first); `solution`, a tagged union by `lock_type`: `code` {`code`}, `order` {`interactables`: ordered `ix_` list}, `use_on` {`item`, `target`}, `find` {`target`}; `evidence` {`interactable`, `visible_attribute`}; `clue`; `lore` (at most 60 words); `rungs` {`nudge`, `direction`, `near_answer`}; `is_exit`. Four to six per room, exactly one with `is_exit: true`.
 
-TricksterEdit: `id` (`te_`), `type` one of `decoy`, `merge`, `loosen`, `shortcut`; `puzzle`; `payload`, a tagged union by `type`; `validator_result` {`ok`, `reasons[]`}; `accepted`; `window`. Edits live in the session log as `trickster_card` events and never on the stored Room (spine AD-12). Both outcomes render as cards.
+TricksterEdit: `id` (`te_`), `type` one of `decoy`, `merge`, `loosen`, `shortcut`; `puzzle`; `payload`, a tagged union by `type`; `validator_result` {`ok`, `reasons[]`}; `accepted`; `window`. Edits live in the session log as `trickster_card` events, server-side only, and never on the stored Room (spine AD-12); session state carries each card's `TricksterCard` projection (ids, type, outcome, reason and fixed message, no payload), never the edit (spine AD-3). Both outcomes render as cards.
 
 Payload by type: `decoy`: {`interactable`, `visible_attribute`} adds a false evidence card for `puzzle`, which is never the exit puzzle (storage per §Open pick); `merge`: {`puzzle_a`, `puzzle_b`} makes `puzzle_b` require `puzzle_a`; `loosen`: {`puzzle`, `rung`} unlocks that rung immediately (applied to session state, not the Room); `shortcut`: {`puzzle`} removes one `requires` edge. Re-validation runs validator rules 1 to 8 (and rule 9 once the decoy pick is made) on `apply_edit(room, edit)` (no dry run); a failing result is shown as the rejected card and the effective Room is unchanged.
 
-API models, shapes defined in the architecture spine: `RoomDraft` (AD-7), `RoomView` and `PlayView` (AD-3), `ArchitectResponse` (AD-18), `DryRunAnswers` (AD-12, keyed by puzzle id, reusing the solution union), `Derived` and `RoomResult` (AD-8), `Meta` (AD-15), and the event models (AD-4). `GET /schema` returns all of them.
+API models, shapes defined in the architecture spine: `RoomDraft` (AD-7), `RoomView`, `PlayView`, `BuildView` and `TricksterCard` (AD-3; `TricksterCard` is `to_card_view` over a `trickster_card` event: `edit_id`, `accepted`, `edit_type`, `puzzle_id`, `related_puzzle_id`, `room_revision`, `reason`, `message`, `t_ms`, and no payload or content field; session state exposes `cards`, never a `TricksterEdit` or the event log), `ArchitectResponse` (AD-18), `DryRunAnswers` (AD-12, a list of `{puzzle_id, answer}` reusing the solution union, never a map), `RoomSummary` and `AccessCheck` (AD-9), `Derived` and `RoomResult` (AD-8), `Meta` (AD-15), and the event models (AD-4). `GET /schema` returns all of them.
 
 ## Lock input and inventory
 
