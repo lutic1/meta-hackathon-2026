@@ -155,7 +155,7 @@ Ana and Priya are fictional personas.
 - **Session** — One play-through of one Room, 15 to 25 minutes.
 - **Event log** — The append-only, server-timestamped record of a Session; Session state replays from it.
 - **Puzzle** — One lock in the chain: Lock type, prerequisites, solution, Evidence, Clue, Lore, three Rungs.
-- **Active puzzle** — The Puzzle of the most recent lock input or attempted click; Idle time and Hint requests apply to it (architecture spine AD-4).
+- **Active puzzle** — The most recently targeted available unsolved Puzzle (a target is set by a lock input, or by a Hint request naming an available unsolved Puzzle), else the earliest available unsolved Puzzle in the Room's order; never set by a click; null only once the Exit puzzle has opened; Idle-triggered Rungs, Wrong-attempt Rungs and Hint requests apply to it (architecture spine AD-4).
 - **Lock type** — `code` (typed, 3 to 6 characters), `order` (3 to 5 Hotspot clicks in sequence, counted only while armed by "Start the sequence"), `use_on` (Inventory item dragged onto a target), `find` (click the target).
 - **Exit puzzle** — The one Puzzle per Room whose opening ends the Room.
 - **Wrong attempt** — A failed `code` or `use_on` input, or a full-length non-matching armed `order` sequence; never a click alone.
@@ -399,7 +399,7 @@ The player can finish by opening the Exit puzzle and see the Completion screen. 
 The player can type anything into the hint field; it becomes a Hint request that never yields anything above the current Rung. Realizes UJ-2.
 
 **Consequences (testable):**
-- A Hint request answers for the Active puzzle: the Puzzle most recently attempted by lock input or click.
+- A Hint request answers for the Active puzzle: the most recently targeted available unsolved Puzzle (targeted by a lock input, or by a Hint request naming an available unsolved Puzzle), else the earliest available unsolved Puzzle in the Room's order; a click never sets it, and it is null only once the Exit puzzle has opened (architecture spine AD-4). The client always omits the Puzzle id; the server resolves it.
 - The Scripted attack suite, led by "just tell me the answer", returns the current Rung, or the No-hint line when none is open, and opens nothing.
 - When no Rung is open, the Hint request returns the No-hint line: an in-world Guide line that acknowledges the request, says help is coming, and points back to the Scene; it never reads as a refusal and never names an object or solution. It is logged as an Early ask and lowers persistence (§3 Derived block). Whether it also releases the nudge at once is §13 Q9; until decided, it is only logged.
 - Typed player text never leaves the browser; only the Hint request enters the Session (voice: FR-35).
@@ -579,7 +579,7 @@ The system can serve an identical paid cloud call from the Cache without billing
 The system can price every uncached paid cloud call, record it in the Ledger, and refuse a call that would pass the Spend cap. Realizes UJ-6.
 
 **Consequences (testable):**
-- The cap is the `SPEND_CAP_USD` setting: 80 until the Thu Nov 5 reset (FR-29), then 25; no date logic in code.
+- The cap is the `SPEND_CAP_USD` setting, read per mode and enforced per store and per call: local 60 and hosted 20 through Wed Nov 4 (80 in all), local 5 and hosted 20 from the Thu Nov 5 reset (FR-29; 25 in all); the Modal Secret carries the hosted value; the daily export prints the local total, the hosted total and their sum against the combined ceiling; no date logic in code.
 - A refused call ends a Build `failed` at its stage, with code `spend_cap_exceeded` and a plain Spend-cap message on the Capture screen (FR-5); in play it shows a skipped Card (FR-19); in a script it makes the script exit non-zero, printing the cap and the running total.
 - The running total survives a restart.
 
@@ -680,7 +680,7 @@ The player and Luis can rely on raw room photos never entering the repo and the 
 - **NFR-3 Hardware:** everything local runs on one 16 GB M1 MacBook Pro without CUDA; Guide model near 3 GB resident; demo-recording memory about 10.6 GB; no local SAM 3.1, SAM 3D Objects, or 30B models. Detail: §6.4.
 - **NFR-4 Privacy:** the Guide model runs only on the Mac; the Player profile stays on the player's machine; only the Derived block reaches the Guide model and the Greeting; raw room photos are never committed; the Retention summary is shown; standard tier only. Detail: §6.1.
 - **NFR-5 Integrity:** solutions never enter a model prompt or play response; Validator reasons never quote a token or answer; only the server's session logic opens locks. Detail: §6.2.
-- **NFR-6 Cost:** Spend cap $80 until the Thu Nov 5 reset, then $25; fal.ai at most $6 cash; development runs on the Mock provider with `CACHE=on`. Detail: §6.3.
+- **NFR-6 Cost:** Spend cap $80 until the Thu Nov 5 reset, then $25, allocated per mode (local 60 and hosted 20, then local 5 and hosted 20); fal.ai at most $6 cash; development runs on the Mock provider with `CACHE=on`. Detail: §6.3.
 - **NFR-7 Reliability:** Builds survive the 150 s web timeout and resume at the last completed stage after a restart; provider calls retry once, on rate-limit and server errors only; at most 2 Regenerations.
 - **NFR-8 Testability:** every story's tests pass offline on the Mock provider; provider tests use recorded fixtures; dependency-boundary, type-staleness, and ignore-file tests run offline.
 - **NFR-9 Rate limits:** within Meta Model API limits (`muse-spark-1.3` 3,000 RPM and 4,000,000 TPM; `sam-3.1` 3,000 RPM; `muse-image-1.0` 150 RPM); segmentation concurrency at most 12.
@@ -722,7 +722,7 @@ Detail for NFR-5.
 Detail for NFR-6.
 
 - Expected spend about $35, against daily ceilings that total $79; a clean Build about $0.10 (under $0.25 with two Regenerations), a Session about $0.21.
-- The $80 cap is set against the $150 Meta Model API credit; if no credit is issued, the plan costs about $35 cash; from Thu Nov 5 the $25 cap runs pay-as-you-go.
+- The $80 cap is set against the $150 Meta Model API credit; if no credit is issued, the plan costs about $35 cash; from Thu Nov 5 the $25 cap runs pay-as-you-go; both caps are allocated per mode (local 60 and hosted 20, then local 5 and hosted 20).
 - The daily Ledger export is the durable spend record.
 
 ### 6.4 Hardware
@@ -823,14 +823,14 @@ Visual direction, color mode, voice and portrait style are Luis's decisions from
 | Mon Nov 2 | Tier 2 gate (only if attempted) | 7 of 10 Interactables recognizable in position (a human judgment by Luis), 30 fps or better on the M1, raycast-triggered Puzzles; any miss ships Tier 1 |
 | Mon Nov 2 | Real room-1 run | room 1 played for real on `PROFILE=demo` at Demo timescale 1, so the room-2 Greeting has a true record |
 | Tue Nov 3 | Video only | Capture proof and three Main demo takes; no feature work |
-| Wed Nov 4, before 9:00 AM | Submit | Deadline 9:00 PM; 6 to 9 PM is slack for a failed upload or, if the Official Rules require one, a live link: FR-31 from the Tue Oct 27 deployment (Hosted mode, Demo rooms only, Rungs verbatim); FR-32 and FR-33 stay Nov 5 to 9 |
+| Wed Nov 4, before 9:00 AM | Submit | Deadline 9:00 PM; 6 to 9 PM is slack for a failed upload or, if the Official Rules require one, a live link: FR-31 from the Tue Oct 27 deployment (Hosted mode, Demo rooms only, Rungs verbatim); FR-32 and FR-33 stay Nov 5 to 9, subject to §13 Q14; the link is submitted only after a SIT-10 pass (story 7.23) against the deployed commit |
 | Thu Nov 5 | Ledger reset | Ledger export, then reset to the $25 cap |
 | Thu Nov 5 | Hosted redeploy | Only if the Official Rules allow changes to the hosted deployment after the deadline (§13 Q14, checked Mon Oct 26): Hosted mode (FR-31 to FR-33) redeployed, with a warm container (`MIN_CONTAINERS=1`) Thu Nov 5 to Mon Nov 9 so judges never hit a cold start; otherwise the Wed Nov 4 deployment is the final hosted state, FR-32 and FR-33 are dropped and the README says so |
 | Tue Nov 10 | Judge purge | Judge rooms, originals, Sessions, and Cache entries purged (FR-33) |
 
 ### 11.2 Cut order
 
-Cuts are made nightly, in this order, and never carried to a later day. Three things survive every Cut: capture (FR-1 to FR-6); play (FR-11 to FR-14, with cut 6 narrowing Lock types); and the non-builder playtest, or, if no non-builder is available by Mon Nov 2, Luis's disclosed unassisted cold run of room 2. Brief success criteria 1 (capture), 3 (persuasion), and 7 (playtest) also survive every Cut. The README states which Cuts shipped. Cuts are restored last-first, only with time left; only cuts 0 to 3 are realistic before Nov 3.
+Cuts are made nightly, in this order, and never carried to a later day. Three things survive every Cut: capture (FR-1 to FR-6); play (FR-11 to FR-14, with cut 6 narrowing Lock types); and the non-builder playtest, or, if no non-builder is available by Mon Nov 2, Luis's disclosed unassisted cold run of room 2 (recorded when room 2 reached `done`). Brief success criteria 1 (capture), 3 (persuasion), and 7 (playtest) also survive every Cut. The README states which Cuts shipped. Cuts are restored last-first, only with time left; only cuts 0 to 3 are realistic before Nov 3.
 
 | Cut | Ships instead | FR changed |
 |---|---|---|
@@ -878,7 +878,7 @@ Day-level contingencies (the Mon Oct 26 slip rule if pre-kickoff verifications f
 
 **Primary**
 - **SM-1 Capture proof:** an unedited Capture proof shows a never-built Photo set going from T0 to T1 within the Capture target (120 s, or measured p50 plus 25% if re-based). Validates FR-1 to FR-5.
-- **SM-2 Non-builder completion:** a non-builder finishes room 1 on a fresh Player profile without builder help (Guide Rungs allowed) by Mon Nov 2. If no non-builder is available by Mon Nov 2, Luis records an unassisted cold run of room 2 on a fresh Player profile instead, disclosed as a builder run in the README. Validates FR-11 to FR-13, FR-15.
+- **SM-2 Non-builder completion:** a non-builder finishes room 1 on a fresh Player profile without builder help (Guide Rungs allowed) by Mon Nov 2. If no non-builder is available by Mon Nov 2, Luis's unassisted cold run of room 2 on a fresh Player profile, recorded as soon as room 2 reached `done` and before anyone read it (story 5.8; used only in this case), stands in, disclosed as a builder run in the README. Validates FR-11 to FR-13, FR-15.
 - **SM-3 Zero wins by persuasion:** across the Scripted attack suite and the Main demo, no player text opens a lock or yields anything above the current Rung. Validates FR-14.
 - **SM-7 Main demo carries every proof beat:** a Main demo of at most 2:30 (target 2:00) shows, in the §11.3 order, the persuasion attack failing; three Rungs escalating with triggering events visible (Demo timescale 6, within 40 s, on Wrong attempts); one accepted and one Validator-rejected Trickster edit as Cards; the room-2 Greeting read from the real room-1 record on `PROFILE=demo`; Disclosures in the last 10 s. Validates FR-14 to FR-16, FR-19, FR-21, FR-24 to FR-26.
 
@@ -907,7 +907,7 @@ Tier 2 is judged only by the FR-34 gate, not by a success metric.
 | 4 | **Hosted full-Room download route** (access-coded). | Luis | Mon Oct 26 | §6.2, NFR-5 |
 | 5 | **The two rooms**, with household consent for video and screenshots. | Luis | Before Sun Oct 25 | §6.1, §11.1, SM-5 |
 | 6 | **Payment methods** on dev.meta.ai, fal.ai, and Modal. | Luis | Before Mon Oct 26 | FR-28, NFR-6 |
-| 7 | **Playtester** for room 1 on a fresh Player profile, at the laptop or by screen-share, Sun Nov 1 or Mon Nov 2. If no playtester is available by Mon Nov 2, Luis records a cold run of room 2 instead, and the README says so (SM-2). | Luis | Before Sun Nov 1 | SM-2, §11.2 |
+| 7 | **Playtester** for room 1 on a fresh Player profile, at the laptop or by screen-share, Sun Nov 1 or Mon Nov 2. If no playtester is available by Mon Nov 2, the cold run of room 2 recorded when room 2 reached `done` is used instead, and the README says so (SM-2). | Luis | Before Sun Nov 1 | SM-2, §11.2 |
 | 8 | **Luis's availability** in working hours Mon Nov 9 for the live finals. `[ASSUMPTION A-18: date inferred from the day plan, confirm]` | Luis | Before finals preparation starts Thu Nov 5 | §6.5 |
 | 9 | **Early Hint request: resolved Oct 21 (Luis): log only.** A Hint request with no Rung open returns the No-hint line, is logged as an Early ask, and lowers persistence; the nudge still waits for its threshold (architecture spine AD-4). | Luis | Resolved | FR-14, FR-15, §7 |
 | 10 | **Hosted-mode Derived block: resolved Oct 21 (Luis): option (a).** Hosted mode sends `Derived.fresh()`, no Player profile field leaves the browser, and hosted rooms show the First-room welcome instead of a Greeting; the Privacy line holds literally in every mode (architecture spine AD-8 amended). | Luis | Resolved | FR-6, FR-20, FR-21, FR-31, NFR-4 |
