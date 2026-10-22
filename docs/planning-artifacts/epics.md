@@ -475,12 +475,17 @@ _Covers AR-30, AR-29, NFR-11, NFR-13. Owner: repo root. Depends on: none. Tier 1
 
 **Acceptance Criteria:**
 
+**Given** the planning package on `keyframe/bmad-brief`
+**When** the tag is prepared
+**Then** the planning branch is merged into `master` first (deleting `PRODUCT_BRIEF.md` there, as the delivery plan says), and the `pre-hackathon-baseline` tag is set on the merge result, so the event-period diffstat (`git diff --stat pre-hackathon-baseline..HEAD`) counts code work, not planning documents
+**And** implementation commits land on `master` from Mon Oct 26
+
 **Given** the repo on Sun Oct 25 night
 **When** the builder runs `git ls-remote --tags origin`
 **Then** an annotated tag `pre-hackathon-baseline` is listed, and `git cat-file -t pre-hackathon-baseline` prints `tag`
 **And** the tagged tree holds an MIT `LICENSE` at the repo root and a `CHANGELOG.md` whose baseline entry reads exactly "Before Oct 26 (baseline): provider interface, mock provider, Meta API stub, tests. No front end, no model calls."
 
-**Given** the tagged tree
+**Given** the tagged tree (the `master` merge result above)
 **When** it is compared with the Oct 20 scaffold
 **Then** no file under `src/` or `tests/`, nor `main.py`, `pyproject.toml` or `requirements.txt`, differs from the Oct 20 scaffold, so no product code is added and the scaffold is not expanded
 **And** commits after the tag are small and dated, and `CHANGELOG.md` gets a dated entry for each build day through Nov 4
@@ -4086,7 +4091,7 @@ As a builder,
 I want the README and CHANGELOG to give judges the full and honest picture,
 So that model use, shortcuts, cuts, privacy and pre-existing code can be checked without asking.
 
-_Covers NFR-12, NFR-13, NFR-4, FR-1, FR-17, FR-30, AR-30. Owner: docs. Depends on: 1.14, 6.2, 6.5 (the playtest outcome, for the final text). Tier 1, drafted from Sat Oct 31, final Wed Nov 4 morning. Pitch, Model table (model id, where it runs, what it does, whether it shipped), architecture diagram, local setup (the Input requirement '6 to 10 JPEG photos' with the iPhone tip, .env.example, Ollama llama3.2:3b with OLLAMA_KEEP_ALIVE=-1 unless cut 3, which drops the phrasing claim), the Privacy line, Retention summary and Disclosures verbatim from src/api/meta.py (tested), which Cuts shipped, the finals mode, the playtest outcome (stating a builder cold run when the 6.5 fallback was used), the pre-existing-code section linking the baseline tag with its diffstat, third-party and model licenses, the Spend log note; dated CHANGELOG from the baseline entry through Nov 4; images are outputs only, never raw photos; UAT: satisfies the README checks of UAT-10 (and the builder-run disclosure of UAT-03's fallback) in `docs/implementation-artifacts/uat-acceptance-tests.md`._
+_Covers NFR-12, NFR-13, NFR-4, FR-1, FR-17, FR-30, AR-30. Owner: docs. Depends on: 1.6 (the synthetic fixture Room for the offline check), 1.14, 6.2, 6.5 (the playtest outcome, for the final text). Tier 1, drafted from Sat Oct 31, final Wed Nov 4 morning. Opens with the judge entry point (the judge-facing criteria below). Pitch, Model table (model id, where it runs, what it does, whether it shipped), architecture diagram, local setup (the Input requirement '6 to 10 JPEG photos' with the iPhone tip, .env.example, Ollama llama3.2:3b with OLLAMA_KEEP_ALIVE=-1 unless cut 3, which drops the phrasing claim), the Privacy line, Retention summary and Disclosures verbatim from src/api/meta.py (tested), which Cuts shipped, the finals mode, the playtest outcome (stating a builder cold run when the 6.5 fallback was used), the pre-existing-code section linking the baseline tag with its diffstat, third-party and model licenses, the Spend log note; dated CHANGELOG from the baseline entry through Nov 4; images are outputs only, never raw photos; UAT: satisfies the README checks of UAT-10 (and the builder-run disclosure of UAT-03's fallback) and is verified end to end by the judge walkthrough UAT-16 (dry run Sun Nov 1 evening on that day's commit, final pass on the submission commit) in `docs/implementation-artifacts/uat-acceptance-tests.md`._
 
 **Acceptance Criteria:**
 
@@ -4099,6 +4104,23 @@ _Covers NFR-12, NFR-13, NFR-4, FR-1, FR-17, FR-30, AR-30. Owner: docs. Depends o
 - Llama 3.2 3B Instruct Q4_K_M on Ollama, on the Mac only
 
 **And** each row's shipped status reflects the Cuts in effect (cut 1: no live Trickster call; cut 3: no Ollama phrasing; cut 4: no Dry run), and `fal-ai/sam-3/3d-objects` and `muse-voice-transcribe-1.0` appear only with an accurate shipped status
+
+**Given** the submitted README
+**When** a logged-out judge opens the repo
+**Then** its opening section gives, in this order: a short pitch and one gameplay screenshot; the links to the main demo, the unedited capture proof and the playable URL (if shipped or required) with mode, access and limitation notes; a short judge walkthrough on the existing demo Room (one lock, one hint, one Validator decision, no builder narration needed); the shipped model table; the reproducible setup and offline checks; results and limitations; architecture, baseline and licenses; then links to the deeper docs
+**And** every link and command is verified against the submitted commit
+**And** each model table row links the adapter or call site in `src/` and names its status in the submitted build as one of live, cached, scripted, authored, mock or not shipped (a model that does not run in the submitted build is never counted as shipped)
+
+**Given** a fresh clone with no API key, no Ollama and no room photos
+**When** the judge follows the "Verify without keys" section
+**Then** it states the prerequisites (Python 3.13 and uv, Node 24), the exact commands the stories add (`uv sync --locked` and `uv run pytest -q` from 1.2, `scripts/check.sh` from 1.3, and the synthetic fixture Room from story 1.6 played in Local mode against the mock provider, stored under `rooms/` by the fixture loader story 1.14 adds and served with the start command story 1.11 adds), and the expected result of each
+**And** live Builds with keys, their cost and time, and the optional Ollama step are in a separate section
+
+**Given** the results section
+**When** it is read
+**Then** every published number (Validator and sentinel outcomes, build timings, the playtest outcome, the dated SIT run log and the UAT sign-off) belongs to the submitted commit and configuration, and planned or unrun tests are never labelled passed
+**And** deeper evidence is linked (the SIT run log in `docs/implementation-artifacts/sit-checklist.md`, the UAT sign-off in `docs/implementation-artifacts/uat-signoff.md`, the Build view) rather than restated
+**And** a first pass of the judge walkthrough (UAT-16, see `docs/implementation-artifacts/uat-acceptance-tests.md`) is run on Sun Nov 1 evening against that day's commit, so broken links or commands are found before Wed Nov 4; the final pass runs on the submission commit
 
 **Given** a reader follows the local setup section
 **When** they set up Local mode
@@ -4201,6 +4223,12 @@ _Covers NFR-11, NFR-13, FR-30. Owner: builder task. Depends on: 6.6, 6.8. Tier 1
 **When** the builder fills in the portal
 **Then** the entry is in the Indie track, marked solo, names the theme and gives the public repo URL
 **And** it is submitted before 9:00 AM ET Wed Nov 4, and the sprint status records the confirmation and its timestamp
+
+**Given** the submission
+**When** the repo URL is submitted
+**Then** the default branch (`master`) holds the submitted commit, so a judge who opens the repo URL lands on the final README and code, never on the pre-hackathon scaffold and never only through a pull request
+**And** the repo, the `pre-hackathon-baseline` tag and `LICENSE` open for a logged-out viewer, UAT-16 (the judge walkthrough) is signed on that commit, and a fresh clone of that commit passes `scripts/check.sh` and the README's offline verification commands
+**And** the submitted commit hash is recorded in the sprint status and the UAT sign-off
 
 **Given** the portal write-up
 **When** its words are counted

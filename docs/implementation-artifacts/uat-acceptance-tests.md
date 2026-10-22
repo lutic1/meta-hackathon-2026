@@ -18,19 +18,20 @@ Luis Ticas · 2026-10-21
 
 ## 1. Scope and rules
 
-**What UAT is.** A short list of acceptance tests that checks the PRD §12 success metrics (SM-1 to SM-9), the counter-metrics (SM-C1 to SM-C4) and the journeys UJ-1 to UJ-6. Each test is run as the player, the judge or Luis would use the product. UAT-15 records the Mon Nov 2 Tier 2 gate if the story 8.1 spike ran; UJ-7 itself is tested (UAT-15b) only after the gate passed and the post-gate FR-34 stories shipped, not before the Nov 4 submission. These tests come after CI and SIT and do not repeat them:
+**What UAT is.** A short list of acceptance tests that checks the PRD §12 success metrics (SM-1 to SM-9), the counter-metrics (SM-C1 to SM-C4) and the journeys UJ-1 to UJ-6. Each test is run as the player, the judge or Luis would use the product. UAT-15 records the Mon Nov 2 Tier 2 gate if the story 8.1 spike ran; UJ-7 itself is tested (UAT-15b) only after the gate passed and the post-gate FR-34 stories shipped, not before the Nov 4 submission. UAT-16, the judge's repo walkthrough, runs twice: a dry run Sun Nov 1 evening on that day's commit, after backup video v1 and the 2:00 PM backup, so broken links or commands are found before Wed Nov 4, and the final pass Wed Nov 4 morning on the submission commit. These tests come after CI and SIT and do not repeat them:
 
 | Layer | What runs | Where | When |
 |---|---|---|---|
 | CI | One job, `scripts/check.sh`, offline only (Mock provider, recorded fixtures) | GitHub Actions and every push | Every commit |
 | SIT | One checklist of about 10 live-seam cases, `scripts/sit.py` | The Mac only, never CI | End of each build day from Tue Oct 27; full pass Sat Oct 31; results dated in the sprint status; no separate sign-off |
-| UAT | This sheet | The Mac (Local mode); the hosted URL for UAT-14 | From the Sat Oct 31 full SIT pass; sign-off Mon Nov 2 evening |
+| UAT | This sheet | The Mac (Local mode); the hosted URL for UAT-14; a logged-out browser and a fresh clone for UAT-16 | From the Sat Oct 31 full SIT pass; sign-off Mon Nov 2 evening; UAT-16 dry run Sun Nov 1 evening, final pass Wed Nov 4 morning |
 
 **Who runs them.** Luis Ticas runs and signs every test. A non-builder playtester plays UAT-03 and signs the SM-2 attestation. Luis does not help them in any way during the run.
 
 **Where.**
 - Local mode on the 16 GB M1, in Chrome. The backend, Ollama with `llama3.2:3b` (except under cut 3) and Chrome run from the repo checkout at the commit under test.
 - The hosted URL in desktop Chrome for UAT-14 part A (the Tue Oct 27 smoke deployment, story 7.3, checked in the browser by SIT-10 from Thu Oct 29). Part B runs only if Tier 1.5 Hosted mode ships (FR-31 to FR-33) and the Official Rules allow changes to the hosted deployment after the deadline (checked at kickoff Mon Oct 26); otherwise the Wed Nov 4 deployment is the final hosted state and part B is marked not applicable, not failed. It uses current desktop Chrome, Safari and Firefox at 1280 px or wider.
+- For UAT-16, a logged-out browser that has never opened the repo (a fresh private window), and a fresh clone of the commit under test in a directory with no `.env`, no API key, Ollama not running and no room photos.
 
 **Entry criteria for every run.**
 - `scripts/check.sh` passes on the commit under test.
@@ -76,6 +77,7 @@ Luis Ticas · 2026-10-21
 - These items finish after sign-off by design and are signed as addenda:
   - UAT-12 and UAT-13 (Tue Nov 3, video only, where a failure means re-shooting the take, never feature work), signed before the submission.
   - UAT-09 part B, signed Wed Nov 4 before story 6.9.
+  - UAT-16's final pass, signed Wed Nov 4 morning on the submission commit, after the story 6.8 hygiene commits and before story 6.9; its Sun Nov 1 dry run is recorded in the sprint status, not signed.
   - UAT-14 part A's live-link line, signed Wed Nov 4 only if the Official Rules require a live link, and only after a SIT-10 pass against the deployed commit.
   - UAT-14 part B, signed after the Thu Nov 5 redeploy and before judges are given the URL, only if the Official Rules allow changes to the hosted deployment after the deadline; otherwise it is marked not applicable, not failed.
 
@@ -99,6 +101,7 @@ Luis Ticas · 2026-10-21
 | UAT-14 | Judge on the hosted URL | A: 1; B: 1.5 | Luis | A: Mon Nov 2; B: Thu Nov 5, only if the Official Rules allow post-deadline hosted changes |
 | UAT-15 | Tier 2 gate record (conditional) | 2 | Luis | Mon Nov 2 |
 | UAT-15b | UJ-7 walk (only after the gate passed and the post-gate FR-34 stories shipped) | 2 | Luis | Not before the Nov 4 submission |
+| UAT-16 | Judge's repo walkthrough on the submission commit | 1 | Luis | Dry run Sun Nov 1 evening; final pass Wed Nov 4 morning, on the submission commit |
 
 ### UAT-01 Capture a room from your own photos
 
@@ -515,6 +518,36 @@ Luis Ticas · 2026-10-21
   - With WebGL disabled, the Tier 1 Scenes load instead.
 - **Evidence:** a screen recording.
 
+### UAT-16 Judge's repo walkthrough on the submission commit
+
+- **Maps to:** NFR-12, NFR-13, FR-26, FR-30; PRD §11.3 (the submission package).
+- **Preconditions:**
+  - Tier 1, owner Luis. Runs twice. Dry run: Sun Nov 1 evening, on that day's commit, after backup video v1 and the 2:00 PM backup, with the story 6.7 README draft pushed (the backup video stands in for the main demo link); a failure is fixed before Wed Nov 4. Final pass: Wed Nov 4 morning, on the submission commit, after the story 6.8 hygiene commits and the story 6.6 uploads, before story 6.9.
+  - Logged out, in a browser that has never opened the repo (a fresh private window), so nothing private or cached counts as visible.
+  - A fresh clone of the commit under test in a directory with no `.env`, no API key, Ollama not running and no room photos, for step 4.
+  - The commit hash under test is written down before the run.
+- **Steps (one per judge's question):**
+  1. Read the opening section as a judge: what does Keyframe do, what is distinctive, and which features are optional or cut?
+  2. Open the main demo link and the capture proof link. If the playable URL is shipped or required, open it and read its mode, access and limitation notes. Then follow the short interaction sequence on the existing demo Room (one lock, one hint, one Validator decision) from the README alone.
+  3. Read each model table row and open its call-site link.
+  4. In the fresh clone, follow the offline verification section exactly as written: the prerequisites, each command and each expected result. Find the live-build section.
+  5. Read the results section and open each evidence link.
+  6. Open the baseline tag, the pre-existing-code note, the event-period diffstat and the CHANGELOG. Open the bare repo URL.
+  7. Compare the video, the UI and the README on cuts, timing acceleration, replay, cache use, local versus hosted differences, hardware needs, retention and licenses. Run the `git ls-files` check of UAT-10 step 5, confirm the privacy step of `scripts/check.sh` passed in step 4, and read the story 6.8 history-scan result.
+- **Pass (one per step):**
+  - (1) The opening section says what Keyframe does and what is distinctive, and labels optional or cut features accurately.
+  - (2) The main demo and the capture proof open logged out; the playable URL, if shipped or required, opens with its mode, access and limitations stated; the interaction sequence on the existing demo Room (one lock, one hint, one Validator decision) can be followed from the README alone.
+  - (3) Each model table row names the model id, role, host and status (live, cached, scripted, authored, mock, not shipped) and links its call site; no unused model is counted as shipped.
+  - (4) The offline verification section runs from the fresh clone with no keys and no photos: the prerequisites, the commands and the expected results all hold; the live-build section is separate.
+  - (5) Every published result belongs to the submitted commit and configuration; planned tests are not labelled passed; deeper evidence is linked.
+  - (6) The baseline tag, the pre-existing-code note, the event-period diffstat and the CHANGELOG are present, and the repo URL opens on the submitted commit (the default branch), not the old scaffold or a pull request.
+  - (7) Cuts, timing acceleration, replay, cache use, local versus hosted differences, hardware needs, retention and licenses agree across the video, the UI and the README; no raw home photo or credential is anywhere in the repo.
+- **Fail if:**
+  - Any link or command fails logged out.
+  - Any result is unattributed to the submitted commit.
+  - A cut or unshipped feature reads as shipped.
+- **Evidence:** the logged-out screenshots of each link; the command transcript of the fresh-clone run; the commit hash.
+
 ## 3. Traceability
 
 | Id | Covered by |
@@ -539,3 +572,4 @@ Luis Ticas · 2026-10-21
 | UJ-5 | UAT-14 (part A Tier 1; part B Tier 1.5) |
 | UJ-6 | UAT-02, UAT-05, UAT-07, UAT-09, UAT-10, UAT-12, UAT-13 |
 | UJ-7 | UAT-15b, only if the gate passed; the gate itself: UAT-15 |
+| NFR-12, NFR-13, FR-26, FR-30 (the submission package, PRD §11.3) | UAT-16 (the judge's repo walkthrough: dry run Sun Nov 1 evening, final pass on the submission commit); the README text checks stay in UAT-10 |

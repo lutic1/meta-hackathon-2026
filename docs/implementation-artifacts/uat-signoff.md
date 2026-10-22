@@ -39,7 +39,7 @@ Luis Ticas completes this form Mon Nov 2 evening, after the last UAT run, using 
 
 ## 2. Results
 
-Result is pass, fail or not run; the Cut variant run goes in Notes. Addenda are signed in their own rows of the §8 Addenda table: UAT-12 and UAT-13 (Tue Nov 3) before the submission; UAT-09 B Wed Nov 4 before story 6.9; the UAT-14 A live-link line Wed Nov 4 only if the Official Rules require a live link, after a SIT-10 pass against the deployed commit; UAT-14 B after the Thu Nov 5 redeploy and before judges are given the URL, only if the Official Rules allow changes to the hosted deployment after the deadline (otherwise not applicable, not failed).
+Result is pass, fail or not run; the Cut variant run goes in Notes. Addenda are signed in their own rows of the §8 Addenda table: UAT-12 and UAT-13 (Tue Nov 3) before the submission; UAT-09 B Wed Nov 4 before story 6.9; the UAT-14 A live-link line Wed Nov 4 only if the Official Rules require a live link, after a SIT-10 pass against the deployed commit; UAT-14 B after the Thu Nov 5 redeploy and before judges are given the URL, only if the Official Rules allow changes to the hosted deployment after the deadline (otherwise not applicable, not failed). UAT-16's final pass (the judge's repo walkthrough) is signed on the submission commit Wed Nov 4 morning, after the story 6.8 hygiene commits and before story 6.9; its Sun Nov 1 evening dry run is recorded in the sprint status, not signed here.
 
 | Id | Result | Evidence path | Notes (Cut variant, measured values) |
 |---|---|---|---|
@@ -62,6 +62,7 @@ Result is pass, fail or not run; the Cut variant run goes in Notes. Addenda are 
 | UAT-14 B Judge on the hosted URL (Tier 1.5, addendum after the Thu Nov 5 redeploy) | | | not applicable (the Official Rules forbid post-deadline hosted changes) / run |
 | UAT-15 Tier 2 gate record (conditional) | | | not attempted / no-go (reason) / run |
 | UAT-15b UJ-7 walk (only after the gate passed) | | | not in this submission / run |
+| UAT-16 Judge's repo walkthrough on the submission commit (addendum, Wed Nov 4 morning, final pass; dry run Sun Nov 1 evening) | | | dry run Sun Nov 1 on commit ______: pass / fail; final pass on the submission commit ______ |
 
 ## 3. Counter-metric attestations
 
@@ -153,7 +154,7 @@ Luis Ticas: I ran every test marked run in §2 at the commit in §1; addenda are
 
 Signature: ____________________  Date and time (ET): ____________________
 
-Addenda (one row each; the result reads pass, fail or not applicable). The commit SHA is required for every addendum; the hosted addenda (UAT-14 A live link, UAT-14 B) also require the deployment URL or id of the deployment serving that SHA; the local addenda (UAT-12, UAT-13, UAT-09 B) write "n/a" in the deployment column.
+Addenda (one row each; the result reads pass, fail or not applicable). The commit SHA is required for every addendum; the hosted addenda (UAT-14 A live link, UAT-14 B) also require the deployment URL or id of the deployment serving that SHA; the local addenda (UAT-12, UAT-13, UAT-09 B) write "n/a" in the deployment column; UAT-16 writes "n/a" unless the playable URL was checked in its step 2, then the id of the deployment serving that URL.
 
 | Test id | Commit SHA | Deployment URL or id | Settings and Cuts in force | Date | Result | Evidence | Signature |
 |---|---|---|---|---|---|---|---|
@@ -162,6 +163,7 @@ Addenda (one row each; the result reads pass, fail or not applicable). The commi
 | UAT-09 B | | n/a | | | | | |
 | UAT-14 A live link (only if the Official Rules require one; SIT-10 passed against this commit) | | | | | | | |
 | UAT-14 B (only if the Official Rules allow post-deadline hosted changes; otherwise not applicable) | | | | | | | |
+| UAT-16 final pass (the submission commit, logged out; signed Wed Nov 4 morning before story 6.9) | | n/a unless the playable URL was checked, then its deployment id | | | | | |
 
 Playtester attestation for SM-2: "I did not build Keyframe. I finished room 1 on a fresh profile on <date> with no help from the builder; the Guide's hints were the only help."
 
