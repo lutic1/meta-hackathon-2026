@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-21-2026 15:37
-last_updated: 10-22-2026 09:00
+last_updated: 10-22-2026 10:00
 project: Keyframe
 project_key: NOKEY
 tracking_system: file-system
@@ -139,7 +139,7 @@ development_status:
   6-5-playtest-by-a-non-builder-on-a-fresh-profile-or-a-disclosed: backlog
   6-6-final-videos-unedited-capture-proof-and-captioned-main-demo: backlog
   6-7-readme-and-changelog-tell-the-full-honest-picture: backlog
-  6-8-repo-hygiene-over-the-delivery-plan-path-list-before-going-p: backlog
+  6-8-repo-hygiene-over-the-delivery-plan-path-list-before-submiss: backlog
   6-9-submit-on-the-portal-before-9-00-am-et-wed-nov-4: backlog
   epic-6-retrospective: optional
 

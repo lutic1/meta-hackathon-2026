@@ -25,28 +25,30 @@ guarded SIT path. The day's build items are the Mon Oct 26 line of
       blank values.
 - [ ] Join the event Discord. Office hours and announcements live there.
 
-## 2. Baseline and foundation (story 1.1, then 1.2)
+## 2. Baseline and foundation (stories 1.1, 1.2, then 1.3)
 
 - [ ] Story 1.1: the `pre-hackathon-baseline` tag is pushed and the
       CHANGELOG baseline entry exists (planned for Sun Oct 25 night;
       run it first if it has not landed).
 - [ ] Story 1.2, the deps foundation: uv with `uv.lock` and
-      `.python-version`, `scripts/check.sh`, `scripts/doctor.py`, and
-      the scaffold fixes to `src/providers/meta_api.py` and
+      `.python-version`, `scripts/doctor.py`, the cloud hook and the
+      scaffold fixes to `src/providers/meta_api.py` and
       `src/config.py`.
+- [ ] Then story 1.3, `scripts/check.sh` and the one CI job.
 - [ ] `uv run pytest` stays offline against the mock provider. Never
       edit the stub tests into live tests; live behavior is proven by
       SIT fixtures, not by the suite.
 
-## 3. First live calls, behind the cap
+## 3. The ledger lands first; no live call today
 
-- [ ] Stories 2.3 (spend ledger and cap), 2.5 (local ledger file and
-      disk cache) and 2.6 (ledger export and reset script) land before
-      any real call. The cap is per mode: local 60 and hosted 20
-      through Wed Nov 4.
-- [ ] The first live calls go only through `scripts/sit.py`, following
-      `docs/implementation-artifacts/sit-checklist.md`; the two smoke
-      commands, `chat` and `image`, are the first SIT cases.
+- [ ] Stories 2.3 (spend ledger and cap), 2.4 (model-call cache), 2.5
+      (local ledger file and disk cache) and 2.6 (ledger export and
+      reset script) land before any real call. The cap is per mode:
+      local 60 and hosted 20 through Wed Nov 4.
+- [ ] No live call is made today. Stories 2.3, 2.4, 2.5 and 2.6 land
+      first; the first live calls run Tue Oct 27 through
+      `scripts/sit.py` (story 2.9), SIT-07 and SIT-06 first, per the
+      SIT checklist; today's export is mock-only with a total of 0.
 - [ ] `spend/exports/ledger-2026-10-26.json` is committed with the
       day's work.
 

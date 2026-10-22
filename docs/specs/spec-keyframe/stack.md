@@ -22,7 +22,7 @@ Companion to `SPEC.md`. Two modes, local and hosted; in both, Chrome on the M1 i
 | Voice (unscheduled) | Meta Model API | `muse-voice-transcribe-1.0`, REST `POST /v1/asr/transcribe` (WAV, 16-bit mono) | `webkitSpeechRecognition` |
 | SAM 3D Objects (Tier 2) | fal.ai | `fal-ai/sam-3/3d-objects`, one original-resolution hero photo per wall, GLB out | Runware, Segmind, hand-made assets, photo billboard |
 | Tier 3 splat shell (never gating) | Phone, then browser | Scaniverse export, `@sparkjsdev/spark`, under 1M splats | None |
-| Hosted URL | Modal CPU | `@modal.asgi_app()`, `@modal.concurrent(max_inputs=20)`, `MIN_CONTAINERS=1` Thu Nov 5 to Mon Nov 9 | Local mode screen-shared; cached rooms; the video |
+| Hosted URL | Modal CPU | `@modal.asgi_app()`, `@modal.concurrent(max_inputs=20)`, `MIN_CONTAINERS=1` Thu Nov 5 to Mon Nov 9 (only if the Official Rules allow post-deadline hosted changes) | Local mode screen-shared; cached rooms; the video |
 | Cache | Mac disk or Modal Volume | SHA-256 of downscaled image bytes plus prompt and model id | `CACHE=off` for proof takes |
 | Provider interface | Code | `src/providers/base.py` `ModelProvider`: `chat` gains image input; add `segment(label, image)` and `reconstruct3d(image, mask)`; mock, Meta API, OpenAI-compatible hosts (Baseten, Fireworks) by `base_url`, and fal implement it | None |
 
@@ -49,5 +49,5 @@ Verbatim for the README and the capture screen: "the player profile stays on you
 | `CACHE` | `on`, `off` | `on` | Serve identical calls from the cache; `off` for proof takes |
 | `SPEND_CAP_USD` | dollars, per mode | local 60 and hosted 20 through Wed Nov 4 (80 in all); local 5 and hosted 20 from Thu Nov 5 (25 in all) | Per-call refusal against the mode's own persisted counter; `Settings` reads the override per mode and the Modal Secret `keyframe` carries the hosted value; the daily export prints both totals and their sum against the combined ceiling; dollars move between the allocations only by a Settings change after an export shows the room (`budgets.md`) |
 | `DEMO_TIMESCALE` | integer n, 1 or more | 1 | Divides the nudge threshold, rung spacing, and Trickster window by n; never the capture (build) timer, which runs in real time |
-| `DEMO_TRICKSTER` | `live`, `scripted` | `live` | `scripted` replays two recorded proposals; the validator still runs live |
+| `DEMO_TRICKSTER` | `live`, `record`, `scripted`, `authored` | `live` | `live` proposes live; `record` proposes live and writes the proposals into the recorded-proposals artifact (local mode only); `scripted` replays them; `authored` serves the pre-authored cut 1 file; the validator runs live in every value (AD-15) |
 | `MIN_CONTAINERS` | 0, 1 | 0 | Warm hosted container, Thu Nov 5 to Mon Nov 9 only, and only if the Official Rules allow post-deadline changes to the hosted deployment (`delivery-plan.md`, Mon Oct 26 check) |

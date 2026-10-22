@@ -57,9 +57,11 @@ _bmad/                     BMAD Method v6 install (hackathon tooling)
 .claude/skills/bmad-*/     BMAD skills (hackathon tooling)
 .claude/skills/modal/      Modal's official skill (hackathon tooling)
 .claude/skills/keyframe-*/ Keyframe dev skills (hackathon tooling)
-                           the four hackathon tooling paths above are removed
-                           before submission (the repo is public throughout;
-                           list: docs/specs/spec-keyframe/delivery-plan.md,
+                           these hackathon tooling paths, plus the Oct 26 cloud
+                           hook (and .claude/settings.json only if story 1.2
+                           creates it), are removed before submission (the repo
+                           is public throughout; list:
+                           docs/specs/spec-keyframe/delivery-plan.md,
                            Repo hygiene); other .claude/ configuration stays
 ```
 
@@ -75,8 +77,8 @@ python3 -m venv .venv
 
 Configuration: copy `.env.example` to `.env`. `MODEL_PROVIDER=mock`
 today, `MODEL_PROVIDER=meta` once the API is wired on Mon Oct 26. See
-[docs/MONDAY.md](docs/MONDAY.md) for the kickoff checklist (the first
-live calls run behind the spend cap that day).
+[docs/MONDAY.md](docs/MONDAY.md) for the kickoff checklist (no paid call on Oct 26; the first live
+calls run Tue Oct 27 behind the spend cap through `scripts/sit.py`).
 
 ## Key dates
 
