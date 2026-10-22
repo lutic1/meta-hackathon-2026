@@ -2,7 +2,7 @@
 title: "Product Brief Addendum: Keyframe"
 status: final
 created: 2026-10-20
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 # Product Brief Addendum: Keyframe
 
@@ -30,7 +30,7 @@ There are two modes, local and hosted. In both, Chrome on the M1 is the client a
 | Voice (unscheduled) | Meta Model API | `muse-voice-transcribe-1.0`, REST `POST /v1/asr/transcribe` (WAV, 16-bit mono) | `webkitSpeechRecognition` | Only requests the next rung |
 | SAM 3D Objects (Tier 2) | fal.ai | `fal-ai/sam-3/3d-objects`, one original-resolution hero photo per wall, GLB out | Runware, Segmind, hand-made Playground assets; photo billboard | Official setup needs Linux and 32 GB VRAM |
 | Tier 3 splat shell | Phone, then browser | Scaniverse export, `@sparkjsdev/spark`, under 1M splats | None; never gating | Free capture, MIT renderer |
-| Hosted URL | Modal CPU | `@modal.asgi_app()`, `@modal.concurrent(max_inputs=20)`, `MIN_CONTAINERS=1` Thu Nov 5 to Mon Nov 9 (judging, then the finals fallback) | Local mode screen-shared; cached rooms; the video | 150 s web timeout forces the async job |
+| Hosted URL | Modal CPU | `@modal.asgi_app()`, `@modal.concurrent(max_inputs=20)`, `MIN_CONTAINERS=1` Thu Nov 5 to Mon Nov 9 (judging, then the finals fallback; Oct 22: only if the Official Rules allow post-deadline hosted changes, else the Wed Nov 4 deployment is final) | Local mode screen-shared; cached rooms; the video | 150 s web timeout forces the async job |
 | Cache | Mac disk or Modal Volume | SHA-256 of downscaled image bytes plus prompt and model id | `CACHE=off` for proof takes | Stops re-billing the same photos |
 | Provider interface | Code | `src/providers/base.py` `ModelProvider`: add image input on `chat`, `segment(label, image)`, `reconstruct3d(image, mask)`; mock, Meta API, Baseten, and fal implement it | None | Every model call behind one interface |
 
@@ -74,7 +74,7 @@ Prices and limits, checked Oct 20:
 Spend rules:
 
 - Ceiling $80 of the Meta credit through Nov 4 (the daily ceilings below sum to $79); the expected spend under it is about $35, paid in cash if no credit is issued.
-- `SPEND_CAP_USD` is a per-call refusal: the provider prices each call from returned usage, adds it to a counter persisted on disk (local) or the Volume (hosted), and refuses a call that would pass the cap. The pre-call estimate is the last observed cost of the same call kind or, before any observation, a fixed seed estimate per kind (vision $0.03, SAM $0.0025, Riddler $0.03, dry run $0.03, Trickster $0.01, image $0.01); the counter is corrected from returned usage after each call. The cap is $80 through Nov 4; from Thu Nov 5 the counter resets and the cap becomes $25 for judging and finals.
+- `SPEND_CAP_USD` is a per-call refusal: the provider prices each call from returned usage, adds it to a counter persisted on disk (local) or the Volume (hosted), and refuses a call that would pass the cap. The pre-call estimate is the last observed cost of the same call kind or, before any observation, a fixed seed estimate per kind (vision $0.03, SAM $0.0025, Riddler $0.03, dry run $0.03, Trickster $0.01, image $0.01); the counter is corrected from returned usage after each call. The cap is allocated per mode (Oct 22, per `docs/specs/spec-keyframe/budgets.md`): local 60 and hosted 20 through Wed Nov 4 (80 in all); from Thu Nov 5 the counters reset and the defaults are local 5 and hosted 20 (25 in all) for judging and finals.
 - Daily ceilings [ASSUMPTION]: Oct 26 $3, Oct 27 $5, Oct 28 $10, Oct 29 $10, Oct 30 $0, Oct 31 $5, Nov 1 $8, Nov 2 $10, Nov 3 $18, Nov 4 $10 (slack for a required live link); total $79.
 - Wed Oct 21 to Sun Oct 25: up to about $5 cash on the Meta API for the verifications and spikes, outside the $79 and outside any credit.
 - fal: about $1 cash at $0.02 per call (5 test objects before Oct 26, at most 20 GLBs plus retries in Tier 2); ceiling $6.
@@ -131,7 +131,7 @@ The 90 s spacing is fixed; only the nudge threshold scales with persistence. `DE
 |---|---|---|---|
 | `PROFILE` | `dev`, `playtest`, `demo` | `dev` | §Player profile v1 |
 | `CACHE` | `on`, `off` | `on` | §What runs where (Cache row) |
-| `SPEND_CAP_USD` | dollars | 80 through Nov 4, 25 from Thu Nov 5 | §Call, latency and spend budget |
+| `SPEND_CAP_USD` | dollars, read per mode | per mode (Oct 22): local 60, hosted 20 through Wed Nov 4 (80 in all); local 5, hosted 20 from Thu Nov 5 (25 in all) | §Call, latency and spend budget |
 | `DEMO_TIMESCALE` | integer n, 1 or more | 1 | §Player profile v1 |
 | `DEMO_TRICKSTER` | `live`, `scripted` | `live` | §Demo and video plan |
 | `MIN_CONTAINERS` | 0, 1 | 0 | §What runs where (Hosted URL row) |
@@ -200,7 +200,7 @@ Pre-kickoff, Wed Oct 21 to Sun Oct 25 (about 8 h); each verification and spike i
 - Spike: a `sam-3.1` mask decoded with `meta-sam-parser` to a hotspot polygon in Chrome.
 - Spike: three Riddler calls against the draft schema, failure modes recorded.
 - Both rooms photographed (6 to 10 photos each, originals kept; no faces, documents, or others' belongings).
-- MIT LICENSE; the hackathon tooling paths (the hackathon tooling path list in `docs/specs/spec-keyframe/delivery-plan.md` (§Submission package, Repo hygiene)) out of the index before the repo goes public, other `.claude/` configuration kept (§Submission package); Hugging Face `sam-3d-objects` access request, optional.
+- MIT LICENSE; the hackathon tooling paths (the hackathon tooling path list in `docs/specs/spec-keyframe/delivery-plan.md` (§Submission package, Repo hygiene)) out of the index before submission (the repo is public throughout; Oct 22), other `.claude/` configuration kept (§Submission package); Hugging Face `sam-3d-objects` access request, optional.
 - Sun Oct 25 night: baseline tag and CHANGELOG (§Submission package); accept the Official Rules if published.
 
 Build window. Each evening line names what is attempted; by the item table a 3 h evening holds about half of what its line names, so the nightly cut decision is part of the line.
@@ -214,8 +214,8 @@ Build window. Each evening line names what is attempted; by the item table a 3 h
 - Sun Nov 1 (8 h): Tier 2 if the video exists; else (the expected case) finish Tier 1 and record by 2 PM. The afternoon (about 2 h) is the playtest on `PROFILE=playtest` first (it needs the tester), then room 2 through the pipeline, which may finish Mon Nov 2. Cuts are reversed only with time left, last cut first, and only cuts 1 to 3 are realistic candidates before Nov 3.
 - Mon Nov 2 (3 h): Tier 2 gate if attempted; else play room 1 for real on `PROFILE=demo` so the cross-session greeting has a record to cite; playtest here if the tester missed Nov 1, else the builder's cold run of room 2.
 - Tue Nov 3 (3 h): video only: fresh room-2 photo set, cache cleared on camera, capture proof, three main-demo takes, captions, unlisted upload.
-- Wed Nov 4 (2 h before work): repo hygiene at the latest here, before the repo goes public: the `git rm -r --cached` command, `.gitignore` entries and staged-diff check over the hackathon tooling path list in `docs/specs/spec-keyframe/delivery-plan.md` (§Submission package, Repo hygiene), other `.claude/` configuration kept, the BMAD brief folder kept as the single source of truth, `PRODUCT_BRIEF.md` left removed; README model table, diagram, pre-existing-code section with the baseline diffstat, screenshots, portal description; submit before 9:00 AM ET; 6 to 9 PM is slack for a failed upload or a required live link (deadline 9:00 PM ET).
-- Thu Nov 5 to Sun Nov 8: hosted-URL redeploy, `MIN_CONTAINERS=1` kept through Mon Nov 9, finals preparation.
+- Wed Nov 4 (2 h before work): repo hygiene at the latest here, before submission (the repo is public throughout; Oct 22), in two commits per the delivery plan (commit 1: the `git rm -r --cached` deletions, `.gitignore` entries and deletion-only staged-diff check over the hackathon tooling path list in `docs/specs/spec-keyframe/delivery-plan.md` (§Submission package, Repo hygiene); commit 2: the doc scrub, README, CHANGELOG entry and the day's ledger export), other `.claude/` configuration kept, the BMAD brief folder kept as the single source of truth, `PRODUCT_BRIEF.md` left removed; README model table, diagram, pre-existing-code section with the baseline diffstat, screenshots, portal description; submit before 9:00 AM ET; 6 to 9 PM is slack for a failed upload or a required live link (deadline 9:00 PM ET).
+- Thu Nov 5 to Sun Nov 8: finals preparation; the hosted-URL redeploy with `MIN_CONTAINERS=1` kept through Mon Nov 9 and the judge features (access-coded judge builds, the Nov 10 deletion) run only if the Official Rules, checked at kickoff Mon Oct 26, allow changes to the hosted deployment after the deadline (PRD §13 Q14; Oct 22); otherwise the Wed Nov 4 deployment is the final hosted state.
 - Mon Nov 9: live finals, local mode screen-shared from the M1.
 
 ## Hackathon terms
@@ -266,7 +266,7 @@ Built to the strictest Cerebral Valley precedent (public open-source repo, 2-min
 - [ ] Dated CHANGELOG.md from the baseline entry through Nov 4.
 - [ ] Portal: Indie track, solo, theme named; fields checked when the form opens.
 - [ ] Raw room photos never enter the public repo, consent or not: the photo input folders are git-ignored; only outputs ship (screenshots, clue cards, the demo video), with household consent for what appears in them; judge-uploaded rooms deleted from the Volume Tue Nov 10.
-- [ ] Repo hygiene before the repo goes public, Wed Nov 4 morning at the latest: only the hackathon tooling paths removed (`git rm -r --cached` plus `.gitignore`, both over the hackathon tooling path list in `docs/specs/spec-keyframe/delivery-plan.md` (§Submission package, Repo hygiene), which is the single source of truth); other `.claude/` configuration stays; the BMAD brief folder under `docs/planning-artifacts/` stays as the single source of truth; `PRODUCT_BRIEF.md` stays removed (it still exists on `master`; merging `keyframe/bmad-brief` into `master` deletes it; do not recreate it).
+- [ ] Repo hygiene before submission (the repo is public throughout; Oct 22), Wed Nov 4 morning at the latest, in two commits per the delivery plan: commit 1 removes only the hackathon tooling paths (`git rm -r --cached` plus `.gitignore`, both over the hackathon tooling path list in `docs/specs/spec-keyframe/delivery-plan.md` (§Submission package, Repo hygiene), which is the single source of truth), commit 2 holds the doc scrub, README, CHANGELOG entry and the ledger export; other `.claude/` configuration stays; the BMAD brief folder under `docs/planning-artifacts/` stays as the single source of truth; `PRODUCT_BRIEF.md` stays removed (it still exists on `master`; merging `keyframe/bmad-brief` into `master` deletes it; do not recreate it).
 
 Pre-existing-code practice: as of Oct 20 the repo holds about 400 lines of Python (provider interface, mock provider, Meta API stub, tests) and no product code. Sun Oct 25 night: `git tag -a pre-hackathon-baseline` pushed, CHANGELOG entry "Before Oct 26 (baseline): provider interface, mock provider, Meta API stub, tests. No front end, no model calls." Then small dated commits; the README carries the diffstat at submission. If the Official Rules ban prior code outright, the scaffold is rewritten on Mon Oct 26 in under an hour; it is not expanded before kickoff so that option stays open.
 

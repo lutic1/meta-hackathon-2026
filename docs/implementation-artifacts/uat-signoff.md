@@ -87,7 +87,7 @@ What the README (story 6.7) and the Disclosure banner (stories 6.2, 6.3) will sa
 | Privacy line, verbatim | "the player profile stays on your machine." (stays under every Cut) |
 | Retention summary | The Local `retention` text served by `GET /meta`, word for word; no fal.ai line unless Tier 2 ships |
 | Tier 2 | not attempted / no-go / ships Tier 1 (missed criterion) / passed |
-| Live link (only if the Official Rules require one) | Tue Oct 27 hosted smoke deployment, Demo rooms only, Rungs verbatim; SIT-10 passed against the deployed commit: hash ______ date ______ |
+| Live link (only if the Official Rules require one) | Hosted URL, redeployed Thu Oct 29 (first deployed Tue Oct 27), Demo rooms only, Rungs verbatim; SIT-10 passed against the deployed commit: hash ______ date ______ deployment ______ |
 | Hosted changes after the deadline (checked at kickoff Mon Oct 26) | allowed / not allowed by the Official Rules; if not allowed, the Wed Nov 4 deployment is the final hosted state and UAT-14 B and every Nov 5 to 9 hosted item are not applicable, not failed |
 
 Disclosure lines in force for the video settings (tick each; text as served by `src/api/meta.py`):
@@ -153,15 +153,15 @@ Luis Ticas: I ran every test marked run in §2 at the commit in §1; addenda are
 
 Signature: ____________________  Date and time (ET): ____________________
 
-Addenda (one row each; the result reads pass, fail or not applicable):
+Addenda (one row each; the result reads pass, fail or not applicable). The commit SHA is required for every addendum; the hosted addenda (UAT-14 A live link, UAT-14 B) also require the deployment URL or id of the deployment serving that SHA; the local addenda (UAT-12, UAT-13, UAT-09 B) write "n/a" in the deployment column.
 
-| Test id | Commit short hash or deployment URL | Settings and Cuts in force | Date | Result | Evidence | Signature |
-|---|---|---|---|---|---|---|
-| UAT-12 | | | | | | |
-| UAT-13 | | | | | | |
-| UAT-09 B | | | | | | |
-| UAT-14 A live link (only if the Official Rules require one; SIT-10 passed against this commit) | | | | | | |
-| UAT-14 B (only if the Official Rules allow post-deadline hosted changes; otherwise not applicable) | | | | | | |
+| Test id | Commit SHA | Deployment URL or id | Settings and Cuts in force | Date | Result | Evidence | Signature |
+|---|---|---|---|---|---|---|---|
+| UAT-12 | | n/a | | | | | |
+| UAT-13 | | n/a | | | | | |
+| UAT-09 B | | n/a | | | | | |
+| UAT-14 A live link (only if the Official Rules require one; SIT-10 passed against this commit) | | | | | | | |
+| UAT-14 B (only if the Official Rules allow post-deadline hosted changes; otherwise not applicable) | | | | | | | |
 
 Playtester attestation for SM-2: "I did not build Keyframe. I finished room 1 on a fresh profile on <date> with no help from the builder; the Guide's hints were the only help."
 

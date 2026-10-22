@@ -2,7 +2,7 @@
 title: "Product Brief: Keyframe"
 status: final
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-22
 ---
 # Product Brief: Keyframe
 
@@ -51,7 +51,7 @@ RoomQuest and Haven Studios' prototype stop at photos or generated images; Marbl
 ## Scope
 
 - Tier 1, the floor: core loop plus backup video; [ASSUMPTION] 22 h after cuts against 16 h through Sat Oct 31; video gate Sun Nov 1 by 2:00 PM, recorded from whatever runs (zero slack).
-- Tier 1.5 (cuts restored in reverse): second room, cross-session greeting, clue cards, hosted URL Nov 5 to 9, voice last.
+- Tier 1.5 (cuts restored in reverse): second room, cross-session greeting, clue cards, hosted URL Nov 5 to 9 (only if the Official Rules, checked Mon Oct 26, allow post-deadline hosted changes; Oct 22), voice last.
 - Tier 2 is a default no-go: it comes back only if the Tier 1 backup video already exists Sat Oct 31 night, and Tier 1 and the demo video are protected above everything else. If attempted (Sun Nov 1): fal SAM 3D Objects, at most 20 GLBs. Tier 3, never gating: Scaniverse splat shell.
 - Out of scope: addendum.md §Scope boundaries.
 
@@ -69,7 +69,7 @@ Any space gets a game layer: the same council writing from whatever the segmente
 
 - Selection is unconfirmed until Mon Oct 26 (else a pay-as-you-go portfolio build, same plan). Official Rules are unpublished; weights, credit, team size, and prizes follow the Oct 13 Waiver ("terms may change"). If the Rules ban prior code, the 400-line scaffold is rewritten Oct 26.
 - SAM 3D from one casual photo per object is the riskiest mechanic; staged checks (5 objects before Oct 26, 10 on Sun Nov 1) feed the Nov 2 gate.
-- Spend: ceiling $80 of credit via `SPEND_CAP_USD`, about $35 expected (cash if no credit); judging and finals pay-as-you-go, cap $25 (credit expiry unstated).
+- Spend: ceiling $80 of credit via `SPEND_CAP_USD`, allocated per mode (Oct 22: local 60, hosted 20; `docs/specs/spec-keyframe/budgets.md`), about $35 expected (cash if no credit); judging and finals pay-as-you-go, cap $25 (local 5, hosted 20 from Thu Nov 5; credit expiry unstated).
 - Privacy: the player profile stays on your machine, whether or not cut 3 phrases the hints (addendum.md §What runs where). Photos and puzzle text go to the Meta Model API and, in Tier 2, fal.ai; retention terms are summarized on the capture screen; judge rooms deleted Nov 10. Raw room photos never enter the public repo, consent or not (the input folders are git-ignored); only outputs ship: screenshots, clue cards, the demo video, with household consent for what appears in them.
 - Open questions for Luis: addendum.md §Open questions.
 
@@ -78,6 +78,6 @@ Any space gets a game layer: the same council writing from whatever the segmente
 - Wed Oct 21 to Sun Oct 25 (about 8 h): Schema v1 review Thu Oct 22, verifications, two spikes, 5 fal objects, rooms photographed, MIT LICENSE; tag `pre-hackathon-baseline` Sun Oct 25.
 - Mon Oct 26 to Thu Oct 29 (3 h each): core loop on mock, then APIs; video v0 Wed Oct 28. Fri Oct 30: no build.
 - Sat Oct 31: Tier 1 with cuts, backup video v1. Sun Nov 1: record by 2:00 PM, then playtest and room 2.
-- Mon Nov 2: Tier 2 gate (criterion 8). Tue Nov 3: videos. Wed Nov 4: submit before 9:00 AM ET (deadline 9:00 PM ET). Nov 5 to 8: redeploy, finals prep (addendum.md §Day plan).
+- Mon Nov 2: Tier 2 gate (criterion 8). Tue Nov 3: videos. Wed Nov 4: submit before 9:00 AM ET (deadline 9:00 PM ET). Nov 5 to 8: finals prep; the hosted redeploy (`MIN_CONTAINERS=1`, judge features) only if the Official Rules, checked at kickoff Mon Oct 26, allow post-deadline hosted changes (PRD §13 Q14; Oct 22), else the Wed Nov 4 deployment is the final hosted state (addendum.md §Day plan).
 
 Handoff: `bmad-spec` (solo; no second epic until the Nov 2 gate) rather than `bmad-prd`, the catalog default; then `bmad-architecture`, `bmad-create-epics-and-stories`, `bmad-sprint-planning`, `bmad-build`; Tier 2 schema changes via `bmad-correct-course`.

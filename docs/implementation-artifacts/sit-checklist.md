@@ -126,7 +126,7 @@ If a seam stays red, this applies (`delivery-plan.md`, `stack.md`):
 | Ollama (SIT-05) | Cut 3, `GUIDE=verbatim`; the README drops the phrasing claim; the Privacy line stays verbatim: "the player profile stays on your machine." |
 | Live Trickster (SIT-15) | Cut 1, `DEMO_TRICKSTER=authored`; 8B Llama on Fireworks is the last fallback |
 | `muse-image-1.0` (SIT-04) | Placeholder art (FR-23) |
-| Hosted (SIT-08 to SIT-10) | Tier 1 is untouched; if the Official Rules require a live link Wed Nov 4, the Tue Oct 27 deployment serves Demo rooms only with Rungs verbatim, after a SIT-10 pass against the deployed commit; the finals fallback order holds (7.22) |
+| Hosted (SIT-08 to SIT-10) | Tier 1 is untouched; if the Official Rules require a live link Wed Nov 4, the hosted URL as redeployed Thu Oct 29 serves Demo rooms only with Rungs verbatim, after a SIT-10 pass against the deployed commit; the finals fallback order holds (7.22) |
 | fal (SIT-12) | The Tier 2 gate misses and Tier 1 ships |
 
 ## Run log
