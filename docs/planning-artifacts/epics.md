@@ -152,7 +152,7 @@ UX-DR28: Clue card slot (Tier 1.5, FR-37): 112 x 84 px, `rounded.sm`, right-alig
 UX-DR29: Wizard portrait: a circle with a 2 px gilt ring at 24 px (Card log, Demo room card, Model table), 32 px (signature, In play block), 48 px (Hint area, Cards, Architect and Riddler introductions, Completion sign-off) or 96 px (Greeting and First-room welcome); decorative (empty alt) beside text that names the speaker, with a visually hidden speaker prefix on every in-character line ("The Guide:"); Guide thinking state (Local only, while a Hint request or a Greeting is in flight): a static lamp ring plus the "thinking on this Mac" label (`pending-ink` on parchment), no pulse; arrival: one lamp-glow fade on the ring, 300 ms in all, when a Rung arrives unrequested (lit ring held 2 s under reduced motion); placeholder: the wizard's initial in `display-sm` gilt on `chrome-raised`.
 UX-DR30: Hint area: a `chrome-raised` tray pinned at the bottom of the side column, up to 320 px: a scrolling upper part (at most two Cards, newest on top, older ones behind "{n} more in the Card log", then the latest Rung line) over a pinned lower part that never scrolls (hint field and "Ask the Guide", the helper line, the Triggers toggle); while the Triggers panel is open only the newest Card stacks and the area may grow until the Wizard notes reach 280 px; after "Begin" it holds the opening line as the first Guide line (not announced again); arrival glow on the tray edge with the portrait's; open pick: letting the area also grow while the first Card with the Trickster introduction is present (EXPERIENCE.md Open Items).
 UX-DR31: Rung line: the one home for Hint replies: Guide portrait (48 px), the label "Puzzle {n} · Nudge|Direction|Near-answer" in `label` `lamp`, the line in `wizard-line`; the No-hint line uses the same anatomy labelled "Puzzle {n}"; a new Rung replaces the previous line, which stays under "opened Rungs" in its Puzzle's entry; every reply to a Hint request visibly arrives (a repeated reply fades out and in, 200 ms each way, and is announced again; Local may reword a repeat, never adding content); phrased and verbatim Rungs look identical with no badge; after the near-answer a further request repeats it; no thinking state in Hosted mode.
-UX-DR32: Hint field and Ask the Guide: a 44 px `chrome` field with `body-sm` text and the placeholder "Stuck? Ask the Guide for a hint" beside the primary button "Ask the Guide", with the permanent helper line "Your words stay in this browser. The Guide only hears that you asked." under them; Enter or the button sends one Hint request for the Active puzzle with `puzzle_id` omitted (named explicitly only while `active_puzzle_id` is null); the accessible label is "Ask the Guide for a hint on Puzzle {n}"; typed text never leaves the browser; while sending the field is read-only with the text visible and the button reads "Asking", and the field clears when the reply lands; an empty field still sends; one request in flight at a time; open pick: a shorter placeholder in the 340 px band.
+UX-DR32: Hint field and Ask the Guide: a 44 px `chrome` field with `body-sm` text and the placeholder "Stuck? Ask the Guide for a hint" beside the primary button "Ask the Guide", with the permanent helper line "Your words stay in this browser. The Guide only hears that you asked." under them; Enter or the button sends one Hint request for the Active puzzle with `puzzle_id` always omitted (the server resolves it to `active_puzzle_id`); the accessible label is "Ask the Guide for a hint on Puzzle {n}"; typed text never leaves the browser; while sending the field is read-only with the text visible and the button reads "Asking", and the field clears when the reply lands; an empty field still sends; one request in flight at a time; open pick: a shorter placeholder in the 340 px band.
 UX-DR33: Triggers panel: a toggle row "Triggers ({n})" (secondary, expanded state) that opens a `chrome` list capped at 160 px and scrolling, headed by one plain line "Nudge after {threshold} s idle or 3 wrong attempts · next hint no sooner than {spacing} s" (each number with its 1× value at a Demo timescale above 1) plus the source ("Set by how you played last time (kept in this browser)" or "Default for a first room"), then one row per Rung change in `body-sm` with `mono-sm` numbers: Puzzle, Rung name, cause ("Idle 92 s", "3 wrong attempts", "Loosen card") and where it was worded ("worded on this Mac · 1.6 s" or "as written"), newest last and in `text`, older rows `text-muted`, newest kept in view; collapsed by default, opened automatically when the page loads with a Disclosure active (the player can collapse it); empty reads "No hint changes yet."; under cut 5 the same content fills a second window.
 UX-DR34: Code field: an inset on the Puzzle entry, `parchment-shade`, `mono-code`, sized for 6 characters (168 x 44), no visible label or placeholder, accessible name "Code for Puzzle {n}", with a secondary Submit disabled below 3 characters; Enter or Submit posts the code lock input; pending makes the field read-only with the Checking chip; wrong shows "Not this · n", keeps the value and selects it for retyping (`lamp-ink-hover-fill` tint with a 1 px `lamp-ink` edge); open shows the Open chip and removes the field.
 UX-DR35: Order click progress: the one home for the order rules: in the order Puzzle's entry a "Start the sequence" control (secondary, `lamp-ink`) and 3 to 5 pips (10 px) with a visually hidden "{filled} of {length}" description; unarmed pips stay empty and clicks are exploration; "Start the sequence" posts the order start input and the control reads "Stop the sequence" (a label change that keeps focus); armed, each Hotspot click the server acknowledges fills the next pip in `lamp-ink` whichever object it hit (never optimistically); a full-length mismatch turns the pips `wrong-ink` for 300 ms, empties them and shows "Not this · n" with the sequence still armed; "Stop the sequence" posts the order stop input and empties the pips with no Wrong attempt; starting another order Puzzle first stops the armed one; the armed state survives Scene switches and reloads; pips never show which clicks were right.
@@ -210,7 +210,7 @@ UX-DR86: Main demo legibility (EXPERIENCE.md shot list): each §11.3 beat's surf
 
 ### FR Coverage Map
 
-Generated from the story covers fields (116 stories; every id below has at least one story; dependencies checked to point only backward by id).
+Generated from the story covers fields (117 stories; every id below has at least one story; dependencies checked to point only backward by id).
 
 #### Functional requirements
 
@@ -230,7 +230,7 @@ Generated from the story covers fields (116 stories; every id below has at least
 - FR-14: Epic 3: 3.3, 3.4; Epic 6: 6.5; Epic 9: 9.3
 - FR-15: Epic 3: 3.1, 3.3
 - FR-16: Epic 3: 3.5
-- FR-17: Epic 3: 3.2, 3.3, 3.7; Epic 6: 6.7; Epic 7: 7.2
+- FR-17: Epic 3: 3.2, 3.3, 3.7; Epic 6: 6.7; Epic 7: 7.2, 7.23
 - FR-18: Epic 4: 4.2, 4.8
 - FR-19: Epic 4: 4.1, 4.4, 4.5, 4.6, 4.7
 - FR-20: Epic 1: 1.12; Epic 5: 5.1, 5.2, 5.3, 5.4, 5.6; Epic 7: 7.2, 7.17
@@ -244,7 +244,7 @@ Generated from the story covers fields (116 stories; every id below has at least
 - FR-28: Epic 2: 2.2, 2.3, 2.5, 2.10, 2.25; Epic 4: 4.4
 - FR-29: Epic 2: 2.6, 2.12; Epic 7: 7.8, 7.9
 - FR-30: Epic 2: 2.10, 2.20, 2.22; Epic 6: 6.7, 6.9
-- FR-31: Epic 7: 7.3, 7.13, 7.14, 7.15, 7.16, 7.22
+- FR-31: Epic 7: 7.3, 7.13, 7.14, 7.15, 7.16, 7.22, 7.23
 - FR-32: Epic 7: 7.7, 7.8, 7.10, 7.11, 7.12, 7.17, 7.22
 - FR-33: Epic 7: 7.14, 7.18, 7.19, 7.20, 7.21, 7.22
 - FR-34: Epic 8: 8.1
@@ -264,7 +264,7 @@ Generated from the story covers fields (116 stories; every id below has at least
 - NFR-7: Epic 2: 2.7, 2.10, 2.12; Epic 7: 7.7, 7.8
 - NFR-8: Epic 1: 1.2, 1.3; Epic 2: 2.1, 2.9
 - NFR-9: Epic 2: 2.7, 2.15
-- NFR-10: Epic 1: 1.4, 1.19, 1.27; Epic 7: 7.3, 7.16, 7.22; Epic 8: 8.1
+- NFR-10: Epic 1: 1.4, 1.19, 1.27; Epic 7: 7.3, 7.16, 7.22, 7.23; Epic 8: 8.1
 - NFR-11: Epic 1: 1.1, 1.5; Epic 3: 3.6; Epic 5: 5.8; Epic 6: 6.1, 6.4, 6.5, 6.6, 6.9; Epic 7: 7.3, 7.22; Epic 8: 8.1
 - NFR-12: Epic 4: 4.3, 4.4; Epic 5: 5.8; Epic 6: 6.1, 6.2, 6.3, 6.4, 6.6, 6.7
 - NFR-13: Epic 1: 1.1; Epic 6: 6.7, 6.8, 6.9
@@ -385,7 +385,7 @@ Generated from the story covers fields (116 stories; every id below has at least
 - AR-22: Epic 1: 1.2, 1.12; Epic 2: 2.10
 - AR-23: Epic 1: 1.2, 1.3, 1.15; Epic 2: 2.1
 - AR-24: Epic 1: 1.2, 1.3
-- AR-25: Epic 2: 2.9
+- AR-25: Epic 2: 2.9; Epic 7: 7.23
 - AR-26: Epic 3: 3.2, 3.7; Epic 7: 7.2
 - AR-27: Epic 1: 1.5, 1.14; Epic 2: 2.7; Epic 4: 4.8
 - AR-28: Epic 6: 6.8
@@ -396,12 +396,12 @@ Generated from the story covers fields (116 stories; every id below has at least
 
 #### Old draft ids mapped to new ids
 
-1.1->1.2; 1.2->1.4; 1.3->1.5; 1.4->1.6; 1.5->1.7; 1.6->1.8; 1.7->1.10; 1.8->1.11+1.12+1.14; 1.9->1.15; 1.10->1.19+1.20; 1.11->1.21+1.23; 1.12->1.9; 1.13->1.26; 2.1->2.1; 2.2->2.2+2.3; 2.3->2.4; 2.4->2.5+2.6; 2.5->2.7; 2.6->2.10; 2.7->2.11+2.12; 2.8->2.13; 2.9->2.14+2.15; 2.10->2.19+2.20; 2.11->2.21; 2.12->1.6+2.22+2.23+2.24+2.26; 2.13->2.16+2.17+2.18+2.25; 2.14->2.8; 3.1->3.1; 3.2->3.3+3.4; 3.3->3.5; 3.4->3.2; 3.5->3.7; 3.6->1.20+3.6; 3.7->7.4+7.5+7.6; 4.1->4.1; 4.2->4.2; 4.3->4.3+4.4; 4.4->4.5+4.6; 4.5->4.8; 5.1->5.1+5.2; 5.2->5.3+5.4; 5.3->5.5+5.6; 5.4->5.7; 5.5->5.8; 6.1->6.3; 6.2->6.1+6.4; 6.3->6.5; 6.4->6.7; 6.5->6.6; 6.6->6.8; 6.7->6.9; 7.1->7.1+7.2+7.3; 7.2->7.7+7.8; 7.3->7.8+7.9; 7.4->7.10+7.11; 7.5->7.13+7.14+7.15+7.18+7.19+7.20; 7.6->7.22; 8.1->8.1; 8.2->8.1; 8.3->8.1; 8.4->8.1; 9.1->9.3; 9.2->9.1+9.2. New: 1.1, 1.3, 1.13, 1.16, 1.17, 1.18, 1.22, 1.24, 1.25, 1.27, 2.9, 2.27, 2.28, 2.29, 2.30, 2.31, 4.7, 6.2, 7.12, 7.16, 7.17, 7.21.
+1.1->1.2; 1.2->1.4; 1.3->1.5; 1.4->1.6; 1.5->1.7; 1.6->1.8; 1.7->1.10; 1.8->1.11+1.12+1.14; 1.9->1.15; 1.10->1.19+1.20; 1.11->1.21+1.23; 1.12->1.9; 1.13->1.26; 2.1->2.1; 2.2->2.2+2.3; 2.3->2.4; 2.4->2.5+2.6; 2.5->2.7; 2.6->2.10; 2.7->2.11+2.12; 2.8->2.13; 2.9->2.14+2.15; 2.10->2.19+2.20; 2.11->2.21; 2.12->1.6+2.22+2.23+2.24+2.26; 2.13->2.16+2.17+2.18+2.25; 2.14->2.8; 3.1->3.1; 3.2->3.3+3.4; 3.3->3.5; 3.4->3.2; 3.5->3.7; 3.6->1.20+3.6; 3.7->7.4+7.5+7.6; 4.1->4.1; 4.2->4.2; 4.3->4.3+4.4; 4.4->4.5+4.6; 4.5->4.8; 5.1->5.1+5.2; 5.2->5.3+5.4; 5.3->5.5+5.6; 5.4->5.7; 5.5->5.8; 6.1->6.3; 6.2->6.1+6.4; 6.3->6.5; 6.4->6.7; 6.5->6.6; 6.6->6.8; 6.7->6.9; 7.1->7.1+7.2+7.3; 7.2->7.7+7.8; 7.3->7.8+7.9; 7.4->7.10+7.11; 7.5->7.13+7.14+7.15+7.18+7.19+7.20; 7.6->7.22; 8.1->8.1; 8.2->8.1; 8.3->8.1; 8.4->8.1; 9.1->9.3; 9.2->9.1+9.2. New: 1.1, 1.3, 1.13, 1.16, 1.17, 1.18, 1.22, 1.24, 1.25, 1.27, 2.9, 2.27, 2.28, 2.29, 2.30, 2.31, 4.7, 6.2, 7.12, 7.16, 7.17, 7.21, 7.23 (the browser parity check split from 7.3 on Oct 22).
 
 #### Revision decisions worth flagging
 
 - All AD-2 API models (job state, session state, RoomSummary, BuildView, AccessCheck) and the AR-31 event fields are declared in 1.5 before the Mon Oct 26 freeze, so no later story touches the frozen domain/schema.py across packages; Mask3D stays undeclared until the Tier 2 gate.
-- Epic 7 opens with three Tier 1 smoke-deploy stories (7.1 to 7.3, Tue Oct 27), so Clue cards (7.4 to 7.6) are the first Tier 1.5 stories of the epic rather than its first two stories; this keeps Tier 1 ahead of Tier 1.5 within the epic.
+- Epic 7 opens with three Tier 1 smoke-deploy stories (7.1 to 7.3, Tue Oct 27), so Clue cards (7.4 to 7.6) are the first Tier 1.5 stories of the epic rather than its first two stories; this keeps Tier 1 ahead of Tier 1.5 within the epic. The Oct 22 readiness review moved 7.3's browser checks into 7.23 (Tier 1, Thu Oct 29, the SIT-10 parity check), placed last in the epic so no later id moves.
 - Later live-seam SIT cases are test files under tests/sit/ discovered by scripts/sit.py, so the stories that add them stay within AD-17.
 - 1.18 is re-dated Tue Oct 27 so 2.16 can depend on it the same day; the error banner moved into the app shell (1.17).
 
@@ -445,7 +445,7 @@ Every demo shortcut is disclosed on the surface it affects. The builder records 
 
 ### Epic 7: Judges play it themselves
 
-A judge opens the hosted URL, plays a Demo room to the Completion screen with verbatim Rungs, and can build their own room behind the Access code within a 20-build quota. Builds survive the host's web timeout, and Judge data is deleted on Tue Nov 10. Only the Tue Oct 27 smoke deployment is Tier 1; the rest is Tier 1.5, starting with Clue cards.
+A judge opens the hosted URL, plays a Demo room to the Completion screen with verbatim Rungs, and can build their own room behind the Access code within a 20-build quota. Builds survive the host's web timeout, and Judge data is deleted on Tue Nov 10. Only the Tue Oct 27 smoke deployment (7.1 to 7.3) and its Thu Oct 29 browser parity check (7.23) are Tier 1; the rest is Tier 1.5, starting with Clue cards.
 
 **FRs covered:** FR-5, FR-6, FR-17, FR-20, FR-26, FR-29, FR-31, FR-32, FR-33, FR-36, FR-37
 
@@ -528,7 +528,7 @@ _Covers FR-36, AR-1, AR-2, AR-3, AR-4, AR-18, AR-22, AR-23, AR-24, AR-29, NFR-4,
 
 **Given** an environment that sets none of the product flags
 **When** `Settings` is constructed
-**Then** it reads each AD-14 product flag it owns exactly once, with the defaults `CACHE=on`, `SPEND_CAP_USD=80`, `DEMO_TIMESCALE=1`, `DEMO_TRICKSTER=live` (accepting `live`, `record`, `scripted` and `authored`, and failing at startup on any other value), `DRY_RUN=on`, `REGEN_MAX=2` and `GUIDE=ollama`, plus the adapter settings: `MODEL_PROVIDER` (default `meta`) as the default for each `PROVIDER_<ROLE>` (`ARCHITECT`, `RIDDLER`, `DRYRUN`, `TRICKSTER`, `IMAGE`), the per-role model ids, `META_MODEL_API_KEY`, `META_MODEL_API_BASE_URL`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY`, `fal_key` from `FAL_KEY`, `OLLAMA_HOST` and `ACCESS_CODE`
+**Then** it reads each AD-14 product flag it owns exactly once, with the defaults `CACHE=on`, `SPEND_CAP_USD=60` (the Local-mode allocation of 2.3; the hosted default of 20 lands with `Settings.mode` in 7.2), `DEMO_TIMESCALE=1`, `DEMO_TRICKSTER=live` (accepting `live`, `record`, `scripted` and `authored`, and failing at startup on any other value), `DRY_RUN=on`, `REGEN_MAX=2` and `GUIDE=ollama`, plus the adapter settings: `MODEL_PROVIDER` (default `meta`) as the default for each `PROVIDER_<ROLE>` (`ARCHITECT`, `RIDDLER`, `DRYRUN`, `TRICKSTER`, `IMAGE`), the per-role model ids, `META_MODEL_API_KEY`, `META_MODEL_API_BASE_URL`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY`, `fal_key` from `FAL_KEY`, `OLLAMA_HOST` and `ACCESS_CODE`
 **And** it reads no `MODE` and has no `mode` or `min_containers` field. Those fields, the `verbatim` default under `MODE=hosted`, and the startup failures on `MODE=hosted` with `GUIDE=ollama` or with `DEMO_TRICKSTER=record` land in 7.2
 **And** `CHAT_MODEL`, `IMAGE_MODEL` and any `MAX_COMPLETION_TOKENS_<ROLE>` are not read
 **And** a test fails if any module under `src/` other than `src/config.py` reads `os.environ`; `scripts/doctor.py` is exempt (stdlib, runs before `uv sync`; spine AD-14)
@@ -679,7 +679,8 @@ _Covers AR-5, AR-7, AR-11, AR-21, AR-27, AR-31, FR-21, NFR-11, AD-2, AD-4, AD-18
 **Given** the event models
 **When** they are parsed
 **Then** they form a tagged union by `type` of `ClickEvent(interactable_id)`, `LockInputEvent(input)`, `HintRequestEvent(puzzle_id | null)`, `IdleTickEvent()`, `OpeningLineEvent(kind: greeting | welcome, text)`, `TricksterCardEvent(edit_id, accepted, reason, room_revision)` with `puzzle_id` on every card and, on a rejected card, the structural proposal summary (edit type and Puzzle ids only), and `RungChangeEvent(puzzle_id, rung, triggered_by)` with `phrased`, `phrasing_ms` and `text` (the line exactly as shown, filled in 3.3)
-**And** `TricksterCardEvent` also carries the full `TricksterEdit` (`edit`, null on a skipped card), as Schema v1 places edits in the session log, so the Effective room can be folded from the log alone (4.1)
+**And** `TricksterCardEvent` also carries the full `TricksterEdit` (`edit`, null on a skipped card), as Schema v1 places edits in the session log, so the Effective room can be folded from the log alone (4.1); the event and its `edit` stay server-side: no route returns a `TricksterCardEvent` or a `TricksterEdit`, and the generated `web/types` carry neither
+**And** `TricksterCard` is the public card projection, `to_card_view(event) -> TricksterCard` (a pure function in `src/domain/redact.py` beside the 1.7 projections), with exactly `edit_id`, `accepted`, `edit_type` (`decoy`, `merge`, `loosen` or `shortcut`; null on a skipped card), `puzzle_id`, `related_puzzle_id` (the second Puzzle of a `merge` or `shortcut`, else null), `room_revision`, `reason` (null on an accepted card, `provider_unavailable` on a skipped card, the failing rule number on a rejected card), `message` (the Validator fixed message on a rejected card, else null) and `t_ms` (the card's session time, read by the Card log), and never `payload`, `interactable`, `visible_attribute`, `rung` or `edit`; `GET /schema` returns `TricksterCard` with the other API models; a test projects an accepted Decoy and a rejected proposal whose payload carries a sentinel token and finds neither the Decoy's Interactable id or attribute nor the token in the serialized cards
 **And** stored events carry `t_ms`, while the client-posted bodies (`click`, `lock_input`, `hint_request`) forbid `t_ms` and any extra field
 
 **Given** the profile and status models
@@ -4170,7 +4171,7 @@ _Covers NFR-11, NFR-13, FR-30. Owner: builder task. Depends on: 6.6, 6.8. Tier 1
 
 ## Epic 7: Judges play it themselves
 
-A judge opens the hosted URL, lands on the Demo rooms, plays one to the Completion screen with verbatim Rungs, and can build their own room behind the Access code within a 20-build quota. Builds survive the host's web timeout, and Judge data is deleted on Tue Nov 10 as promised. Tier 1 lands only the Tue Oct 27 smoke deployment. Everything else is Tier 1.5 and comes after the backup video, starting with Clue cards (PRD §10.1 order: cuts restored, Clue cards, hosted).
+A judge opens the hosted URL, lands on the Demo rooms, plays one to the Completion screen with verbatim Rungs, and can build their own room behind the Access code within a 20-build quota. Builds survive the host's web timeout, and Judge data is deleted on Tue Nov 10 as promised. Tier 1 lands only the Tue Oct 27 smoke deployment (7.1 to 7.3) and the Thu Oct 29 browser parity check (7.23, SIT-10). Everything else is Tier 1.5 and comes after the backup video, starting with Clue cards (PRD §10.1 order: cuts restored, Clue cards, hosted).
 
 ### Story 7.1: Hosted stores on Modal Dict and Volume
 
