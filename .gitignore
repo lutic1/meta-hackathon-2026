@@ -1,4 +1,7 @@
 .env
+.env.*
+!.env.example
+*.env
 .venv/
 __pycache__/
 *.pyc
@@ -7,3 +10,20 @@ __pycache__/
 dist/
 build/
 .DS_Store
+
+# BMAD personal install answers (team config lives in _bmad/config.toml)
+_bmad/config.user.toml
+
+# Privacy rule: raw room photos never enter the repo, consent or not.
+# Only outputs ship (screenshots, clue cards, the demo video).
+rooms/
+photos/
+captures/
+uploads/
+*.heic
+*.HEIC
+# Pipeline cache (downscaled photos, masks, model responses)
+.cache/
+cache/
+# Live spend ledger (daily exports under spend/exports/ are committed)
+spend/*.jsonl
