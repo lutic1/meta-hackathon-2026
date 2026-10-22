@@ -2,7 +2,7 @@
 title: Keyframe
 status: final
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 
 # PRD: Keyframe
@@ -12,7 +12,7 @@ Luis Ticas · 2026-10-21 · Indie track, Meta Global AI Developer Hackathon (Cer
 **At a glance**
 - **Status:** final.
 - **Tier 1 floor, protected above everything:** FR-1 to FR-30, FR-36, and FR-38 (FR-38 is cut 0, the first Cut taken), plus the Backup video (§10.1).
-- **Decisions due Mon Oct 26:** §13 Q2 to Q4 (Q1, decoy storage, is the Thu Oct 22 schema review pick; Q9, Q10, Q12 and Q13 were resolved Oct 21).
+- **Decisions due Mon Oct 26:** §13 Q2 to Q4 and Q14, the Official Rules check at kickoff (Q1, decoy storage, is the Thu Oct 22 schema review pick; Q9, Q10, Q12 and Q13 were resolved Oct 21).
 
 ## 0. Document Purpose
 
@@ -795,7 +795,7 @@ Visual direction, color mode, voice and portrait style are Luis's decisions from
 
 ### 10.1 In Scope
 - **Tier 1, the floor, protected above everything:** FR-1 to FR-30, FR-36, and FR-38 (cut 0, the first Cut taken) (of FR-23 and FR-37, only the FR-23 Wizard portraits), with whatever Cuts are in force, plus the Backup video (room 2 and the FR-21 Greeting move to Sun Nov 1 afternoon under cut 8, the expected case; the Backup video does not require them).
-- **Tier 1.5, only once the Backup video exists:** second room and cross-session Greeting (under cut 8); Cuts restored last-first, only with time left (only cuts 1 to 3 are realistic before Nov 3); then Clue cards (FR-37); then Hosted mode for judges (FR-31 to FR-33, Nov 5 to 9, or FR-31 by Wed Nov 4 if a live link is required); then voice (FR-35).
+- **Tier 1.5, only once the Backup video exists:** second room and cross-session Greeting (under cut 8); Cuts restored last-first, only with time left (only cuts 1 to 3 are realistic before Nov 3); then Clue cards (FR-37); then Hosted mode for judges (FR-31 to FR-33, Nov 5 to 9, or FR-31 by Wed Nov 4 if a live link is required; the Nov 5 to 9 work is subject to §13 Q14); then voice (FR-35).
 - Hosted-mode consequences of Tier 1 FRs (tagged "(Hosted mode, Tier 1.5)") are Tier 1.5 and ship with FR-31 to FR-33.
 
 ### 10.2 Out of Scope for MVP
@@ -825,7 +825,7 @@ Visual direction, color mode, voice and portrait style are Luis's decisions from
 | Tue Nov 3 | Video only | Capture proof and three Main demo takes; no feature work |
 | Wed Nov 4, before 9:00 AM | Submit | Deadline 9:00 PM; 6 to 9 PM is slack for a failed upload or, if the Official Rules require one, a live link: FR-31 from the Tue Oct 27 deployment (Hosted mode, Demo rooms only, Rungs verbatim); FR-32 and FR-33 stay Nov 5 to 9 |
 | Thu Nov 5 | Ledger reset | Ledger export, then reset to the $25 cap |
-| Thu Nov 5 | Hosted redeploy | Hosted mode (FR-31 to FR-33) redeployed, with a warm container (`MIN_CONTAINERS=1`) Thu Nov 5 to Mon Nov 9 so judges never hit a cold start |
+| Thu Nov 5 | Hosted redeploy | Only if the Official Rules allow changes to the hosted deployment after the deadline (§13 Q14, checked Mon Oct 26): Hosted mode (FR-31 to FR-33) redeployed, with a warm container (`MIN_CONTAINERS=1`) Thu Nov 5 to Mon Nov 9 so judges never hit a cold start; otherwise the Wed Nov 4 deployment is the final hosted state, FR-32 and FR-33 are dropped and the README says so |
 | Tue Nov 10 | Judge purge | Judge rooms, originals, Sessions, and Cache entries purged (FR-33) |
 
 ### 11.2 Cut order
@@ -868,7 +868,7 @@ Submission checklist (detail in `docs/specs/spec-keyframe/delivery-plan.md` §Su
 - The submission includes 4 to 6 screenshots (capture with masks, puzzle JSON, a Rung with its events, Trickster Cards, room-2 Greeting, model table).
 - A 300 to 400 word portal write-up repeating the pre-existing-code statement (Indie track, solo, theme named).
 - The Spend log (FR-30).
-- Repo hygiene: before the repo goes public (Wed Nov 4 morning at the latest), only the hackathon tooling paths listed in the delivery plan (§Submission package, Repo hygiene: `_bmad/`, `.claude/skills/bmad-*/`, `.claude/skills/modal/`, `.claude/skills/keyframe-*/`) are removed from the index, and other `.claude/` configuration stays; the BMAD brief folder under `docs/planning-artifacts/` stays the single source of truth; `PRODUCT_BRIEF.md` stays removed.
+- Repo hygiene: before submission (the repo is public throughout; Wed Nov 4 morning at the latest), in two commits, only the hackathon tooling paths listed in the delivery plan (§Submission package, Repo hygiene before submission: `_bmad/`, `.claude/skills/bmad-*/`, `.claude/skills/modal/`, `.claude/skills/keyframe-*/`, the Mon Oct 26 cloud hook and, only if story 1.2 created it, `.claude/settings.json`) are removed from the index, and other `.claude/` configuration stays; the BMAD brief folder under `docs/planning-artifacts/` stays the single source of truth; `PRODUCT_BRIEF.md` stays removed.
 
 Delivery checks (not FR acceptance criteria): room 2 is a different physical room, and at least 80% of its Interactable labels differ from room 1's (SM-5); a real room-1 record exists on `PROFILE=demo` before room 2 is recorded; portraits appear in the Main demo.
 
@@ -914,6 +914,7 @@ Tier 2 is judged only by the FR-34 gate, not by a success metric.
 | 11 | **Hosted Trickster source:** live under the Spend cap, or scripted. | Luis | Before Thu Nov 5 (Wed Nov 4 if a live link is required) | FR-31 |
 | 12 | **Clue solution-token check: resolved Oct 21 (Luis): rule 5 extended.** The Clue and `evidence.visible_attribute` are checked like nudge and direction (no solution token, same matching rules); every displayed attribute says where to look and never holds a solution token. Schema v1 also gains optional `Room.name` (string, at most 40 characters, set when a Demo room is seeded; absent on ordinary Builds; the UI falls back to the build time). | Luis | Resolved | FR-8, Schema v1 |
 | 13 | **Build view data route (FR-38): resolved Oct 21.** `GET /builds/<job_id>/view` returns a solution-free `BuildView` projection (mask polygons per photo, the puzzle graph without solutions, per-rule Validator verdicts, Dry run pass or fail per Puzzle, Regeneration count, Model table from provenance); open in both modes; covered by the sentinel-solution test (architecture spine AD-3 amended). | Spine owner | Resolved | FR-38 |
+| 14 | **Post-deadline changes to the hosted deployment under the Official Rules.** Read at kickoff and recorded with the date: do the Rules (published before Mon Oct 26) allow changes to the hosted deployment after the Wed Nov 4 deadline? Yes: the Thu Nov 5 redeploy with `MIN_CONTAINERS=1`, FR-32 and FR-33 proceed Nov 5 to 9 (§11.1). No: the Wed Nov 4 deployment is the final hosted state, FR-32 and FR-33 are dropped, and the README says so; FR-31 stays as deployed. | Luis | Mon Oct 26 (kickoff) | FR-31 to FR-33, §6.5, §11.1 |
 
 Tracked in the spec and not blocking this PRD: Baseten credit coverage (Tue Oct 27 test), fal.ai pose metadata (pre-Oct 26 spike), and whether about 32 h of builder time holds (if not, Cuts apply earlier).
 
@@ -925,7 +926,7 @@ Tracked in the spec and not blocking this PRD: Baseten credit coverage (Tue Oct 
 ## 13a. Risks and Dependencies
 
 - **Selection unconfirmed until Mon Oct 26.** Mitigation: if not selected, the same plan runs as a pay-as-you-go portfolio build.
-- **Official Rules unpublished** (video length, repo visibility, live link, prior-code policy, submission format); the 2:00 video, public repo and no-localhost live demo follow Cerebral Valley precedent. Mitigation: build to the strictest precedent (§11.3), keep 6 to 9 PM Wed Nov 4 as slack for a live link, accept the Official Rules when published.
+- **Official Rules unpublished** (video length, repo visibility, live link, prior-code policy, submission format, post-deadline changes to the hosted deployment); the 2:00 video, public repo and no-localhost live demo follow Cerebral Valley precedent. Mitigation: build to the strictest precedent (§11.3), keep 6 to 9 PM Wed Nov 4 as slack for a live link, accept the Official Rules when published and record the §13 Q14 answer at kickoff.
 - **Prior code may be banned.** Mitigation: the scaffold of about 400 lines is not expanded before Mon Oct 26 and is rewritten that day in under an hour if needed.
 - **SAM 3D Objects from one casual photo per object is the riskiest mechanic.** Mitigation: staged checks, 5 objects before Oct 26 and 10 on Sun Nov 1, feed the FR-34 gate Mon Nov 2; Tier 2 stays default no-go.
 - **Review bandwidth and merge conflicts from the agent-parallel build.** Mitigation: schema-first, one owner per package, Schema v1 frozen Mon Oct 26 (§6.6); Cuts trigger when reviewed output lags.

@@ -1,48 +1,59 @@
-# Monday, Oct 26: plug-in checklist
+# Monday, Oct 26: kickoff checklist
 
-Goal: go from mock to live Meta models in under an hour, then spend
-the hackathon on the project instead of the plumbing.
+Goal: start the build behind the spend cap. The baseline is tagged,
+the dependency foundation is in, and every live call goes through the
+guarded SIT path. The day's build items are the Mon Oct 26 line of
+`docs/specs/spec-keyframe/delivery-plan.md`.
 
-## 1. Get access (kickoff, 1:00 PM ET)
+## 1. Rules and access (kickoff, 1:00 PM ET)
 
-- [ ] Watch the kickoff livestream, note the API docs URL and anything
-      about rate limits or model ids that differs from the placeholders
-      in `src/providers/meta_api.py`.
-- [ ] Accept the official rules (published at kickoff).
-- [ ] Copy your Meta Model API key into `.env` as `META_MODEL_API_KEY`.
+- [ ] Read the Official Rules (published before today) and record the
+      answers, dated, in the day's CHANGELOG entry: video length, repo
+      visibility (ours is public throughout), whether a live link is
+      required, the pre-existing-code policy, and whether changes to
+      the hosted deployment are allowed after the Wed Nov 4 deadline.
+      That last answer gates the Nov 5 to 9 hosted work: no means the
+      Nov 4 deployment is the final hosted state, FR-32 and FR-33 are
+      dropped and the README says so. Accept the Rules.
+- [ ] Watch the kickoff livestream; note anything about rate limits or
+      model ids that differs from `docs/specs/spec-keyframe/stack.md`.
+- [ ] Claim the credits (Meta Model API; Baseten, Modal and Fireworks
+      if used) and confirm the payment methods on dev.meta.ai, fal.ai
+      and Modal.
+- [ ] Keys go into `.env` only, never committed; `.env.example` lists
+      the names (`META_MODEL_API_KEY`, `FAL_KEY` and the rest) with
+      blank values.
 - [ ] Join the event Discord. Office hours and announcements live there.
-- [ ] Claim partner credits if you will use open weights:
-      Baseten $100, Modal $100, Fireworks $25.
 
-## 2. Wire the Meta provider (the only code change)
+## 2. Baseline and foundation (story 1.1, then 1.2)
 
-In `src/providers/meta_api.py`, from the official docs:
+- [ ] Story 1.1: the `pre-hackathon-baseline` tag is pushed and the
+      CHANGELOG baseline entry exists (planned for Sun Oct 25 night;
+      run it first if it has not landed).
+- [ ] Story 1.2, the deps foundation: uv with `uv.lock` and
+      `.python-version`, `scripts/check.sh`, `scripts/doctor.py`, and
+      the scaffold fixes to `src/providers/meta_api.py` and
+      `src/config.py`.
+- [ ] `uv run pytest` stays offline against the mock provider. Never
+      edit the stub tests into live tests; live behavior is proven by
+      SIT fixtures, not by the suite.
 
-- [ ] Confirm the base URL (set `META_MODEL_API_BASE_URL` if non-default).
-- [ ] Confirm the auth header format in `_post()`.
-- [ ] Fill in `chat()`: real endpoint path, request payload, and the
-      response fields that map to `ChatResponse`.
-- [ ] Fill in `generate_image()`: real endpoint path (Muse Image) and
-      the response mapping to `ImageResponse`.
-- [ ] Set the real default model ids (`CHAT_MODEL` / `IMAGE_MODEL` in
-      `.env`, or the placeholders in the provider).
+## 3. First live calls, behind the cap
 
-## 3. Smoke test before building anything else
-
-```bash
-MODEL_PROVIDER=meta .venv/bin/python main.py chat "Say hello in one sentence"
-MODEL_PROVIDER=meta .venv/bin/python main.py image "a red convertible on a coastal road"
-```
-
-- [ ] Both commands return real model output.
-- [ ] Update the two stub tests in `tests/test_providers.py`
-      (`test_meta_provider_is_a_stub_until_oct_26`) to assert live
-      behavior instead, or delete them now that the stub is wired.
-- [ ] Run the full suite: `.venv/bin/python -m pytest`.
+- [ ] Stories 2.3 (spend ledger and cap), 2.5 (local ledger file and
+      disk cache) and 2.6 (ledger export and reset script) land before
+      any real call. The cap is per mode: local 60 and hosted 20
+      through Wed Nov 4.
+- [ ] The first live calls go only through `scripts/sit.py`, following
+      `docs/implementation-artifacts/sit-checklist.md`; the two smoke
+      commands, `chat` and `image`, are the first SIT cases.
+- [ ] `spend/exports/ledger-2026-10-26.json` is committed with the
+      day's work.
 
 ## 4. Then build
 
-- [ ] Lock scope: working MVP by Nov 1.
-- [ ] Nov 3 and 4 reserved for demo and submission polish.
-- [ ] Submissions due Nov 4, 9:00 PM ET. Do not leave the upload to
-      the last hour.
+- [ ] Schema v1 frozen; validator and state machine on the mock
+      provider; the verified calls go into `src/providers/meta_api.py`
+      only if the pre-kickoff verifications passed, else API wiring
+      moves to Oct 27 and everything after slips a day.
+- [ ] Submissions due Wed Nov 4, 9:00 PM ET; submit before 9:00 AM.

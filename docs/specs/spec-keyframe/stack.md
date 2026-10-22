@@ -47,7 +47,7 @@ Verbatim for the README and the capture screen: "the player profile stays on you
 |---|---|---|---|
 | `PROFILE` | `dev`, `playtest`, `demo` | `dev` | IndexedDB database name; video and playtest use fresh profiles |
 | `CACHE` | `on`, `off` | `on` | Serve identical calls from the cache; `off` for proof takes |
-| `SPEND_CAP_USD` | dollars | 80 through Nov 4, 25 from Thu Nov 5 | Per-call refusal with a persisted counter |
+| `SPEND_CAP_USD` | dollars, per mode | local 60 and hosted 20 through Wed Nov 4 (80 in all); local 5 and hosted 20 from Thu Nov 5 (25 in all) | Per-call refusal against the mode's own persisted counter; `Settings` reads the override per mode and the Modal Secret `keyframe` carries the hosted value; the daily export prints both totals and their sum against the combined ceiling; dollars move between the allocations only by a Settings change after an export shows the room (`budgets.md`) |
 | `DEMO_TIMESCALE` | integer n, 1 or more | 1 | Divides the nudge threshold, rung spacing, and Trickster window by n; never the capture (build) timer, which runs in real time |
 | `DEMO_TRICKSTER` | `live`, `scripted` | `live` | `scripted` replays two recorded proposals; the validator still runs live |
-| `MIN_CONTAINERS` | 0, 1 | 0 | Warm hosted container, Thu Nov 5 to Mon Nov 9 only |
+| `MIN_CONTAINERS` | 0, 1 | 0 | Warm hosted container, Thu Nov 5 to Mon Nov 9 only, and only if the Official Rules allow post-deadline changes to the hosted deployment (`delivery-plan.md`, Mon Oct 26 check) |

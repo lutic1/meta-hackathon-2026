@@ -51,16 +51,16 @@ src/providers/base.py      the ModelProvider interface. Depend on this only.
 src/providers/mock.py      deterministic fake, scriptable for tests and demos
 src/providers/meta_api.py  Meta Model API stub, wire up Oct 26
 tests/test_providers.py    smoke tests, all offline
-docs/MONDAY.md             the Oct 26 plug-in checklist
+docs/MONDAY.md             the Mon Oct 26 kickoff checklist
 docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
 _bmad/                     BMAD Method v6 install (hackathon tooling)
 .claude/skills/bmad-*/     BMAD skills (hackathon tooling)
 .claude/skills/modal/      Modal's official skill (hackathon tooling)
 .claude/skills/keyframe-*/ Keyframe dev skills (hackathon tooling)
                            the four hackathon tooling paths above are removed
-                           before the repo goes public (list: docs/specs/
-                           spec-keyframe/delivery-plan.md, Repo hygiene);
-                           other .claude/ configuration stays
+                           before submission (the repo is public throughout;
+                           list: docs/specs/spec-keyframe/delivery-plan.md,
+                           Repo hygiene); other .claude/ configuration stays
 ```
 
 ## Run it today
@@ -74,8 +74,9 @@ python3 -m venv .venv
 ```
 
 Configuration: copy `.env.example` to `.env`. `MODEL_PROVIDER=mock`
-today, `MODEL_PROVIDER=meta` once the API is wired. See
-[docs/MONDAY.md](docs/MONDAY.md) for the plug-in steps.
+today, `MODEL_PROVIDER=meta` once the API is wired on Mon Oct 26. See
+[docs/MONDAY.md](docs/MONDAY.md) for the kickoff checklist (the first
+live calls run behind the spend cap that day).
 
 ## Key dates
 
