@@ -2,7 +2,7 @@
 title: Keyframe UAT sign-off record
 status: final
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 sources:
   - docs/implementation-artifacts/uat-acceptance-tests.md
   - docs/implementation-artifacts/sit-checklist.md
@@ -39,7 +39,7 @@ Luis Ticas completes this form Mon Nov 2 evening, after the last UAT run, using 
 
 ## 2. Results
 
-Result is pass, fail or not run; the Cut variant run goes in Notes. Addenda: UAT-12 and UAT-13 (Tue Nov 3) are signed before the submission; UAT-09 B is signed Wed Nov 4 before story 6.9; the UAT-14 A live-link line is signed Wed Nov 4 only if the Official Rules require a live link; UAT-14 B is signed after the Thu Nov 5 redeploy and before judges are given the URL.
+Result is pass, fail or not run; the Cut variant run goes in Notes. Addenda are signed in their own rows of the §8 Addenda table: UAT-12 and UAT-13 (Tue Nov 3) before the submission; UAT-09 B Wed Nov 4 before story 6.9; the UAT-14 A live-link line Wed Nov 4 only if the Official Rules require a live link, after a SIT-10 pass against the deployed commit; UAT-14 B after the Thu Nov 5 redeploy and before judges are given the URL, only if the Official Rules allow changes to the hosted deployment after the deadline (otherwise not applicable, not failed).
 
 | Id | Result | Evidence path | Notes (Cut variant, measured values) |
 |---|---|---|---|
@@ -52,14 +52,14 @@ Result is pass, fail or not run; the Cut variant run goes in Notes. Addenda: UAT
 | UAT-07 The Trickster, accepted and rejected | | | |
 | UAT-08 Room 2 remembers the player | | | |
 | UAT-09 A Spend within the cap, cache and Ledger | | | |
-| UAT-09 B Nov 3 and Nov 4 exports, final total (addendum, Wed Nov 4) | | | |
+| UAT-09 B Nov 3 and Nov 4 exports, final local, hosted and combined totals (addendum, Wed Nov 4) | | | |
 | UAT-10 Disclosure, Privacy line, demo honesty | | | |
 | UAT-11 Accessibility floor smoke test | | | |
 | UAT-12 Capture proof on video (addendum, Tue Nov 3) | | | |
 | UAT-13 Main demo carries every proof beat (addendum, Tue Nov 3) | | | |
 | UAT-14 A Judge on the hosted URL (Tier 1) | | | |
 | UAT-14 A live link (addendum, Wed Nov 4, only if the Official Rules require one) | | | |
-| UAT-14 B Judge on the hosted URL (Tier 1.5, addendum after the Thu Nov 5 redeploy) | | | |
+| UAT-14 B Judge on the hosted URL (Tier 1.5, addendum after the Thu Nov 5 redeploy) | | | not applicable (the Official Rules forbid post-deadline hosted changes) / run |
 | UAT-15 Tier 2 gate record (conditional) | | | not attempted / no-go (reason) / run |
 | UAT-15b UJ-7 walk (only after the gate passed) | | | not in this submission / run |
 
@@ -87,7 +87,8 @@ What the README (story 6.7) and the Disclosure banner (stories 6.2, 6.3) will sa
 | Privacy line, verbatim | "the player profile stays on your machine." (stays under every Cut) |
 | Retention summary | The Local `retention` text served by `GET /meta`, word for word; no fal.ai line unless Tier 2 ships |
 | Tier 2 | not attempted / no-go / ships Tier 1 (missed criterion) / passed |
-| Live link (only if the Official Rules require one) | Tue Oct 27 hosted smoke deployment, Demo rooms only, Rungs verbatim |
+| Live link (only if the Official Rules require one) | Tue Oct 27 hosted smoke deployment, Demo rooms only, Rungs verbatim; SIT-10 passed against the deployed commit: hash ______ date ______ |
+| Hosted changes after the deadline (checked at kickoff Mon Oct 26) | allowed / not allowed by the Official Rules; if not allowed, the Wed Nov 4 deployment is the final hosted state and UAT-14 B and every Nov 5 to 9 hosted item are not applicable, not failed |
 
 Disclosure lines in force for the video settings (tick each; text as served by `src/api/meta.py`):
 
@@ -106,7 +107,7 @@ From the run log in `sit-checklist.md` and the sprint status. No separate SIT si
 | Latest daily run before sign-off | date ______: pass __ / fail __ |
 | Failing seams (SIT ids) and action taken | |
 | Fallback applied for a red seam (Cut, Baseten, boxes-only Hotspots, placeholder art) | |
-| SIT-08 to SIT-10 (run by hand until a story adds their modules) | SIT-10 with 7.3 (gates UAT-14 A): ___; SIT-08, SIT-09 after 7.8, 7.9 and 7.11 merge, before Thu Nov 5 (gate UAT-14 B only): ___ |
+| SIT-08, SIT-09 (run by hand until a story adds their modules) and SIT-10 (module from story 7.23) | SIT-10 first run Thu Oct 29 (gates UAT-14 A; a live link needs a pass against the deployed commit): ___; SIT-08, SIT-09 after 7.8, 7.9 and 7.11 merge, before Thu Nov 5 (gate UAT-14 B only): ___ |
 | SIT-12 fal SAM 3D | not run (Tier 2 not attempted) / result |
 
 ## 6. Decision
@@ -148,14 +149,22 @@ Story 8.1 cites this record. The delivery plan's condition: Tier 2 is attempted 
 
 ## 8. Sign-off
 
-Luis Ticas: I ran every test above at the commit recorded in §1 and accept the decision in §6.
+Luis Ticas: I ran every test marked run in §2 at the commit in §1; addenda are attested in their own rows below. I accept the decision in §6.
 
 Signature: ____________________  Date and time (ET): ____________________
 
-Addenda (UAT-12, UAT-13, UAT-09 B, UAT-14 A live link if required, UAT-14 B): ____________________  Date: ____________________
+Addenda (one row each; the result reads pass, fail or not applicable):
+
+| Test id | Commit short hash or deployment URL | Settings and Cuts in force | Date | Result | Evidence | Signature |
+|---|---|---|---|---|---|---|
+| UAT-12 | | | | | | |
+| UAT-13 | | | | | | |
+| UAT-09 B | | | | | | |
+| UAT-14 A live link (only if the Official Rules require one; SIT-10 passed against this commit) | | | | | | |
+| UAT-14 B (only if the Official Rules allow post-deadline hosted changes; otherwise not applicable) | | | | | | |
 
 Playtester attestation for SM-2: "I did not build Keyframe. I finished room 1 on a fresh profile on <date> with no help from the builder; the Guide's hints were the only help."
 
 Name: ____________________  Signature: ____________________  Date: ____________________
 
-(If the §11.2 fallback was used, the playtester line is left blank and Luis initials here: ______ builder cold run of room 2, disclosed in the README.)
+(The unassisted cold run of room 2 is recorded as soon as room 2 reaches `done`, before anyone reads room 2, whether or not a playtester is confirmed; it is used only if the non-builder criterion is missed and discarded otherwise. If the §11.2 fallback was used, the playtester line is left blank and Luis initials here: ______ builder cold run of room 2, disclosed in the README.)

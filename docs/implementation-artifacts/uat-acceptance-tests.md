@@ -2,7 +2,7 @@
 title: Keyframe UAT acceptance tests
 status: final
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 sources:
   - docs/planning-artifacts/prds/prd-Keyframe-2026-10-21/prd.md
   - docs/planning-artifacts/epics.md
@@ -30,7 +30,7 @@ Luis Ticas · 2026-10-21
 
 **Where.**
 - Local mode on the 16 GB M1, in Chrome. The backend, Ollama with `llama3.2:3b` (except under cut 3) and Chrome run from the repo checkout at the commit under test.
-- The hosted URL in desktop Chrome for UAT-14 part A (the Tue Oct 27 smoke deployment, story 7.3). Part B runs only if Tier 1.5 Hosted mode ships (FR-31 to FR-33). It uses current desktop Chrome, Safari and Firefox at 1280 px or wider.
+- The hosted URL in desktop Chrome for UAT-14 part A (the Tue Oct 27 smoke deployment, story 7.3, checked in the browser by SIT-10 from Thu Oct 29). Part B runs only if Tier 1.5 Hosted mode ships (FR-31 to FR-33) and the Official Rules allow changes to the hosted deployment after the deadline (checked at kickoff Mon Oct 26); otherwise the Wed Nov 4 deployment is the final hosted state and part B is marked not applicable, not failed. It uses current desktop Chrome, Safari and Firefox at 1280 px or wider.
 
 **Entry criteria for every run.**
 - `scripts/check.sh` passes on the commit under test.
@@ -56,7 +56,7 @@ Luis Ticas · 2026-10-21
 |---|---|---|
 | 0 | UAT-02, UAT-13 | No Build view and no link to it. The puzzle JSON and the README Model table take its place. |
 | 1 | UAT-07, UAT-10, UAT-13 | Pre-authored proposals, one written to fail, and no live Trickster calls. The cut-1 Disclosure line shows. |
-| 2 | UAT-03, UAT-08 | The Player profile is a local JSON file (`GET\|PUT /profile/<name>`) instead of IndexedDB. |
+| 2 | UAT-03, UAT-08 | The Player profile is a local JSON file (`GET\|PUT /profile/<name>`) instead of IndexedDB, loaded with "Open profile file" and written with "Save profile file". |
 | 3 | UAT-06, UAT-08 | Rungs are verbatim in Local mode, and the Greeting comes from the template. The README drops the phrasing claim. The Privacy line stays. |
 | 4 | UAT-02, UAT-12 | The Validator alone gates the Room. Dry run rows read skipped. |
 | 5 | UAT-05 | The Triggers panel opens in a second window, with the same content. |
@@ -76,8 +76,8 @@ Luis Ticas · 2026-10-21
 - These items finish after sign-off by design and are signed as addenda:
   - UAT-12 and UAT-13 (Tue Nov 3, video only, where a failure means re-shooting the take, never feature work), signed before the submission.
   - UAT-09 part B, signed Wed Nov 4 before story 6.9.
-  - UAT-14 part A's live-link line, signed Wed Nov 4 only if the Official Rules require a live link.
-  - UAT-14 part B, signed after the Thu Nov 5 redeploy and before judges are given the URL.
+  - UAT-14 part A's live-link line, signed Wed Nov 4 only if the Official Rules require a live link, and only after a SIT-10 pass against the deployed commit.
+  - UAT-14 part B, signed after the Thu Nov 5 redeploy and before judges are given the URL, only if the Official Rules allow changes to the hosted deployment after the deadline; otherwise it is marked not applicable, not failed.
 
 ## 2. Tests
 
@@ -96,7 +96,7 @@ Luis Ticas · 2026-10-21
 | UAT-11 | Accessibility floor smoke test | 1 | Luis | Mon Nov 2 |
 | UAT-12 | Capture proof on video | 1 | Luis | Tue Nov 3 |
 | UAT-13 | Main demo carries every proof beat | 1 | Luis | Tue Nov 3 |
-| UAT-14 | Judge on the hosted URL | A: 1; B: 1.5 | Luis | A: Mon Nov 2; B: Thu Nov 5 |
+| UAT-14 | Judge on the hosted URL | A: 1; B: 1.5 | Luis | A: Mon Nov 2; B: Thu Nov 5, only if the Official Rules allow post-deadline hosted changes |
 | UAT-15 | Tier 2 gate record (conditional) | 2 | Luis | Mon Nov 2 |
 | UAT-15b | UJ-7 walk (only after the gate passed and the post-gate FR-34 stories shipped) | 2 | Luis | Not before the Nov 4 submission |
 
@@ -135,6 +135,7 @@ Luis Ticas · 2026-10-21
 - **Maps to:** SM-4, SM-8, SM-C1, SM-C4; UJ-1, UJ-6; FR-8 to FR-10, FR-14, FR-30, FR-38; NFR-5.
 - **Preconditions:**
   - room 1 and room 2, the Rooms that go on video, are stored.
+  - The unassisted cold run of room 2 (UAT-03 Fallback) is recorded before steps 4 to 5 read room 2's Clues, Rungs, solutions or labels.
   - Cut 0 status is recorded.
 - **Steps:**
   1. Run `scripts/check.sh` and keep its output. It includes the sentinel-solution tests, the Validator fixture rooms and the Scripted attack suite.
@@ -174,8 +175,9 @@ Luis Ticas · 2026-10-21
   - Luis helps in any way: a spoken hint, pointing, or touching the keyboard, mouse or app.
   - SM-C2: the Triggers panel or the Event log shows a Rung earlier than FR-15 allows. That means a nudge before the nudge threshold of Idle or 3 Wrong attempts, or a later Rung that arrives before a further stall equal to the nudge threshold or 3 further Wrong attempts, or less than 90 s after the previous Rung. An accepted Loosen Card is the only exception.
 - **Fallback (PRD §11.2):**
-  - If no non-builder is available by Mon Nov 2, Luis records an unassisted cold run of room 2 on a fresh Player profile, with Rungs as the only help. The sprint status says the non-builder criterion was not met, and the README discloses the run as a builder run.
-  - If the fallback may be needed (no non-builder confirmed by Sun Nov 1 evening), the cold run of room 2 is recorded before any test or story reads room 2's Clues, Rungs or solutions (UAT-02 steps 4-5, UAT-08 step 1, the 5.8 ratio check). Luis records the cold run as soon as room 2 reaches `done`. UAT-01 must not use the room-2 set.
+  - Luis records an unassisted cold run of room 2 on a fresh Player profile, with Rungs as the only help, as soon as room 2 reaches `done` (story 5.8) and before any test, story or person reads room 2's Clues, Rungs, solutions or labels: UAT-02 steps 4 to 5, UAT-08 step 1 and the 5.8 ratio check wait for it. This is unconditional, whether or not a playtester is confirmed.
+  - The cold run is used only if the non-builder criterion is missed (no non-builder finishes room 1 by Mon Nov 2) and is discarded otherwise. If used, the sprint status says the non-builder criterion was not met, and the README discloses the run as a builder run.
+  - UAT-01 must not use the room-2 set.
 - **Evidence:**
   - A Completion screen screenshot and the recorded stats.
   - The playtester's signed attestation: "I did not build Keyframe. I finished room 1 on a fresh profile on <date> with no help from the builder; the Guide's hints were the only help." The playtester signs it with their name.
@@ -278,10 +280,11 @@ Luis Ticas · 2026-10-21
   - Story 5.8: room 2 is from a different physical room and was built `done` within the Regeneration cap.
   - room 1 was played for real on `PROFILE=demo` at Demo timescale 1 on Mon Nov 2.
   - A `dev` profile holds one non-demo Room result.
+  - The unassisted cold run of room 2 (UAT-03 Fallback) is recorded before step 1 reads room 2's labels and Clues, and before the 5.8 ratio check.
 - **Steps:**
   1. Compare room 2's Interactable labels and Clues with room 1's.
-  2. Open room 2 on `?profile=demo`. Read the Greeting and the Triggers header, then choose "Leave room" and confirm.
-  3. On `dev`, play room 2 to the Completion screen. In DevTools, inspect IndexedDB and the `POST /sessions` body.
+  2. Open room 2 on `?profile=demo`; under cut 2, choose "Open profile file" with the demo profile file first. Read the Greeting and the Triggers header, then choose "Leave room" and confirm.
+  3. On `dev`, play room 2 to the Completion screen; under cut 2, choose "Save profile file" after play. In DevTools, inspect IndexedDB (the local JSON file under cut 2) and the `POST /sessions` body.
   4. Open room 2 in a different browser.
   5. On `dev`, play a Room to completion at `DEMO_TIMESCALE=6`.
 - **Pass:**
@@ -295,32 +298,32 @@ Luis Ticas · 2026-10-21
 - **Fail if:**
   - The Greeting names an object or a solution.
   - The `demo` profile gains a second Room result before Tue Nov 3.
-  - A request carries any Player profile field beyond the Derived block.
+  - A request carries any Player profile field beyond the Derived block. Under cut 2 the local `GET|PUT /profile/<name>` route is exempt, while `POST /sessions` still carries only `{room_id, derived}`.
 - **Evidence:** a Greeting screenshot (the "room-2 Greeting" submission screenshot); the ratios in the sprint status; a screenshot of the request payload.
 
 ### UAT-09 Spend within the cap, cache and Ledger
 
 - **Maps to:** SM-6; UJ-6; FR-27 to FR-30, FR-36; NFR-6.
 - **Preconditions:**
-  - The SIT cases are green: a cache hit costing $0, the Spend cap refusing with the provider never called, and the Baseten fallback.
-  - The Mon Oct 26 export exists (the SIT gap closed by pulling 2.2/2.3/2.5/2.6 into Oct 26); otherwise SM-6 is recorded as missed for Oct 26 in sign-off §4 and the README.
+  - The SIT cases are green: a cache hit costing $0, the Spend cap refusing with the provider never called, and the Baseten fallback yielding one schema-valid `RoomDraft` (parses and passes `validate`) in the chosen mode (SIT-11).
+  - A committed export exists for Mon Oct 26.
 - **Steps (part A, Mon Nov 2):**
   1. List the commits under `spend/exports/`.
-  2. Read the running total and `SPEND_CAP_USD`.
+  2. Read the export's local total, hosted total and their sum, and the `SPEND_CAP_USD` allocations per mode.
   3. Clear `.cache/`, restart the API, and read the running total again.
   4. Open one stored Room's provenance.
   5. Check that the adapters use the standard tier.
 - **Pass (part A):**
   - A committed `ledger-<date>.json` exists for every build day from Mon Oct 26 through Mon Nov 2 (Fri Oct 30 has no build).
-  - The total is within the Spend cap of $80.
+  - The sum of the local and hosted totals is within the combined ceiling of $80, and each store is within its allocation (local $60, hosted $20).
   - A repeated identical call adds nothing to the Ledger.
-  - A refused call names the cap and the running total. The Capture-screen Spend cap message is accepted from the offline suite (story 2.25).
+  - A refused call names the cap (the store's allocation) and the running total. The Capture-screen Spend cap message is accepted from the offline suite (story 2.25).
   - Clearing the Cache leaves the Ledger, its exports and the running total unchanged. The total survives the restart.
   - Provenance lists model ids, prompt hashes, stage timings, Regeneration count and spend per stage.
   - Only the Meta Model API standard tier is used.
 - **Part B (addendum, Wed Nov 4 before story 6.9):**
   - The Nov 3 and Nov 4 `ledger-<date>.json` files are committed.
-  - The running total is $80 or less.
+  - The sum of the local and hosted totals is $80 or less, and each store is within its allocation (local $60, hosted $20). From Thu Nov 5 the combined ceiling is $25 (local $5, hosted $20).
   - The Spend log is the Ledger export plus fal receipts and Modal usage, with pre-kickoff spend listed separately.
 - **Fail if:**
   - The spend record is a hand-kept total rather than the Ledger export.
@@ -442,8 +445,8 @@ Luis Ticas · 2026-10-21
 
 - **Maps to:** UJ-5; FR-17, FR-20, FR-31 to FR-33, FR-36 (hosted consequences); NFR-4, NFR-7, NFR-10.
 - **Preconditions:**
-  - Part A: the story 7.3 deployment with a fixture Room on `keyframe-data`; SIT-10 (local and hosted parity) green on the Tue Oct 27 smoke, or re-run before Mon Nov 2; the Secret `required_keys` live-only row confirmed at the 7.3 pre-deploy.
-  - Part B: the story 7.22 redeploy with `MIN_CONTAINERS=1`, the $25 cap and the seeded Demo rooms; SIT-08 and SIT-09 green; the keyframe-modal live-only rows confirmed, including the 20 concurrent `reserve_build` claims, before Thu Nov 5.
+  - Part A: the story 7.3 deployment with a fixture Room on `keyframe-data`, its Tue Oct 27 infrastructure smoke recorded; SIT-10 (local and hosted parity, story 7.23) green from its first run Thu Oct 29, or re-run before Mon Nov 2; the Secret `required_keys` live-only row confirmed at the 7.3 pre-deploy.
+  - Part B: the Official Rules allow changes to the hosted deployment after the deadline (checked at kickoff Mon Oct 26), otherwise not applicable; the story 7.22 redeploy with `MIN_CONTAINERS=1`, the $25 combined ceiling (local $5, hosted $20) and the seeded Demo rooms; SIT-08 and SIT-09 green; the keyframe-modal live-only rows confirmed, including the 20 concurrent `reserve_build` claims, before Thu Nov 5.
 - **Steps (part A, Tier 1):**
   1. Open the URL in desktop Chrome and read `GET /api/meta`.
   2. Play the fixture Room and ask the Guide.
@@ -454,8 +457,8 @@ Luis Ticas · 2026-10-21
   - The Scene renders and a Hotspot click is accepted. Rungs show as written, with no thinking state.
   - The Session start carries a fresh Derived block.
   - `POST /api/builds` is refused.
-  - Addendum, signed Wed Nov 4 only if the Official Rules require a live link: each demo Room under `rooms/demo/` on `keyframe-data` plays to the Completion screen with Rungs as written, and the URL opens in a logged-out private window.
-- **Steps (part B, Tier 1.5, only if Hosted mode ships):**
+  - Addendum, signed Wed Nov 4 only if the Official Rules require a live link: SIT-10 passed against the deployed commit (hash and URL recorded), each demo Room under `rooms/demo/` on `keyframe-data` plays to the Completion screen with Rungs as written, and the URL opens in a logged-out private window.
+- **Steps (part B, Tier 1.5, only if Hosted mode ships and the Official Rules allow post-deadline hosted changes; otherwise not applicable, not failed):**
   1. In each of Chrome, Safari and Firefox, play a Demo room from the Hosted landing.
   2. Enter a wrong Access code, then the right one.
   3. Upload 6 JPEG photos. Close the tab mid-Build and reopen the Build URL.
