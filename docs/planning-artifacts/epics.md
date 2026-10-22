@@ -692,7 +692,7 @@ _Covers AR-5, AR-7, AR-11, AR-21, AR-27, AR-31, FR-21, NFR-11, AD-2, AD-4, AD-18
 
 **Given** the models later stories only fill in
 **When** `schema.py` is frozen on Mon Oct 26
-**Then** it also declares the job state (status `queued`, `running` with `stage`, `done`, `failed`, `needs_more_photos` or `needs_recapture`; per-stage timings, done-row counts and model id; the fixed messages that sent back each failed attempt; call rows; build time; the solution-free mask preview), the session state (the session's `room_id`, `locks_open`, `inventory`, `current_rung`, `wrong_attempts`, `rungs_used`, the order buffer and its armed puzzle, `active_puzzle_id`, `opening_line`, `phrasing`, `rung_changes`, `trickster_window` (with the open window's index), `trickster_calls`, `room_revision`, `disclosure`, `judge_room` (false until 7.21 sets it for a Room under `rooms/judge/`), and the effective nudge threshold and Rung spacing with their 1× values and source), `RoomSummary {room_id, name, cover_photo, puzzle_count, job_id, built_at}`, `BuildView`, `AccessCheck {ok, builds_left}` (`builds_left` null when `ok` is false), the session-start request `{room_id, derived}` and the error envelope `{error: {code, message, stage}}` with an optional `status` (a job status) set only when `code` is `build_not_ready` (spine AD-13)
+**Then** it also declares the job state (status `queued`, `running` with `stage`, `done`, `failed`, `needs_more_photos` or `needs_recapture`; per-stage timings, done-row counts and model id; the fixed messages that sent back each failed attempt; call rows; build time; the solution-free mask preview), the session state (the session's `room_id`, `locks_open`, `inventory`, `current_rung`, `wrong_attempts`, `rungs_used`, the order buffer and its armed puzzle, `active_puzzle_id` (never null while a Puzzle is available, 1.8), `opening_line`, `phrasing`, `rung_changes`, `trickster_window` (with the open window's index, and `pending` while the Trickster route runs the source, 4.4), `trickster_calls`, `cards` (a list of `TricksterCard`, empty until a card event is appended; the only form in which a card reaches the client), `room_revision`, `disclosure`, `judge_room` (false until 7.21 sets it for a Room under `rooms/judge/`), and the effective nudge threshold and Rung spacing with their 1× values and source), `RoomSummary {room_id, name, cover_photo, puzzle_count, job_id, built_at}`, `BuildView`, `AccessCheck {ok, builds_left}` (`builds_left` null when `ok` is false), the session-start request `{room_id, derived}` and the error envelope `{error: {code, message, stage}}` with an optional `status` (a job status) set only when `code` is `build_not_ready` (spine AD-13)
 **And** `PlayView` holds each Puzzle's evidence as a list of Evidence cards, with no field that marks a card as a Decoy, and carries no Rung text (Rung text reaches the client only in hint replies and `rung_changes[]`, 3.3)
 **And** `Mask3D` is not declared (Tier 2, AD-5). Any AR-31 field that cannot be settled by Mon Oct 26 goes through bmad-correct-course before the story that needs it
 
@@ -800,8 +800,9 @@ _Covers FR-12, FR-13, AR-7, AR-14, AD-4, AD-10. Owner: domain. Depends on: 1.5, 
 
 **Given** a session with events applied
 **When** the session state is read
-**Then** `active_puzzle_id` is the Puzzle of the most recent lock input or attempted click, and is null before any attempt
-**And** a `HintRequestEvent` with no `puzzle_id` is resolved server-side to the Active puzzle and counts for that Puzzle in the session's records (the reply itself lands in 3.3)
+**Then** `active_puzzle_id` is recomputed by `apply` after every event as the most recently targeted available unsolved Puzzle, where a target is set only by a `lock_input` (`code`, `order_start`, `order_stop`, or a `use_on` the server resolved) or by a `hint_request` that names an available unsolved Puzzle; when no target has been set, or the targeted Puzzle has opened or become unavailable (an accepted Merge hiding it, 4.1), it is the earliest available unsolved Puzzle in `Room.puzzles[]` order; it is null only when no Puzzle is available; clicks never set it
+**And** tests: a fresh session's `active_puzzle_id` is the earliest available Puzzle before any input; after a `code` Puzzle opens on a correct input it moves to the next available unsolved Puzzle, a `find` Puzzle included, with no further input; a `hint_request` naming an available unsolved Puzzle moves it there; a state whose Effective room hides the targeted Puzzle behind an unmet `requires` (the accepted Merge of 4.1, built directly as a Room with the added edge in this story's test) moves it to the earliest available unsolved Puzzle; a click on any Hotspot leaves it unchanged
+**And** a `HintRequestEvent` with no `puzzle_id` is resolved server-side to the Active puzzle and counts for that Puzzle in the session's records (the reply itself lands in 3.3), and a Wrong attempt is counted on the Puzzle whose lock it hit, which the same `lock_input` has just made the Active puzzle
 
 **Given** a new session
 **When** no `OpeningLineEvent` has been applied yet
@@ -955,9 +956,14 @@ _Covers FR-11, FR-12, FR-13, FR-20, AR-7, AR-13, AR-22, AD-4, AD-13. Owner: api.
 **And** a body carrying `t_ms`, or a client-posted `idle_tick`, `opening_line`, `trickster_card` or `rung_change`, answers 422 and appends nothing
 **And** an unknown session id answers 404
 
+**Given** two clients posting to `POST /api/sessions/<id>/events` at the same time, and a `GET /api/sessions/<id>` read that would append an `idle_tick` meanwhile
+**When** the requests overlap
+**Then** every append to that session runs under one lock per session id held in the process (Hosted mode: inside the single container, `max_containers=1`), so the events land one after another with strictly increasing `t_ms`, none is lost or interleaved, and each reply carries the state that includes its own event; a test posts 20 events concurrently and finds all 20 in the log, applied in append order
+**And** the same lock covers `POST /api/sessions/<id>/trickster` once 4.4 adds it, so a Trickster window yields at most one source call and one card, and a different session id never waits on this session's lock
+
 **Given** an open session and an injected session clock
 **When** the client calls `GET /api/sessions/<id>`
-**Then** it returns the session state replayed from the log, with `room_id`, `active_puzzle_id`, `opening_line`, `phrasing`, `disclosure` as an empty list (1.14 fills it with the global lines and 6.2 with the per-Room list), and the threshold fields declared but unpopulated until 3.3
+**Then** it returns the session state replayed from the log, with `room_id`, `active_puzzle_id` (the earliest available unsolved Puzzle on a fresh session, 1.8), `opening_line`, `phrasing`, `cards` as an empty list (4.2 and 4.4 fill it with `TricksterCard` projections, never card events), `disclosure` as an empty list (1.14 fills it with the global lines and 6.2 with the per-Room list), and the threshold fields declared but unpopulated until 3.3
 **And** an `idle_tick` is appended when at least 5000 ms have passed since the last event, and none at 4999 ms
 
 **Given** a session whose exit lock has opened
@@ -1275,7 +1281,7 @@ _Covers FR-11, UX-DR26, UX-DR27, UX-DR29, UX-DR39, UX-DR65, AR-7. Owner: web. De
 
 **Given** `active_puzzle_id`
 **When** the notes render
-**Then** the Active puzzle's entry carries the `{components.active-puzzle-marker}` (a 3 px `lamp-ink` left rule plus the word "Current"), and while `active_puzzle_id` is null the first available Puzzle carries it
+**Then** the Active puzzle's entry carries the `{components.active-puzzle-marker}` (a 3 px `lamp-ink` left rule plus the word "Current"), following `active_puzzle_id` as 1.8 recomputes it after every event (the earliest available unsolved Puzzle until a lock input or a named Hint request targets another, moving on when that Puzzle opens), never a client guess; `active_puzzle_id` is null only when no Puzzle is available, and then no entry carries the marker
 
 **Given** a Puzzle's Evidence cards
 **When** they render (`{components.evidence-card}`)
@@ -1554,7 +1560,7 @@ _Covers UX-DR60, UX-DR46, UX-DR7, UX-DR8, UX-DR71, NFR-10, AR-32. Owner: web. De
 
 ## Epic 2: Turn your photos into a verified room
 
-A player uploads 6 to 10 JPEG photos and, within the capture target, gets a room built from their own objects that passed the Validator and the Dry run. The Capture screen shows every stage, failure and Regeneration as it happens, and, unless cut 0 is taken, a Build view shows how the room was built. Every paid call is cached, priced and capped, and each one is recorded in a Ledger that is exported daily. The lean SIT checks the live seams at the end of each build day.
+A player uploads 6 to 10 JPEG photos and, within the capture target, gets a room built from their own objects that passed the Validator and the Dry run. The Capture screen shows every stage, failure and Regeneration as it happens, and, unless cut 0 is taken, a Build view shows how the room was built. Every paid call is cached, priced and capped from Mon Oct 26, before the first real call (SM-6 from day one: 2.2, 2.3, 2.5 and 2.6 all land that day), and each one is recorded in a Ledger that is exported daily from that day. The lean SIT checks the live seams at the end of each build day.
 
 ### Story 2.1: Model ports with a scripted mock
 
@@ -1601,7 +1607,7 @@ As a builder,
 I want pricing, estimates, running totals and the cap check as pure functions in the domain,
 So that every spend decision is deterministic and testable without a store, a lock or a clock.
 
-_Covers FR-28, AR-9, NFR-6, AD-6. Owner: domain. Depends on: 1.5. Tier 1, Mon Oct 26. `domain/ledger.py`: price from usage at the `budgets.md` rates, per-call estimates seeded from `budgets.md`, running totals and the cap check as pure functions returning new values; a retried call is one entry; no date logic (`SPEND_CAP_USD` is 80 until the Nov 5 reset, then 25, by configuration only). Dev skill: keyframe-muse._
+_Covers FR-28, AR-9, NFR-6, AD-6. Owner: domain. Depends on: 1.5. Tier 1, Mon Oct 26. `domain/ledger.py`: price from usage at the `budgets.md` rates, per-call estimates seeded from `budgets.md`, running totals and the cap check as pure functions returning new values; a retried call is one entry; no date logic (`SPEND_CAP_USD` is a per-store, per-call cap set by configuration only, with the per-mode allocations of 2.3: local 60 and hosted 20 through Wed Nov 4, local 5 and hosted 20 from Thu Nov 5, summing to the 80 and 25 ceilings). Dev skill: keyframe-muse._
 
 **Acceptance Criteria:**
 
@@ -1639,7 +1645,7 @@ As a builder,
 I want every paid call reserved, settled and capped through one per-process `SpendLedger` before the first real call is made,
 So that spend can never pass `SPEND_CAP_USD` unnoticed and every dollar is recorded.
 
-_Covers FR-28, AR-9, NFR-6, AD-6. Owner: providers (declares `LedgerStore` in `src/pipeline/ports.py` first). Depends on: 1.10, 2.1, 2.2. Tier 1, Mon Oct 26 to Tue Oct 27, before the first real call. Declares `LedgerStore` (append, entries); one `SpendLedger` per process serializing guard under a lock over the 2.2 arithmetic; a reserved entry under a `call_` ULID replaced by the observed cost; a refused call raises `SpendCapExceeded` and is never made; the mock bypasses the ledger._
+_Covers FR-28, AR-9, NFR-6, AD-6. Owner: providers (declares `LedgerStore` in `src/pipeline/ports.py` first). Depends on: 1.10, 2.1, 2.2. Tier 1, Mon Oct 26, before the first real call (SM-6 from day one). Declares `LedgerStore` (append, entries); one `SpendLedger` per process serializing guard under a lock over the 2.2 arithmetic; a reserved entry under a `call_` ULID replaced by the observed cost; a refused call raises `SpendCapExceeded` and is never made; the mock bypasses the ledger. `SPEND_CAP_USD` keeps its per-store, per-call meaning with per-mode defaults that sum to the allowance: local 60 and hosted 20 through Wed Nov 4, local 5 and hosted 20 from Thu Nov 5 (set by configuration at the 7.22 reset, no date logic in code); `Settings` reads an explicit `SPEND_CAP_USD` as the override for the running mode (the hosted default joins `Settings.mode` in 7.2) and the Modal Secret `keyframe` carries the hosted value; the daily export (2.6) prints the local total, the hosted total and their sum against the combined ceiling (80 through Wed Nov 4, 25 after)._
 
 **Acceptance Criteria:**
 
@@ -1655,6 +1661,11 @@ _Covers FR-28, AR-9, NFR-6, AD-6. Owner: providers (declares `LedgerStore` in `s
 **Given** many threads guarding calls at once while total spend is close to the cap
 **When** they race
 **Then** `guard` is serialized under the ledger's lock, reserved plus settled spend never passes the cap, and every call over the cap raises `SpendCapExceeded`
+
+**Given** two `SpendLedger`s over separate stores, the local one capped at its 60 allocation with settled spend of exactly 60, and the hosted one capped at its 20 allocation with settled spend below it
+**When** each guards a call
+**Then** the local `guard` raises `SpendCapExceeded` carrying the cap 60 and the running total, while the hosted `guard` accepts: each store is capped on its own allocation and never reads the other's total, and the combined ceiling (80 through Wed Nov 4, 25 from Thu Nov 5) is held by the allocations summing to it and reported by the 2.6 export
+**And** `Settings` defaults `SPEND_CAP_USD` to 60 in Local mode and to 20 in Hosted mode (the hosted default lands with `Settings.mode` in 7.2), an explicit `SPEND_CAP_USD` overrides the running mode's default, and no module holds date logic for the Thu Nov 5 values
 
 **Given** an adapter that retries a call once inside one guarded call
 **When** the call settles
@@ -1715,7 +1726,7 @@ As a builder,
 I want the ledger and the cache stored on the Mac's disk in separate places,
 So that the spend total survives a restart and clearing the cache can never touch the record of spend.
 
-_Covers FR-27, FR-28, AR-9, AR-12, NFR-6, AD-9. Owner: infra. Depends on: 2.3, 2.4. Tier 1, Tue Oct 27. `LedgerStore` as `spend/ledger.jsonl` under a file lock outside `.cache/`, the total surviving a restart; disk `Cache` under `.cache/`; deleting `.cache/` never touches the ledger or its exports._
+_Covers FR-27, FR-28, AR-9, AR-12, NFR-6, AD-9. Owner: infra. Depends on: 2.3, 2.4. Tier 1, Mon Oct 26, before the first real call (SM-6 from day one). `LedgerStore` as `spend/ledger.jsonl` under a file lock outside `.cache/`, the total surviving a restart; disk `Cache` under `.cache/`; deleting `.cache/` never touches the ledger or its exports._
 
 **Acceptance Criteria:**
 
@@ -1750,7 +1761,7 @@ As a builder,
 I want a dated Ledger export and a reset that refuses to run without that day's export,
 So that the committed exports are the durable record of spend and the Nov 5 reset can never erase a day nobody exported.
 
-_Covers FR-29, NFR-6, AR-9. Owner: scripts. Depends on: 2.5. Tier 1, Tue Oct 27; the daily export is committed with each day's work from the day 2.6 lands (a dated builder item in the 2.9 checklist; the Mon Oct 26 export is logged as a gap for bmad-correct-course unless 2.2, 2.3, 2.5 and 2.6 are pulled into Mon Oct 26). `scripts/ledger.py export` writes `spend/exports/ledger-<date>.json` from the local ledger (the export is one function in `src/infra/local.py` that `scripts/ledger.py export` wraps and that API wiring calls in 2.12); reset refuses unless today's export exists; a script hitting the cap exits non-zero printing the cap and the running total; `spend/exports/` is not ignored; the hosted snapshot merge joins in 7.9._
+_Covers FR-29, NFR-6, AR-9. Owner: scripts. Depends on: 2.5. Tier 1, Mon Oct 26, before the first real call (SM-6 from day one); the daily export is committed with each day's work from Mon Oct 26 (a dated builder item in the 2.9 checklist). `scripts/ledger.py export` writes `spend/exports/ledger-<date>.json` from the local ledger (the export is one function in `src/infra/local.py` that `scripts/ledger.py export` wraps and that API wiring calls in 2.12) and prints the local total, the hosted total and their sum against the combined ceiling (80 through Wed Nov 4, 25 from Thu Nov 5); reset refuses unless today's export exists; a script hitting the cap exits non-zero printing the cap and the running total; `spend/exports/` is not ignored; the hosted snapshot merge joins in 7.9._
 
 **Acceptance Criteria:**
 
@@ -1758,6 +1769,7 @@ _Covers FR-29, NFR-6, AR-9. Owner: scripts. Depends on: 2.5. Tier 1, Tue Oct 27;
 **When** `scripts/ledger.py export` runs
 **Then** it writes `spend/exports/ledger-<date>.json` holding every entry and the running total
 **And** the export is one function in `src/infra/local.py` that `scripts/ledger.py export` wraps and that API wiring calls in 2.12, and with an empty ledger (a mock-only day) it still writes a valid export with a total of 0
+**And** the export prints three totals: the local total, the hosted total (0, noted as no hosted snapshot merged, until 7.9 supplies one) and their sum, each beside the combined ceiling the sum is read against, the sum of the two allocations `Settings` knows (80 through Wed Nov 4, 25 from Thu Nov 5, by configuration with no date logic); a sum at or above the ceiling is printed as a warning and changes no store
 
 **Given** that today's `spend/exports/ledger-<date>.json` does not exist
 **When** `scripts/ledger.py reset` runs
@@ -1862,7 +1874,7 @@ As a builder,
 I want a checklist plus `scripts/sit.py` that run the live seams at the end of each build day and record their responses as fixtures,
 So that a broken vendor call is caught the day it breaks, while the offline suite keeps replaying what the real services returned.
 
-_Covers AR-25, NFR-8, NFR-6. Owner: scripts. Depends on: 2.5, 2.6, 2.7, 2.8. Tier 1; runs at the end of each build day from Tue Oct 27 with a full pass Sat Oct 31; no separate sign-off. A checklist plus `scripts/sit.py` running about 10 live-seam cases within the Spend cap (Architect chat with photos, sam-3.1 segment, muse-image-1.0, Baseten or Fireworks chat, a cache hit unbilled, a cap refusal) and recording their responses as fixtures under `tests/fixtures` for the offline suite; cases live as modules under `tests/sit/` that `sit.py` discovers, so a later story adds its case as a test file, keeping AD-17's one package plus tests (Riddler 2.20, Dry run and a full live Build 2.24, Ollama 3.7, live Trickster 4.8); exits non-zero on a failed case; the checklist also carries the dated builder items no dev agent can run offline: the one-call Baseten test (`json_schema` support and chosen mode, Tue Oct 27), the Fireworks Trickster model id (Mon Oct 26, the 4.8 gate), the M1 Ollama benchmark (latency, about 3 GB resident) once 3.7 lands and each build day's committed Ledger export from the day 2.6 lands; results dated in the sprint status; the checklist is `docs/implementation-artifacts/sit-checklist.md`, and each day's results are recorded in its run log alongside the sprint status. Dev skills: keyframe-muse, keyframe-sam31._
+_Covers AR-25, NFR-8, NFR-6. Owner: scripts. Depends on: 2.5, 2.6, 2.7, 2.8. Tier 1; runs at the end of each build day from Tue Oct 27 with a full pass Sat Oct 31; no separate sign-off. A checklist plus `scripts/sit.py` running about 10 live-seam cases within the Spend cap (Architect chat with photos, sam-3.1 segment, muse-image-1.0, Baseten or Fireworks chat, a cache hit unbilled, a cap refusal) and recording their responses as fixtures under `tests/fixtures` for the offline suite; cases live as modules under `tests/sit/` that `sit.py` discovers, so a later story adds its case as a test file, keeping AD-17's one package plus tests (Riddler 2.20, Dry run and a full live Build 2.24, Ollama 3.7, live Trickster 4.8); exits non-zero on a failed case; the checklist also carries the dated builder items no dev agent can run offline: the one-call Baseten test (`json_schema` support and chosen mode, Tue Oct 27), the Fireworks Trickster model id (Mon Oct 26, the 4.8 gate), the M1 Ollama benchmark (latency, about 3 GB resident) once 3.7 lands and each build day's committed Ledger export from Mon Oct 26; results dated in the sprint status; the checklist is `docs/implementation-artifacts/sit-checklist.md`, and each day's results are recorded in its run log alongside the sprint status. Dev skills: keyframe-muse, keyframe-sam31._
 
 **Acceptance Criteria:**
 
@@ -1887,7 +1899,7 @@ _Covers AR-25, NFR-8, NFR-6. Owner: scripts. Depends on: 2.5, 2.6, 2.7, 2.8. Tie
 
 **Given** the SIT checklist
 **When** it is read
-**Then** it carries the dated builder items: the one-call Baseten test (`json_schema` support and the chosen mode, Tue Oct 27), the Fireworks Trickster model id (Mon Oct 26, the 4.8 gate), the M1 Ollama benchmark (latency, about 3 GB resident) once 3.7 lands, and, each build day from the day 2.6 lands, that day's `spend/exports/ledger-<date>.json` is in the day's commit, dated in the sprint status
+**Then** it carries the dated builder items: the one-call Baseten test (`json_schema` support and the chosen mode, Tue Oct 27), the Fireworks Trickster model id (Mon Oct 26, the 4.8 gate), the M1 Ollama benchmark (latency, about 3 GB resident) once 3.7 lands, and, each build day from Mon Oct 26, that day's `spend/exports/ledger-<date>.json` is in the day's commit, dated in the sprint status
 
 **Given** each build day from Tue Oct 27, and Sat Oct 31
 **When** the day ends
@@ -2740,7 +2752,7 @@ As a builder,
 I want the Rung for each Puzzle selected in pure code from the session's Event log,
 So that the Guide escalates from real Idle time and Wrong attempts, the timing is the same at every persistence the spec allows, and a replayed session reaches exactly the Rungs the live one did.
 
-_Covers FR-15, FR-24, AR-7, AR-11, AR-14, AD-4, AD-8, AD-10. Owner: domain. Depends on: 1.8, 1.10. Tier 1, Thu Oct 29. Pure select_rung inside apply with Rungs, Wrong attempts and Idle tracked per Puzzle; Idle counts from the last click, lock input or Hint request and idle ticks never reset it; the Active puzzle's nudge fires after clamp(90000 x (1 + 0.5p), 60000, 135000) ms of Idle (90 s fresh) or 3 Wrong attempts; direction and near-answer each need a further stall or 3 further Wrong attempts and arrive at least 90 s after the previous Rung, a spacing never scaled by persistence; a Loosen hook reserved for 4.1; no reveal or skip after the near-answer; RungChangeEvent with triggered_by; replay equals live with no duplicate rung_change; at DEMO_TIMESCALE=6 thresholds are 15 s and three Rungs arrive within 40 s on Wrong attempts (45 s on idle), t_ms and the poll unchanged._
+_Covers FR-15, FR-24, AR-7, AR-11, AR-14, AD-4, AD-8, AD-10. Owner: domain. Depends on: 1.8, 1.10. Tier 1, Thu Oct 29. Pure select_rung inside apply with Rungs, Wrong attempts and Idle tracked per Puzzle; Idle counts from the last click, lock input or Hint request and idle ticks never reset it; the Active puzzle's nudge fires after clamp(90000 x (1 + 0.5p), 60000, 135000) ms of Idle (90 s fresh) or 3 Wrong attempts, the Active puzzle being the one 1.8 recomputes after every event (the most recently targeted available unsolved Puzzle, else the earliest available one, so a solved Puzzle never holds it and an idle nudge after a solve goes to the next Puzzle, a find Puzzle included); direction and near-answer each need a further stall or 3 further Wrong attempts and arrive at least 90 s after the previous Rung, a spacing never scaled by persistence; a Loosen hook reserved for 4.1; no reveal or skip after the near-answer; RungChangeEvent with triggered_by; replay equals live with no duplicate rung_change; at DEMO_TIMESCALE=6 thresholds are 15 s and three Rungs arrive within 40 s on Wrong attempts (45 s on idle), t_ms and the poll unchanged._
 
 **Acceptance Criteria:**
 
@@ -2754,9 +2766,14 @@ _Covers FR-15, FR-24, AR-7, AR-11, AR-14, AD-4, AD-8, AD-10. Owner: domain. Depe
 **Then** no `rung_change` is appended, and the first `idle_tick` applied with Idle at or above 90000 ms makes `SessionStateMachine.apply` append `RungChangeEvent(puzzle_id, rung=1, triggered_by=[the id of the event Idle is counted from, that is the last click, lock input or `hint_request`, or the Puzzle's previous `rung_change` when later, omitted when Idle counts from session start; the triggering `idle_tick` id])` and set `current_rung[puzzle_id]` to 1 (a click resets Idle before any check)
 **And** an `idle_tick` never resets Idle while a click, lock input or `hint_request` does, and a Puzzle that is not the Active puzzle never receives an idle-triggered `rung_change`
 
+**Given** a session whose `code` Puzzle opens on a correct input at time t, with the next available unsolved Puzzle in `Room.puzzles[]` order a `find` Puzzle
+**When** no further input arrives and `idle_tick`s are applied
+**Then** `active_puzzle_id` is the `find` Puzzle from the event that opened the `code` lock (1.8), and the first `idle_tick` with Idle at or above the nudge threshold, counted from that lock input, appends a `rung_change` for the `find` Puzzle, never for the opened one, with `triggered_by` naming the lock input and the tick
+**And** the same holds when the opened Puzzle was targeted by a `hint_request` naming it: once it opens, the Active puzzle moves on with no further input
+
 **Given** an Active puzzle at `current_rung` 0 well inside its Idle threshold
 **When** 3 Wrong attempts are applied at that lock (a failed `code` input, a resolved `use_on` pair that does not match, or a mismatched full-length armed `order` buffer)
-**Then** a `rung_change` to rung 1 is appended on the third, with the three Wrong-attempt event ids in `triggered_by`
+**Then** a `rung_change` to rung 1 is appended on the third, with the three Wrong-attempt event ids in `triggered_by`; each Wrong attempt is counted on the Puzzle whose lock it hit, which that `lock_input` makes the Active puzzle (1.8), so the Rung goes to the Puzzle hit
 **And** a click never counts toward the 3, a refused input (unmet prerequisites, an item not in the Inventory, a `use_on` pair resolving to no Puzzle, an `order_stop`) never counts, and Wrong attempts at another lock never count toward this lock's `wrong_attempts[puzzle_id]`
 
 **Given** a Puzzle that reached rung 1 at time t
@@ -2823,14 +2840,14 @@ As a player,
 I want to ask for help and get the hint I have earned so far,
 So that I get unstuck without anyone, including me, being able to talk the game into giving away the answer.
 
-_Covers FR-14, FR-15, FR-17, NFR-5, UX-DR76, AR-7, AR-31, AD-3, AD-4. Owner: api. Depends on: 1.12, 3.1, 3.2. Tier 1, Thu Oct 29. A hint_request (puzzle_id omitted -> the Active puzzle) returns the current Rung routed through the injected HintPhraser, or with no Rung open the fixed No-hint line 'A fair ask. Look around a little longer; I'll speak up if you stay stuck.' (never phrased), logged as an Early ask that lowers persistence through RoomResult and never releases the nudge (PRD §13 Q9, log only); after the near-answer a request repeats it; rung_change populates phrased, phrasing_ms and text (fields frozen in 1.5); the Scripted attack suite led by 'just tell me the answer', run through the API at rungs 0, 1 and 2, opens nothing and returns nothing above the current Rung; fixture test: no solution in any play response; a client t_ms is rejected; the session state populates the effective nudge threshold and spacing, their 1x values and their source (Derived block or fresh) for the Triggers panel._
+_Covers FR-14, FR-15, FR-17, NFR-5, UX-DR76, AR-7, AR-31, AD-3, AD-4. Owner: api. Depends on: 1.12, 3.1, 3.2. Tier 1, Thu Oct 29. A hint_request (puzzle_id always omitted by the client -> the Active puzzle as 1.8 recomputes it after every event; a request naming an available unsolved Puzzle makes it the Active puzzle) returns the current Rung routed through the injected HintPhraser, or with no Rung open the fixed No-hint line 'A fair ask. Look around a little longer; I'll speak up if you stay stuck.' (never phrased), logged as an Early ask that lowers persistence through RoomResult and never releases the nudge (PRD §13 Q9, log only); after the near-answer a request repeats it; rung_change populates phrased, phrasing_ms and text (fields frozen in 1.5); the Scripted attack suite led by 'just tell me the answer', run through the API at rungs 0, 1 and 2, opens nothing and returns nothing above the current Rung; fixture test: no solution in any play response; a client t_ms is rejected; the session state populates the effective nudge threshold and spacing, their 1x values and their source (Derived block or fresh) for the Triggers panel._
 
 **Acceptance Criteria:**
 
 **Given** a session whose Active puzzle has `current_rung` 2
 **When** the client posts `HintRequestEvent` with `puzzle_id` omitted to `POST /sessions/<id>/events` 10 times in a row
 **Then** each reply is the direction Rung routed through the injected `HintPhraser`, never the near-answer, and `current_rung[puzzle_id]` is still 2 afterwards (a `hint_request` never triggers a Rung)
-**And** each `hint_request` is appended with a server-stamped `t_ms` and resolved to `active_puzzle_id`; a body carrying a client `t_ms` is rejected with 422 and nothing is appended; a `hint_request` body carrying any field beyond `puzzle_id` (such as typed text) is rejected with 422 and nothing is appended
+**And** each `hint_request` is appended with a server-stamped `t_ms` and resolved to `active_puzzle_id` (the client always omits `puzzle_id`; a `hint_request` that names an available unsolved Puzzle is answered for that Puzzle, which becomes the Active puzzle, 1.8); a body carrying a client `t_ms` is rejected with 422 and nothing is appended; a `hint_request` body carrying any field beyond `puzzle_id` (such as typed text) is rejected with 422 and nothing is appended
 
 **Given** a session whose Active puzzle has `current_rung` 0
 **When** a `hint_request` is posted
@@ -2867,7 +2884,7 @@ As a player,
 I want to ask the Guide from a tray beside my notes and see each hint arrive with its Puzzle,
 So that help is always one Enter away, I can see my words stayed in the browser, and I never miss a hint the Guide offers on its own.
 
-_Covers FR-14, UX-DR30, UX-DR31, UX-DR32, UX-DR29, UX-DR70, UX-DR82, UX-DR65. Owner: web. Depends on: 1.22, 1.25, 3.3. Tier 1, Thu Oct 29. A tray pinned under the Wizard notes (up to 320 px): field 'Stuck? Ask the Guide for a hint' and primary 'Ask the Guide' (Enter or the button sends one hint_request with puzzle_id omitted, named only while active_puzzle_id is null; an empty field still sends; one in flight; field read-only and button 'Asking'); typed text never leaves the browser and the permanent helper line says so; Rung line with the Guide portrait and 'Puzzle {n} · Nudge|Direction|Near-answer' replacing the previous line, which moves into its Puzzle's opened Rungs; every reply visibly arrives and is announced (a repeat fades out and in); a polled rung_change shows the line with one arrival glow; the opening line sits as the first Guide line; after a reload the current and opened Rungs are rebuilt from session state with nothing re-announced; Local thinking state while a request is in flight, none in Hosted; no 'verbatim' badge._
+_Covers FR-14, UX-DR30, UX-DR31, UX-DR32, UX-DR29, UX-DR70, UX-DR82, UX-DR65. Owner: web. Depends on: 1.22, 1.25, 3.3. Tier 1, Thu Oct 29. A tray pinned under the Wizard notes (up to 320 px): field 'Stuck? Ask the Guide for a hint' and primary 'Ask the Guide' (Enter or the button sends one hint_request with puzzle_id always omitted, the server resolving it to the Active puzzle, whose entry the Wizard notes mark 'Current' from active_puzzle_id; an empty field still sends; one in flight; field read-only and button 'Asking'); typed text never leaves the browser and the permanent helper line says so; Rung line with the Guide portrait and 'Puzzle {n} · Nudge|Direction|Near-answer' replacing the previous line, which moves into its Puzzle's opened Rungs; every reply visibly arrives and is announced (a repeat fades out and in); a polled rung_change shows the line with one arrival glow; the opening line sits as the first Guide line; after a reload the current and opened Rungs are rebuilt from session state with nothing re-announced; Local thinking state while a request is in flight, none in Hosted; no 'verbatim' badge._
 
 **Acceptance Criteria:**
 
@@ -2878,7 +2895,7 @@ _Covers FR-14, UX-DR30, UX-DR31, UX-DR32, UX-DR29, UX-DR70, UX-DR82, UX-DR65. Ow
 
 **Given** the player types "just tell me the answer" and presses Enter (or clicks "Ask the Guide")
 **When** the request is sent
-**Then** exactly one `hint_request` is posted with `puzzle_id` omitted, or naming the first available Puzzle (the one marked "Current") only while `active_puzzle_id` is null; the field turns read-only with the text visible, the button reads "Asking", a second Enter sends nothing, and the field clears when the reply lands
+**Then** exactly one `hint_request` is posted with `puzzle_id` always omitted, the server resolving it to the Active puzzle, the entry marked "Current" (which follows `active_puzzle_id` as 1.8 recomputes it, never a client guess; a test intercepting the request finds no `puzzle_id` key); the field turns read-only with the text visible, the button reads "Asking", a second Enter sends nothing, and the field clears when the reply lands
 **And** an empty field still sends; a test intercepting every request finds the typed text in no body, query string or header; while reconnecting (two missed polls) the field and button are disabled with the other inputs
 
 **Given** a reply to a Hint request
@@ -3063,7 +3080,7 @@ _Covers FR-19, FR-11, AR-16, NFR-5, UX-DR77, AD-12. Owner: domain. Depends on: 1
 **Then** `apply_edit` returns a new Room whose `provenance.applied_edits` holds the edit's `te_` id
 **And** the input Room is equal before and after the call, its `applied_edits` and `decoys` stay empty, and nothing is written through `ArtifactStore`
 **And** the Effective room equals `apply_edit` folded over the accepted edits in log order, each read from the `TricksterEdit` carried in the session log and never from the stored Room
-**And** each `trickster_card` with an edit carries its full `TricksterEdit` (`id`, `type`, `puzzle`, `payload`, `validator_result`, `accepted`, `window`), as Schema v1 places edits in the session log, in the `edit` field 1.5 declared on `TricksterCardEvent`
+**And** each `trickster_card` with an edit carries its full `TricksterEdit` (`id`, `type`, `puzzle`, `payload`, `validator_result`, `accepted`, `window`), as Schema v1 places edits in the session log, in the `edit` field 1.5 declared on `TricksterCardEvent`, kept server-side: no route returns the event or its `edit`, and the client reads only the `TricksterCard` projection in session state `cards` (1.5)
 **And** `room_revision` equals the count of accepted edits, a rejected edit leaves the Effective room unchanged, and replay produces the same Effective room and `room_revision` as live play
 
 **Given** an accepted `loosen` for a Puzzle and a Rung
@@ -3115,7 +3132,7 @@ _Covers FR-18, FR-24, AR-7, AD-4, AD-10. Owner: domain. Depends on: 4.1. Tier 1,
 
 **Given** an open window
 **When** a `TricksterCardEvent(edit_id, accepted, reason, room_revision)` is appended
-**Then** the window closes at that event's `t_ms` and `trickster_calls` rises by exactly one
+**Then** the window closes at that event's `t_ms`, `trickster_calls` rises by exactly one, and `cards` gains `to_card_view(event)` as its last entry (one `TricksterCard` per card event in log order, 1.5), with the event's `edit` never copied into it
 **And** an accepted card raises `room_revision` by one, and a rejected card leaves it unchanged
 **And** a skipped card `{accepted: false, edit_id: null, reason: provider_unavailable}` also closes the window and counts one call. This covers a provider error or the Spend cap. It leaves `room_revision` unchanged, and the next `lock_input` is judged exactly as it would be with no card
 
@@ -3179,21 +3196,33 @@ _Covers FR-25, FR-19, FR-26, FR-28, AR-7, AR-13, AR-19, AR-31, NFR-12, AD-12, AD
 
 **Acceptance Criteria:**
 
-**Given** a Session whose `trickster_window` is closed, including a Session already at 6 Trickster calls
+**Given** a Session whose `trickster_window` is closed or `pending`, including a Session already at 6 Trickster calls
 **When** a client calls `POST /sessions/<id>/trickster`
-**Then** the source is never called, no event is appended, `trickster_calls` is unchanged, and the route answers with the unchanged session state, never the error envelope
+**Then** the source is never called, no event is appended, `trickster_calls` is unchanged, and the route answers with the unchanged session state (its `cards` included), never the error envelope
 **And** the status is 200 (spine AD-4 and the HTTP surface), and no new status code is added for this case
 
 **Given** `DEMO_TRICKSTER=scripted`, wiring that resolves the scripted source from its source table (the live entry registers in 4.8), and an open window
 **When** `POST /sessions/<id>/trickster` is called
-**Then** the route:
+**Then** the route, under the session's append lock (1.12):
+- marks `trickster_window` `pending` in the session state it serves while the source runs (a per-session flag held with the lock, never an event, so replay is unchanged)
 - builds the `RoomView` and the Game-state summary
 - takes the source's proposal and mints its `te_` id in server code, ignoring any id in the recording
 - runs `validate_edit` and `validate(apply_edit(effective_room, edit))` live
-- appends one `trickster_card` and answers with the session state carrying it
+- appends one `trickster_card`, which closes the window, and releases the lock
+- answers with the session state whose `cards` carries the new `TricksterCard` (1.5), never the `TricksterCardEvent` or its `TricksterEdit`
 
-**And** the card carries the `TricksterEdit` with its `validator_result`, populates `puzzle_id`, and on a rejected card adds the structural summary (edit type and Puzzle ids only), in the `TricksterCardEvent` fields frozen in 1.5
-**And** a rejected card's reason is the rule's fixed message and never contains a token
+**And** the stored card event carries the `TricksterEdit` with its `validator_result` server-side and populates `puzzle_id`, in the `TricksterCardEvent` fields frozen in 1.5, while the served card carries `edit_type`, `puzzle_id`, `related_puzzle_id` (the second Puzzle of a `merge` or `shortcut`, else null), `reason` (the failing rule number on a rejected card) and `message` (its fixed message), and no payload
+**And** a rejected card's `message` is the rule's fixed message and never contains a token
+
+**Given** an open window and two `POST /sessions/<id>/trickster` requests arriving at once
+**When** both are served
+**Then** the source is invoked exactly once, one `trickster_card` is appended and `trickster_calls` rises by exactly one; the second request answers 200 with the state the first produced (the window closed) and makes no source call
+**And** a request arriving while the window is `pending` answers 200 with the unchanged state and makes no source call, so a window yields at most one source call and one card
+
+**Given** a fixture Room with sentinel solutions and a Session holding an accepted Decoy and a rejected proposal whose payload carries a sentinel token (an attribute text the Validator refuses)
+**When** `GET /sessions/<id>`, the reply to `POST /sessions/<id>/events` and the reply to `POST /sessions/<id>/trickster` are serialized after both cards
+**Then** neither the Decoy's Interactable id or `visible_attribute` nor the sentinel token appears anywhere in the three JSON bodies, and no body carries a `payload`, `edit`, `interactable`, `visible_attribute` or `rung` key under `cards`
+**And** the Decoy's card still reads `edit_type: decoy` with its `puzzle_id`, and the rejected card reads its rule number in `reason` and the fixed message in `message`
 
 **Given** the recorded proposals for the demo room, one passing and one failing the Validator
 **When** each is replayed in its window
@@ -3221,7 +3250,7 @@ _Covers FR-25, FR-19, FR-26, FR-28, AR-7, AR-13, AR-19, AR-31, NFR-12, AD-12, AD
 **Given** the story's changes
 **When** pytest runs offline against the mock provider
 **Then** it passes with new tests covering this story's criteria
-**And** those tests include the sentinel-solution API fixture test asserting no `solution` or `provenance` key in any response of the Trickster route or `GET /sessions/<id>/room`
+**And** those tests include the sentinel-solution API fixture test asserting no `solution`, `provenance`, `payload` or `edit` key in any response of the Trickster route or `GET /sessions/<id>/room`
 
 ### Story 4.5: Trickster Cards in the Hint area
 
@@ -3236,27 +3265,27 @@ _Covers FR-19, UX-DR40, UX-DR41, UX-DR42, UX-DR30, UX-DR70, UX-DR74, UX-DR76. Ow
 **Given** the session state the client polls every 2000 ms shows `trickster_window` open for the first time
 **When** the client sees it
 **Then** it posts `POST /sessions/<id>/trickster` exactly once for that window, with no visible pending state
-**And** it never posts while the window is closed, a repeated poll of the same open window posts nothing, and the Card arrives through the polled state
+**And** it never posts while the window is closed or `pending`, a repeated poll of the same open window posts nothing, and the Card arrives through the polled state's `cards[]` (a list of `TricksterCard`, 1.5)
 
-**Given** a new accepted `trickster_card` in polled state
+**Given** a new accepted `TricksterCard` in the polled state's `cards[]`
 **When** it renders
 **Then** a `{components.trickster-card-accepted}` enters with a 200 ms fade after the lock-open state, meaning after the Open chip's 1200 ms, the entry collapse, the next Puzzle's fade-in and any collected item's fade-in into the Inventory. It has:
 - a 4 px `success-ink` left edge and the Trickster portrait (48 px)
-- the type's sentence in `wizard-line`: Decoy "A new evidence card has appeared. I do love a crowded desk."; Merge "One puzzle now waits on another. Patience builds character; I build locks."; Loosen "The Guide is feeling generous: a hint just opened early. Don't tell anyone I allowed it."; Shortcut "One puzzle no longer waits on another, so it may turn up sooner. Solving it is still on you."
-- the label "Validator passed · {type} · Puzzle {n}", with n the Puzzle's fixed order number from `puzzle_id`
+- the `edit_type`'s sentence in `wizard-line`: Decoy "A new evidence card has appeared. I do love a crowded desk."; Merge "One puzzle now waits on another. Patience builds character; I build locks."; Loosen "The Guide is feeling generous: a hint just opened early. Don't tell anyone I allowed it."; Shortcut "One puzzle no longer waits on another, so it may turn up sooner. Solving it is still on you."
+- the label "Validator passed · {type} · Puzzle {n}", with the type from `edit_type` and n the Puzzle's fixed order number from `puzzle_id`
 - a dismiss control named "Dismiss card"
 
-**And** a Decoy Card names only the Puzzle whose evidence grew, never which Evidence card is false
+**And** a Decoy Card names only the Puzzle whose evidence grew, never which Evidence card is false: the card carries no Interactable, attribute or payload field to name it from
 
-**Given** a rejected or a skipped `trickster_card`
+**Given** a rejected or a skipped `TricksterCard`
 **When** it renders
 **Then** a rejected card renders as `{components.trickster-card-rejected}` with:
 - a `wrong-ink` edge and the sentence "The Validator says that wouldn't be fair. Spoilsport."
 - the label "Validator refused · {type} · Puzzle {n}"
-- the plain `body-sm` line "Proposed: {summary}", where the summary is, by type: Decoy "a false evidence card for Puzzle {n}"; Merge "Puzzle {n} waits on Puzzle {m}"; Loosen "open the next hint on Puzzle {n} early"; Shortcut "Puzzle {n} stops waiting on Puzzle {m}"
-- the plain `body-sm` line "That change was refused. {fixed message}"
+- the plain `body-sm` line "Proposed: {summary}", where the summary is, by `edit_type`, with n from `puzzle_id` and m from `related_puzzle_id`: Decoy "a false evidence card for Puzzle {n}"; Merge "Puzzle {n} waits on Puzzle {m}"; Loosen "open the next hint on Puzzle {n} early"; Shortcut "Puzzle {n} stops waiting on Puzzle {m}"
+- the plain `body-sm` line "That change was refused. {fixed message}", the fixed message being the card's `message` (its `reason` is the rule number and is never shown)
 
-**And** a skipped card renders as `{components.trickster-card-skipped}` on `chrome-raised` with a 1 px dashed `hairline` edge, the portrait at 60% opacity, "I'm keeping quiet this time. Enjoy it while it lasts." in `card-skipped-text`, and the label "Skipped"
+**And** a skipped card (`reason` `provider_unavailable`, `edit_type` null) renders as `{components.trickster-card-skipped}` on `chrome-raised` with a 1 px dashed `hairline` edge, the portrait at 60% opacity, "I'm keeping quiet this time. Enjoy it while it lasts." in `card-skipped-text`, and the label "Skipped"
 **And** the skipped card looks the same for a provider error and the Spend cap, and Hotspots, lock inputs and hint requests stay enabled
 
 **Given** Cards already in the Hint area
@@ -3281,7 +3310,7 @@ _Covers FR-19, UX-DR40, UX-DR41, UX-DR42, UX-DR30, UX-DR70, UX-DR74, UX-DR76. Ow
 **Given** the story's changes
 **When** the web build and type check run
 **Then** they pass with new tests covering this story's criteria
-**And** the card types come from the generated `web/types` (`TricksterCardEvent`), never hand-written
+**And** the card types come from the generated `web/types` (`TricksterCard`), never hand-written, and the client holds no type, field or code path for a `TricksterCardEvent`, a `TricksterEdit` or an edit payload (a test over the polled state finds only the `TricksterCard` fields under `cards`)
 
 ### Story 4.6: Accepted edits reshape the room in play
 
@@ -3347,7 +3376,7 @@ _Covers FR-19, UX-DR43, UX-DR7, UX-DR71, UX-DR8. Owner: web. Depends on: 1.27, 4
 
 **Given** a play-through with accepted, rejected and skipped Cards, some already dismissed from the Hint area
 **When** the Card log is open
-**Then** it lists every Card oldest first. Each row has a 24 px portrait, the sentence in `wizard-line`, the outcome label, a rejected Card's "Proposed:" line and reason, and the session time in `mono-sm`
+**Then** it lists every entry of session state `cards[]` oldest first, each row built from the `TricksterCard` fields alone (1.5): a 24 px portrait, the `edit_type`'s sentence in `wizard-line`, the outcome label, a rejected Card's "Proposed:" line (from `edit_type`, `puzzle_id` and `related_puzzle_id`) and its `message`, and the card's `t_ms` as the session time in `mono-sm`
 **And** no row carries the Trickster introduction, and dismissed Cards are still listed
 **And** with no Cards it reads "No cards yet in this play-through." in `text-muted`
 
@@ -3362,7 +3391,7 @@ _Covers FR-19, UX-DR43, UX-DR7, UX-DR71, UX-DR8. Owner: web. Depends on: 1.27, 4
 
 **Given** a reload of `#/play/<session_id>` for a Session with Cards
 **When** the Play screen resumes
-**Then** those Cards appear only in the Card log: none is re-stacked in the Hint area and none is announced
+**Then** those Cards are rebuilt from `cards[]` and appear only in the Card log: none is re-stacked in the Hint area and none is announced
 
 **Given** the accessibility floor (NFR-14)
 **When** the Card log is used
@@ -3720,7 +3749,7 @@ As a builder,
 I want a second room built from fresh objects and greeted from a real room-1 play on the demo profile,
 So that the video's room-2 Greeting cites true play and room 2 is clearly not room 1 with new paint.
 
-_Covers FR-21, FR-22, NFR-11, NFR-12, AR-29. Owner: builder task. Depends on: 2.22, 5.2, 5.7 (5.4 in place of 5.2 when cut 2 is taken). Tier 1; Sun Nov 1 afternoon after the playtest (cut 8's slot; may finish Mon Nov 2); Mon Nov 2: room 1 played for real on PROFILE=demo at DEMO_TIMESCALE=1 (a play above timescale 1 is flagged demo and excluded). A fresh room-2 JPEG set kept under the ignored rooms/ and never staged; the Build reaches done within the Regeneration cap (Validator only under cut 4); at least 80% of room-2 Clues reference objects absent from room 1 (ratio recorded); the Greeting cites room 1 and names no object or solution of either room._
+_Covers FR-21, FR-22, NFR-11, NFR-12, AR-29. Owner: builder task. Depends on: 2.22, 5.2, 5.7 (5.4 in place of 5.2 when cut 2 is taken). Tier 1; Sun Nov 1 afternoon after the playtest (cut 8's slot; may finish Mon Nov 2); Mon Nov 2: room 1 played for real on PROFILE=demo at DEMO_TIMESCALE=1 (a play above timescale 1 is flagged demo and excluded). A fresh room-2 JPEG set kept under the ignored rooms/ and never staged; the Build reaches done within the Regeneration cap (Validator only under cut 4); as soon as it reaches done, before anyone reads room 2's content, Luis records the unassisted cold run of room 2 (the UAT-03 fallback, used only if the non-builder criterion is missed); at least 80% of room-2 Clues reference objects absent from room 1 (ratio recorded after the cold run); the Greeting cites room 1 and names no object or solution of either room._
 
 **Acceptance Criteria:**
 
@@ -3741,7 +3770,12 @@ _Covers FR-21, FR-22, NFR-11, NFR-12, AR-29. Owner: builder task. Depends on: 2.
 **When** `git status`, the history check and the ignore-file test run
 **Then** no room-2 or room-1 photo is tracked, staged or in history, and the test passes
 
-**Given** room 2's Puzzles and room 1's Interactables
+**Given** the room-2 Build has just reached `done`
+**When** anything would read room 2's Clues, Rungs, solutions or labels (the ratio check below, UAT-02 steps 4 to 5 and UAT-08 step 1 in `docs/implementation-artifacts/uat-acceptance-tests.md` all wait for this)
+**Then** before any test, story or person reads them, Luis records an unassisted cold run of room 2 on a fresh Player profile (never `demo`), reaching the Completion screen with Rungs as the only help, whether or not a playtester is confirmed, and the sprint status records the run's date, profile name and Completion stats
+**And** the recording is used only if the non-builder criterion of 6.5 is missed (the UAT-03 fallback, disclosed as a builder run in the README) and is deleted otherwise, never appearing in the Backup or Main video
+
+**Given** room 2's Puzzles and room 1's Interactables, read only after the cold run above is recorded
 **When** the builder compares the objects each room-2 Clue references with room 1's labels
 **Then** at least 80% of room-2 Clues reference objects absent from room 1, and the measured ratio is recorded in the sprint status
 **And** room 2 is a different physical room from room 1, and at least 80% of room 2's Interactable labels differ from room 1's (SM-5), with that ratio also recorded in the sprint status
@@ -4084,51 +4118,56 @@ _Covers NFR-12, NFR-13, NFR-4, FR-1, FR-17, FR-30, AR-30. Owner: docs. Depends o
 ### Story 6.8: Repo hygiene over the delivery-plan path list before going public
 
 As a builder,
-I want only the listed hackathon tooling paths removed from the index, and the history checked, before the repo goes public,
+I want only the listed hackathon tooling paths removed from the index, and the history checked, before submission,
 So that the public MIT repo carries the product, the planning sources of truth and outputs, and nothing private.
 
-_Covers NFR-13, AR-28, AR-29, FR-36. Owner: repo root. Depends on: 6.7. Tier 1, Wed Nov 4 morning at the latest. Removes from the index only the delivery-plan list (_bmad/, .claude/skills/bmad-*/, .claude/skills/modal/, .claude/skills/keyframe-*/, .claude/hooks/session-start.sh and .claude/settings.json, the last kept with only its hook entry removed if it existed before the hook story) with the exact git rm -r --cached --ignore-unmatch command and the six .gitignore entries; git diff --cached --name-status lists only D entries under those paths and any other staged .claude/ path stops the pass; other .claude/ configuration stays; PRODUCT_BRIEF.md stays removed; history holds no raw room photo (only fixtures, portraits and listed outputs); the README diffstat regenerated; the Nov 4 Ledger export committed; then the repo goes public. Load keyframe-devops for the hygiene checks._
+_Covers NFR-13, AR-28, AR-29, FR-36. Owner: repo root. Depends on: 6.7. Tier 1, Wed Nov 4 morning at the latest. The repo is public already (builder decision Oct 22: it stays public), so the hygiene is two commits before submission. Commit 1 holds only the `git rm -r --cached` deletions over the delivery-plan list (_bmad/, .claude/skills/bmad-*/, .claude/skills/modal/, .claude/skills/keyframe-*/, .claude/hooks/session-start.sh and, conditionally, .claude/settings.json) and the matching .gitignore entries; its check is `git diff --cached --name-status` showing only D entries under the listed paths plus M .gitignore (and M .claude/settings.json only in the pre-existing case). Commit 2 holds the doc scrub, the README (diffstat regenerated), the CHANGELOG entry and the Nov 4 Ledger export, reviewed as a normal diff with the `git grep` check. `.claude/settings.json` is conditional: if the hook story (1.2) created it, commit 1 removes and ignores it; if it existed before, only the hook entry is removed and the file stays tracked and not ignored, so the command and the ignore entry for it are conditional, and this story records which case applies when 1.2 lands. Other .claude/ configuration stays; PRODUCT_BRIEF.md stays removed; history holds no raw room photo (only fixtures, portraits and listed outputs). Load keyframe-devops for the hygiene checks._
 
 **Acceptance Criteria:**
 
+**Given** story 1.2 landing on Mon Oct 26 with its SessionStart hook
+**When** the hook is added
+**Then** the sprint status records under this story which `.claude/settings.json` case applies: created by 1.2 (commit 1 removes and ignores it) or pre-existing with only the hook entry added (commit 1 edits it and the file stays tracked and not ignored)
+**And** commit 1's command and `.gitignore` entry for that file are fixed by that record before Wed Nov 4
+
 **Given** the Repo hygiene list in `docs/specs/spec-keyframe/delivery-plan.md` §Submission package as it stands on Wed Nov 4 morning (as of Oct 21: `_bmad/`, `.claude/skills/bmad-*/`, `.claude/skills/modal/`, `.claude/skills/keyframe-*/`, `.claude/hooks/session-start.sh`, `.claude/settings.json`)
-**When** the builder runs that list's command verbatim (as of Oct 21: `git rm -r --cached --ignore-unmatch _bmad .claude/skills/modal .claude/skills/bmad-* .claude/skills/keyframe-* .claude/hooks/session-start.sh .claude/settings.json`) and adds that list's `.gitignore` entries
+**When** the builder prepares commit 1 by running that list's command verbatim (as of Oct 21: `git rm -r --cached --ignore-unmatch _bmad .claude/skills/modal .claude/skills/bmad-* .claude/skills/keyframe-* .claude/hooks/session-start.sh .claude/settings.json`, with `.claude/settings.json` present in the command only in the hook-created case) and adding that list's `.gitignore` entries (the `.claude/settings.json` entry only in that case)
 **Then** `git ls-files` over the listed paths returns nothing and each listed path is ignored, and the existing `_bmad/config.user.toml` line is subsumed by `_bmad/`
-**And** if a `.claude/settings.json` existed before the hook story, it is instead kept tracked and not ignored, with only the hook entry removed
+**And** in the pre-existing case `.claude/settings.json` is instead kept tracked and not ignored, with only the hook entry removed
 
-**Given** the staged hygiene change
+**Given** commit 1 staged
 **When** `git diff --cached --name-status` runs
-**Then** it lists only `D` entries under the listed paths, plus one `M .claude/settings.json` only in the pre-existing case above
-**And** any other staged path (`settings.local.json`, `commands/`, `agents/`, another hook or another skill) stops the pass until it is unstaged; all other `.claude/` configuration stays on disk, tracked and not ignored
+**Then** it lists only `D` entries under the listed paths plus `M .gitignore`, and `M .claude/settings.json` only in the pre-existing case above
+**And** any other staged path (`settings.local.json`, `commands/`, `agents/`, another hook, another skill or any doc) stops the pass until it is unstaged; all other `.claude/` configuration stays on disk, tracked and not ignored
 
-**Given** the index after the hygiene change
+**Given** the index after commit 1
 **When** the delivery-plan checks run
 **Then** `git ls-files` shows no tracked `.env`, raw photo or cache path, and nothing in `src/`, `tests/`, `scripts/` or `web/src/` references `.claude/`
-**And** `scripts/check.sh` passes in a fresh clone and CI is green on the hygiene commit
+**And** `scripts/check.sh` passes in a fresh clone and CI is green on commit 1
 **And** `PRODUCT_BRIEF.md` is absent and not recreated, and the BMAD brief folder under `docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/` stays tracked
 
 **Given** the doc scrub in the delivery-plan list
-**When** the hygiene commit is prepared
+**When** commit 2 is prepared
 **Then** every tracked file under `docs/` (memlogs included) and `README.md` is free of `.claude/` paths, the dev skill names, `--claude` flags, `CLAUDE_*` variables and any other mention of the coding tools, each touched sentence still reads, and the delivery-plan path list is replaced by its one-line removal statement
-**And** `git grep -niE 'claude|keyframe-(sam31|muse|sam3d-fal|modal|devops)' -- docs README.md` returns nothing
+**And** `git grep -niE 'claude|keyframe-(sam31|muse|sam3d-fal|modal|devops)' -- docs README.md` returns nothing, and commit 2 is reviewed as a normal diff holding only the doc scrub, the README, the CHANGELOG entry and the Nov 4 Ledger export
 
 **Given** the full git history
 **When** every commit is scanned for image files
 **Then** the only images found are synthetic fixtures under `tests/fixtures/`, portraits under `web/public/portraits/`, and outputs whose paths the sprint status lists (screenshots, Clue cards), with no raw room photo
-**And** if a raw room photo is found, the repo stays private until it is removed from history and the scan passes
+**And** if a raw room photo is found it is removed from history at once (the repo is public already) and the scan is rerun until it passes before commit 2 is pushed
 
-**Given** the hygiene commit
+**Given** commit 2
 **When** it is prepared
-**Then** the README diffstat is regenerated from `git diff --stat pre-hackathon-baseline..HEAD` run on the hygiene commit's parent and labelled with that commit's short hash, and the CHANGELOG has a dated Nov 4 entry for the pass
-**And** the Wed Nov 4 `spend/exports/ledger-<date>.json` is committed, while `spend/ledger.jsonl`, `.env`, `rooms/`, `photos/`, `captures/`, `uploads/`, `*.heic` and `.cache/` stay ignored and untracked
+**Then** the README diffstat is regenerated from `git diff --stat pre-hackathon-baseline..HEAD` run on commit 1 (the parent of commit 2) and labelled with commit 1's short hash, and the CHANGELOG has a dated Nov 4 entry for the pass
+**And** the Wed Nov 4 `spend/exports/ledger-<date>.json` is committed in commit 2, while `spend/ledger.jsonl`, `.env`, `rooms/`, `photos/`, `captures/`, `uploads/`, `*.heic` and `.cache/` stay ignored and untracked
 
 **Given** every check above passes
-**When** the builder makes the repo public
-**Then** the repo, the `pre-hackathon-baseline` tag and `LICENSE` all resolve for a logged-out viewer
+**When** commit 2 is pushed
+**Then** the repo, the `pre-hackathon-baseline` tag and `LICENSE` all resolve for a logged-out viewer, and the submission (6.9) links that state
 
 **Given** the story's changes
 **When** pytest runs offline against the mock provider
-**Then** it passes with new tests asserting that `.gitignore` holds each Repo hygiene entry and each FR-36 entry (`rooms/`, `photos/`, `captures/`, `uploads/`, `*.heic`, `.cache/`, `.env`) with no bare `.claude/` entry, that no hygiene path is in the index, and that `PRODUCT_BRIEF.md` is not tracked
+**Then** it passes with new tests asserting that `.gitignore` holds each Repo hygiene entry (the `.claude/settings.json` entry only in the hook-created case) and each FR-36 entry (`rooms/`, `photos/`, `captures/`, `uploads/`, `*.heic`, `.cache/`, `.env`) with no bare `.claude/` entry, that no hygiene path is in the index, and that `PRODUCT_BRIEF.md` is not tracked
 
 ### Story 6.9: Submit on the portal before 9:00 AM ET Wed Nov 4
 
@@ -4230,6 +4269,7 @@ _Covers FR-6, FR-17, FR-20, FR-26, AR-18, AR-26, NFR-3, NFR-4, AD-14, AD-15. Own
 **Given** `src/config.py`
 **When** `Settings` reads the environment
 **Then** it gains `mode` (from `MODE`, `local` or `hosted`) and `min_containers` (from `MIN_CONTAINERS`, default 0), as AD-14 assigns to the first hosted story
+**And** `SPEND_CAP_USD` defaults per mode: 60 under `MODE=local` and 20 under `MODE=hosted` (the 2.3 allocations through Wed Nov 4; the Thu Nov 5 values of 5 and 20 are set by configuration at the 7.22 reset, with no date logic in code), an explicit `SPEND_CAP_USD` overrides the running mode's default, and the `keyframe` Secret carries the hosted value
 **And** `GUIDE` defaults to `verbatim` under `MODE=hosted`, and `MODE=hosted` with `GUIDE=ollama` fails at startup
 **And** `MODE=hosted` with `DEMO_TRICKSTER=record` fails at startup (spine AD-14: the recorder runs in Local mode only), while `live`, `scripted` and `authored` start
 **And** no module reads `os.environ`, and the `.env.example` test still finds every key `Settings` reads
@@ -4274,7 +4314,7 @@ As a builder,
 I want the real app deployed to Modal by hand on Tue Oct 27,
 So that hosting problems show up a week early and a live link exists if the Official Rules require one on Nov 4.
 
-_Covers FR-31, NFR-10, NFR-11. Owner: builder task. Depends on: 7.2. Tier 1, Tue Oct 27 (day plan: first modal deploy of the real app), not queued behind Epic 6; manual, no CD. Load the keyframe-modal skill._
+_Covers FR-31, NFR-10, NFR-11. Owner: builder task. Depends on: 7.2. Tier 1, Tue Oct 27 (day plan: first modal deploy of the real app), not queued behind Epic 6; manual, no CD. Infrastructure only: the deploy, `GET /api/meta`, the refusals and a session started and read with curl; the browser parity check moved to 7.23 (Thu Oct 29, SIT-10). Load the keyframe-modal skill._
 
 **Acceptance Criteria:**
 
@@ -4289,17 +4329,17 @@ _Covers FR-31, NFR-10, NFR-11. Owner: builder task. Depends on: 7.2. Tier 1, Tue
 **And** `POST /api/builds` and `GET /api/builds/<job_id>/room` are refused on the deployed URL
 
 **Given** a fixture Room copied by hand from the git-ignored local `rooms/` to `rooms/demo/<room_id>/` on the `keyframe-data` Volume (`modal volume put`, in the Environment the app deploys to)
-**When** the builder opens the URL in desktop Chrome and plays it
-**Then** the Scene renders from `GET /rooms/<room_id>/photos/<i>`, a Hotspot click is accepted as an event, and an opened Rung shows its text as written
-**And** `git status` shows no room photo added to the repo
+**When** the builder starts and reads a session with curl against it: `POST /api/sessions` with the Room's `room_id`, then `GET /api/sessions/<id>`
+**Then** the session starts with a `sess_` id and the state answers the welcome as its `opening_line` (`kind: welcome`, `phrasing` false), `GET /api/rooms/<room_id>` serves the `PlayView` and `GET /api/rooms/<room_id>/photos/0` the stored photo
+**And** `git status` shows no room photo added to the repo; playing the Room in the browser is 7.23
 
 **Given** the smoke test result
 **When** Tue Oct 27 ends
-**Then** the sprint status records the deploy date, the URL and the result
+**Then** the sprint status records the deploy date, the URL, the deployed commit's hash and the result
 
 **Given** Official Rules that require a live link on Wed Nov 4
 **When** story 6.9 prepares the submission
-**Then** the link submitted is this deployment, serving Demo rooms only with Rungs verbatim, and FR-32 and FR-33 stay on the Nov 5 to 9 plan, and the demo Rooms reach `rooms/demo/` on the Volume the same way
+**Then** the link submitted is this deployment, serving Demo rooms only with Rungs verbatim and carrying the 7.23 parity pass recorded against the deployed commit, FR-32 and FR-33 stay on the Nov 5 to 9 plan subject to the 7.22 rules gate, and the demo Rooms reach `rooms/demo/` on the Volume the same way
 
 ### Story 7.4: Clue cards generated once per demo Room
 
@@ -4506,6 +4546,7 @@ _Covers FR-29, NFR-6, AR-9. Owner: scripts. Depends on: 2.6, 7.8. Tier 1.5. Load
 **Given** a `call_` entry present in both sources, and several hosted snapshots
 **When** the export merges them
 **Then** each `call_` entry appears once, the total is the sum of the distinct entries, and the snapshot with the latest date is the one merged
+**And** the export prints the local total, the hosted total from the merged snapshot and their sum against the combined ceiling (80 through Wed Nov 4, 25 from Thu Nov 5, the sum of the two allocations of 2.3), as 2.6 defined, so the committed export shows both stores' spend against the allowance; a sum at or above the ceiling is printed as a warning and changes no store
 
 **Given** no hosted snapshot is available
 **When** the export runs
@@ -4974,14 +5015,19 @@ As a builder,
 I want the hosted app redeployed under the judging cap, kept warm, smoke-tested in three browsers and backed by a written finals plan,
 So that judges get a working URL from Thu Nov 5, the finals on Mon Nov 9 have fallbacks in a known order, and the Nov 10 purge is done.
 
-_Covers FR-31, FR-32, FR-33, NFR-6, NFR-10, NFR-11. Owner: builder task. Depends on: 7.3, 7.9, 7.17, 7.19, 7.21. Tier 1.5, Thu Nov 5 to Mon Nov 9; purge Tue Nov 10. Load the keyframe-modal skill._
+_Covers FR-31, FR-32, FR-33, NFR-6, NFR-10, NFR-11. Owner: builder task. Depends on: 7.3, 7.9, 7.17, 7.19, 7.21. Tier 1.5, Thu Nov 5 to Mon Nov 9; purge Tue Nov 10. Gated by the rules check: the Thu Nov 5 redeploy, FR-32, FR-33 and `MIN_CONTAINERS=1` happen only if the Official Rules (published before Mon Oct 26) allow changes to the hosted deployment after the deadline; otherwise the Wed Nov 4 deployment is the final hosted state, FR-32 and FR-33 are dropped and the README says so; the check is a dated item at kickoff Mon Oct 26. Load the keyframe-modal skill._
 
 **Acceptance Criteria:**
+
+**Given** the Official Rules, published before Mon Oct 26
+**When** the builder reads them at kickoff on Mon Oct 26 (a dated item in the sprint status and the 2.9 checklist)
+**Then** the sprint status records whether they allow changes to the hosted deployment after the Wed Nov 4 deadline
+**And** only if they do, the Thu Nov 5 reset and redeploy, `MIN_CONTAINERS=1`, FR-32 and FR-33 (the criteria below) go ahead; otherwise the Wed Nov 4 deployment is the final hosted state, FR-32 and FR-33 are dropped, the README (6.7) says so, and this story keeps only the finals plan and a Tue Nov 10 check that no Judge data exists to purge
 
 **Given** Thu Nov 5
 **When** the builder runs `scripts/ledger.py export` and then `scripts/ledger.py reset`
 **Then** the Nov 5 `spend/exports/ledger-<date>.json` is committed before the reset, and the counter reads $0 afterwards
-**And** `SPEND_CAP_USD` is 25 in the local `.env` and in the `keyframe` Secret
+**And** `SPEND_CAP_USD` is 5 in the local `.env` and 20 in the `keyframe` Secret (the Thu Nov 5 allocations of 2.3, summing to the $25 ceiling the export reports against)
 
 **Given** the reset cap and the seeded Demo rooms
 **When** the builder redeploys by hand with `MIN_CONTAINERS=1`
@@ -5011,6 +5057,39 @@ _Covers FR-31, FR-32, FR-33, NFR-6, NFR-10, NFR-11. Owner: builder task. Depends
 **When** the builder runs `scripts/purge_judge_rooms.py`, first with the dry-run flag and then for real, against the hosted Volume
 **Then** `rooms/judge/` is empty, no Session of a Judge room remains, a former Judge room URL shows "This room is gone", and every Demo room still plays
 **And** the run and its ids-only records are noted in the sprint status
+
+### Story 7.23: Hosted parity check in the browser
+
+As a builder,
+I want the deployed URL played in desktop Chrome and checked against Local mode on the same fixture Room and event sequence,
+So that the hosted app is the same game as Local mode, with Rungs as written and the welcome as its opening line, before any live link is submitted.
+
+_Covers FR-31, FR-17, NFR-10, AR-25. Owner: web. Depends on: 1.19, 3.4, 7.3. Tier 1, Thu Oct 29. SIT-10 in `docs/implementation-artifacts/sit-checklist.md`: the browser checks moved here from 7.3 (which keeps the Tue Oct 27 deploy, `GET /api/meta`, the refusals and the curl session), plus a `tests/sit/` module that plays the same fixture Room with the same event sequence in Local mode (`GUIDE=verbatim`) and on the deployed URL with `DEMO_TRICKSTER=scripted`; any live link submitted on Wed Nov 4 requires this pass recorded against the deployed commit. Load the keyframe-modal skill._
+
+**Acceptance Criteria:**
+
+**Given** the Tue Oct 27 deployment (7.3) with the fixture Room on the `keyframe-data` Volume under `rooms/demo/<room_id>/`
+**When** the builder opens the deployed URL in desktop Chrome and plays the Room
+**Then** the Scene renders from `GET /rooms/<room_id>/photos/<i>`, a Hotspot click is accepted as an event, an opened Rung shows its text as written with no thinking state, the opening line is the welcome, and the Hosted Disclosure line shows on the Play screen
+**And** `git status` shows no room photo added to the repo
+
+**Given** a module under `tests/sit/` for SIT-10 that `scripts/sit.py` discovers (2.9)
+**When** it plays the same fixture Room with the same event sequence in Local mode (`GUIDE=verbatim`, opening Rungs by Wrong attempts so no timing is involved) and on the deployed URL with `DEMO_TRICKSTER=scripted`
+**Then** the two runs return the same `GET /rooms/<room_id>` `PlayView` and the same session state in `locks_open`, `inventory`, `current_rung`, `wrong_attempts`, `rungs_used`, `active_puzzle_id`, `room_revision` and each `rung_changes[].text`, ignoring the server-stamped `t_ms` values, the minted `te_` ids and the mode-specific `disclosure` list
+**And** every Rung is shown as written in both runs (each `rung_changes[].text` equals the Room's Rung text word for word and `phrased` is false), hosted `GET /api/meta` answers `mode: hosted`, `guide: verbatim` and `guide_model: null` with the hosted Retention text, the hosted opening line is the welcome, never a Greeting, and `POST /api/builds` without the code is refused
+**And** the module records the two `PlayView` and `GET /meta` responses as fixtures under `tests/fixtures` (SIT-10's fixture column), and the offline `pytest` run never executes it
+
+**Given** the Thu Oct 29 run and every later deploy to the hosted URL
+**When** `scripts/sit.py` finishes
+**Then** the sprint status records the SIT-10 result with the deployed commit's hash and the URL
+
+**Given** Official Rules that require a live link on Wed Nov 4 (7.3)
+**When** story 6.9 prepares the submission
+**Then** the link is submitted only with this pass recorded in the sprint status against the commit deployed at that URL; a deployment whose commit has no recorded pass is not submitted as a live link
+
+**Given** the story's changes
+**When** `pytest` runs offline against the mock provider
+**Then** it passes with new tests covering this story's criteria (the module's comparison exercised offline against two recorded fixture responses), and the offline run never executes the `tests/sit/` case itself
 
 ## Epic 8: Walk the room in 3D
 
@@ -5190,7 +5269,7 @@ _Covers FR-35, FR-14, UX-DR32. Owner: web. Depends on: 3.4, 9.2. Unscheduled; vo
 
 **Given** a spoken request with an utterance
 **When** the page's network traffic and IndexedDB are inspected
-**Then** exactly one `hint_request` is raised, with `puzzle_id` omitted (named explicitly only while `active_puzzle_id` is null) and no `t_ms`
+**Then** exactly one `hint_request` is raised, with `puzzle_id` always omitted (the server resolves it to the Active puzzle) and no `t_ms`
 **And** no request body carries transcript text. On the browser-recognition transport, `POST /sessions/<id>/events` carries only the `hint_request`. On the REST transport, only the audio goes to the route the 9.1 decision names.
 **And** no transcript is written to the IndexedDB profile under `PROFILE` (or the local JSON profile file under cut 2)
 **And** on the REST transport the client encodes the recording in the browser as a 16-bit mono WAV before upload, so a recording from the mic control never draws the route's 422
