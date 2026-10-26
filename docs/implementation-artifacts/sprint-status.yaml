@@ -110,6 +110,14 @@ development_status:
   epic-3-retrospective: optional
 
   epic-4: in-progress
+  # 4.3 AC 4 demo-room half OPEN, blocked on the builder capturing the demo Room:
+  # commit proposals/authored.json (its room_id, one proposal that passes and one
+  # the Validator rejects) and drop the skip-on-missing-file branch in
+  # tests/council/test_trickster.py so only a missing rooms/<room_id>/room.json skips.
+  # Until then DEMO_TRICKSTER=authored (cut 1) has no file to load.
+  # proposals/ (recorded.json, authored.json) is a new top-level folder the spine's
+  # Structural Seed does not list: 4.4 must pass SOURCES a root holding proposals/,
+  # and the hosted stories must add proposals/ to the Modal image (FR-31, AD-15).
   4-1-trickster-edits-land-only-when-the-validator-passes-with-rul: done
   4-2-trickster-windows-and-the-six-call-budget-in-the-session: done
   4-3-recorded-proposals-artifact-and-the-scripted-trickster-sourc: backlog

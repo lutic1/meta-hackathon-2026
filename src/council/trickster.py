@@ -12,8 +12,9 @@ proposals in window order, and no verdict, so a file carrying
 `validator_result` or `accepted` fails to load. `ScriptedSource` replays
 one: the proposal at the window index on that Room, None on any other Room
 or once the recording is used up. It reads only `room_id` and the window
-index, holds no state between calls, makes no `ModelProvider` call and
-writes no Ledger entry.
+index, holds no state between calls (each answer is a fresh copy, so a
+caller changing it never changes a later window), makes no `ModelProvider`
+call and writes no Ledger entry.
 
 `SOURCES` maps the `DEMO_TRICKSTER` values to a source over a root folder:
 `scripted` replays the recorded-proposals artifact at `RECORDED_PROPOSALS`
@@ -86,7 +87,7 @@ class ScriptedSource:
         proposals = self.recording.proposals
         if room_id != self.recording.room_id or not 0 <= window < len(proposals):
             return None
-        return proposals[window]
+        return proposals[window].model_copy(deep=True)
 
 
 def _scripted_over(file: Path) -> Callable[[Path], TricksterSource]:

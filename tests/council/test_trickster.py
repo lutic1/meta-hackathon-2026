@@ -166,6 +166,17 @@ def test_a_fresh_session_on_the_room_starts_at_window_0_and_gets_the_first_propo
     assert again is not None and again.model_dump() == FIRST
 
 
+def test_changing_a_yielded_proposal_never_changes_a_later_answer(tmp_path: Path, four_lock_room: Room):
+    source = scripted_on(tmp_path)
+    view = to_prompt_view(four_lock_room)
+    first = source.propose(four_lock_room.id, 0, view, summary())
+    assert first is not None
+    first.puzzle = PZ["clock_code"]
+    first.payload.visible_attribute = "changed"  # type: ignore[union-attr]
+    again = source.propose(four_lock_room.id, 0, view, summary())
+    assert again is not None and again.model_dump() == FIRST
+
+
 def test_the_scripted_source_holds_nothing_but_its_recording():
     assert [field for field in ScriptedSource.__dataclass_fields__] == ["recording"]
     assert ScriptedSource.__dataclass_params__.frozen  # type: ignore[attr-defined]
@@ -262,7 +273,9 @@ def test_the_fixture_file_passes_window_0_and_rejects_window_1_with_a_fixed_mess
 def test_the_demo_rooms_cut_1_file_passes_one_and_rejects_one():
     path = REPO / AUTHORED_PROPOSALS
     if not path.exists():
-        pytest.skip(f"{AUTHORED_PROPOSALS} is authored once the demo Room is built")
+        # Open follow-up (sprint-status, 4.3 AC 4): once the demo Room is captured, commit this file
+        # with one passing and one failing proposal and drop this branch, so only a missing Room skips.
+        pytest.skip(f"{AUTHORED_PROPOSALS} is an open 4.3 follow-up, blocked on capturing the demo Room")
     room_path = REPO / ROOMS_ROOT / room_key(load_proposals(path).room_id)
     if not room_path.exists():
         pytest.skip("the demo Room is not in the local rooms/")
