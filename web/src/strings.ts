@@ -1,5 +1,6 @@
-// Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75).
-// tests/web/test_strings.py checks each value against that source. Lines the server serves (Disclosure lines,
+// Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75);
+// "No rooms yet." is the one line EXPERIENCE.md gives only in Component Patterns (Stored Room row).
+// tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
 export const strings = {
@@ -11,6 +12,12 @@ export const strings = {
   cacheOff: 'Cache off',
   modeProfile: 'profile {name}',
   modeSeparator: ' · ',
+  noRooms: 'No rooms yet.',
+  puzzleCount: '{n} puzzles',
+  play: 'Play',
+  sessionStartRefused: "Keyframe couldn't start this room.",
+  sessionStartRefusedBody: 'Your room is safe. Try again.',
+  tryAgain: 'Try again',
 } as const
 
 /** `template` with each `{name}` replaced by `values[name]`. */

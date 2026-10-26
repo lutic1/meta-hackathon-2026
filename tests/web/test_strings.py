@@ -19,14 +19,33 @@ def _strings() -> dict[str, str]:
     return entries
 
 
+COMPONENT_PATTERNS_ONLY = {"noRooms"}
+"""Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list)."""
+
+
 def _voice_and_tone() -> str:
     return EXPERIENCE.read_text().split("\n## Voice and Tone\n", 1)[1].split("\n## Component Patterns\n", 1)[0]
+
+
+def _component_patterns() -> str:
+    return EXPERIENCE.read_text().split("\n## Component Patterns\n", 1)[1].split("\n## ", 1)[0]
 
 
 def test_every_string_is_verbatim_from_voice_and_tone():
     source = _voice_and_tone()
     for key, value in _strings().items():
+        if key in COMPONENT_PATTERNS_ONLY:
+            assert value in _component_patterns(), f"strings.{key} {value!r} is not verbatim in Component Patterns"
+            continue
         assert value in source, f"strings.{key} {value!r} is not verbatim in EXPERIENCE.md Voice and Tone"
+
+
+def test_the_stored_room_strings_are_the_experience_lines():
+    strings = _strings()
+    assert strings["noRooms"] == "No rooms yet." and strings["play"] == "Play"
+    assert strings["puzzleCount"].format(n=5) == "5 puzzles"
+    assert strings["sessionStartRefused"] == "Keyframe couldn't start this room."
+    assert strings["sessionStartRefusedBody"] == "Your room is safe. Try again." and strings["tryAgain"] == "Try again"
 
 
 def test_the_shell_strings_are_the_experience_lines():
@@ -49,8 +68,9 @@ def test_client_strings_live_only_in_the_strings_module():
     for key, value in _strings().items():
         if key == "modeSeparator":  # " · " is punctuation, not a line
             continue
+        repeated = re.compile(rf"(?<!\w){re.escape(value)}(?!\w)")  # "Play" as a word, not inside `PlayView`
         for path, text in others.items():
-            assert value not in text, f"{path} repeats {value!r}; import it from strings.ts"
+            assert not repeated.search(text), f"{path} repeats {value!r}; import it from strings.ts"
 
 
 def test_served_lines_are_never_in_the_client():

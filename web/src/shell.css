@@ -40,6 +40,24 @@
   min-height: 0;
 }
 
+/* The Capture layout (Local `#/`): the left area beside a 400 px right column, whose lines join in 2.16; the body
+   scrolls, since the Stored Rooms sit below the dropzone. */
+.capture-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
+  column-gap: var(--spacing-column-gap);
+  align-content: start;
+  padding: var(--spacing-frame-margin);
+  overflow-y: auto;
+}
+/* The left area: the banner slot on top, then the Stored Rooms list. */
+.capture-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+
 /* Server unreachable: the status strip centered, alone. */
 .shell-unreachable {
   display: grid;

@@ -1,0 +1,55 @@
+/* {components.stored-room-row}: a chrome row per stored Room, 1 px hairline between rows, rounded md;
+   hover rings the row in lamp (an outline, so the Play button keeps its own focus ring). */
+.stored-room-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stored-room-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--chrome);
+  border-radius: var(--rounded-md);
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: outline-color var(--motion-hover) var(--motion-ease);
+}
+.stored-room-row + .stored-room-row {
+  border-top: 1px solid var(--hairline);
+}
+.stored-room-row:hover {
+  outline-color: var(--lamp);
+}
+.stored-room-cover {
+  flex: none;
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--rounded-sm);
+}
+.stored-room-text {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.stored-room-title,
+.stored-room-meta {
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.stored-room-title {
+  color: var(--text);
+}
+.stored-room-meta {
+  color: var(--text-muted);
+}
+/* The empty list: one text-muted line. */
+.stored-room-empty {
+  margin: 0;
+  color: var(--text-muted);
+}
