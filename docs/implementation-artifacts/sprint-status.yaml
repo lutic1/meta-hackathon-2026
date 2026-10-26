@@ -102,7 +102,7 @@ development_status:
   epic-3: in-progress
   3-1-rung-selection-in-code-from-the-event-log: done
   3-2-hintphraser-port-with-the-verbatim-adapter: done
-  3-3-hint-requests-return-the-current-rung-or-the-no-hint-line: backlog
+  3-3-hint-requests-return-the-current-rung-or-the-no-hint-line: done
   3-4-hint-area-ask-the-guide-and-read-the-rung-line: backlog
   3-5-triggers-panel-shows-why-each-rung-arrived: backlog
   3-6-the-four-wizard-portraits-painted-once: done
