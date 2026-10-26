@@ -1,6 +1,8 @@
+@import './tokens.css';
+
 :root {
   color-scheme: dark;
-  background: #14100c;
+  background: var(--canvas);
 }
 
 html,
@@ -8,6 +10,14 @@ body,
 #app {
   margin: 0;
   height: 100%;
+}
+
+body {
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 #app canvas {

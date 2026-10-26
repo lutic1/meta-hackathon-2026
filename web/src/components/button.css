@@ -1,0 +1,77 @@
+/* {components.button-primary}, {components.button-secondary} (DESIGN.md Shared controls). */
+
+.button-primary,
+.button-secondary {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  border-radius: var(--rounded-md);
+  transition:
+    background-color var(--motion-hover) var(--motion-ease),
+    border-color var(--motion-hover) var(--motion-ease),
+    box-shadow var(--motion-hover) var(--motion-ease);
+}
+
+/* Primary: lamp fill, on-lamp label, 44 px, 24 px side padding; hover lamp-strong plus the glow. */
+.button-primary {
+  height: 44px;
+  padding: 0 var(--spacing-5);
+  background: var(--lamp);
+  color: var(--on-lamp);
+  border: 0;
+}
+.button-primary:hover {
+  background: var(--lamp-strong);
+  box-shadow: var(--elevation-lamp-glow);
+}
+.button-primary:hover:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring-inner), var(--elevation-lamp-glow);
+}
+.button-primary:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+  cursor: default;
+}
+/* Pending: the label changes to the pending label and repeat activation is ignored; the button stays focusable. */
+.button-primary[aria-busy='true'] {
+  cursor: progress;
+}
+
+/* Secondary: 40 px, 1 px lamp border and lamp label; hover fills lamp-hover-fill. */
+.button-secondary {
+  height: 40px;
+  padding: 0 var(--spacing-4);
+  background: transparent;
+  color: var(--lamp);
+  border: 1px solid var(--lamp);
+}
+.button-secondary:hover {
+  background: var(--lamp-hover-fill);
+}
+/* Toggles (aria-pressed or aria-expanded) hold the fill and a 2 px lamp border; the effect itself is the second cue. */
+.button-secondary[aria-pressed='true'],
+.button-secondary[aria-expanded='true'] {
+  background: var(--lamp-hover-fill);
+  border: 2px solid var(--lamp);
+  padding: 0 calc(var(--spacing-4) - 1px);
+}
+/* On parchment the label and border are lamp-ink and hover fills lamp-ink-hover-fill. */
+.button-secondary.on-parchment {
+  color: var(--lamp-ink);
+  border-color: var(--lamp-ink);
+}
+.button-secondary.on-parchment:hover {
+  background: var(--lamp-ink-hover-fill);
+}
+.button-secondary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

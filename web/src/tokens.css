@@ -1,0 +1,272 @@
+/* DESIGN.md tokens, dark theme only. Every value here is the DESIGN.md frontmatter value;
+   tests/web/test_tokens.py compares the two, so change DESIGN.md and this file together. */
+
+/* Typography: self-hosted WOFF2 under web/public/fonts, copied to web/dist as is (no third-party font host). */
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/eb-garamond/eb-garamond-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 500;
+  src: url('/fonts/eb-garamond/eb-garamond-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: italic;
+  font-weight: 400;
+  src: url('/fonts/eb-garamond/eb-garamond-latin-400-italic.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/source-sans-3/source-sans-3-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 600;
+  src: url('/fonts/source-sans-3/source-sans-3-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/ibm-plex-mono/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  src: url('/fonts/ibm-plex-mono/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
+}
+
+:root {
+  /* colors: study */
+  --canvas: #14100C;
+  --chrome: #1E1812;
+  --chrome-raised: #2A2119;
+  --hairline: #4A3C2C;
+  --gilt: #B08A4E;
+  --scrim: #0A0806CC;
+  /* colors: paper */
+  --parchment: #E8DBBE;
+  --parchment-shade: #D8C7A2;
+  --parchment-rule: #5A463040;
+  --ink: #2A1D11;
+  --ink-muted: #5A4630;
+  /* colors: text on dark */
+  --text: #F0E6D2;
+  --text-muted: #B8A98E;
+  /* colors: lamplight */
+  --lamp: #E9A94B;
+  --lamp-strong: #F4C470;
+  --lamp-ink: #6E400C;
+  --on-lamp: #1A1208;
+  --lamp-hover-fill: #E9A94B1F;
+  --lamp-ink-hover-fill: #6E400C1F;
+  /* colors: focus and hotspots */
+  --focus-ring: #FFD27A;
+  --focus-ring-inner: #14100C;
+  --hotspot-outline: #E9A94B;
+  --hotspot-halo: #14100C;
+  --hotspot-glow: #E9A94B59;
+  --hotspot-show-all: #F4C470;
+  /* colors: lock and state feedback */
+  --success: #8CC48A;
+  --success-ink: #275A2C;
+  --wrong: #E58A6C;
+  --wrong-ink: #87321B;
+  --pending: #B8A98E; /* = text-muted */
+  --pending-ink: #5A4630; /* = ink-muted */
+  /* colors: plain-register messages */
+  --warning-surface: #3A2D12;
+  --warning-text: #F2D488;
+  --warning-edge: #C9A04A;
+  --error-surface: #3D1B16;
+  --error-text: #F29A88;
+  --error-edge: #B8503E;
+  --disclosure-surface: #23272C;
+  --disclosure-text: #E4E8EC;
+  --disclosure-edge: #3A4048;
+  /* colors: role tokens repeat a base token's hex (named in the comment); change both together */
+  --card-accepted-surface: #E8DBBE; /* = parchment */
+  --card-accepted-edge: #275A2C; /* = success-ink */
+  --card-rejected-surface: #E8DBBE; /* = parchment */
+  --card-rejected-edge: #87321B; /* = wrong-ink */
+  --card-skipped-surface: #2A2119; /* = chrome-raised */
+  --card-skipped-text: #B8A98E; /* = text-muted */
+  --card-skipped-edge: #4A3C2C; /* = hairline */
+  --clue-card-placeholder: #D8C7A2; /* = parchment-shade */
+  --clue-card-placeholder-edge: #5A463040; /* = parchment-rule */
+  --clue-card-blank: #D8C7A2; /* = parchment-shade */
+  --graph-node: #E8DBBE; /* = parchment */
+  --graph-node-ink: #2A1D11; /* = ink */
+  --graph-node-exit: #E9A94B; /* = lamp */
+  --graph-edge: #9C8766;
+  --graph-pass: #8CC48A; /* = success */
+  --graph-fail: #E58A6C; /* = wrong */
+  --graph-skipped: #B8A98E; /* = text-muted */
+  --mask-overlay-fill: #E9A94B40;
+  --mask-overlay-stroke: #E9A94B;
+
+  /* typography: families */
+  --font-serif: 'EB Garamond', Georgia, serif;
+  --font-sans: 'Source Sans 3', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* spacing: the 4 px scale */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 24px;
+  --spacing-6: 32px;
+  --spacing-7: 48px;
+  --spacing-8: 64px;
+  /* spacing: named layout tokens */
+  --spacing-frame-margin: 24px;
+  --spacing-column-gap: 24px;
+  --spacing-side-column: 400px;
+  --spacing-top-bar: 48px;
+  --spacing-disclosure-min: 32px;
+  --spacing-thumbnail-strip: 88px;
+  --spacing-narrow-gutter: 16px;
+  --spacing-hint-area-max: 320px;
+  --spacing-triggers-panel-max: 160px;
+  --spacing-notes-min: 280px;
+  --spacing-status-strip: 32px;
+
+  /* rounded */
+  --rounded-none: 0px;
+  --rounded-sm: 4px;
+  --rounded-md: 8px;
+  --rounded-lg: 12px;
+  --rounded-full: 9999px;
+
+  /* elevation */
+  --elevation-paper: 0 1px 0 #00000040, 0 6px 16px #00000059;
+  --elevation-overlay: 0 24px 64px #000000A6;
+  --elevation-lamp-glow: 0 0 16px #E9A94B40;
+  --elevation-vignette: inset 0 0 80px #000000A6;
+
+  /* motion: fades and glows only, ease-out; hover 150, state fades 200, overlays and the arrival glow 300 */
+  --motion-ease: ease-out;
+  --motion-hover: 150ms;
+  --motion-state: 200ms;
+  --motion-overlay: 300ms;
+}
+
+/* Every transition is instant under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-hover: 0ms;
+    --motion-state: 0ms;
+    --motion-overlay: 0ms;
+  }
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0ms !important;
+  }
+}
+
+/* Type styles: sentence case everywhere, italic only on lore, Garamond never below 17 px,
+   tabular figures on the mono styles (numbers that change in place). */
+.display-lg {
+  font-family: var(--font-serif);
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.display-md {
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.display-sm {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.wizard-line-lg {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.wizard-line {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.lore {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 400;
+  font-style: italic;
+  line-height: 1.5;
+}
+.body-md {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.body-sm {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+.label {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+.caption {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.mono-timer {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.mono-code {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+.mono-sm {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus ring: 2 px focus-ring outside 2 px focus-ring-inner at 2 px offset, on every focusable element,
+   never removed; a hover glow that sets box-shadow must keep the inner ring (components/button.css). */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--focus-ring-inner);
+}
