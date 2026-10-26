@@ -414,6 +414,20 @@ def test_attempt_joins_the_cache_key_so_a_regeneration_is_never_served_the_earli
     assert key in replay.cache.rows
 
 
+def test_chat_tags_its_ledger_entry_with_the_job_and_stage_and_returns_the_receipt():
+    """Story 2.20: provenance sums spend per stage from these tags, and the call row reads the receipt (AD-16)."""
+    replay = Replay(CHAT)
+    job_id = "job_01JBZ0000000000000000000AA"
+    billed = chat(replay, job_id=job_id, stage="architect")
+    assert [(e.job_id, e.stage) for e in replay.store.rows] == [(job_id, "architect"), (job_id, "architect")]
+    settled = replay.entries()[0]
+    assert billed.receipt is not None
+    assert (billed.receipt.call_id, billed.receipt.host, billed.receipt.cached) == (settled.call_id, "api.meta.ai", False)
+    assert billed.receipt.spend_usd == settled.usd
+    cached = chat(replay, job_id=job_id, stage="architect")
+    assert cached.receipt is not None and (cached.receipt.cached, cached.receipt.spend_usd) == (True, 0.0)
+
+
 def test_cache_off_still_guards_every_call():
     replay = Replay(CHAT, CHAT, cache_enabled=False)
     chat(replay)

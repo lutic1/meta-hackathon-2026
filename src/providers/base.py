@@ -17,7 +17,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from src.domain.schema import Derived, GuideModel, Polygon
+from src.domain.schema import CallId, Derived, GuideModel, JobId, Polygon, Stage
 
 ReasoningEffort = Literal["minimal", "low", "medium", "high", "xhigh"]
 REASONING_EFFORTS: tuple[ReasoningEffort, ...] = ("minimal", "low", "medium", "high", "xhigh")
@@ -50,6 +50,17 @@ class ChatMessage:
     content: str
 
 
+@dataclass(frozen=True)
+class CallReceipt:
+    """What a stage needs for its call row (AD-16): the ledger's `call_` id when billed, a fresh one when cached."""
+
+    call_id: CallId
+    model: str
+    host: str
+    cached: bool
+    spend_usd: float
+
+
 @dataclass
 class ChatResponse:
     text: str
@@ -57,6 +68,8 @@ class ChatResponse:
     model: str
     usage: dict[str, Any] = field(default_factory=dict)
     raw: Any = None
+    receipt: CallReceipt | None = None
+    """How a hosted call went, for the stage's call row; `None` from the mock, which bypasses the cache and ledger."""
 
 
 @dataclass
@@ -89,12 +102,15 @@ class ModelProvider(ABC):
         reasoning_effort: ReasoningEffort = "low",
         model: str | None = None,
         attempt: int = 0,
+        job_id: JobId | None = None,
+        stage: Stage | None = None,
     ) -> ChatResponse:
         """Send a conversation, with the stored JPEG bytes as its images, and return the reply.
 
         `attempt` joins the AD-6 cache key: the Regeneration count on a
         Riddler or Dry run call, so attempt n is never served attempt n-1's
-        answer; 0 everywhere else.
+        answer; 0 everywhere else. `job_id` and `stage` tag the call's ledger
+        entry, so provenance sums spend per stage (AD-16).
         """
         raise NotImplementedError
 

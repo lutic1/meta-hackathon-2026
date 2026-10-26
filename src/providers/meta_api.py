@@ -19,7 +19,7 @@ import random
 import re
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -30,7 +30,7 @@ from pydantic import BaseModel
 
 from src.domain.ledger import CallKind, image_cost_usd, sam_cost_usd, spark_cost_usd
 from src.domain.masks import area
-from src.domain.schema import Polygon
+from src.domain.schema import JobId, Polygon, Stage
 
 from .base import (
     ChatMessage,
@@ -288,6 +288,8 @@ class MetaModelProvider(ModelProvider):
         reasoning_effort: ReasoningEffort = "low",
         model: str | None = None,
         attempt: int = 0,
+        job_id: JobId | None = None,
+        stage: Stage | None = None,
     ) -> ChatResponse:
         check_reasoning_effort(reasoning_effort)
         chat_model = model or self.default_chat_model
@@ -317,8 +319,8 @@ class MetaModelProvider(ModelProvider):
             response = ChatResponse(text=choice["message"]["content"], model=raw.get("model", chat_model), usage=usage, raw=raw)
             return response, spark_cost_usd(usage)
 
-        response, _ = self._calls.chat(key, self.chat_kind, model=chat_model, call=call)
-        return response
+        response, receipt = self._calls.chat(key, self.chat_kind, model=chat_model, call=call, job_id=job_id, stage=stage)
+        return replace(response, receipt=receipt)
 
     def segment(self, label: str, image: bytes) -> list[Polygon] | None:
         """One Responses request with one noun phrase and the stored bytes; polygons in frame pixels, `None` for no mask."""

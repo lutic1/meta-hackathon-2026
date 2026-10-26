@@ -4,7 +4,9 @@
 `RoomView` with no Puzzle, AD-3) and makes one `chat` call through the
 `riddler` role's port at reasoning `medium`, with `attempt` set to the
 job's Regeneration count, so the AD-6 cache never serves an earlier
-attempt's answer, and records one call row. The reply is parsed into the
+attempt's answer, and the job id and `author` stage tagging its ledger entry,
+so provenance sums its spend. It records one call row from the call's
+receipt: its `call_` id, host, cached or billed, and spend. The reply is parsed into the
 response schema and kept as a `RoomDraft` under `<room_id>/draft.json`.
 Every `ix_` reference is then matched exactly against the stored ids,
 never by label, and every `p1`..`p6` key, `requires` included, becomes a
@@ -69,7 +71,7 @@ from src.pipeline.build import StageFn, StageResult, StageStop, new_id
 from src.pipeline.ingest import read_photos
 from src.pipeline.ports import ArtifactStore, LedgerStore
 from src.pipeline.segment import read_interactables
-from src.providers.base import ModelProvider
+from src.providers.base import ChatResponse, ModelProvider
 
 RIDDLER_BUDGET_MS = 45_000
 """`budgets.md`: the Riddler's 45 s, measured through the stage timing, never enforced."""
@@ -79,7 +81,8 @@ PUZZLES_FILE = "puzzles.json"
 """The stage artifact under `<room_id>/`: the mapped Puzzles, `pz_` ids minted, for the validate stage."""
 PUZZLES = TypeAdapter(list[Puzzle])
 PUZZLE_COUNT = range(4, 7)
-"""A Room holds four to six Puzzles."""
+"""A Room holds four to six Puzzles. The response schema already requires `p1`..`p4` and allows only `p5`
+and `p6` beyond them, so the count check in `run_validate` is defence for stored Puzzles that bypassed it."""
 STAGE_ROLES: dict[Stage, Role] = {"architect": "architect", "author": "riddler", "dryrun": "dryrun"}
 """The council role whose model a stage record names, for `Provenance.model_ids`."""
 
@@ -247,6 +250,21 @@ def _sent_back(state: JobState, messages: Sequence[str], result: StageResult, re
     return ValidationError(messages, replace(result, sent_back=[record]), reasons)
 
 
+def _call_row(reply: ChatResponse, provider: ModelProvider) -> CallRow:
+    """The `riddler` call row from the call's receipt; the mock has none, so its row is unbilled on the mock host."""
+    receipt = reply.receipt
+    if receipt is None:
+        return CallRow(id=new_id("call"), role="riddler", model=reply.model, host=provider.name, cached=False, spend_usd=0.0)
+    return CallRow(
+        id=receipt.call_id,
+        role="riddler",
+        model=reply.model,
+        host=receipt.host,
+        cached=receipt.cached,
+        spend_usd=receipt.spend_usd,
+    )
+
+
 def run_author(state: JobState, *, provider: ModelProvider, artifacts: ArtifactStore) -> StageResult:
     """One Riddler `chat` call at attempt = the Regeneration count; the `RoomDraft` and the mapped Puzzles persisted, one call row."""
     room_id = _room_id(state)
@@ -257,8 +275,10 @@ def run_author(state: JobState, *, provider: ModelProvider, artifacts: ArtifactS
         response_schema=prompt.response_schema,
         reasoning_effort=prompt.reasoning_effort,
         attempt=state.regeneration_count,
+        job_id=state.id,
+        stage="author",
     )
-    row = CallRow(id=new_id("call"), role="riddler", model=reply.model, host=provider.name, cached=False, spend_usd=0.0)
+    row = _call_row(reply, provider)
     try:
         draft = parse_draft(reply.text, prompt.response_schema)
         artifacts.put(draft_key(room_id), draft.model_dump_json().encode())

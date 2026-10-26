@@ -27,6 +27,7 @@ import json
 import random
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any, Literal
@@ -35,7 +36,7 @@ import httpx
 from pydantic import BaseModel
 
 from src.domain.ledger import CallKind, spark_cost_usd
-from src.domain.schema import Polygon, strict_schema
+from src.domain.schema import JobId, Polygon, Stage, strict_schema
 
 from .base import (
     ChatMessage,
@@ -197,6 +198,8 @@ class OpenAICompatibleProvider(ModelProvider):
         reasoning_effort: ReasoningEffort = "low",
         model: str | None = None,
         attempt: int = 0,
+        job_id: JobId | None = None,
+        stage: Stage | None = None,
     ) -> ChatResponse:
         check_reasoning_effort(reasoning_effort)
         if images:
@@ -221,8 +224,10 @@ class OpenAICompatibleProvider(ModelProvider):
         key = cache_key(
             chat_model, messages=sent, response_schema=response_schema, reasoning_effort=reasoning_effort, attempt=attempt
         )
-        response, _ = self._calls.chat(key, self.kind, model=chat_model, call=lambda: self._post(body))
-        return response
+        response, receipt = self._calls.chat(
+            key, self.kind, model=chat_model, call=lambda: self._post(body), job_id=job_id, stage=stage
+        )
+        return replace(response, receipt=receipt)
 
     def _messages(self, messages: list[ChatMessage], response_schema: type[BaseModel] | None) -> list[ChatMessage]:
         """The messages as given; in plain-JSON mode the system message also asks for the schema's JSON."""

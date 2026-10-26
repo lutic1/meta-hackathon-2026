@@ -121,6 +121,23 @@ def test_the_call_carries_the_regeneration_count_as_attempt(seeded, artifacts):
     assert provider.calls[0].attempt == 2
 
 
+def test_the_call_names_the_job_and_the_author_stage_for_its_ledger_entry(seeded, artifacts):
+    provider = riddler(reply())
+    run_author(seeded, provider=provider, artifacts=artifacts)
+    call = provider.calls[0]
+    assert isinstance(call, ChatCall) and (call.job_id, call.stage) == (seeded.id, "author")
+
+
+def test_a_cached_riddler_call_records_a_cached_row_with_no_spend_and_no_new_ledger_entry(seeded, artifacts):
+    store = MemoryLedgerStore()
+    calls = GuardedCalls(MemoryCache(), SpendLedger(store, cap_usd=60.0), host="api.meta.ai")
+    meta = MetaModelProvider("test-key", calls=calls, chat_kind="riddler", budget_s=45.0, transport=transport(RECORDED))
+    billed = run_author(seeded, provider=meta, artifacts=artifacts).calls[0]
+    cached = run_author(seeded, provider=meta, artifacts=artifacts).calls[0]
+    assert (cached.cached, cached.spend_usd, cached.host) == (True, 0.0, "api.meta.ai") and cached.id != billed.id
+    assert len(store.entries()) == 2
+
+
 def test_the_prompt_view_carries_the_interactables_only(four_lock_room):
     view = prompt_view(four_lock_room.id, four_lock_room.interactables)
     assert view.puzzles == [] and [ix.id for ix in view.interactables] == [ix.id for ix in four_lock_room.interactables]
@@ -356,8 +373,16 @@ def test_the_recorded_riddler_response_replays_through_the_meta_adapter_into_a_p
     )
     state = seeded
     result = run_author(state, provider=meta, artifacts=artifacts)
-    assert (result.count, result.model, result.calls[0].host) == (5, CHAT_MODEL, "meta")
-    assert [(entry.kind, entry.status) for entry in store.entries()] == [("riddler", "reserved"), ("riddler", "settled")]
+    assert (result.count, result.model) == (5, CHAT_MODEL)
+    assert [(e.kind, e.status, e.job_id, e.stage) for e in store.entries()] == [
+        ("riddler", "reserved", state.id, "author"), ("riddler", "settled", state.id, "author"),
+    ]
+    settled = store.entries()[-1]
+    row = result.calls[0]
+    assert (row.id, row.role, row.host, row.cached) == (settled.call_id, "riddler", "api.meta.ai", False)
+    assert row.spend_usd == settled.usd > 0
+    spend = assemble_provenance(state, store.entries(), {}).spend_per_stage_usd
+    assert spend["author"] == pytest.approx(settled.usd)
     assert isinstance(read_draft(state.room_id, artifacts), RoomDraft)
     assert all(isinstance(puzzle, Puzzle) for puzzle in read_puzzles(state.room_id, artifacts))
     validated = run_validate(state, artifacts=artifacts, ledger=store)

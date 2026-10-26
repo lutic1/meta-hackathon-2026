@@ -19,16 +19,15 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
 
 from src.domain.ledger import CallKind
-from src.domain.schema import CallId, JobId, Polygon, SessionId, Stage
+from src.domain.schema import JobId, Polygon, SessionId, Stage
 from src.pipeline.ports import Cache
 
-from .base import ChatMessage, ChatResponse, ImageResponse, ReasoningEffort
+from .base import CallReceipt, ChatMessage, ChatResponse, ImageResponse, ReasoningEffort
 from .spend import SpendLedger, new_call_id
 
 type Json = dict[str, Any]
@@ -67,17 +66,6 @@ def cache_key(
     parts.extend(hashlib.sha256(image).hexdigest() for image in images)
     parts.append(str(attempt))
     return _digest(parts)
-
-
-@dataclass(frozen=True)
-class CallReceipt:
-    """What a stage needs for its call row (AD-16): the ledger's `call_` id when billed, a fresh one when cached."""
-
-    call_id: CallId
-    model: str
-    host: str
-    cached: bool
-    spend_usd: float
 
 
 def _encode_chat(response: ChatResponse) -> Json:

@@ -2,6 +2,7 @@
 
 import ast
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 from pathlib import Path
@@ -123,7 +124,8 @@ def test_chat_against_the_recorded_fixture_runs_through_the_cache_and_the_ledger
     assert set(h.cache.rows) == {key} and (h.cache.reads, h.cache.writes) == (1, 1)
 
     again = h.chat(response_schema=RoomDraft, reasoning_effort="medium")
-    assert again == response and len(h.host.requests) == 1 and len(h.store.rows) == 2
+    assert replace(again, receipt=None) == replace(response, receipt=None)
+    assert again.receipt is not None and again.receipt.cached and len(h.host.requests) == 1 and len(h.store.rows) == 2
 
 
 def test_the_request_goes_to_the_configured_host_with_the_key_an_explicit_effort_and_max_tokens():
@@ -178,6 +180,18 @@ def test_attempt_joins_the_cache_key_so_a_regeneration_is_never_served_the_earli
     assert len(h.host.requests) == 2
     key = cache_key("meta-models/muse-spark-open", messages=MESSAGES, response_schema=RoomDraft, reasoning_effort="medium", attempt=1)
     assert key in h.cache.rows and len(h.cache.rows) == 2
+
+
+def test_chat_tags_its_ledger_entry_with_the_job_and_stage_and_returns_the_receipt():
+    """Story 2.20: the fallback host's entries carry the job and stage too, and its call row reads the receipt (AD-16)."""
+    h = Harness(reply(DRAFT))
+    job_id = "job_01JBZ0000000000000000000AA"
+    response = h.chat(response_schema=RoomDraft, reasoning_effort="medium", job_id=job_id, stage="author")
+    assert [(e.job_id, e.stage) for e in h.store.rows] == [(job_id, "author"), (job_id, "author")]
+    settled = fold(h.store.rows)[0]
+    assert response.receipt is not None
+    assert (response.receipt.call_id, response.receipt.host, response.receipt.cached) == (settled.call_id, HOST, False)
+    assert response.receipt.spend_usd == settled.usd
 
 
 def test_a_cache_hit_is_served_before_the_guard_and_cache_off_still_refuses_at_the_cap():

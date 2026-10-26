@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel
 
-from src.domain.schema import Polygon, Role
+from src.domain.schema import JobId, Polygon, Role, Stage
 
 from .base import (
     ChatMessage,
@@ -44,6 +44,8 @@ class ChatCall:
     reasoning_effort: str
     model: str | None
     attempt: int = 0
+    job_id: JobId | None = None
+    stage: Stage | None = None
 
 
 @dataclass(frozen=True)
@@ -81,9 +83,11 @@ class MockProvider(ModelProvider):
         reasoning_effort: ReasoningEffort = "low",
         model: str | None = None,
         attempt: int = 0,
+        job_id: JobId | None = None,
+        stage: Stage | None = None,
     ) -> ChatResponse:
         check_reasoning_effort(reasoning_effort)
-        self.calls.append(ChatCall(list(messages), list(images), response_schema, reasoning_effort, model, attempt))
+        self.calls.append(ChatCall(list(messages), list(images), response_schema, reasoning_effort, model, attempt, job_id, stage))
         if self._script is not None:
             text = self._next("chat", self._script.chat)
         else:
