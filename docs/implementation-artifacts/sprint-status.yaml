@@ -88,7 +88,7 @@ development_status:
   2-20-riddler-authoring-stage-behind-the-validator: backlog
   2-21-regeneration-loop-ending-in-needs_recapture: backlog
   2-22-scene-stage-writes-the-immutable-room-and-the-final-job-reco: backlog
-  2-23-dry-run-prompt-builder-over-what-a-player-sees: backlog
+  2-23-dry-run-prompt-builder-over-what-a-player-sees: done
   2-24-dry-run-stage-proves-every-puzzle-solvable-before-the-room-s: backlog
   2-25-capture-screen-end-states-failed-too-few-objects-re-capture: backlog
   2-26-capture-measured-p50-per-stage-over-five-live-builds: backlog
