@@ -156,7 +156,7 @@ development_status:
   7-10-twenty-slot-judge-build-quota: backlog
   7-11-access-code-guard-and-the-quota-refusal: backlog
   7-12-post-access-check-before-photo-selection: backlog
-  7-13-seed-the-demo-rooms-with-their-job-records: backlog
+  7-13-seed-the-demo-rooms-with-their-job-records: done
   7-14-hosted-room-partitions-demo-rooms-listed-judge-rooms-apart: backlog
   7-15-demo-room-welcome-on-session-start: backlog
   7-16-hosted-landing-with-demo-room-cards: backlog
