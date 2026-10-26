@@ -1,10 +1,14 @@
-"""Offline guard for every test (AD-17)."""
+"""Offline guard for every test (AD-17), and the synthetic fixture rooms every play story tests against."""
 
 import ipaddress
 import os
 import socket
+from pathlib import Path
 
 import pytest
+
+from src.domain.schema import Room
+from tests.fixtures.rooms import write_fixtures
 
 SECRET_KEYS = ("META_MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
 ROLES = ("ARCHITECT", "RIDDLER", "DRYRUN", "TRICKSTER", "IMAGE")
@@ -53,3 +57,29 @@ def offline(monkeypatch):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(socket.socket, "connect", _guard(_real_connect))
     monkeypatch.setattr(socket.socket, "connect_ex", _guard(_real_connect_ex))
+
+
+# --- Synthetic fixture rooms (Story 1.6) -----------------------------------
+
+
+@pytest.fixture(scope="session")
+def fixture_dir(tmp_path_factory) -> Path:
+    """Where the synthetic scenes land: pytest's tmp path, outside every git-ignored folder."""
+    return tmp_path_factory.mktemp("fixtures")
+
+
+@pytest.fixture(scope="session")
+def fixture_rooms(fixture_dir: Path) -> tuple[Room, Room]:
+    return write_fixtures(fixture_dir)
+
+
+@pytest.fixture
+def four_lock_room(fixture_rooms: tuple[Room, Room]) -> Room:
+    """A fresh deep copy per test: code, order, use_on and find locks over six scenes."""
+    return fixture_rooms[0].model_copy(deep=True)
+
+
+@pytest.fixture
+def code_and_find_room(fixture_rooms: tuple[Room, Room]) -> Room:
+    """A fresh deep copy per test: code and find locks only (cut 6, video v0)."""
+    return fixture_rooms[1].model_copy(deep=True)
