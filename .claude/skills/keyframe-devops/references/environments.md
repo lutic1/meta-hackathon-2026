@@ -9,7 +9,7 @@ Four environments, one lock. The code files are authoritative; this page and the
 - **Node:** 24.x from `.nvmrc` (npm 11). `nvm use` in `web/`.
 - **Ollama:** the macOS app, runtime 0.40.x (Stack: 0.40.6; the app auto-updates the patch), model `llama3.2:3b`, at `127.0.0.1:11434` unless `OLLAMA_HOST` is set. The adapter passes `keep_alive=-1` on every call, so nothing depends on `launchctl setenv OLLAMA_KEEP_ALIVE` surviving a reboot. Resident size is not published (estimates vary from 2.2 to 6.2 GB); `doctor.py` measures it from `/api/ps` after one warm-up call.
 - **Provider:** `meta` per role, with the Baseten or Fireworks fallback by base URL; `mock` inside pytest (the conftest forces it).
-- **Secrets:** `.env` (git-ignored, copied from `.env.example`): `META_MODEL_API_KEY`, `FAL_KEY`, optional `OLLAMA_HOST`; `MODE` and `GUIDE` stay at their defaults (`local`, `ollama`). The Modal token lives only in `~/.modal.toml` (`modal setup`). The hosted Secret's source file is `~/keyframe-hosted.env`, outside the repo.
+- **Secrets:** `.env` (git-ignored, copied from `.env.example`): `MODEL_API_KEY`, `FAL_KEY`, optional `OLLAMA_HOST`; `MODE` and `GUIDE` stay at their defaults (`local`, `ollama`). The Modal token lives only in `~/.modal.toml` (`modal setup`). The hosted Secret's source file is `~/keyframe-hosted.env`, outside the repo.
 - **Runs:** `uv sync --locked`, `npm ci`, `scripts/check.sh`, `scripts/doctor.py`, FastAPI serving `web/dist` or behind the Vite dev proxy, `scripts/sit.py`, dev-skill selfchecks, `modal serve -e dev`, manual `modal deploy`, the ledger export, video takes.
 - **Never runs:** `uv sync --frozen`, `uv pip install`, `npm install` without an exact version, `modal secret create --from-dotenv .env`; never commits `.env` or raw photos.
 
@@ -39,6 +39,6 @@ Four environments, one lock. The code files are authoritative; this page and the
 - **Node:** none at runtime; `web/dist` is built on the Mac and mounted with `add_local_dir`.
 - **Ollama:** none (`GUIDE=verbatim`; Settings refuses `MODE=hosted` with `GUIDE=ollama`).
 - **Provider:** `meta` for the Trickster and builds; rungs verbatim.
-- **Secrets:** Modal Secret `keyframe`, with `required_keys` `META_MODEL_API_KEY`, `FAL_KEY`, `ACCESS_CODE` (plus `OPENAI_COMPATIBLE_API_KEY` if the hosted fallback is used). `MODE=hosted` and `GUIDE=verbatim` are set on the image with `.env()`. `MIN_CONTAINERS` comes from the deploy shell.
+- **Secrets:** Modal Secret `keyframe`, with `required_keys` `MODEL_API_KEY`, `FAL_KEY`, `ACCESS_CODE` (plus `OPENAI_COMPATIBLE_API_KEY` if the hosted fallback is used). `MODE=hosted` and `GUIDE=verbatim` are set on the image with `.env()`. `MIN_CONTAINERS` comes from the deploy shell.
 - **Runs:** the FastAPI `asgi_app` (`max_containers=1`), `run_build`, the `ledger_export` and `session_sweep` Crons, smoke checks after deploy.
 - **Never runs:** Ollama, pytest (dev group excluded), `.env` (`add_local_python_source` ships only `.py` files), automatic deploys.

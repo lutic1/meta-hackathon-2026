@@ -56,7 +56,7 @@ def _json(request: httpx.Request) -> dict:
 
 
 def meta_settings(**overrides) -> Settings:
-    values = {"provider_image": "meta", "meta_model_api_key": "test-key", "spend_cap_usd": 60, "cache": "on", **overrides}
+    values = {"provider_image": "meta", "model_api_key": "test-key", "spend_cap_usd": 60, "cache": "on", **overrides}
     return Settings(**values)
 
 

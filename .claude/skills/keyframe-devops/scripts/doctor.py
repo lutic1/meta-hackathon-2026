@@ -32,7 +32,7 @@ UV_PINNED = (0, 11, 32)        # mirror of ci.yml `version:`
 OLLAMA_MINOR = "0.40"          # source of truth for the Ollama runtime minor
 OLLAMA_STACK = "0.40.6"        # mirror of the Stack table
 GUIDE_MODEL_DEFAULT = "llama3.2:3b"  # used until src/providers/ollama.py defines GUIDE_MODEL
-SECRET_KEYS = ("META_MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
+SECRET_KEYS = ("MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
 IGNORE_PROBES = (".env", ".env.local", "keyframe-hosted.env", "rooms/a.jpg", "photos/a.jpg",
                  "captures/a.jpg", "uploads/a.jpg", "a.heic", "a.HEIC", ".cache/a")
 # Mirror of the privacy step in scripts/check.sh: env files, raw photos, private folders.

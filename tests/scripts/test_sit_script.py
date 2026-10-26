@@ -44,7 +44,7 @@ def chat_transport(body: dict | None = None, status: int = 200) -> sit_script.Re
 
 
 def harness(root: Path, transport: sit_script.RecordingTransport | None = None) -> sit_script.Sit:
-    return sit_script.Sit(root, Settings(meta_model_api_key="test-key", spend_cap_usd=60), transport or chat_transport())
+    return sit_script.Sit(root, Settings(model_api_key="test-key", spend_cap_usd=60), transport or chat_transport())
 
 
 def write_case(folder: Path, name: str, body: str) -> Path:
@@ -113,7 +113,7 @@ def test_a_module_without_run_is_a_failed_case_and_no_case_dir_exits_non_zero(tm
 
 
 def test_a_case_sees_the_harness_and_its_spend_is_printed(tmp_path, capsys, monkeypatch):
-    monkeypatch.setenv("META_MODEL_API_KEY", "test-key")  # the Settings the run builds come from the environment
+    monkeypatch.setenv("MODEL_API_KEY", "test-key")  # the Settings the run builds come from the environment
     cases = tmp_path / "sit"
     write_case(cases, "test_00_call", "    from src.providers.base import ChatMessage\n"
                "    sit.meta('vision', 15.0).chat([ChatMessage(role='user', content='Say ok.')])\n"
@@ -313,7 +313,7 @@ class Vendors:
 
 
 def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_their_fixtures(tmp_path, capsys, monkeypatch):
-    monkeypatch.setenv("META_MODEL_API_KEY", "test-key")
+    monkeypatch.setenv("MODEL_API_KEY", "test-key")
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "test-key")
     monkeypatch.setenv("OPENAI_COMPATIBLE_BASE_URL", "https://inference.baseten.co/v1")
     (tmp_path / "photos").mkdir()

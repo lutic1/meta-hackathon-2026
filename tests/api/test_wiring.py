@@ -199,7 +199,7 @@ def test_provider_riddler_switches_only_the_riddler_role(tmp_path):
 
 
 def test_model_provider_meta_gives_each_role_a_meta_adapter_priced_as_its_kind(tmp_path):
-    providers = _providers(tmp_path, {"MODEL_PROVIDER": "meta", "META_MODEL_API_KEY": "test-key", "PROVIDER_RIDDLER": "openai_compatible", **FALLBACK})
+    providers = _providers(tmp_path, {"MODEL_PROVIDER": "meta", "MODEL_API_KEY": "test-key", "PROVIDER_RIDDLER": "openai_compatible", **FALLBACK})
     meta = {role: p for role, p in providers.items() if role != "riddler"}
     assert all(type(p) is MetaModelProvider for p in meta.values())
     assert {role: (p.chat_kind, p.budget_s) for role, p in meta.items()} == {role: ROLE_CALLS[role] for role in meta}
@@ -213,7 +213,7 @@ def test_model_provider_meta_gives_each_role_a_meta_adapter_priced_as_its_kind(t
 
 
 def test_cache_off_bypasses_the_cache_for_every_hosted_role(tmp_path):
-    providers = _providers(tmp_path, {"MODEL_PROVIDER": "meta", "META_MODEL_API_KEY": "test-key", "CACHE": "off"})
+    providers = _providers(tmp_path, {"MODEL_PROVIDER": "meta", "MODEL_API_KEY": "test-key", "CACHE": "off"})
     assert not any(p._calls.enabled for p in providers.values())
 
 

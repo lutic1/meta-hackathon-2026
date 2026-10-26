@@ -1,15 +1,18 @@
 """Meta Model API adapter: Muse Spark 1.3 chat, sam-3.1 segmentation and Muse Image 1.0 (AD-5).
 
 Standard tier only. The key comes from `Settings` (AD-14); this module reads
-no environment. Every call takes the guarded path (AD-6): the cache first,
-then the ledger guard on a miss, priced from the returned usage at the
-`budgets.md` rates. Inside one ledger entry the adapter retries at most
-once (AD-13), only on what Meta documents as retryable for that endpoint
-and on a connect error, waiting `Retry-After` or 0.5 to 1 s of jitter, and
-failing at once when that wait would pass what is left of the stage's
-budget. Every failure surfaces as `ProviderError`, never an httpx error.
-Requests go through one `httpx.Client`; tests pass an `httpx.MockTransport`
-that serves recorded fixtures, so no socket opens (AD-17).
+no environment. With no key the client sends no `Authorization` header: the
+cloud egress proxy adds it for api.meta.ai, and the code never does there; a
+keyless 401 or 403 fails at once naming `MODEL_API_KEY`. Every call takes
+the guarded path (AD-6): the cache first, then the ledger guard on a miss,
+priced from the returned usage at the `budgets.md` rates. Inside one
+ledger entry the adapter retries at most once (AD-13), only on what Meta
+documents as retryable for that endpoint and on a connect error, waiting
+`Retry-After` or 0.5 to 1 s of jitter, and failing at once when that wait
+would pass what is left of the stage's budget. Every failure surfaces as
+`ProviderError`, never an httpx error. Requests go through one
+`httpx.Client`; tests pass an `httpx.MockTransport` that serves recorded
+fixtures, so no socket opens (AD-17).
 """
 
 from __future__ import annotations
@@ -79,6 +82,9 @@ SAM_RETRYABLE_STATUS = frozenset({429, 500, 503})
 IMAGE_RETRYABLE_STATUS = frozenset({429, 503})
 RETRY_ON_CONNECT = (httpx.ConnectError, httpx.ConnectTimeout)
 """Nothing reached the server, so nothing was billed; a read timeout is never re-sent."""
+KEYLESS_REFUSED_STATUS = frozenset({401, 403})
+KEYLESS_REFUSED_MESSAGE = "the Meta Model API refused a call made without a key; set MODEL_API_KEY"
+"""Fixed: names the variable, never the request's headers."""
 
 _SVG_COMMAND = re.compile(r"([MLZ])([^MLZ]*)")
 
@@ -234,17 +240,16 @@ class MetaModelProvider(ModelProvider):
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         """One provider per council role: `chat_kind` prices its chat calls and `budget_s` is its stage budget."""
-        if not api_key:
-            raise ValueError("META_MODEL_API_KEY is not set. Add it to .env (see .env.example).")
         self.base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
         self.chat_kind = chat_kind
         self.budget_s = budget_s
         self._calls = calls
         self._sleep = sleep
         self._clock = clock
+        self._keyless = not api_key
         self.client = httpx.Client(
             base_url=self.base_url,
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers={"Authorization": f"Bearer {api_key}"} if api_key else None,
             timeout=TIMEOUT,
             transport=transport,
         )
@@ -271,6 +276,8 @@ class MetaModelProvider(ModelProvider):
             else:
                 if response.is_success:
                     return response.json()
+                if self._keyless and response.status_code in KEYLESS_REFUSED_STATUS:
+                    raise ProviderError(response.status_code, "missing_key", KEYLESS_REFUSED_MESSAGE)
                 error, cause = _http_error(response), None
                 retry, after = response.status_code in retryable, retry_after_s(response.headers)
             wait = retry_wait_s(after, budget_s - (self._clock() - started)) if retry and may_retry else None

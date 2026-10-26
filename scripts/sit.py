@@ -122,7 +122,7 @@ class Sit:
     def meta(self, chat_kind: CallKind, budget_s: float, *, cache: bool = False, ledger: SpendLedger | None = None) -> MetaModelProvider:
         """The Meta adapter for one council role, over this run's cache, ledger and recording transport."""
         return MetaModelProvider(
-            self.settings.meta_model_api_key,
+            self.settings.model_api_key,
             self.settings.meta_model_api_base_url,
             calls=self.calls(cache=cache, ledger=ledger),
             chat_kind=chat_kind,

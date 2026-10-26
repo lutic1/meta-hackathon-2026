@@ -7,10 +7,11 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from src.config import ENV_KEYS, ROLES, Settings
+from src.config import ENV_KEYS, ROLES, SECRET_KEYS, Settings
 
 REPO = Path(__file__).resolve().parents[1]
 ENV_READS = {"environ", "getenv", "putenv", "unsetenv"}
+RETIRED_META_KEY = "META_" + "MODEL_API_KEY"  # the retired name, spelled so a repo search finds only history
 
 
 class CountingEnv(dict):
@@ -32,7 +33,7 @@ def test_defaults_when_nothing_is_set():
     assert all(getattr(s, f"provider_{role}") == "meta" for role in ROLES)
     assert all(getattr(s, f"model_{role}") == "muse-spark-1.3" for role in ROLES if role != "image")
     assert s.model_image == "muse-image-1.0"
-    assert s.meta_model_api_key is None and s.fal_key is None and s.access_code is None
+    assert s.model_api_key is None and s.fal_key is None and s.access_code is None
     assert s.meta_model_api_base_url is None and s.ollama_host is None
     assert s.openai_compatible_base_url is None and s.openai_compatible_api_key is None
 
@@ -100,21 +101,28 @@ def test_hosted_mode_starts_with_every_other_trickster_source(value):
 
 def test_a_refusal_names_only_the_refused_value_never_a_secret():
     with pytest.raises(ValidationError) as excinfo:
-        Settings.from_env({"MODE": "hosted", "GUIDE": "ollama", "META_MODEL_API_KEY": "sk-sentinel", "ACCESS_CODE": "code-sentinel"})
+        Settings.from_env({"MODE": "hosted", "GUIDE": "ollama", "MODEL_API_KEY": "sk-sentinel", "ACCESS_CODE": "code-sentinel"})
     assert "sentinel" not in str(excinfo.value)
 
 
 def test_values_are_read_and_blank_means_unset():
     s = Settings.from_env({
         "CACHE": "off", "SPEND_CAP_USD": "20", "DEMO_TIMESCALE": "6", "DEMO_TRICKSTER": "scripted",
-        "DRY_RUN": "off", "REGEN_MAX": "1", "GUIDE": "verbatim", "META_MODEL_API_KEY": "k",
+        "DRY_RUN": "off", "REGEN_MAX": "1", "GUIDE": "verbatim", "MODEL_API_KEY": "k",
         "FAL_KEY": "", "ACCESS_CODE": "secret", "OLLAMA_HOST": "http://127.0.0.1:11434",
     })
     assert (s.cache, s.spend_cap_usd, s.demo_timescale, s.demo_trickster) == ("off", 20.0, 6, "scripted")
     assert Settings.from_env({"SPEND_CAP_USD": "5"}).spend_cap_usd + s.hosted_spend_cap_usd == 25  # the Thu Nov 5 configuration
     assert (s.dry_run, s.regen_max, s.guide) == ("off", 1, "verbatim")
-    assert s.meta_model_api_key == "k" and s.fal_key is None and s.access_code == "secret"
+    assert s.model_api_key == "k" and s.fal_key is None and s.access_code == "secret"
     assert s.ollama_host == "http://127.0.0.1:11434"
+
+
+def test_the_meta_key_is_read_from_model_api_key_and_never_the_old_name():
+    assert Settings.from_env({"MODEL_API_KEY": "k"}).model_api_key == "k"
+    assert Settings.from_env({RETIRED_META_KEY: "old"}).model_api_key is None
+    assert RETIRED_META_KEY not in ENV_KEYS and "MODEL_API_KEY" in SECRET_KEYS
+    assert RETIRED_META_KEY.lower() not in Settings.model_fields
 
 
 @pytest.mark.parametrize("value", ["live", "record", "scripted", "authored"])
@@ -140,7 +148,7 @@ def test_conftest_forces_mock_and_blank_secrets():
     assert s.model_provider == "mock"
     assert s.guide == "verbatim"
     assert all(getattr(s, f"provider_{role}") == "mock" for role in ROLES)
-    assert s.meta_model_api_key is None and s.fal_key is None
+    assert s.model_api_key is None and s.fal_key is None
     assert s.openai_compatible_api_key is None and s.access_code is None
 
 

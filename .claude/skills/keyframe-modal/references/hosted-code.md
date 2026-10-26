@@ -29,7 +29,7 @@ image = (
     .add_local_dir("web/dist", "/root/web/dist")          # lazy: a missing build fails only at serve or deploy
 )
 
-secret = modal.Secret.from_name("keyframe", required_keys=["META_MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"])
+secret = modal.Secret.from_name("keyframe", required_keys=["MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"])
 volume = modal.Volume.from_name("keyframe-data", create_if_missing=True)
 jobs = modal.Dict.from_name("keyframe-jobs", create_if_missing=True)
 sessions = modal.Dict.from_name("keyframe-sessions", create_if_missing=True)

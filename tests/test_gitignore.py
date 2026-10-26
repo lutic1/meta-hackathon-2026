@@ -48,5 +48,5 @@ def test_env_example_lists_every_settings_key_blank():
     pairs = _example_keys()
     assert set(pairs) == set(ENV_KEYS)
     assert all(value == "" for value in pairs.values()), {k: v for k, v in pairs.items() if v}
-    assert {"META_MODEL_API_KEY", "FAL_KEY"} <= set(pairs)
+    assert {"MODEL_API_KEY", "FAL_KEY"} <= set(pairs)
     assert set(SECRET_KEYS) <= set(pairs)

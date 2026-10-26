@@ -76,7 +76,7 @@ import socket
 
 import pytest
 
-SECRET_KEYS = ("META_MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
+SECRET_KEYS = ("MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
 ROLES = ("ARCHITECT", "RIDDLER", "DRYRUN", "TRICKSTER", "IMAGE")
 
 # Runs before any test module imports src.config, so .env cannot reach module-level Settings.
@@ -347,7 +347,7 @@ image = (
     .add_local_dir("web/dist", "/root/web/dist")
 )
 secret = modal.Secret.from_name(
-    "keyframe", required_keys=["META_MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"]
+    "keyframe", required_keys=["MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"]
 )  # plus "OPENAI_COMPATIBLE_API_KEY" if the hosted fallback is used
 ```
 

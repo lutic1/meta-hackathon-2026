@@ -10,7 +10,7 @@ import pytest
 from src.domain.schema import Room
 from tests.fixtures.rooms import write_fixtures
 
-SECRET_KEYS = ("META_MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
+SECRET_KEYS = ("MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
 DEPLOY_KEYS = ("MODE", "MIN_CONTAINERS")  # a deploy shell keeps MIN_CONTAINERS=1 (AD-9); tests choose their own mode
 ROLES = ("ARCHITECT", "RIDDLER", "DRYRUN", "TRICKSTER", "IMAGE")
 # A loopback HTTPS proxy (the cloud containers have one) would carry a request past the socket guard.

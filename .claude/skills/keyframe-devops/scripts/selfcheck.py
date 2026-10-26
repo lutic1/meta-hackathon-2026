@@ -63,7 +63,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        return cls(os.environ.get("MODEL_PROVIDER", "mock"), os.environ.get("META_MODEL_API_KEY") or None)
+        return cls(os.environ.get("MODEL_PROVIDER", "mock"), os.environ.get("MODEL_API_KEY") or None)
 '''
 SETTINGS_TEST = '''\
 from src.settings_user import SETTINGS
@@ -128,7 +128,7 @@ def main() -> int:
     (root / "src/config.py").write_text(CONFIG_STANDIN)
     (root / "src/settings_user.py").write_text("from src.config import Settings\n\nSETTINGS = Settings.from_env()\n")
     (root / "tests/test_settings_user.py").write_text(SETTINGS_TEST)
-    (root / ".env").write_text("MODEL_PROVIDER=meta\nMETA_MODEL_API_KEY=fake-not-a-key\n")  # the Mac's .env, faked
+    (root / ".env").write_text("MODEL_PROVIDER=meta\nMODEL_API_KEY=fake-not-a-key\n")  # the Mac's .env, faked
     (root / ".gitignore").write_text(".venv/\nnode_modules/\ndist/\n.env\n.env.*\n!.env.example\n*.env\n"
                                      "__pycache__/\n.pytest_cache/\n")
 

@@ -40,7 +40,7 @@ ENV_KEYS = (
     "MODEL_PROVIDER",
     *(f"PROVIDER_{role.upper()}" for role in ROLES),
     *(f"MODEL_{role.upper()}" for role in ROLES),
-    "META_MODEL_API_KEY",
+    "MODEL_API_KEY",
     "META_MODEL_API_BASE_URL",
     "OPENAI_COMPATIBLE_BASE_URL",
     "OPENAI_COMPATIBLE_API_KEY",
@@ -50,7 +50,7 @@ ENV_KEYS = (
 )
 """Every environment key `Settings` reads; `.env.example` lists each one blank."""
 
-SECRET_KEYS = ("META_MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
+SECRET_KEYS = ("MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
 
 MUSE_SPARK = "muse-spark-1.3"
 MUSE_IMAGE = "muse-image-1.0"
@@ -102,7 +102,7 @@ class Settings(BaseModel, frozen=True):
     model_dryrun: str = MUSE_SPARK
     model_trickster: str = MUSE_SPARK
     model_image: str = MUSE_IMAGE
-    meta_model_api_key: str | None = None
+    model_api_key: str | None = None
     meta_model_api_base_url: str | None = None
     openai_compatible_base_url: str | None = None
     openai_compatible_api_key: str | None = None

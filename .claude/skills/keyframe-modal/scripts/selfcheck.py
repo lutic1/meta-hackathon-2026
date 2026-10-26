@@ -101,7 +101,7 @@ with warnings.catch_warnings():
     image = (modal.Image.debian_slim(python_version="3.13")
              .uv_sync(uv_version="0.11.32", extra_options="--no-dev")
              .env({"MODE": "hosted", "GUIDE": "verbatim"}))
-    secret = modal.Secret.from_name("keyframe", required_keys=["META_MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"])
+    secret = modal.Secret.from_name("keyframe", required_keys=["MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"])
     volume = modal.Volume.from_name("keyframe-data", create_if_missing=True)
     jobs = modal.Dict.from_name("keyframe-jobs", create_if_missing=True)
     sessions = modal.Dict.from_name("keyframe-sessions", create_if_missing=True)

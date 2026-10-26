@@ -60,7 +60,7 @@ class Replay:
         cap_usd: float = 60.0,
         cache_enabled: bool = True,
         clock: list[float] | None = None,
-        api_key: str = "test-key",
+        api_key: str | None = "test-key",
         base_url: str | None = None,
     ) -> None:
         self.items = [fixture(item) if isinstance(item, str) else item for item in items]
@@ -177,8 +177,8 @@ def test_a_reply_cut_short_is_a_provider_error():
 
 
 def test_standard_tier_only_and_the_key_comes_from_settings():
-    settings = Settings.from_env({"META_MODEL_API_KEY": "from-settings", "META_MODEL_API_BASE_URL": "https://example.test/v1/"})
-    replay = Replay(CHAT, api_key=settings.meta_model_api_key, base_url=settings.meta_model_api_base_url)
+    settings = Settings.from_env({"MODEL_API_KEY": "from-settings", "META_MODEL_API_BASE_URL": "https://example.test/v1/"})
+    replay = Replay(CHAT, api_key=settings.model_api_key, base_url=settings.meta_model_api_base_url)
     chat(replay)
     assert str(replay.seen[0].url) == "https://example.test/v1/chat/completions"
     assert replay.seen[0].headers["authorization"] == "Bearer from-settings"
@@ -187,9 +187,29 @@ def test_standard_tier_only_and_the_key_comes_from_settings():
     assert replay.body()["model"] == "muse-spark-1.3"
 
 
-def test_missing_key_is_refused():
-    with pytest.raises(ValueError, match="META_MODEL_API_KEY"):
-        Replay(CHAT, api_key="")
+def test_the_key_is_sent_as_a_bearer_header_when_set():
+    replay = Replay(CHAT, api_key="test-key")
+    chat(replay)
+    assert replay.seen[0].headers["authorization"] == "Bearer test-key"
+
+
+@pytest.mark.parametrize("api_key", [None, ""])
+def test_without_a_key_no_authorization_header_is_sent(api_key):
+    replay = Replay(CHAT, api_key=api_key)
+    chat(replay)
+    assert "authorization" not in replay.seen[0].headers
+    assert "authorization" not in replay.provider.client.headers
+
+
+@pytest.mark.parametrize("kind", ["chat", "segment", "image"])
+@pytest.mark.parametrize("status", [401, 403])
+def test_a_keyless_auth_refusal_names_model_api_key_without_a_retry(kind, status):
+    replay = Replay(error(status, "authentication_error"), CHAT, api_key=None)
+    with pytest.raises(ProviderError, match="MODEL_API_KEY") as info:
+        _call(replay, kind)
+    assert (info.value.status, info.value.code) == (status, "missing_key")
+    assert str(info.value) == f"{status} missing_key: {meta_api.KEYLESS_REFUSED_MESSAGE}"
+    assert len(replay.seen) == 1 and replay.waits == [] and replay.cache.writes == 0
 
 
 def test_module_uses_httpx_and_the_parser_only_and_reads_no_environment():

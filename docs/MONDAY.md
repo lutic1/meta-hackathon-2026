@@ -13,7 +13,7 @@ Monday is not the first touch of it. This week:
 - [ ] Create a Meta Model API account at dev.meta.ai, configure
       billing, and generate an API key. New accounts start with $20
       in free credits.
-- [ ] Copy the key into `.env` as `META_MODEL_API_KEY`. Pre-kickoff
+- [ ] Copy the key into `.env` as `MODEL_API_KEY`. Pre-kickoff
       verifications (the Architect vision call, `sam-3.1` masks, one
       Riddler call) run as scratch scripts against the live API, up to
       about $5 cash (`docs/specs/spec-keyframe/budgets.md`); the
@@ -59,7 +59,7 @@ Monday is not the first touch of it. This week:
       if used) and confirm the payment methods on dev.meta.ai, fal.ai
       and Modal.
 - [ ] Keys go into `.env` only, never committed; `.env.example` lists
-      the names (`META_MODEL_API_KEY`, `FAL_KEY` and the rest) with
+      the names (`MODEL_API_KEY`, `FAL_KEY` and the rest) with
       blank values.
 - [ ] Join the event Discord. Office hours and announcements live there.
 

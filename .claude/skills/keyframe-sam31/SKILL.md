@@ -28,7 +28,7 @@ Do not use it for:
 - local SAM weights or GPU inference;
 - drawing hotspots in `web/scene`.
 
-Never make a live `sam-3.1` call (any request with a real `META_MODEL_API_KEY`) unless the user explicitly asks for it; the First live call checklist under Tested commands is the only live step. Dev loops and tests use the mock provider and recorded fixtures (AD-17).
+Never make a live `sam-3.1` call (any request with a real `MODEL_API_KEY`) unless the user explicitly asks for it; the First live call checklist under Tested commands is the only live step. Dev loops and tests use the mock provider and recorded fixtures (AD-17).
 
 ## How Keyframe calls it
 
@@ -57,7 +57,7 @@ def _sam_raw(self, label: str, image: bytes) -> str:                    # cache 
     return result.raw_output
 ```
 
-   The cache and ledger names follow AD-6. Their exact signatures belong to `providers/cache.py` and `providers/spend.py`, and `self.api_key` comes from `Settings.meta_model_api_key`, read from `META_MODEL_API_KEY` (AD-14). `budget_s` is the segment budget left when the call starts; every label starts together, so it is the full 10 s.
+   The cache and ledger names follow AD-6. Their exact signatures belong to `providers/cache.py` and `providers/spend.py`, and `self.api_key` comes from `Settings.model_api_key`, read from `MODEL_API_KEY` (AD-14). `budget_s` is the segment budget left when the call starts; every label starts together, so it is the full 10 s.
 4. **Selection.** `domain/masks.py` (pure, AD-1) runs `select_instances(polygons, vision_box_px, 1280-frame W, H, plural)`. Its rules are below. An empty result or `None` becomes the box rectangle as the single polygon (AD-11, schema v1). What the stage does with a `ProviderError` for one label is not decided yet; see Known issues.
 5. **Room cap.** The stage sorts by vision confidence, keeps 12, and mints `ix_` ids (AD-18). It ends with `needs_more_photos` when fewer than 5 survive. Otherwise it persists `id`, `label`, `photo` and `polygons` as the mask preview (AD-3, AD-7).
 6. **Same code everywhere.** The code is identical in local and hosted mode; only the `Cache` adapter differs (AD-9). Polygons travel as `Interactable.polygons` in `schema.py` (AD-2).

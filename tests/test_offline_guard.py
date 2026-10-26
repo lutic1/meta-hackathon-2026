@@ -36,4 +36,4 @@ def test_httpx_live_call_is_refused():
 def test_mock_provider_and_blank_secrets_are_forced():
     assert os.environ["MODEL_PROVIDER"] == "mock"
     assert all(os.environ[f"PROVIDER_{r}"] == "mock" for r in ("ARCHITECT", "RIDDLER", "DRYRUN", "TRICKSTER", "IMAGE"))
-    assert all(os.environ[k] == "" for k in ("META_MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE"))
+    assert all(os.environ[k] == "" for k in ("MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE"))

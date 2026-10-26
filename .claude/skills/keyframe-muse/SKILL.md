@@ -32,7 +32,7 @@ Use this skill for:
 - `scripts/portraits.py`, which calls `muse-image-1.0` once to produce the four committed portraits.
 - The `meta` and `openai_compatible` adapter tests (`tests/providers/test_meta_api_chat*.py`, `test_meta_api_image*.py`, `test_openai_compatible*.py`) that replay recorded fixtures from `tests/fixtures/`, and the council prompt tests for the four roles.
 
-Never make a live Meta or Baseten call (any request with a real `META_MODEL_API_KEY` or `OPENAI_COMPATIBLE_API_KEY`), `scripts/portraits.py` and the live-only rows under Tested commands included, unless the user explicitly asks for it. Dev loops and tests use the mock provider and recorded fixtures (AD-17).
+Never make a live Meta or Baseten call (any request with a real `MODEL_API_KEY` or `OPENAI_COMPATIBLE_API_KEY`), `scripts/portraits.py` and the live-only rows under Tested commands included, unless the user explicitly asks for it. Dev loops and tests use the mock provider and recorded fixtures (AD-17).
 
 Do not use it for:
 - `sam-3.1`, which runs on the Responses API with its own parser and errors.
@@ -70,7 +70,7 @@ parsed = response_schema.model_validate_json(choice["message"]["content"])
 ledger.settle(call_id, chat_cost_usd(resp.json()["usage"]))
 ```
 
-- **Client.** Use one `httpx.Client(base_url="https://api.meta.ai/v1", headers={"Authorization": f"Bearer {key}"}, timeout=...)` per provider. The key comes from `Settings.meta_model_api_key`, read from `META_MODEL_API_KEY` (AD-14 keeps that name, not Meta's documented `MODEL_API_KEY`). Read it in no other module. Locally it lives in `.env`; hosted, in the `keyframe` `modal.Secret`.
+- **Client.** Use one `httpx.Client(base_url="https://api.meta.ai/v1", timeout=...)` per provider, with `headers={"Authorization": f"Bearer {key}"}` only when a key is set; with no key it sends no `Authorization` header, because the cloud egress proxy adds it for `api.meta.ai`, and a keyless 401 or 403 raises `ProviderError` naming `MODEL_API_KEY`. The key comes from `Settings.model_api_key`, read from `MODEL_API_KEY` (Meta's documented name, AD-14). Read it in no other module. Locally it lives in `.env`; hosted, in the `keyframe` `modal.Secret`.
 - **Images.** Send the stored downscaled 1280 px JPEG bytes from ingest (AD-7) as `data:image/jpeg;base64,...` parts in the user message, in upload order. Never re-encode them, because the cache key and the masks use the same bytes.
 - **Boxes.** Boxes come back on a 0 to 1000 grid of the image as sent. The segment stage converts them to frame pixels and clamps them (AD-18, Conventions). The model may return 1001 at an edge.
 - **Schemas.** On Meta, send `Model.model_json_schema()` with `strict: false`, which is the API default and AD-5's first option; AD-2 requires it for any schema holding a tagged union. Output is still constrained to the schema. Use `strict_schema(Model)` with `strict: true` only where the host requires strict mode: Baseten's reference fixes `strict` to `true`. Meta's strict subset forbids `oneOf` and open maps, so `strict_schema` rewrites the `oneOf` that AD-2's tagged unions produce and refuses map-typed fields. AD-2 keeps map-typed fields out of every model-response schema (`RoomDraft`, `DryRunAnswers`, `ArchitectResponse`: lists or fixed `p1` to `p6` keys), so the refusal only catches a regression. Baseten documents no subset of its own. That it enforces Meta's is an assumption to confirm in the Tue Oct 27 live call.

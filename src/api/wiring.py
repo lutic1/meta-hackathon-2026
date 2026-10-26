@@ -168,7 +168,7 @@ def model_provider(settings: Settings, role: Role, calls: Callable[[str], Guarde
     if kind == "meta":
         base_url = settings.meta_model_api_base_url
         return MetaModelProvider(
-            settings.meta_model_api_key,
+            settings.model_api_key,
             base_url,
             calls=calls(httpx.URL(base_url or DEFAULT_BASE_URL).host),
             chat_kind=chat_kind,

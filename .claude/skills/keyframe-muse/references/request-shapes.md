@@ -4,7 +4,7 @@ Checked against the official pages on 2026-10-21. `scripts/selfcheck.py` builds 
 
 ## Chat Completions request (Architect)
 
-`POST https://api.meta.ai/v1/chat/completions`, headers `Authorization: Bearer <META_MODEL_API_KEY>` and `Content-Type: application/json`.
+`POST https://api.meta.ai/v1/chat/completions`, headers `Authorization: Bearer <MODEL_API_KEY>` and `Content-Type: application/json`.
 
 ```json
 {
@@ -116,7 +116,7 @@ Pydantic emits discriminated unions (AD-2's tagged unions) as `oneOf` with a `di
 | Field | Meta Model API | Baseten Model APIs |
 |---|---|---|
 | Base URL | `https://api.meta.ai/v1` | `https://inference.baseten.co/v1` |
-| Auth | `Bearer META_MODEL_API_KEY` | `Bearer OPENAI_COMPATIBLE_API_KEY` (a Baseten key) |
+| Auth | `Bearer MODEL_API_KEY` | `Bearer OPENAI_COMPATIBLE_API_KEY` (a Baseten key) |
 | `model` | `muse-spark-1.3` | `meta-models/muse-spark-open` |
 | Output cap | `max_completion_tokens` | `max_tokens` (default 4096, so always set it) |
 | `json_schema.strict` | false (the default) | schema says `const: true`: send `strict_schema(Model)` with `strict: true`. Baseten documents no schema subset; Meta's subset (no `oneOf`, no open maps) is assumed until the Oct 27 live call |

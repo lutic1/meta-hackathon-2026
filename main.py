@@ -4,7 +4,7 @@
     uv run python main.py image "a red convertible on a coastal road"
 
 MODEL_PROVIDER=mock needs no keys. MODEL_PROVIDER=meta reads
-META_MODEL_API_KEY from .env; see docs/MONDAY.md before the first paid call.
+MODEL_API_KEY from .env; see docs/MONDAY.md before the first paid call.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def get_provider(settings: Settings, role: Role = "architect") -> ModelProvider:
     if settings.model_provider == "meta":
         ledger = SpendLedger(MemoryLedgerStore(), cap_usd=settings.spend_cap_usd)
         return MetaModelProvider(
-            api_key=settings.meta_model_api_key,
+            api_key=settings.model_api_key,
             base_url=settings.meta_model_api_base_url,
             calls=GuardedCalls(MemoryCache(), ledger, host="api.meta.ai", enabled=settings.cache == "on"),
             chat_kind="vision",
