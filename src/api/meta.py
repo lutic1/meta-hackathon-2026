@@ -27,8 +27,6 @@ GUIDE_MODEL_ID = "llama3.2:3b"
 DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434"
 """Where the Ollama server listens when `OLLAMA_HOST` is unset."""
 
-MetaProfile = Literal["dev", "demo"]
-"""The `profile` query of `GET /meta`: `dev` unless the client asks for `demo`."""
 Trickster = Literal["live", "scripted", "cut1"]
 
 TIMESCALE_LINE = "Hint and Trickster timings run at {n}× speed; the build timer is real time."
@@ -74,7 +72,7 @@ def disclosure_lines(settings: Settings) -> list[str]:
     return lines
 
 
-def meta(settings: Settings, profile: MetaProfile = "dev") -> Meta:
+def meta(settings: Settings, profile: str = "dev") -> Meta:
     return Meta(
         mode=MODE,
         guide=settings.guide,

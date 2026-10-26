@@ -31,12 +31,13 @@ one JSON line with `session_id`, the event type and `duration_ms` (AR-22).
 Every session state served carries the global Disclosure lines
 `src/api/meta.py` composes (AD-15); the per-Room line joins in 6.2.
 
-`GET /rooms` lists one `RoomSummary` per stored Room through
-`ArtifactStore.list_rooms()`, newest build first, with `job_id` read from
-the job record that names the Room (AD-9); `GET /meta` serves the `Meta`
-model and `GET /schema` the JSON Schema of every AD-2 model under `$defs`,
-from which `web/types` are generated. The Trickster route and the build
-routes land with their stories.
+`GET /rooms` lists one `RoomSummary` per stored Room with a job record
+through `ArtifactStore.list_rooms()`, newest build first, with `job_id` read
+from the job record that names the Room (AD-9); `GET /meta` serves the
+`Meta` model, echoing any `?profile=` name the profile routes accept (AD-14),
+and `GET /schema` the JSON Schema of every AD-2 model under `$defs`, from
+which `web/types` are generated. The Trickster route and the build routes
+land with their stories.
 """
 
 from __future__ import annotations
@@ -66,7 +67,7 @@ from src.api.errors import (
     handle_api_error,
     handle_validation_error,
 )
-from src.api.meta import MetaProfile, disclosure_lines, meta
+from src.api.meta import disclosure_lines, meta
 from src.api.wiring import artifact_store, job_store, session_clock, session_store
 from src.config import Settings
 from src.domain.redact import to_play_view
@@ -217,7 +218,9 @@ def status_routes(settings: Settings) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["status"])
 
     @router.get("/meta")
-    def get_meta(profile: MetaProfile = "dev") -> Meta:
+    def get_meta(profile: str = "dev") -> Meta:
+        """Echoes the client's `?profile=` (AD-14), `dev` when absent; a name `/profile/<name>` refuses is refused here too."""
+        profile_key(profile)
         return meta(settings, profile)
 
     @router.get("/schema")

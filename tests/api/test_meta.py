@@ -1,4 +1,4 @@
-"""Story 1.14: `GET /meta` serves the status model with the global Disclosure lines and the Local Retention summary, `GET /schema` every AD-2 model, and `GET /rooms` one `RoomSummary` per stored Room (AD-2, AD-9, AD-15)."""
+"""Story 1.14: `GET /meta` serves the status model with the global Disclosure lines and the Local Retention summary, `GET /schema` every AD-2 model, and `GET /rooms` one `RoomSummary` per stored Room with a job record (AD-2, AD-9, AD-15)."""
 
 import ast
 from datetime import UTC, datetime
@@ -22,6 +22,7 @@ from src.config import Settings
 from src.domain.schema import API_MODELS, JobState, Meta, Room, RoomSummary
 from tests.api.test_app import make_app, store_room
 from tests.domain.test_redact import json_keys
+from tests.fixtures.rooms import IX
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 JOB_A, JOB_B = "job_01ARZ3NDEKTSV4RRFFQ69G5FAA", "job_01ARZ3NDEKTSV4RRFFQ69G5FAB"
@@ -69,11 +70,16 @@ def test_guide_ollama_reports_llama_at_the_ollama_host():
     assert meta(settings()).guide_model is None
 
 
-def test_profile_is_dev_unless_the_client_asks_for_demo(client: TestClient):
+def test_profile_is_dev_unless_the_client_names_one(client: TestClient):
     assert get_meta(client)["profile"] == "dev"
-    assert get_meta(client, profile="demo")["profile"] == "demo"
-    assert get_meta(client, profile="dev")["profile"] == "dev"
-    assert client.get("/api/meta", params={"profile": "judge"}).status_code == 422
+    for name in ("demo", "dev", "playtest", "my-profile_2"):
+        assert get_meta(client, profile=name)["profile"] == name
+
+
+@pytest.mark.parametrize("name", ["", "..", "../demo", "a/b"])
+def test_meta_refuses_a_profile_name_the_profile_routes_refuse(client: TestClient, name: str):
+    response = client.get("/api/meta", params={"profile": name})
+    assert (response.status_code, response.json()["error"]["code"]) == (422, "invalid_profile_name")
 
 
 @pytest.mark.parametrize(("demo_trickster", "trickster"), [
@@ -124,7 +130,10 @@ def test_session_state_carries_the_same_global_lines(tmp_path: Path, four_lock_r
     client = TestClient(make_app(tmp_path, four_lock_room, settings=both))
     started = client.post("/api/sessions", json={"room_id": four_lock_room.id}).json()
     state = client.get(f"/api/sessions/{started['id']}").json()
-    assert started["disclosure"] == state["disclosure"] == get_meta(client)["disclosure"] == disclosure_lines(both)
+    clicked = client.post(f"/api/sessions/{started['id']}/events", json={"type": "click", "interactable_id": IX["rug"]})
+    assert clicked.status_code == 200, clicked.text
+    lines = disclosure_lines(both)
+    assert started["disclosure"] == state["disclosure"] == clicked.json()["disclosure"] == get_meta(client)["disclosure"] == lines
 
 
 def _string_constants(path: Path) -> set[str]:
@@ -227,3 +236,14 @@ def test_rooms_lists_one_summary_per_stored_room_newest_first(tmp_path: Path, fo
         {"room_id": older.id, "name": "Room 1", "cover_photo": 0, "puzzle_count": 5, "job_id": JOB_A, "built_at": "2026-10-25T09:00:00Z"},
     ]
     assert not {"solution", "puzzles", "interactables", "photos", "provenance"} & json_keys(response.json())
+
+
+def test_a_stored_room_without_a_job_record_is_not_listed(tmp_path: Path, four_lock_room: Room, code_and_find_room: Room):
+    """`RoomSummary.job_id` is required, so a Room no job record names has no row to list."""
+    root = tmp_path / "rooms"
+    store, jobs = artifact_store(root), job_store(root)
+    store_room(store, four_lock_room)
+    store_room(store, code_and_find_room)
+    jobs.put(JobState(id=JOB_A, status="done", room_id=four_lock_room.id, regen_max=2))
+    client = TestClient(create_app(settings(), rooms_root=root, web_dist=tmp_path / "no-dist"))
+    assert [row["room_id"] for row in client.get("/api/rooms").json()] == [four_lock_room.id]
