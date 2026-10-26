@@ -68,7 +68,7 @@ development_status:
   epic-2: in-progress
   2-1-model-ports-with-a-scripted-mock: done
   2-2-spend-arithmetic-as-pure-domain-functions: done
-  2-3-spend-ledger-and-cap-guard-every-paid-call: backlog
+  2-3-spend-ledger-and-cap-guard-every-paid-call: done
   2-4-model-call-cache-in-front-of-the-ledger: backlog
   2-5-local-ledger-file-and-disk-cache: backlog
   2-6-ledger-export-and-reset-script: backlog
