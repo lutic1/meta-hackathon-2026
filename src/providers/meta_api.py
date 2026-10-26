@@ -1,72 +1,51 @@
-"""Meta Model API provider. STUB: wire up on Monday, Oct 26.
+"""Meta Model API adapter: Muse Spark 1.3 chat and Muse Image 1.0 (standard tier only).
 
-Access to the Muse Spark series, Muse Image, and SAM 3.1 through the
-Meta Model API is granted at hackathon kickoff. Until the official API
-docs are in hand, the endpoint paths and payload shapes below are
-placeholders. The wiring job on Monday is deliberately small:
-
-1. Set META_MODEL_API_KEY (and META_MODEL_API_BASE_URL if the docs give
-   a non-default one) in .env.
-2. Fill in the endpoint paths and payload/response mapping in chat()
-   and generate_image() from the official docs.
-3. Flip MODEL_PROVIDER=meta and run the smoke test in docs/MONDAY.md.
-
-Nothing else in the repo changes. That is the point of the interface.
+The key comes from `Settings` (AD-14); this module reads no environment.
+Requests go through one `httpx.Client`; tests pass an `httpx.MockTransport`
+so no socket opens (AD-17). The guarded-call path (cache, spend ledger,
+retry) and the structured-output arguments land with later providers stories.
 """
 
 from __future__ import annotations
 
-import json
-import os
-import urllib.request
+from typing import Any
+
+import httpx
 
 from .base import ChatMessage, ChatResponse, ImageResponse, ModelProvider
 
-# TODO (Oct 26): confirm against the official Meta Model API docs.
-DEFAULT_BASE_URL = "https://api.meta.com/v1"  # placeholder, verify Monday
-CHAT_MODEL_PLACEHOLDER = "muse-spark"  # placeholder, use the real model id
-IMAGE_MODEL_PLACEHOLDER = "muse-image"  # placeholder, use the real model id
+DEFAULT_BASE_URL = "https://api.meta.ai/v1"
+CHAT_MODEL = "muse-spark-1.3"
+IMAGE_MODEL = "muse-image-1.0"
+TIMEOUT_S = 60.0
 
 
 class MetaModelProvider(ModelProvider):
     name = "meta"
-    default_chat_model = CHAT_MODEL_PLACEHOLDER
-    default_image_model = IMAGE_MODEL_PLACEHOLDER
+    default_chat_model = CHAT_MODEL
+    default_image_model = IMAGE_MODEL
 
     def __init__(
         self,
-        api_key: str | None = None,
+        api_key: str | None,
         base_url: str | None = None,
+        *,
+        transport: httpx.BaseTransport | None = None,
     ) -> None:
-        self.api_key = api_key or os.environ.get("META_MODEL_API_KEY")
-        if not self.api_key:
-            raise ValueError(
-                "META_MODEL_API_KEY is not set. Add it to .env "
-                "(see .env.example) once hackathon API access lands."
-            )
-        self.base_url = (
-            base_url
-            or os.environ.get("META_MODEL_API_BASE_URL")
-            or DEFAULT_BASE_URL
-        ).rstrip("/")
-
-    def _post(self, path: str, payload: dict) -> dict:
-        """POST JSON to the Meta Model API and return parsed JSON.
-
-        TODO (Oct 26): confirm the auth header name and base path from
-        the official docs; adjust here only, nowhere else.
-        """
-        request = urllib.request.Request(
-            f"{self.base_url}{path}",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
-            },
-            method="POST",
+        if not api_key:
+            raise ValueError("META_MODEL_API_KEY is not set. Add it to .env (see .env.example).")
+        self.base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
+        self.client = httpx.Client(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=TIMEOUT_S,
+            transport=transport,
         )
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return json.loads(response.read().decode("utf-8"))
+
+    def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        response = self.client.post(path, json=body)
+        response.raise_for_status()
+        return response.json()
 
     def chat(
         self,
@@ -76,19 +55,18 @@ class MetaModelProvider(ModelProvider):
         temperature: float = 0.7,
         max_tokens: int | None = None,
     ) -> ChatResponse:
-        # TODO (Oct 26): set the real chat endpoint path and map the
-        # response fields. Expected shape to fill in:
-        #
-        #   payload = {
-        #       "model": model or self.default_chat_model,
-        #       "messages": [{"role": m.role, "content": m.content} for m in messages],
-        #       "temperature": temperature,
-        #       **({"max_tokens": max_tokens} if max_tokens else {}),
-        #   }
-        #   raw = self._post("/chat/completions", payload)
-        #   return ChatResponse(text=raw[...], model=..., usage=raw.get("usage", {}), raw=raw)
-        raise NotImplementedError(
-            "Meta Model API chat wiring lands Oct 26. See docs/MONDAY.md."
+        # Sampling stays at the API default and the output cap is a later
+        # adapter setting, so neither `temperature` nor `max_tokens` is sent.
+        body = {
+            "model": model or self.default_chat_model,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+        }
+        raw = self._post("/chat/completions", body)
+        return ChatResponse(
+            text=raw["choices"][0]["message"]["content"],
+            model=raw.get("model", body["model"]),
+            usage=raw.get("usage", {}),
+            raw=raw,
         )
 
     def generate_image(
@@ -97,8 +75,11 @@ class MetaModelProvider(ModelProvider):
         *,
         model: str | None = None,
     ) -> ImageResponse:
-        # TODO (Oct 26): set the real image endpoint path (Muse Image)
-        # and map the response. See chat() above for the pattern.
-        raise NotImplementedError(
-            "Meta Model API image wiring lands Oct 26. See docs/MONDAY.md."
-        )
+        body = {
+            "model": model or self.default_image_model,
+            "prompt": prompt,
+            "n": 1,
+            "response_format": "b64_json",
+        }
+        raw = self._post("/images/generations", body)
+        return ImageResponse(data=raw["data"][0]["b64_json"], model=body["model"], raw=raw)

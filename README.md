@@ -50,7 +50,8 @@ src/config.py              settings from environment / .env
 src/providers/base.py      the ModelProvider interface. Depend on this only.
 src/providers/mock.py      deterministic fake, scriptable for tests and demos
 src/providers/meta_api.py  Meta Model API stub, wire up Oct 26
-tests/test_providers.py    smoke tests, all offline
+tests/                     offline tests (conftest blocks every non-loopback socket)
+scripts/doctor.py          Mac and cloud environment check, stdlib only
 docs/MONDAY.md             the Mon Oct 26 kickoff checklist
 docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
 _bmad/                     BMAD Method v6 install (hackathon tooling)
@@ -68,12 +69,15 @@ _bmad/                     BMAD Method v6 install (hackathon tooling)
 ## Run it today
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python main.py chat "You are the Riddler. Greet the player."
-.venv/bin/python main.py image "portrait of a wizard game master"
-.venv/bin/python -m pytest
+uv sync --locked
+uv run python main.py chat "You are the Riddler. Greet the player."
+uv run python main.py image "portrait of a wizard game master"
+uv run pytest -q
 ```
+
+Python 3.13 and uv 0.11.32 or newer (`.python-version`, `uv.lock`);
+Node 24 (`.nvmrc`) for the web client once it lands. `python3
+scripts/doctor.py` checks the machine.
 
 Configuration: copy `.env.example` to `.env`. `MODEL_PROVIDER=mock`
 today, `MODEL_PROVIDER=meta` once the API is wired on Mon Oct 26. See

@@ -1,11 +1,10 @@
-"""Demo entry point. Runs against whichever provider MODEL_PROVIDER names.
+"""Smoke CLI. Runs against whichever provider MODEL_PROVIDER names.
 
-Today (mock):
-    python main.py chat "Summarize why agent verification matters"
-    python main.py image "a red convertible on a coastal road"
+    uv run python main.py chat "Summarize why agent verification matters"
+    uv run python main.py image "a red convertible on a coastal road"
 
-From Oct 26 (after wiring docs/MONDAY.md):
-    MODEL_PROVIDER=meta python main.py chat "your prompt"
+MODEL_PROVIDER=mock needs no keys. MODEL_PROVIDER=meta reads
+META_MODEL_API_KEY from .env; see docs/MONDAY.md before the first paid call.
 """
 
 from __future__ import annotations
@@ -13,8 +12,21 @@ from __future__ import annotations
 import sys
 
 from src.config import Settings
-from src.providers import get_provider
-from src.providers.base import ChatMessage
+from src.providers.base import ChatMessage, ModelProvider
+from src.providers.meta_api import MetaModelProvider
+from src.providers.mock import MockProvider
+
+
+def get_provider(settings: Settings) -> ModelProvider:
+    """Pick the adapter `Settings` names (per-role wiring lands in `src/api/wiring.py`)."""
+    if settings.model_provider == "mock":
+        return MockProvider()
+    if settings.model_provider == "meta":
+        return MetaModelProvider(
+            api_key=settings.meta_model_api_key,
+            base_url=settings.meta_model_api_base_url,
+        )
+    raise ValueError(f"Unknown MODEL_PROVIDER {settings.model_provider!r}. Use 'mock' or 'meta'.")
 
 
 def main(argv: list[str]) -> int:
@@ -28,14 +40,11 @@ def main(argv: list[str]) -> int:
     print(f"provider={provider.name}")
 
     if command == "chat":
-        response = provider.chat(
-            [ChatMessage(role="user", content=prompt)],
-            model=settings.chat_model,
-        )
+        response = provider.chat([ChatMessage(role="user", content=prompt)])
         print(f"model={response.model}")
         print(response.text)
     else:
-        image = provider.generate_image(prompt, model=settings.image_model)
+        image = provider.generate_image(prompt)
         print(f"model={image.model}")
         print(image.data)
     return 0

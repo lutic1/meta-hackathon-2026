@@ -2,7 +2,35 @@
 name = "meta-hackathon-2026"
 version = "0.1.0"
 description = "Meta Global AI Developer Hackathon project (Cerebral Valley, Oct 26 to Nov 4, 2026)"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi==0.156.4",
+    "uvicorn==0.54.0",
+    "pydantic==2.14.1",
+    "httpx==0.28.1",
+    "Pillow==13.0.0",
+    "meta-sam-parser==0.1.0",
+    "fal-client==1.0.3",
+    "ollama==0.6.3",
+    "modal==1.6.2",
+    "python-dotenv==1.2.4",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[tool.uv]
+environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+required-environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+no-build = true
+required-version = ">=0.11.32"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
