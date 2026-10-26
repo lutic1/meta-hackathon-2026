@@ -1,11 +1,11 @@
-"""Stories 1.11 and 3.2: wiring is the one module that builds an adapter; `GUIDE` alone selects the `HintPhraser`, and `GUIDE=ollama` refuses to start without its adapter (AD-5, AD-9, AD-14)."""
+"""Stories 1.11, 1.12 and 3.2: wiring is the one module that builds an adapter; `GUIDE` alone selects the `HintPhraser`, and `GUIDE=ollama` refuses to start without its adapter (AD-5, AD-9, AD-14)."""
 
 import ast
 from pathlib import Path
 
 import pytest
 
-from src.api.wiring import NO_OLLAMA_ADAPTER, artifact_store, hint_phraser
+from src.api.wiring import NO_OLLAMA_ADAPTER, SESSIONS_DIR, artifact_store, hint_phraser, session_clock, session_store
 from src.config import Settings
 from src.infra.clocks import BuildClock, SessionClock
 from src.infra.local import ROOMS_ROOT, DiskArtifactStore, DiskCache, JsonlLedgerStore, JsonSessionStore
@@ -72,10 +72,22 @@ def _constructed(path: Path) -> set[str]:
 
 def test_wiring_is_the_only_module_that_constructs_an_adapter():
     constructors = {path.relative_to(SRC).as_posix(): _constructed(path) for path in SRC.rglob("*.py") if _constructed(path)}
-    assert constructors == {"api/wiring.py": {"DiskArtifactStore", "VerbatimPhraser"}}
+    assert constructors == {"api/wiring.py": {"DiskArtifactStore", "JsonSessionStore", "SessionClock", "VerbatimPhraser"}}
 
 
 def test_artifact_store_is_the_disk_store_under_rooms(tmp_path):
     store = artifact_store()
     assert type(store) is DiskArtifactStore and store.root == ROOMS_ROOT.resolve()
     assert artifact_store(tmp_path / "rooms").root == tmp_path / "rooms"
+
+
+def test_session_store_is_the_json_log_under_rooms_sessions(tmp_path):
+    store = session_store()
+    assert type(store) is JsonSessionStore and store.directory == ROOMS_ROOT / "sessions"
+    assert SESSIONS_DIR == "sessions" and session_store(tmp_path).directory == tmp_path / "sessions"
+
+
+@pytest.mark.parametrize("env, timescale", [({}, 1), ({"DEMO_TIMESCALE": "6"}, 6)])
+def test_session_clock_takes_the_timescale_from_settings(env, timescale):
+    clock = session_clock(Settings.from_env(env))
+    assert type(clock) is SessionClock and clock.timescale == timescale

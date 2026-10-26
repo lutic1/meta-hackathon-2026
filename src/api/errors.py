@@ -2,12 +2,15 @@
 
 A route raises one of these classes and `handle_api_error` answers with
 the envelope; `stage` is null outside the pipeline and `status` appears
-only on `build_not_ready`, so it is left unset here.
+only on `build_not_ready`, so it is left unset here. A body, path or query
+that fails validation is answered by `handle_validation_error` with the
+same envelope under `invalid_request`.
 """
 
 from __future__ import annotations
 
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from src.domain.schema import ErrorDetail, ErrorEnvelope, Stage
@@ -41,6 +44,14 @@ class PhotoNotFound(ApiError):
         super().__init__(f"room {room_id} has no photo {index}")
 
 
+class SessionNotFound(ApiError):
+    status = 404
+    code = "session_not_found"
+
+    def __init__(self, session_id: str) -> None:
+        super().__init__(f"no session {session_id}")
+
+
 class ProfileNotFound(ApiError):
     status = 404
     code = "profile_not_found"
@@ -69,10 +80,28 @@ class InvalidProfile(ApiError):
         super().__init__(f"profile {name} does not parse: {reason}")
 
 
+class InvalidRequest(ApiError):
+    """A request whose body, path or query failed validation; the message names each failing location."""
+
+    status = 422
+    code = "invalid_request"
+
+    def __init__(self, error: RequestValidationError) -> None:
+        super().__init__("; ".join(f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}" for e in error.errors()))
+
+
 def envelope(error: ApiError) -> ErrorEnvelope:
     return ErrorEnvelope(error=ErrorDetail(code=error.code, message=error.message, stage=error.stage))
 
 
-async def handle_api_error(request: Request, error: ApiError) -> JSONResponse:
+def _answer(error: ApiError) -> JSONResponse:
     """The envelope with `status` left out, since no route here answers `build_not_ready`."""
     return JSONResponse(status_code=error.status, content=envelope(error).model_dump(mode="json", exclude_unset=True))
+
+
+async def handle_api_error(request: Request, error: ApiError) -> JSONResponse:
+    return _answer(error)
+
+
+async def handle_validation_error(request: Request, error: RequestValidationError) -> JSONResponse:
+    return _answer(InvalidRequest(error))

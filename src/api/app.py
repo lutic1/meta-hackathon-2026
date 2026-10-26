@@ -1,4 +1,4 @@
-"""The FastAPI app: routes under `/api/` and the built client at `/` (AD-9, AD-13).
+"""The FastAPI app: routes under `/api/` and the built client at `/` (AD-4, AD-9, AD-13).
 
 `create_app(settings)` takes every adapter from `src/api/wiring.py` and
 mounts `web/dist` at `/` when it exists (one origin, no CORS); without a
@@ -8,17 +8,37 @@ The cut-2 profile routes `GET|PUT /profile/<name>` read and write the
 `Profile` as `rooms/profiles/<name>.json` on the player's machine (AD-8):
 they are the only code that touches `rooms/profiles/`, every other route
 sees only the posted `derived`, and the hosted app never registers them
-(gated on `Settings.mode` when it lands, 7.2). The session routes, the
-build routes, `GET /schema` and `GET /meta` land with their stories.
+(gated on `Settings.mode` when it lands, 7.2).
+
+Session routes are the one server-authoritative play surface (AD-4):
+`POST /sessions` starts a session, `POST /sessions/<id>/events` appends a
+client event and `GET /sessions/<id>` replays the state, appending an
+`idle_tick` when `IDLE_TICK_MS` have passed since the last event, and
+`GET /sessions/<id>/result` computes the `RoomResult` from the log. Every
+append runs under one lock per session id held in this process
+(`OpenSessions`), so events land one after another with strictly increasing
+`t_ms` and each reply carries the state that includes its own event; the
+lock and the clock reading at the session's start are transient request
+state, never replayed state. `t_ms` is stamped from the session clock at
+append, so a body carrying one is refused. Each appended event is logged as
+one JSON line with `session_id`, the event type and `duration_ms` (AR-22).
+The Trickster route, the build routes, `GET /schema` and `GET /meta` land
+with their stories.
 """
 
 from __future__ import annotations
 
+import json
+import logging
+import threading
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from src.api.errors import (
     ApiError,
@@ -27,19 +47,42 @@ from src.api.errors import (
     PhotoNotFound,
     ProfileNotFound,
     RoomNotFound,
+    SessionNotFound,
     handle_api_error,
+    handle_validation_error,
 )
-from src.api.wiring import artifact_store
+from src.api.wiring import artifact_store, session_clock, session_store
 from src.config import Settings
+from src.domain.ids import new_session_id
 from src.domain.redact import to_play_view
-from src.domain.schema import PlayView, Profile, Room
+from src.domain.schema import (
+    Event,
+    IdleTickEvent,
+    Milliseconds,
+    PlayView,
+    PostedEvent,
+    Profile,
+    Room,
+    RoomResult,
+    SessionId,
+    SessionStart,
+    SessionState,
+)
+from src.domain.session import SessionStateMachine
 from src.infra.local import ROOMS_ROOT
-from src.pipeline.ports import ArtifactStore, photo_key, room_key
+from src.pipeline.ports import ArtifactStore, Clock, SessionStore, photo_key, room_key
 
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 """The Vite build; `vite.config.ts` proxies `/api/*` to uvicorn in development instead."""
 PROFILES = "profiles"
 """The profile files, `rooms/profiles/<name>.json`; only the profile routes read or write under it."""
+
+IDLE_TICK_MS = 5000
+"""A `GET /sessions/<id>` read appends an `idle_tick` once this long has passed since the last event (AD-4)."""
+
+EVENT = TypeAdapter(Event)
+
+log = logging.getLogger("keyframe.sessions")
 
 
 def load_room(store: ArtifactStore, room_id: str) -> Room:
@@ -106,7 +149,106 @@ def profile_routes(store: ArtifactStore) -> APIRouter:
     return router
 
 
-def create_app(settings: Settings, *, rooms_root: Path = ROOMS_ROOT, web_dist: Path = WEB_DIST) -> FastAPI:
+# --- Sessions (AD-4) --------------------------------------------------------
+
+
+@dataclass(slots=True)
+class OpenSession:
+    """One session's transient request state: its machine over the Effective room, its lock and its start."""
+
+    machine: SessionStateMachine
+    lock: threading.Lock
+    started_ms: int
+    """The session clock's reading when the session started; `t_ms` counts from it."""
+
+
+class OpenSessions:
+    """One lock per session id in this process; a different session id never waits on another's lock."""
+
+    def __init__(self) -> None:
+        self._guard = threading.Lock()
+        self._open: dict[SessionId, OpenSession] = {}
+
+    def open(self, session_id: SessionId, machine: SessionStateMachine, started_ms: int) -> OpenSession:
+        with self._guard:
+            session = self._open[session_id] = OpenSession(machine, threading.Lock(), started_ms)
+        return session
+
+    def get(self, session_id: SessionId) -> OpenSession:
+        with self._guard:
+            session = self._open.get(session_id)
+        if session is None:
+            raise SessionNotFound(session_id)
+        return session
+
+
+def session_routes(store: ArtifactStore, sessions: SessionStore, clock: Clock, *, demo: bool) -> APIRouter:
+    router = APIRouter(prefix="/api/sessions", tags=["sessions"])
+    open_sessions = OpenSessions()
+
+    def events(session_id: SessionId) -> list[Event]:
+        """The session's log; a session that has appended nothing yet has none."""
+        try:
+            return sessions.read_all(session_id)
+        except KeyError:
+            return []
+
+    def stamp(session: OpenSession, log_: list[Event]) -> Milliseconds:
+        """`t_ms` from the session clock, past the last event's so the log is strictly increasing."""
+        elapsed = clock.now_ms() - session.started_ms
+        return max(elapsed, log_[-1].t_ms + 1) if log_ else elapsed
+
+    def append(
+        session_id: SessionId, session: OpenSession, log_: list[Event], build: Callable[[Milliseconds], Event]
+    ) -> SessionState:
+        """Under the session lock: append the event `build` makes for the stamped `t_ms` and reply with the state that includes it."""
+        started = clock.now_ms()
+        event = build(stamp(session, log_))
+        sessions.append(session_id, event)
+        state = session.machine.replay(session_id, [*log_, event])
+        log.info(json.dumps({"session_id": session_id, "event": event.type, "duration_ms": clock.now_ms() - started}))
+        return state
+
+    @router.post("")
+    def start_session(body: SessionStart) -> SessionState:
+        """A fresh session over the stored Room; `derived` is validated here and read by the Rung thresholds (3.3)."""
+        machine = SessionStateMachine(load_room(store, body.room_id))
+        session_id = new_session_id()
+        open_sessions.open(session_id, machine, clock.now_ms())
+        return machine.initial(session_id)
+
+    @router.get("/{session_id}")
+    def get_session(session_id: str) -> SessionState:
+        session = open_sessions.get(session_id)
+        with session.lock:
+            log_ = events(session_id)
+            last_ms = log_[-1].t_ms if log_ else 0
+            if clock.now_ms() - session.started_ms - last_ms >= IDLE_TICK_MS:
+                return append(session_id, session, log_, lambda t_ms: IdleTickEvent(type="idle_tick", t_ms=t_ms))
+            return session.machine.replay(session_id, log_)
+
+    @router.post("/{session_id}/events")
+    def post_event(session_id: str, body: PostedEvent) -> SessionState:
+        session = open_sessions.get(session_id)
+        with session.lock:
+            log_ = events(session_id)
+            return append(session_id, session, log_, lambda t_ms: EVENT.validate_python({**body.model_dump(), "t_ms": t_ms}))
+
+    @router.get("/{session_id}/result")
+    def get_result(session_id: str) -> RoomResult:
+        session = open_sessions.get(session_id)
+        return session.machine.result(session_id, events(session_id), demo=demo)
+
+    return router
+
+
+def create_app(
+    settings: Settings,
+    *,
+    rooms_root: Path = ROOMS_ROOT,
+    web_dist: Path = WEB_DIST,
+    clock: Clock | None = None,
+) -> FastAPI:
     """The app over the adapters wiring builds; routes are registered before the static mount so `/api/` wins."""
     app = FastAPI(
         title="Keyframe",
@@ -116,9 +258,13 @@ def create_app(settings: Settings, *, rooms_root: Path = ROOMS_ROOT, web_dist: P
         swagger_ui_oauth2_redirect_url=None,
     )
     app.add_exception_handler(ApiError, handle_api_error)
+    app.add_exception_handler(RequestValidationError, handle_validation_error)
     store = artifact_store(rooms_root)
     app.include_router(room_routes(store))
     app.include_router(profile_routes(store))
+    app.include_router(
+        session_routes(store, session_store(rooms_root), clock or session_clock(settings), demo=settings.demo_timescale > 1)
+    )
     if web_dist.is_dir():
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
     return app

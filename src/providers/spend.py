@@ -12,10 +12,9 @@ per-call ceiling with no date logic here.
 
 from __future__ import annotations
 
-import secrets
 import threading
-import time
 
+from src.domain.ids import new_ulid
 from src.domain.ledger import (
     CallKind,
     LedgerEntry,
@@ -29,14 +28,10 @@ from src.domain.ledger import (
 from src.domain.schema import CallId, JobId, SessionId, Stage
 from src.pipeline.ports import LedgerStore
 
-CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-
 
 def new_call_id() -> CallId:
-    """A fresh `call_` ULID: 48 bits of Unix milliseconds then 80 random bits, Crockford base32."""
-    value = (time.time_ns() // 1_000_000) << 80 | int.from_bytes(secrets.token_bytes(10))
-    chars = [CROCKFORD_BASE32[(value >> shift) & 31] for shift in range(125, -1, -5)]
-    return "call_" + "".join(chars)
+    """A fresh `call_` ULID (AD-18)."""
+    return f"call_{new_ulid()}"
 
 
 class SpendLedger:

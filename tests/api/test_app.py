@@ -16,7 +16,7 @@ from src.api.wiring import artifact_store
 from src.config import Settings
 from src.domain.redact import to_play_view
 from src.domain.schema import ErrorEnvelope, Room
-from src.pipeline.ports import ArtifactStore, photo_key, room_key
+from src.pipeline.ports import ArtifactStore, Clock, photo_key, room_key
 from tests.domain.test_redact import json_keys
 from tests.fixtures.rooms import (
     SENTINEL_CODE,
@@ -38,12 +38,14 @@ def store_room(store: ArtifactStore, room: Room) -> None:
         store.put(photo_key(room.id, index), Path(photo.downscaled_path).read_bytes())
 
 
-def make_app(tmp_path: Path, *rooms: Room, web_dist: Path | None = None) -> FastAPI:
+def make_app(
+    tmp_path: Path, *rooms: Room, web_dist: Path | None = None, settings: Settings | None = None, clock: Clock | None = None
+) -> FastAPI:
     root = tmp_path / "rooms"
     store = artifact_store(root)
     for room in rooms:
         store_room(store, room)
-    return create_app(Settings.from_env(), rooms_root=root, web_dist=web_dist or tmp_path / "no-dist")
+    return create_app(settings or Settings.from_env(), rooms_root=root, web_dist=web_dist or tmp_path / "no-dist", clock=clock)
 
 
 @pytest.fixture

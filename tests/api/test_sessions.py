@@ -1,0 +1,391 @@
+"""Story 1.12: the session routes start a play-through, append events under one lock per session, replay the state with idle ticks and compute the result (AD-4, AD-13, AR-22)."""
+
+import json
+import re
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any
+from unittest.mock import ANY
+
+import pytest
+from fastapi.testclient import TestClient
+
+from src.api.app import IDLE_TICK_MS, OpenSessions
+from src.api.wiring import session_store
+from src.config import Settings
+from src.domain.ids import new_session_id
+from src.domain.schema import ULID, Derived, Event, Room, RoomResult, SessionStart, SessionState
+from src.domain.session import SessionStateMachine
+from tests.api.test_app import ROOM_NOT_FOUND, UNKNOWN, make_app
+from tests.domain.test_redact import json_keys
+from tests.fixtures.rooms import (
+    IX,
+    PZ,
+    SENTINEL_CODE,
+    SENTINEL_FIND,
+    SENTINEL_IX,
+    SENTINEL_ORDER,
+    SENTINEL_PAIR,
+    with_sentinel_solutions,
+)
+
+UNKNOWN_SESSION = "sess_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+SESSION_NOT_FOUND = {"error": {"code": "session_not_found", "message": ANY, "stage": None}}
+INVALID_REQUEST = {"error": {"code": "invalid_request", "message": ANY, "stage": None}}
+
+
+class Ticker:
+    """A session clock the tests advance by hand."""
+
+    def __init__(self) -> None:
+        self.ms = 0
+
+    def now_ms(self) -> int:
+        return self.ms
+
+    def advance(self, ms: int) -> None:
+        self.ms += ms
+
+
+@pytest.fixture
+def ticker() -> Ticker:
+    return Ticker()
+
+
+@pytest.fixture
+def client(tmp_path: Path, code_and_find_room: Room, four_lock_room: Room, ticker: Ticker) -> TestClient:
+    return TestClient(make_app(tmp_path, code_and_find_room, four_lock_room, clock=ticker))
+
+
+def start(client: TestClient, room: Room, **body: Any) -> str:
+    response = client.post("/api/sessions", json={"room_id": room.id, **body})
+    assert response.status_code == 200, response.text
+    return response.json()["id"]
+
+
+def click(name: str) -> dict[str, Any]:
+    return {"type": "click", "interactable_id": IX[name]}
+
+
+def code(name: str, text: str) -> dict[str, Any]:
+    return {"type": "lock_input", "input": {"type": "code", "puzzle_id": PZ[name], "code": text}}
+
+
+def order(kind: str, name: str) -> dict[str, Any]:
+    return {"type": "lock_input", "input": {"type": f"order_{kind}", "puzzle_id": PZ[name]}}
+
+
+def use_on(item: str, target: str) -> dict[str, Any]:
+    return {"type": "lock_input", "input": {"type": "use_on", "item": IX[item], "target": IX[target]}}
+
+
+def post(client: TestClient, session_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    response = client.post(f"/api/sessions/{session_id}/events", json=body)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def stored(tmp_path: Path, session_id: str) -> list[Event]:
+    """The session's log as the JSON store under `rooms/sessions/` holds it."""
+    try:
+        return session_store(tmp_path / "rooms").read_all(session_id)
+    except KeyError:
+        return []
+
+
+# --- POST /sessions ------------------------------------------------------------
+
+
+def test_a_session_starts_fresh_with_a_sess_id_and_the_initial_state(client: TestClient, code_and_find_room: Room):
+    response = client.post("/api/sessions", json={"room_id": code_and_find_room.id})
+    assert response.status_code == 200
+    state = response.json()
+    assert re.fullmatch(f"sess_{ULID}", state["id"])
+    assert state == SessionStateMachine(code_and_find_room).initial(state["id"]).model_dump(mode="json")
+    assert state["room_id"] == code_and_find_room.id and state["active_puzzle_id"] == PZ["find_key"]
+    assert (state["opening_line"], state["phrasing"], state["cards"], state["disclosure"]) == (None, True, [], [])
+    assert "thresholds" in state and state["thresholds"] is None
+
+
+def test_derived_fresh_and_an_explicit_block_start_the_same_state(client: TestClient, code_and_find_room: Room):
+    assert set(SessionStart.model_fields) == {"room_id", "derived"}
+    fresh = client.post("/api/sessions", json={"room_id": code_and_find_room.id}).json()
+    explicit = client.post("/api/sessions", json={"room_id": code_and_find_room.id, "derived": Derived.fresh().model_dump()})
+    assert explicit.status_code == 200
+    assert {**fresh, "id": None} == {**explicit.json(), "id": None} and fresh["id"] != explicit.json()["id"]
+
+
+@pytest.mark.parametrize("derived", [
+    {"sessions": 0, "persistence": 1.5, "time_to_first_hint_s": None, "mean_rung_per_lock_type": {}},
+    {"sessions": -1, "persistence": 0, "time_to_first_hint_s": None, "mean_rung_per_lock_type": {}},
+    {"sessions": 0, "persistence": 0, "time_to_first_hint_s": None, "mean_rung_per_lock_type": {"code": 4}},
+])
+def test_a_derived_block_outside_its_bounds_answers_422_in_the_envelope_and_creates_no_session(
+    client: TestClient, tmp_path: Path, code_and_find_room: Room, derived: dict[str, Any]
+):
+    response = client.post("/api/sessions", json={"room_id": code_and_find_room.id, "derived": derived})
+    assert response.status_code == 422
+    assert response.json() == INVALID_REQUEST
+    assert "id" not in response.json() and not (tmp_path / "rooms" / "sessions").exists()
+
+
+def test_an_unknown_room_answers_404_room_not_found(client: TestClient):
+    response = client.post("/api/sessions", json={"room_id": UNKNOWN})
+    assert response.status_code == 404 and response.json() == ROOM_NOT_FOUND
+
+
+@pytest.mark.parametrize("body", [
+    {"room_id": "{room_id}", "profile": "demo"},
+    {"room_id": "{room_id}", "derived": None, "t_ms": 0},
+    {"derived": None},
+    {"room_id": "not a room id"},
+])
+def test_a_body_with_any_field_other_than_room_id_and_derived_answers_422(client: TestClient, code_and_find_room: Room, body: dict[str, Any]):
+    body = {k: (v.format(room_id=code_and_find_room.id) if isinstance(v, str) else v) for k, v in body.items()}
+    response = client.post("/api/sessions", json=body)
+    assert response.status_code == 422 and response.json() == INVALID_REQUEST
+
+
+# --- POST /sessions/<id>/events ------------------------------------------------
+
+
+def test_a_click_and_a_lock_input_are_stamped_appended_and_applied(client: TestClient, tmp_path: Path, code_and_find_room: Room, ticker: Ticker):
+    ticker.advance(1_000)
+    session_id = start(client, code_and_find_room)
+    ticker.advance(2_500)
+    state = post(client, session_id, click("key"))
+    assert state["locks_open"] == [PZ["find_key"]] and state["inventory"] == [IX["key"]]
+    ticker.advance(700)
+    state = post(client, session_id, code("clock_code", "nope"))
+    assert state["wrong_attempts"][PZ["clock_code"]] == 1
+    log = stored(tmp_path, session_id)
+    assert [(event.type, event.t_ms) for event in log] == [("click", 2_500), ("lock_input", 3_200)]
+    assert state == SessionStateMachine(code_and_find_room).replay(session_id, log).model_dump(mode="json")
+
+
+@pytest.mark.parametrize("body", [
+    {"type": "click", "interactable_id": IX["key"], "t_ms": 12},
+    {"type": "lock_input", "input": {"type": "code", "puzzle_id": PZ["clock_code"], "code": "415"}, "t_ms": 0},
+    {"type": "hint_request", "puzzle_id": None, "t_ms": 5},
+    {"type": "idle_tick"},
+    {"type": "idle_tick", "t_ms": 5000},
+    {"type": "opening_line", "kind": "welcome", "text": "Welcome."},
+    {"type": "trickster_card", "edit_id": None, "edit": None, "puzzle_id": None, "accepted": False, "reason": None, "room_revision": 0},
+    {"type": "rung_change", "puzzle_id": PZ["find_key"], "rung": 1, "triggered_by": [], "phrased": False, "phrasing_ms": None, "text": "x"},
+    {"type": "click"},
+    {"interactable_id": IX["key"]},
+])
+def test_a_client_timestamp_or_a_server_event_type_answers_422_and_appends_nothing(
+    client: TestClient, tmp_path: Path, code_and_find_room: Room, body: dict[str, Any]
+):
+    session_id = start(client, code_and_find_room)
+    post(client, session_id, click("rug"))
+    response = client.post(f"/api/sessions/{session_id}/events", json=body)
+    assert response.status_code == 422 and response.json() == INVALID_REQUEST
+    assert [event.type for event in stored(tmp_path, session_id)] == ["click"]
+
+
+def test_an_unknown_session_answers_404_on_every_session_route(client: TestClient, tmp_path: Path):
+    responses = [
+        client.post(f"/api/sessions/{UNKNOWN_SESSION}/events", json=click("key")),
+        client.get(f"/api/sessions/{UNKNOWN_SESSION}"),
+        client.get(f"/api/sessions/{UNKNOWN_SESSION}/result"),
+    ]
+    assert [r.status_code for r in responses] == [404] * 3
+    assert all(r.json() == SESSION_NOT_FOUND for r in responses)
+    assert stored(tmp_path, UNKNOWN_SESSION) == []
+
+
+# --- One lock per session id -------------------------------------------------------
+
+
+def test_twenty_concurrent_events_all_land_in_append_order_with_strictly_increasing_t_ms(
+    tmp_path: Path, code_and_find_room: Room, ticker: Ticker
+):
+    app = make_app(tmp_path, code_and_find_room, clock=ticker)
+    session_id = start(TestClient(app), code_and_find_room)
+    body = code("clock_code", "wrong")
+
+    def one(n: int) -> dict[str, Any]:
+        return TestClient(app).post(f"/api/sessions/{session_id}/events", json=body).json()
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        replies = list(pool.map(one, range(20)))
+
+    log = stored(tmp_path, session_id)
+    assert len(log) == 20 and all(event.type == "lock_input" for event in log)
+    stamps = [event.t_ms for event in log]
+    assert stamps == sorted(stamps) and len(set(stamps)) == 20
+    # Each reply carries the state that includes its own event and every earlier one.
+    assert sorted(reply["wrong_attempts"][PZ["clock_code"]] for reply in replies) == list(range(1, 21))
+    final = TestClient(app).get(f"/api/sessions/{session_id}").json()
+    assert final["wrong_attempts"][PZ["clock_code"]] == 20
+    assert final == SessionStateMachine(code_and_find_room).replay(session_id, log).model_dump(mode="json")
+
+
+def test_a_different_session_id_never_waits_on_this_sessions_lock(code_and_find_room: Room):
+    sessions = OpenSessions()
+    machine = SessionStateMachine(code_and_find_room)
+    a = sessions.open(new_session_id(), machine, 0)
+    b = sessions.open(new_session_id(), machine, 0)
+    with a.lock:
+        assert b.lock.acquire(timeout=1)
+        b.lock.release()
+        assert not a.lock.acquire(blocking=False)
+    assert a.lock.acquire(blocking=False)
+
+
+def test_a_concurrent_read_that_appends_an_idle_tick_runs_under_the_same_lock(
+    tmp_path: Path, code_and_find_room: Room, ticker: Ticker
+):
+    app = make_app(tmp_path, code_and_find_room, clock=ticker)
+    session_id = start(TestClient(app), code_and_find_room)
+    ticker.advance(IDLE_TICK_MS)
+    calls = [lambda: TestClient(app).get(f"/api/sessions/{session_id}").json()] * 5
+    calls += [lambda: TestClient(app).post(f"/api/sessions/{session_id}/events", json=click("rug")).json()] * 5
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        replies = list(pool.map(lambda call: call(), calls))
+    log = stored(tmp_path, session_id)
+    assert sorted(event.type for event in log) == ["click"] * 5 + ["idle_tick"]
+    stamps = [event.t_ms for event in log]
+    assert stamps == sorted(stamps) and len(set(stamps)) == len(log)
+    assert all(SessionState.model_validate(reply) for reply in replies)
+
+
+# --- GET /sessions/<id> ---------------------------------------------------------------
+
+
+def test_the_state_is_replayed_from_the_log_with_the_fields_this_story_declares(client: TestClient, code_and_find_room: Room):
+    session_id = start(client, code_and_find_room)
+    post(client, session_id, click("key"))
+    post(client, session_id, code("clock_code", "415"))
+    response = client.get(f"/api/sessions/{session_id}")
+    assert response.status_code == 200
+    state = response.json()
+    assert state["room_id"] == code_and_find_room.id
+    assert state["locks_open"] == [PZ["find_key"], PZ["clock_code"]] and state["active_puzzle_id"] == PZ["find_lantern"]
+    assert (state["opening_line"], state["phrasing"]) == (None, True)
+    assert (state["cards"], state["disclosure"], state["thresholds"]) == ([], [], None)
+    assert not {"events", "log", "edit", "edits", "solution"} & json_keys(state)
+
+
+def test_a_fresh_sessions_active_puzzle_is_the_earliest_available_unsolved_one(client: TestClient, four_lock_room: Room):
+    session_id = start(client, four_lock_room)
+    assert client.get(f"/api/sessions/{session_id}").json()["active_puzzle_id"] == PZ["find_key"]
+
+
+def test_an_idle_tick_is_appended_at_5000_ms_since_the_last_event_and_not_at_4999(
+    client: TestClient, tmp_path: Path, code_and_find_room: Room, ticker: Ticker
+):
+    session_id = start(client, code_and_find_room)
+    ticker.advance(1_000)
+    post(client, session_id, click("rug"))
+    ticker.advance(IDLE_TICK_MS - 1)
+    assert client.get(f"/api/sessions/{session_id}").status_code == 200
+    assert [event.type for event in stored(tmp_path, session_id)] == ["click"]
+    ticker.advance(1)
+    state = client.get(f"/api/sessions/{session_id}").json()
+    assert [(event.type, event.t_ms) for event in stored(tmp_path, session_id)] == [("click", 1_000), ("idle_tick", 6_000)]
+    assert state["locks_open"] == [] and state["inventory"] == []
+    # The tick is now the last event, so the next read within 5000 ms appends nothing.
+    ticker.advance(IDLE_TICK_MS - 1)
+    client.get(f"/api/sessions/{session_id}")
+    assert len(stored(tmp_path, session_id)) == 2
+    ticker.advance(1)
+    client.get(f"/api/sessions/{session_id}")
+    assert [event.t_ms for event in stored(tmp_path, session_id)] == [1_000, 6_000, 11_000]
+
+
+def test_an_idle_tick_on_an_empty_log_counts_from_the_session_start(client: TestClient, tmp_path: Path, code_and_find_room: Room, ticker: Ticker):
+    ticker.advance(40_000)
+    session_id = start(client, code_and_find_room)
+    ticker.advance(IDLE_TICK_MS - 1)
+    client.get(f"/api/sessions/{session_id}")
+    assert stored(tmp_path, session_id) == []
+    ticker.advance(1)
+    client.get(f"/api/sessions/{session_id}")
+    assert [(event.type, event.t_ms) for event in stored(tmp_path, session_id)] == [("idle_tick", IDLE_TICK_MS)]
+
+
+# --- GET /sessions/<id>/result ---------------------------------------------------------
+
+
+def play_to_the_exit(client: TestClient, session_id: str, ticker: Ticker) -> None:
+    for body in (click("key"), code("clock_code", "nope"), code("clock_code", "415"), click("lantern"), code("door_code", "7342")):
+        ticker.advance(10_000)
+        post(client, session_id, body)
+
+
+def test_the_result_is_computed_from_the_log_once_the_exit_has_opened(client: TestClient, tmp_path: Path, code_and_find_room: Room, ticker: Ticker):
+    session_id = start(client, code_and_find_room)
+    play_to_the_exit(client, session_id, ticker)
+    response = client.get(f"/api/sessions/{session_id}/result")
+    assert response.status_code == 200
+    result = RoomResult.model_validate(response.json())
+    log = stored(tmp_path, session_id)
+    assert result == SessionStateMachine(code_and_find_room).result(session_id, log, demo=False)
+    assert (result.room_id, result.demo, result.elapsed_ms, result.wrong_attempts) == (code_and_find_room.id, False, 50_000, 1)
+    assert all(puzzle.solved for puzzle in result.puzzles)
+
+
+@pytest.mark.parametrize("env, demo", [({}, False), ({"DEMO_TIMESCALE": "1"}, False), ({"DEMO_TIMESCALE": "2"}, True), ({"DEMO_TIMESCALE": "6"}, True)])
+def test_demo_is_true_exactly_when_the_timescale_is_above_1(tmp_path: Path, code_and_find_room: Room, env: dict[str, str], demo: bool):
+    ticker = Ticker()
+    client = TestClient(make_app(tmp_path, code_and_find_room, settings=Settings.from_env(env), clock=ticker))
+    session_id = start(client, code_and_find_room)
+    play_to_the_exit(client, session_id, ticker)
+    assert client.get(f"/api/sessions/{session_id}/result").json()["demo"] is demo
+
+
+# --- One JSON log line per appended event (AR-22) ----------------------------------
+
+
+def test_every_appended_event_logs_one_json_line_with_session_id_type_and_duration(
+    client: TestClient, code_and_find_room: Room, ticker: Ticker, caplog: pytest.LogCaptureFixture
+):
+    caplog.set_level("INFO", logger="keyframe.sessions")
+    session_id = start(client, code_and_find_room)
+    ticker.advance(1_000)
+    post(client, session_id, click("key"))
+    ticker.advance(1_000)
+    post(client, session_id, code("clock_code", "415"))
+    ticker.advance(IDLE_TICK_MS)
+    client.get(f"/api/sessions/{session_id}")
+    client.get(f"/api/sessions/{session_id}")
+    client.get(f"/api/sessions/{session_id}/result")
+    lines = [json.loads(record.getMessage()) for record in caplog.records if record.name == "keyframe.sessions"]
+    assert lines == [
+        {"session_id": session_id, "event": "click", "duration_ms": 0},
+        {"session_id": session_id, "event": "lock_input", "duration_ms": 0},
+        {"session_id": session_id, "event": "idle_tick", "duration_ms": 0},
+    ]
+    assert all(record.getMessage().count("\n") == 0 for record in caplog.records)
+
+
+# --- No solution and no sentinel in any session response -------------------------------
+
+
+def _play_every_session_route(client: TestClient, room: Room) -> list[Any]:
+    """Every session route's response: start, each event kind, the refusals, the state and the result."""
+    responses = [client.post("/api/sessions", json={"room_id": room.id})]
+    session_id = responses[0].json()["id"]
+    bodies = [
+        click("key"), click("clock"), code("clock_code", "415"), code("clock_code", "wrong"), order("start", "shelf_order"),
+        click("candle"), order("stop", "shelf_order"), use_on("key", "chest"), {"type": "hint_request"},
+        {"type": "click", "interactable_id": IX["key"], "t_ms": 1}, {"type": "idle_tick"},
+    ]
+    responses += [client.post(f"/api/sessions/{session_id}/events", json=body) for body in bodies]
+    responses += [client.get(f"/api/sessions/{session_id}"), client.get(f"/api/sessions/{session_id}/result")]
+    responses += [client.post("/api/sessions", json={"room_id": UNKNOWN}), client.get(f"/api/sessions/{UNKNOWN_SESSION}")]
+    return responses
+
+
+def test_no_session_response_carries_a_solution_key_or_a_sentinel(tmp_path: Path, four_lock_room: Room):
+    room = with_sentinel_solutions(four_lock_room)
+    responses = _play_every_session_route(TestClient(make_app(tmp_path, room, clock=Ticker())), room)
+    assert [r.status_code for r in responses] == [200, *[200] * 9, 422, 422, 200, 200, 404, 404]
+    sentinels = [SENTINEL_CODE, json.dumps(SENTINEL_ORDER)[1:-1], *SENTINEL_PAIR, SENTINEL_FIND, *SENTINEL_IX]
+    for response in responses:
+        assert b"solution" not in response.content
+        assert all(sentinel.encode() not in response.content for sentinel in sentinels)
+        assert "solution" not in json_keys(response.json())
