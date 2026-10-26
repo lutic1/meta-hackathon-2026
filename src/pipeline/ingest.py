@@ -2,14 +2,16 @@
 
 `validate_upload` is what `POST /builds` calls first: the count (6 to 10,
 else `photo_count`), JPEG by bytes for the downscale and the original alike
-(anything else raises `UnsupportedImage`, code `unsupported_image`), and a
-downscale whose long edge is 1280 px with no EXIF orientation other than 1
-(else `bad_downscale`). A refusal is raised before anything is stored, so
-no job is created or queued for it (AD-13). `store_upload` then writes
-each downscale and original byte for byte under `<room_id>/` and records
-the photos, `hash` being the sha256 of the stored downscale, so every model
-call, cache key and mask reads the same bytes. Nothing here re-encodes an
-image: Pillow reads the header only.
+(anything else raises `UnsupportedImage`, code `unsupported_image`; a
+multi-frame MPO, which phone cameras write as a JPEG with a depth or
+thumbnail frame, counts as JPEG, and a header claiming more pixels than
+Pillow reads does not), and a downscale whose long edge is 1280 px with no
+EXIF orientation other than 1 (else `bad_downscale`). A refusal is raised
+before anything is stored, so no job is created or queued for it (AD-13).
+`store_upload` then writes each downscale and original byte for byte under
+`<room_id>/` and records the photos, `hash` being the sha256 of the stored
+downscale, so every model call, cache key and mask reads the same bytes.
+Nothing here re-encodes an image: Pillow reads the header only.
 """
 
 from __future__ import annotations
@@ -32,12 +34,14 @@ ORIENTATION_TAG = 0x0112
 PHOTOS_FILE = "photos.json"
 """The ingest artifact under `<room_id>/`: the stored `Photo` records in upload order."""
 PHOTOS = TypeAdapter(list[Photo])
+JPEG_FORMATS = frozenset({"JPEG", "MPO"})
+"""What Pillow reports for a JPEG by bytes: `MPO` is a JPEG carrying more than one frame."""
 
 IngestCode = Literal["photo_count", "bad_downscale"]
 
 
 class UnsupportedImage(Exception):
-    """A file that is not a JPEG by its bytes (AD-7, AD-13); its code is `unsupported_image`."""
+    """A file that is not a JPEG by its bytes, or claims too many pixels to read (AD-7, AD-13); code `unsupported_image`."""
 
     code = "unsupported_image"
 
@@ -59,12 +63,14 @@ class Upload:
 
 
 def _open_jpeg(data: bytes, what: str) -> Image.Image:
-    """The image header of a JPEG; any other format, by its bytes, raises `UnsupportedImage`."""
+    """The image header of a JPEG; any other format, by its bytes, or a pixel count past Pillow's limit raises `UnsupportedImage`."""
     try:
         image = Image.open(BytesIO(data))
     except UnidentifiedImageError:
         raise UnsupportedImage(f"{what} is not a JPEG") from None
-    if image.format != "JPEG":
+    except Image.DecompressionBombError:
+        raise UnsupportedImage(f"{what} claims more than {Image.MAX_IMAGE_PIXELS} pixels") from None
+    if image.format not in JPEG_FORMATS:
         raise UnsupportedImage(f"{what} is {image.format}, not a JPEG")
     return image
 

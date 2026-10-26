@@ -1,9 +1,11 @@
 """Story 2.10: ingest validates the upload before any job exists and stores the accepted bytes as uploaded (AD-7, AD-13)."""
 
 import hashlib
+from io import BytesIO
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from src.domain.schema import ErrorEnvelope, Photo
 from src.infra.local import DiskArtifactStore
@@ -19,7 +21,7 @@ from src.pipeline.ingest import (
     store_upload,
     validate_upload,
 )
-from tests.pipeline.uploads import image_bytes, make_uploads
+from tests.pipeline.uploads import claiming_pixels, image_bytes, make_uploads, mpo_bytes
 from tests.test_gitignore import _ignored
 
 ROOM = "room_01ARZ3NDEKTSV4RRFFQ69G5FAV"
@@ -44,6 +46,22 @@ def test_a_count_outside_6_to_10_is_refused_with_photo_count(count):
     with pytest.raises(IngestRefused, match="6 to 10") as info:
         validate_upload(make_uploads(count))
     assert info.value.code == "photo_count"
+
+
+def test_a_multi_frame_mpo_is_a_jpeg_by_bytes_and_passes(uploads):
+    original = mpo_bytes(2560, 1920)
+    assert original[:2] == b"\xff\xd8" and Image.open(BytesIO(original)).format == "MPO"
+    validate_upload([Upload(uploads[0].downscale, original), *uploads[1:]])
+    validate_upload([Upload(mpo_bytes(LONG_EDGE, 960), uploads[0].original), *uploads[1:]])
+
+
+@pytest.mark.parametrize("what", ["photo 4", "original 4"])
+def test_a_header_claiming_more_pixels_than_pillow_reads_raises_unsupported_image(uploads, what):
+    bomb = claiming_pixels(uploads[4].original, 16320, 12240)
+    bad = [*uploads[:4], Upload(bomb, uploads[4].original) if what == "photo 4" else Upload(uploads[4].downscale, bomb), *uploads[5:]]
+    with pytest.raises(UnsupportedImage, match=f"{what} claims more than") as info:
+        validate_upload(bad)
+    assert info.value.code == "unsupported_image"
 
 
 def test_a_png_downscale_named_jpg_raises_unsupported_image(uploads):
