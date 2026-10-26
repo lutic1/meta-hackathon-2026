@@ -22,9 +22,9 @@ def _steps() -> list[tuple[str, str]]:
     return re.findall(r"^      - (uses|run): (.*)$", _text(), re.MULTILINE)
 
 
-def test_triggers_on_master_push_and_pull_requests():
+def test_triggers_on_master_and_keyframe_pushes_and_pull_requests():
     text = _text()
-    assert "on:\n  push:\n    branches: [master]\n  pull_request:\n" in text
+    assert 'on:\n  push:\n    branches: [master, "keyframe/**"]\n  pull_request:\n' in text
     assert "permissions:\n  contents: read\n" in text
     assert "schedule:" not in text and "workflow_dispatch" not in text
 
