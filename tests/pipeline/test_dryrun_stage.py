@@ -56,7 +56,7 @@ from src.providers.cache import GuardedCalls
 from src.providers.meta_api import CHAT_MODEL, MetaModelProvider
 from src.providers.mock import ChatCall, MockProvider, MockScript
 from src.providers.spend import SpendLedger
-from tests.pipeline.test_author_stage import reply, riddler, store_interactables
+from tests.pipeline.test_author_stage import LEAKY, reply, riddler, store_interactables
 from tests.pipeline.test_build import MemoryJobStore
 from tests.providers.replay import transport
 from tests.providers.test_cache import MemoryCache
@@ -138,9 +138,9 @@ def build(jobs, artifacts, ticker, doubles, four_lock_room, ledger):
     """A Build whose segment double stores the four-lock room's Interactables, then the real author, validate, dryrun and scene stages."""
     doubles.hooks["segment"] = lambda state: store_interactables(artifacts, state, four_lock_room)
 
-    def make(dry_run: ModelProvider, *, regen_max: int = 0, drafts: int = 1) -> Build:
+    def make(dry_run: ModelProvider, *, regen_max: int = 0, drafts: int = 1, texts: list[str] | None = None) -> Build:
         stages = doubles.stages()
-        stages["author"] = author_stage(riddler(*[reply()] * drafts), artifacts)
+        stages["author"] = author_stage(riddler(*(texts or [reply()] * drafts)), artifacts)
         stages["validate"] = validate_stage(artifacts, ledger)
         stages["dryrun"] = dry_run_stage(dry_run, artifacts, ledger)
         stages["scene"] = scene_stage(artifacts, ledger)
@@ -269,6 +269,14 @@ def test_every_attempt_failing_the_dry_run_ends_needs_recapture_after_regen_max_
     assert [call.attempt for call in solver.calls] == [0, 1, 2]
     assert [record.messages for record in ended.sent_back] == [[MISMATCH_MESSAGE], [MISSING_MESSAGE], [SHAPE_MESSAGE]]
     assert not stored(artifacts, room_key(ended.room_id))
+
+
+def test_a_later_attempt_ending_at_validate_keeps_no_dry_run_verdict_from_an_earlier_draft(build, uploads, jobs, artifacts):
+    runner = build(Solver(jobs, artifacts, wrong_code), regen_max=1, texts=[reply(), reply(p2=LEAKY)])
+    ended = runner.run(runner.submit(uploads).id)
+    assert (ended.status, ended.stage, ended.regeneration_count) == ("needs_recapture", "validate", 1)
+    assert [record.stage for record in ended.sent_back] == ["dryrun", "validate"]
+    assert ended.dry_run == [], "the first draft's verdicts name Puzzles puzzles.json no longer holds"
 
 
 def test_dry_run_error_is_a_failed_attempt_at_the_dryrun_gate():

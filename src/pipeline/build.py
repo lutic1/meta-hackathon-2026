@@ -192,7 +192,10 @@ class Build:
         return self._record(state, stage, result, self._clock.now_ms() - start)
 
     def _record(self, state: JobState, stage: Stage, result: StageResult, duration_ms: int, *, code: str | None = None) -> JobState:
-        """The state with the stage's record, call rows and mask preview appended, verdicts replaced, and its log line written."""
+        """The state with the stage's record, call rows and mask preview appended, verdicts replaced, and its log line written.
+
+        A new draft (author) clears the last attempt's Dry run verdicts, which name Puzzles it no longer holds.
+        """
         self._log(state.id, stage, duration_ms, sum(row.spend_usd for row in result.calls), code=code)
         record = StageRecord(stage=stage, duration_ms=duration_ms, count=result.count, model=result.model)
         return state.model_copy(update={
@@ -200,7 +203,7 @@ class Build:
             "calls": [*state.calls, *result.calls],
             "mask_preview": [*state.mask_preview, *result.mask_preview],
             "validator": result.validator or state.validator,
-            "dry_run": result.dry_run or state.dry_run,
+            "dry_run": result.dry_run or ([] if stage == "author" else state.dry_run),
             "build_time_ms": (state.build_time_ms or 0) + duration_ms,
         })
 

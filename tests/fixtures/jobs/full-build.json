@@ -1,0 +1,411 @@
+{
+  "id": "job_01M5X729JBVF6FBP8Z8T9ZWWQJ",
+  "status": "done",
+  "stage": null,
+  "room_id": "room_01M5X729JBMGQJWX1YN9GTNC9M",
+  "stages": [
+    {
+      "stage": "ingest",
+      "duration_ms": 5,
+      "count": 6,
+      "model": null
+    },
+    {
+      "stage": "architect",
+      "duration_ms": 9,
+      "count": 8,
+      "model": "muse-spark-1.3"
+    },
+    {
+      "stage": "segment",
+      "duration_ms": 24,
+      "count": 8,
+      "model": "sam-3.1"
+    },
+    {
+      "stage": "author",
+      "duration_ms": 8,
+      "count": 5,
+      "model": "muse-spark-1.3"
+    },
+    {
+      "stage": "validate",
+      "duration_ms": 2,
+      "count": null,
+      "model": null
+    },
+    {
+      "stage": "dryrun",
+      "duration_ms": 7,
+      "count": 5,
+      "model": "muse-spark-1.3"
+    },
+    {
+      "stage": "scene",
+      "duration_ms": 1,
+      "count": 6,
+      "model": null
+    }
+  ],
+  "regeneration_count": 0,
+  "regen_max": 2,
+  "validator": [
+    {
+      "rule": 1,
+      "name": "No two locks wait on each other",
+      "passed": true
+    },
+    {
+      "rule": 2,
+      "name": "Every lock can be reached",
+      "passed": true
+    },
+    {
+      "rule": 3,
+      "name": "Every puzzle names something in this room",
+      "passed": true
+    },
+    {
+      "rule": 4,
+      "name": "Every puzzle cites something the Architect saw",
+      "passed": true
+    },
+    {
+      "rule": 5,
+      "name": "No hint, clue or evidence gives an answer away",
+      "passed": true
+    },
+    {
+      "rule": 6,
+      "name": "Lore and hints keep to the length rules",
+      "passed": true
+    },
+    {
+      "rule": 7,
+      "name": "Every lock has a valid shape",
+      "passed": true
+    },
+    {
+      "rule": 8,
+      "name": "Every needed item can be picked up first",
+      "passed": true
+    }
+  ],
+  "dry_run": [
+    {
+      "puzzle_id": "pz_01M5X729KY1BQ4HJ3AJ95N8EBY",
+      "verdict": "pass"
+    },
+    {
+      "puzzle_id": "pz_01M5X729KYEWA1FWHPYH4CSW1T",
+      "verdict": "pass"
+    },
+    {
+      "puzzle_id": "pz_01M5X729KY1NV3V545CG5XCPNT",
+      "verdict": "pass"
+    },
+    {
+      "puzzle_id": "pz_01M5X729KY1C4T9GVPH4VJG4Z2",
+      "verdict": "pass"
+    },
+    {
+      "puzzle_id": "pz_01M5X729KY7NH1YC4MPC13WZPJ",
+      "verdict": "pass"
+    }
+  ],
+  "sent_back": [],
+  "calls": [
+    {
+      "id": "call_01M5X729JWEXSMFG1GG5FXFF5T",
+      "role": "architect",
+      "model": "muse-spark-1.3",
+      "host": "meta",
+      "cached": false,
+      "spend_usd": 0.0
+    },
+    {
+      "id": "call_01M5X729KMMAY43CCF5QZR3D8N",
+      "role": "architect",
+      "model": "sam-3.1",
+      "host": "meta",
+      "cached": false,
+      "spend_usd": 0.0
+    },
+    {
+      "id": "call_01M5X729KMF5VAARGWNHKGRBR9",
+      "role": "architect",
+      "model": "sam-3.1",
+      "host": "meta",
+      "cached": false,
+      "spend_usd": 0.0
+    },
+    {
+      "id": "call_01M5X729KM292H2MRCR4R384X6",
+      "role": "architect",
+      "model": "sam-3.1",
+      "host": "meta",
+      "cached": false,
+      "spend_usd": 0.0
+    },
+    {
+      "id": "call_01M5X729KM2W0T7ZD8P2GJVAEM",
+      "role": "architect",
+      "model": "sam-3.1",
+      "host": "meta",
+      "cached": false,
+      "spend_usd": 0.0
+    },
+    {
+      "id": "call_01M5X729KMGKK2854VVSGYZPW6",
+      "role": "architect",
+      "model": "sam-3.1",
+      "host": "meta",
+      "cached": false,
+      "spend_usd": 0.0
+    },
+    {
+      "id": "call_01M5X729KM81CDZ41TBDBHQZQ4",
+      "role": "architect",
+      "model": "sam-3.1",
+      "host": "meta",
+      "cached": false,
+      "spend_usd": 0.0
+    },
+    {
+      "id": "call_01M5X729KMV3N8H3QGEVM9DVN6",
+      "role": "architect",
+      "model": "sam-3.1",
+      "host": "meta",
+      "cached": false,
+      "spend_usd": 0.0
+    },
+    {
+      "id": "call_01M5X729KM57J2DD49GW0HXB12",
+      "role": "architect",
+      "model": "sam-3.1",
+      "host": "meta",
+      "cached": false,
+      "spend_usd": 0.0
+    },
+    {
+      "id": "call_01M5X729KVKWVGN902158GCH3P",
+      "role": "riddler",
+      "model": "muse-spark-1.3",
+      "host": "api.meta.ai",
+      "cached": false,
+      "spend_usd": 0.016472
+    },
+    {
+      "id": "call_01M5X729M64V682WZJ6ZGXTXWG",
+      "role": "dryrun",
+      "model": "muse-spark-1.3",
+      "host": "api.meta.ai",
+      "cached": false,
+      "spend_usd": 0.0020115
+    }
+  ],
+  "build_time_ms": 56,
+  "mask_preview": [
+    {
+      "id": "ix_01M5X729KMXW79HTKG2T8E1ES7",
+      "label": "brass key",
+      "photo": 0,
+      "polygons": [
+        [
+          [
+            540.16,
+            299.52
+          ],
+          [
+            619.52,
+            299.52
+          ],
+          [
+            619.52,
+            430.08
+          ],
+          [
+            540.16,
+            430.08
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "ix_01M5X729KMRFHG2PM05QS8NJW0",
+      "label": "wooden chest",
+      "photo": 1,
+      "polygons": [
+        [
+          [
+            285.12,
+            640.0
+          ],
+          [
+            674.88,
+            640.0
+          ],
+          [
+            674.88,
+            1093.12
+          ],
+          [
+            285.12,
+            1093.12
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "ix_01M5X729KMYFAEC65R6K084RJY",
+      "label": "wall clock",
+      "photo": 2,
+      "polygons": [
+        [
+          [
+            280.32,
+            199.68
+          ],
+          [
+            679.68,
+            199.68
+          ],
+          [
+            679.68,
+            600.0
+          ],
+          [
+            280.32,
+            600.0
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "ix_01M5X729KMGVYW9860XWY7Y3MM",
+      "label": "wax candle",
+      "photo": 3,
+      "polygons": [
+        [
+          [
+            160.0,
+            360.0
+          ],
+          [
+            299.52,
+            360.0
+          ],
+          [
+            299.52,
+            640.32
+          ],
+          [
+            160.0,
+            640.32
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "ix_01M5X729KMF2J0RTG3WT26BMR3",
+      "label": "iron lantern",
+      "photo": 3,
+      "polygons": [
+        [
+          [
+            540.16,
+            299.52
+          ],
+          [
+            739.84,
+            299.52
+          ],
+          [
+            739.84,
+            640.32
+          ],
+          [
+            540.16,
+            640.32
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "ix_01M5X729KM30C2332Y500JQZC8",
+      "label": "sand hourglass",
+      "photo": 3,
+      "polygons": [
+        [
+          [
+            980.48,
+            380.16
+          ],
+          [
+            1120.0,
+            380.16
+          ],
+          [
+            1120.0,
+            640.32
+          ],
+          [
+            980.48,
+            640.32
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "ix_01M5X729KM743SDXRHPC90DMS5",
+      "label": "painted door",
+      "photo": 4,
+      "polygons": [
+        [
+          [
+            419.84,
+            79.68
+          ],
+          [
+            860.16,
+            79.68
+          ],
+          [
+            860.16,
+            900.48
+          ],
+          [
+            419.84,
+            900.48
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "ix_01M5X729KM7V1SE0KSQ3Q61PYE",
+      "label": "woven rug",
+      "photo": 5,
+      "polygons": [
+        [
+          [
+            199.68,
+            600.0
+          ],
+          [
+            1080.32,
+            600.0
+          ],
+          [
+            1080.32,
+            900.48
+          ],
+          [
+            199.68,
+            900.48
+          ]
+        ]
+      ]
+    }
+  ],
+  "error": null
+}

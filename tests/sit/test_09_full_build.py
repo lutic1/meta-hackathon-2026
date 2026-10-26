@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi.testclient import TestClient
 
@@ -20,13 +20,21 @@ from src.pipeline.ingest import MIN_PHOTOS
 from src.pipeline.scene import SCENE_BUDGET_MS
 from src.pipeline.segment import SEGMENT_BUDGET_MS
 from src.providers.base import ModelProvider
+from src.providers.meta_api import CHAT_MODEL
 from src.providers.verbatim import VerbatimPhraser
 
 if TYPE_CHECKING:
-    from scripts.sit import Sit
+    from scripts.sit import RecordingTransport, Sit
 
 BUILD_ROLES: tuple[Role, ...] = ("architect", "riddler", "dryrun")
 """The council roles a Build calls; the Trickster and the image role never run in one."""
+FIXTURES: dict[Role, str] = {
+    "architect": "chat-full-build-architect",
+    "riddler": "chat-full-build-riddler",
+    "dryrun": "chat-full-build-dry-run",
+}
+"""Each role's last chat reply in the Build, replayed offline with the job record by `tests/pipeline/test_full_build_replay.py`."""
+JOB_FIXTURE = "full-build"
 BUDGETS_MS: dict[Stage, int] = {
     "architect": ARCHITECT_BUDGET_MS,
     "segment": SEGMENT_BUDGET_MS,
@@ -53,10 +61,18 @@ def poll(client: TestClient, job_id: str) -> JobState:
     return JobState.model_validate(response.json())
 
 
+def last_chat(transport: RecordingTransport) -> tuple[int, Any] | None:
+    """The role's last chat completion; the Architect role's transport also carries its segment responses."""
+    return next((r for r in reversed(transport.responses) if isinstance(r[1], dict) and "choices" in r[1]), None)
+
+
 def run(sit: Sit) -> str:
     """Six own room photos from `photos/`, the wired stages on Meta with no cache, the real ledger; `DRY_RUN` as configured."""
     uploads = list(zip(sit.photos(MIN_PHOTOS), sit.originals(MIN_PHOTOS), strict=True))
-    providers: dict[Role, ModelProvider] = {role: sit.meta(*ROLE_CALLS[role], cache=False) for role in BUILD_ROLES}
+    transports = {role: sit.recording() for role in BUILD_ROLES}  # one per role, so each reply is recorded by name
+    providers: dict[Role, ModelProvider] = {
+        role: sit.meta(*ROLE_CALLS[role], cache=False, transport=transports[role]) for role in BUILD_ROLES
+    }
     dry_run = sit.settings.dry_run == "on"
     with tempfile.TemporaryDirectory() as scratch:
         root = Path(scratch)
@@ -86,6 +102,10 @@ def run(sit: Sit) -> str:
     assert all(verdict.passed for verdict in state.validator), "the Room passed without every Validator rule"
     if dry_run:
         assert {verdict.verdict for verdict in state.dry_run} == {"pass"}, "the Room passed without reaching every answer"
+    for role, name in FIXTURES.items():
+        if (response := last_chat(transports[role])) is not None:  # no Dry run reply under cut 4
+            sit.record(name, model=CHAT_MODEL, response=response)
+    sit.record_job(JOB_FIXTURE, state)
     overruns = [
         f"{record.stage} {record.duration_ms / 1000:.1f} s"
         for record in state.stages

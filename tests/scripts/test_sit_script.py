@@ -14,6 +14,7 @@ from PIL import Image
 
 from src.config import Settings
 from src.domain.ledger import spark_cost_usd
+from src.domain.schema import JobState, MaskPreview
 from src.infra.local import CACHE_ROOT, LEDGER_PATH
 from src.providers.base import ChatMessage
 from tests.fixtures.rooms import INTERACTABLES, IX, PZ
@@ -228,7 +229,7 @@ def test_too_few_photos_is_refused_naming_the_folder(tmp_path):
 def test_the_sit_reads_no_photo_from_tests():
     source = SCRIPT.read_text()
     assert 'PHOTOS_ROOT = Path("photos")' in source
-    assert "tests/fixtures" not in source.replace("tests/fixtures/providers", "")
+    assert "tests/fixtures" not in source.replace("tests/fixtures/providers", "").replace("tests/fixtures/jobs", "")
 
 
 def test_record_writes_the_last_live_response_in_the_replay_shape(tmp_path):
@@ -254,6 +255,30 @@ def test_record_refuses_a_response_holding_a_data_url(tmp_path):
     sit.meta("vision", 15.0).chat(MESSAGES)
     with pytest.raises(ValueError, match="refusing to record"):
         sit.record("chat-sit", model="muse-spark-1.3")
+    assert not (tmp_path / "tests").exists()
+
+
+def test_record_writes_a_named_response_and_record_job_writes_the_job_record(tmp_path):
+    sit = harness(tmp_path)
+    own = sit.recording()
+    sit.meta("vision", 15.0, transport=own).chat(MESSAGES)
+    sit.meta("vision", 15.0).chat([ChatMessage(role="user", content="Say ok again.")])
+    assert len(own.responses) == 1 and len(sit.transport.responses) == 2
+
+    path = sit.record("chat-own", model="muse-spark-1.3", response=(200, {"named": True}))
+    assert Fixture.model_validate_json(path.read_bytes()).body == {"named": True}
+
+    state = JobState(id="job_01JA0000000000000000000000", status="done", regen_max=2)
+    path = sit.record_job("full-build", state)
+    assert path == tmp_path / "tests/fixtures/jobs/full-build.json"
+    assert JobState.model_validate_json(path.read_bytes()) == state
+
+
+def test_record_job_refuses_a_job_record_holding_a_data_url(tmp_path):
+    preview = MaskPreview(id="ix_01JA0000000000000000000000", label="data:image/png", photo=0, polygons=[])
+    state = JobState(id="job_01JA0000000000000000000000", status="done", regen_max=2, mask_preview=[preview])
+    with pytest.raises(ValueError, match="refusing to record jobs/full-build"):
+        harness(tmp_path).record_job("full-build", state)
     assert not (tmp_path / "tests").exists()
 
 
@@ -294,6 +319,11 @@ BUILD_REPLY = {
 }
 """The full Build's Architect reply: the synthetic room's objects, boxes on the 0 to 1000 grid of a 1280 by 960 photo."""
 BUILD_PHOTOS = 6
+
+
+def load_from(root: Path, name: str) -> Fixture:
+    """A fixture a run under `root` recorded, from `muse-spark-1.3`."""
+    return Fixture.model_validate_json((root / f"tests/fixtures/providers/muse-spark-1.3/{name}.json").read_bytes())
 
 
 def _user_text(body: dict) -> str:
@@ -402,6 +432,9 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
         "muse-image-1.0/image-sit-clue-card.json",
         "muse-spark-1.3/chat-architect-two-photos.json",
         "muse-spark-1.3/chat-dry-run.json",
+        "muse-spark-1.3/chat-full-build-architect.json",
+        "muse-spark-1.3/chat-full-build-dry-run.json",
+        "muse-spark-1.3/chat-full-build-riddler.json",
         "muse-spark-1.3/chat-riddler-author.json",
         "muse-spark-1.3/chat-sit-ok.json",
         "muse-spark-open/chat-riddler-author.json",
@@ -430,6 +463,15 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     assert tagged == [("riddler", "author"), ("dryrun", "dryrun")]  # the Build's own calls, tagged for provenance
     for name in ("chat-architect-two-photos", "chat-sit-ok"):
         assert Fixture.model_validate_json((tmp_path / f"tests/fixtures/providers/muse-spark-1.3/{name}.json").read_bytes()).status == 200
+    full_build = {
+        role: json.loads(load_from(tmp_path, f"chat-full-build-{role}").body["choices"][0]["message"]["content"])
+        for role in ("architect", "riddler", "dry-run")
+    }
+    assert full_build["architect"] == BUILD_REPLY and full_build["riddler"] == vendors.draft
+    assert len(full_build["dry-run"]["answers"]) == 5
+    job = JobState.model_validate_json((tmp_path / "tests/fixtures/jobs/full-build.json").read_bytes())
+    assert job.status == "done" and [v.verdict for v in job.dry_run] == ["pass"] * 5
+    assert [p.label for p in job.mask_preview] == list(FIXTURE_LABELS.values())
     assert "PASS test_00_cap_refusal: " in out.out and "refused at cap 0.0000 USD, no entry, no request" in out.out
     assert "'brass lamp': 2 polygon(s)" in out.out and "'a live penguin': none" in out.out
     assert "billed 0.01 USD, recorded" in out.out

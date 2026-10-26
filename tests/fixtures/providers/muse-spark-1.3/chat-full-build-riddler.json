@@ -1,0 +1,30 @@
+{
+  "model": "muse-spark-1.3",
+  "status": 200,
+  "body": {
+    "id": "chatcmpl-sample-2026-10-26-full-build-riddler",
+    "object": "chat.completion",
+    "model": "muse-spark-1.3",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"p1\": {\"lock_type\": \"find\", \"is_exit\": false, \"requires\": [], \"clue\": \"Something small waits where coats would hang.\", \"lore\": \"Every guest of this house left a little of themselves on the hooks by the door. One of them left more than a coat.\", \"rungs\": {\"nudge\": \"Look by the hooks.\", \"direction\": \"Something small and metal hangs where a coat would.\", \"near_answer\": \"Take the small metal thing hanging from the hook by the door.\"}, \"evidence\": {\"interactable\": \"ix_01M5X729KMXW79HTKG2T8E1ES7\", \"visible_attribute\": \"hangs on a hook\"}, \"solution\": {\"lock_type\": \"find\", \"target\": \"ix_01M5X729KMXW79HTKG2T8E1ES7\"}}, \"p2\": {\"lock_type\": \"code\", \"is_exit\": false, \"requires\": [], \"clue\": \"The clock stopped at a telling hour.\", \"lore\": \"The house keeps its own time, and it stopped keeping it the night the last tenant left.\", \"rungs\": {\"nudge\": \"Check the time.\", \"direction\": \"The clock on the wall stopped long ago; read what its hands still say.\", \"near_answer\": \"Read the hour and the minutes the stopped hands show and type them in that order.\"}, \"evidence\": {\"interactable\": \"ix_01M5X729KMYFAEC65R6K084RJY\", \"visible_attribute\": \"stopped at a quarter past four\"}, \"solution\": {\"lock_type\": \"code\", \"code\": \"415\"}}, \"p3\": {\"lock_type\": \"order\", \"is_exit\": false, \"requires\": [\"p2\"], \"clue\": \"Three keepers of time stand on the shelf; wake them as the clock would.\", \"lore\": \"Wax, oil and grains each measure an evening in their own way. The tenant lit them in turn.\", \"rungs\": {\"nudge\": \"Study the shelf.\", \"direction\": \"The three things on the shelf each measure time in their own way.\", \"near_answer\": \"Begin with the candle, then what burns oil, then what runs out of grains.\"}, \"evidence\": {\"interactable\": \"ix_01M5X729KMGVYW9860XWY7Y3MM\", \"visible_attribute\": \"half burnt\"}, \"solution\": {\"lock_type\": \"order\", \"interactables\": [\"ix_01M5X729KMGVYW9860XWY7Y3MM\", \"ix_01M5X729KMF2J0RTG3WT26BMR3\", \"ix_01M5X729KM30C2332Y500JQZC8\"]}}, \"p4\": {\"lock_type\": \"use_on\", \"is_exit\": false, \"requires\": [\"p1\"], \"clue\": \"What hangs by the door opens what sits on the floor.\", \"lore\": \"The chest has not been opened since the tenant packed it. Its lock is small, like the thing that fits it.\", \"rungs\": {\"nudge\": \"You carry something now.\", \"direction\": \"Something you picked up fits a lock somewhere in this room.\", \"near_answer\": \"Use the small thing from the hook on the wooden chest by the far wall.\"}, \"evidence\": {\"interactable\": \"ix_01M5X729KMRFHG2PM05QS8NJW0\", \"visible_attribute\": \"closed lid\"}, \"solution\": {\"lock_type\": \"use_on\", \"item\": \"ix_01M5X729KMXW79HTKG2T8E1ES7\", \"target\": \"ix_01M5X729KMRFHG2PM05QS8NJW0\"}}, \"p5\": {\"lock_type\": \"code\", \"is_exit\": true, \"requires\": [\"p3\", \"p4\"], \"clue\": \"The way out wears its own number.\", \"lore\": \"Whoever painted the door left the way out in plain sight, for anyone patient enough to read it.\", \"rungs\": {\"nudge\": \"The door is the way out.\", \"direction\": \"The painted door carries its own number above the frame.\", \"near_answer\": \"Type the digits painted above the door frame into the lock, left to right.\"}, \"evidence\": {\"interactable\": \"ix_01M5X729KM743SDXRHPC90DMS5\", \"visible_attribute\": \"four brass digits above the frame\"}, \"solution\": {\"lock_type\": \"code\", \"code\": \"7342\"}}, \"p6\": null}"
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 2386,
+      "completion_tokens": 3174,
+      "total_tokens": 5560,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 2051
+      }
+    }
+  }
+}

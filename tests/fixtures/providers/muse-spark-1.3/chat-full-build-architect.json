@@ -1,0 +1,30 @@
+{
+  "model": "muse-spark-1.3",
+  "status": 200,
+  "body": {
+    "id": "chatcmpl-sample-2026-10-26-full-build-architect",
+    "object": "chat.completion",
+    "model": "muse-spark-1.3",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"candidates\": [{\"label\": \"brass key\", \"plural\": false, \"photo\": 0, \"attributes\": [\"brass\", \"small\", \"hangs on a hook\"], \"confidence\": 0.95, \"box\": [422, 312, 484, 448]}, {\"label\": \"wooden chest\", \"plural\": false, \"photo\": 1, \"attributes\": [\"wooden\", \"iron bands\", \"closed lid\", \"sits on the floor\"], \"confidence\": 0.94, \"box\": [297, 500, 703, 854]}, {\"label\": \"wall clock\", \"plural\": false, \"photo\": 2, \"attributes\": [\"round white face\", \"stopped at a quarter past four\", \"brass hands\"], \"confidence\": 0.93, \"box\": [219, 208, 531, 625]}, {\"label\": \"wax candle\", \"plural\": false, \"photo\": 3, \"attributes\": [\"half burnt\", \"white wax\", \"left end of the shelf\"], \"confidence\": 0.92, \"box\": [125, 375, 234, 667]}, {\"label\": \"iron lantern\", \"plural\": false, \"photo\": 3, \"attributes\": [\"glass sides\", \"middle of the shelf\", \"soot on the glass\"], \"confidence\": 0.91, \"box\": [422, 312, 578, 667]}, {\"label\": \"sand hourglass\", \"plural\": false, \"photo\": 3, \"attributes\": [\"sand run out\", \"right end of the shelf\", \"wooden frame\"], \"confidence\": 0.9, \"box\": [766, 396, 875, 667]}, {\"label\": \"painted door\", \"plural\": false, \"photo\": 4, \"attributes\": [\"painted green\", \"four brass digits above the frame\", \"heavy\"], \"confidence\": 0.89, \"box\": [328, 83, 672, 938]}, {\"label\": \"woven rug\", \"plural\": false, \"photo\": 5, \"attributes\": [\"woven\", \"faded red\", \"lies by the door\"], \"confidence\": 0.88, \"box\": [156, 625, 844, 938]}]}"
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 1412,
+      "completion_tokens": 58,
+      "total_tokens": 1470,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 40
+      }
+    }
+  }
+}

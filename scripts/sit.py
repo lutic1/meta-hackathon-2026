@@ -18,10 +18,12 @@ a provider factory per adapter (every call takes `GuardedCalls`, so a run
 stays within the cap and a cache hit is never billed), the input photos
 from the git-ignored `photos/` folder (never `tests/`), downscaled to the
 1280 px long edge the pipeline sends, and `record`, which writes the last
-live response as a fixture under `tests/fixtures/providers/<model>/` in
-the shape `tests/providers/replay.py` replays: the response status and
-body only, never the request, an image or a `data:` URL. The offline suite
-never collects `tests/sit/` (`collect_ignore` in `tests/conftest.py`).
+live response (or one the case names) as a fixture under
+`tests/fixtures/providers/<model>/` in the shape `tests/providers/replay.py`
+replays: the response status and body only, never the request, an image or
+a `data:` URL. `record_job` writes a Build's job record, which holds no
+solution or answer, under `tests/fixtures/jobs/`. The offline suite never
+collects `tests/sit/` (`collect_ignore` in `tests/conftest.py`).
 """
 
 from __future__ import annotations
@@ -47,6 +49,7 @@ sys.path.insert(0, str(REPO))  # so `src` imports from any working directory
 
 from src.config import Settings
 from src.domain.ledger import CallKind
+from src.domain.schema import JobState
 from src.infra.local import CACHE_ROOT, LEDGER_PATH, DiskCache, JsonlLedgerStore
 from src.providers.cache import GuardedCalls
 from src.providers.meta_api import MetaModelProvider
@@ -57,6 +60,7 @@ from src.providers.verbatim import VerbatimPhraser
 
 CASES_ROOT = Path("tests/sit")
 FIXTURES_ROOT = Path("tests/fixtures/providers")
+JOBS_ROOT = Path("tests/fixtures/jobs")
 PHOTOS_ROOT = Path("photos")
 """Git-ignored; the only place the SIT reads an input photo from."""
 LONG_EDGE = 1280
@@ -115,19 +119,31 @@ class Sit:
     def running_total_usd(self) -> float:
         return self.ledger.running_total_usd()
 
+    def recording(self) -> RecordingTransport:
+        """A transport over this run's that also keeps its own responses, so a case can tell one adapter's replies apart."""
+        return RecordingTransport(self.transport)
+
     def calls(self, *, cache: bool, host: str = META_HOST, ledger: SpendLedger | None = None) -> GuardedCalls:
         """The guarded path every live call takes; `cache=False` is `CACHE=off`, which skips the cache and never the ledger."""
         return GuardedCalls(self.cache, ledger or self.ledger, host=host, enabled=cache)
 
-    def meta(self, chat_kind: CallKind, budget_s: float, *, cache: bool = False, ledger: SpendLedger | None = None) -> MetaModelProvider:
-        """The Meta adapter for one council role, over this run's cache, ledger and recording transport."""
+    def meta(
+        self,
+        chat_kind: CallKind,
+        budget_s: float,
+        *,
+        cache: bool = False,
+        ledger: SpendLedger | None = None,
+        transport: httpx.BaseTransport | None = None,
+    ) -> MetaModelProvider:
+        """The Meta adapter for one council role, over this run's cache, ledger and recording transport (or one wrapping it)."""
         return MetaModelProvider(
             self.settings.model_api_key,
             self.settings.meta_model_api_base_url,
             calls=self.calls(cache=cache, ledger=ledger),
             chat_kind=chat_kind,
             budget_s=budget_s,
-            transport=self.transport,
+            transport=transport or self.transport,
         )
 
     def openai_compatible(
@@ -164,16 +180,25 @@ class Sit:
     def fixture_path(self, name: str, *, model: str) -> Path:
         return self.root / FIXTURES_ROOT / model / f"{name}.json"
 
-    def record(self, name: str, *, model: str) -> Path:
-        """Write the case's last live response as `tests/fixtures/providers/<model>/<name>.json`; refused when it made no call."""
-        if not self.transport.responses:
-            raise LookupError(f"no live response to record as {model}/{name}: the call was served from the cache or never made")
-        status, body = self.transport.responses[-1]
+    def record(self, name: str, *, model: str, response: tuple[int, Any] | None = None) -> Path:
+        """Write `response`, by default the case's last live one, as `tests/fixtures/providers/<model>/<name>.json`; refused when it made no call."""
+        if response is None:
+            if not self.transport.responses:
+                raise LookupError(f"no live response to record as {model}/{name}: the call was served from the cache or never made")
+            response = self.transport.responses[-1]
+        status, body = response
         data = json.dumps({"model": model, "status": status, "body": body}, indent=2, ensure_ascii=False).encode() + b"\n"
+        return self._write(self.fixture_path(name, model=model), data, f"{model}/{name}")
+
+    def record_job(self, name: str, state: JobState) -> Path:
+        """Write a Build's job record, which holds verdicts and never a solution or an answer, as `tests/fixtures/jobs/<name>.json`."""
+        return self._write(self.root / JOBS_ROOT / f"{name}.json", state.model_dump_json(indent=2).encode() + b"\n", f"jobs/{name}")
+
+    @staticmethod
+    def _write(path: Path, data: bytes, label: str) -> Path:
         for marker in FORBIDDEN_IN_FIXTURES:
             if marker in data:
-                raise ValueError(f"refusing to record {model}/{name}: the response holds {marker!r}")
-        path = self.fixture_path(name, model=model)
+                raise ValueError(f"refusing to record {label}: it holds {marker!r}")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         return path
