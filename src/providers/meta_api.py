@@ -3,7 +3,8 @@
 The key comes from `Settings` (AD-14); this module reads no environment.
 Requests go through one `httpx.Client`; tests pass an `httpx.MockTransport`
 so no socket opens (AD-17). The guarded-call path (cache, spend ledger,
-retry) and the structured-output arguments land with later providers stories.
+retry), the image parts, `response_format` and `sam-3.1` segmentation land
+with the adapter story; until then `chat` refuses what it cannot yet send.
 """
 
 from __future__ import annotations
@@ -11,8 +12,18 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+from pydantic import BaseModel
 
-from .base import ChatMessage, ChatResponse, ImageResponse, ModelProvider
+from src.domain.schema import Polygon
+
+from .base import (
+    ChatMessage,
+    ChatResponse,
+    ImageResponse,
+    ModelProvider,
+    ReasoningEffort,
+    check_reasoning_effort,
+)
 
 DEFAULT_BASE_URL = "https://api.meta.ai/v1"
 CHAT_MODEL = "muse-spark-1.3"
@@ -51,12 +62,16 @@ class MetaModelProvider(ModelProvider):
         self,
         messages: list[ChatMessage],
         *,
+        images: list[bytes] = [],
+        response_schema: type[BaseModel] | None = None,
+        reasoning_effort: ReasoningEffort = "low",
         model: str | None = None,
-        temperature: float = 0.7,
-        max_tokens: int | None = None,
     ) -> ChatResponse:
-        # Sampling stays at the API default and the output cap is a later
-        # adapter setting, so neither `temperature` nor `max_tokens` is sent.
+        check_reasoning_effort(reasoning_effort)
+        if images or response_schema is not None:
+            raise NotImplementedError("image parts and response_format land with the Meta adapter story")
+        # Sampling stays at the API default and the output cap is an adapter
+        # setting, so neither `temperature` nor `max_tokens` is sent.
         body = {
             "model": model or self.default_chat_model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
@@ -69,14 +84,12 @@ class MetaModelProvider(ModelProvider):
             raw=raw,
         )
 
-    def generate_image(
-        self,
-        prompt: str,
-        *,
-        model: str | None = None,
-    ) -> ImageResponse:
+    def segment(self, label: str, image: bytes) -> list[Polygon] | None:
+        raise NotImplementedError("sam-3.1 segmentation lands with the Meta adapter story")
+
+    def generate_image(self, prompt: str) -> ImageResponse:
         body = {
-            "model": model or self.default_image_model,
+            "model": self.default_image_model,
             "prompt": prompt,
             "n": 1,
             "response_format": "b64_json",

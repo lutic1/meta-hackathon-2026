@@ -89,3 +89,22 @@ def test_live_host_is_blocked_by_the_offline_guard():
     provider = MetaModelProvider("k")
     with pytest.raises(httpx.ConnectError, match="tests run offline"):
         provider.chat([ChatMessage(role="user", content="x")])
+
+
+def test_chat_refuses_reasoning_effort_none_before_sending():
+    seen: list[httpx.Request] = []
+    with pytest.raises(ValueError, match="reasoning_effort 'none'"):
+        _provider(CHAT_REPLY, seen).chat([ChatMessage(role="user", content="x")], reasoning_effort="none")
+    assert seen == []
+
+
+def test_image_parts_and_response_schema_wait_for_the_adapter_story():
+    seen: list[httpx.Request] = []
+    with pytest.raises(NotImplementedError, match="Meta adapter story"):
+        _provider(CHAT_REPLY, seen).chat([ChatMessage(role="user", content="x")], images=[b"jpeg"])
+    assert seen == []
+
+
+def test_segment_waits_for_the_adapter_story():
+    with pytest.raises(NotImplementedError, match="sam-3.1"):
+        _provider(CHAT_REPLY, []).segment("lamp", b"jpeg")

@@ -12,15 +12,16 @@ from __future__ import annotations
 import sys
 
 from src.config import Settings
+from src.domain.schema import Role
 from src.providers.base import ChatMessage, ModelProvider
 from src.providers.meta_api import MetaModelProvider
 from src.providers.mock import MockProvider
 
 
-def get_provider(settings: Settings) -> ModelProvider:
+def get_provider(settings: Settings, role: Role = "architect") -> ModelProvider:
     """Pick the adapter `Settings` names (per-role wiring lands in `src/api/wiring.py`)."""
     if settings.model_provider == "mock":
-        return MockProvider()
+        return MockProvider(role)
     if settings.model_provider == "meta":
         return MetaModelProvider(
             api_key=settings.meta_model_api_key,
@@ -36,7 +37,7 @@ def main(argv: list[str]) -> int:
 
     command, prompt = argv[1], " ".join(argv[2:])
     settings = Settings.from_env()
-    provider = get_provider(settings)
+    provider = get_provider(settings, "architect" if command == "chat" else "image")
     print(f"provider={provider.name}")
 
     if command == "chat":

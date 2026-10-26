@@ -171,3 +171,11 @@ def test_ledger_imports_only_stdlib_and_pydantic_and_no_clock():
     assert all(_in(name, "src.domain") for name in names if name.startswith("src.")), names
     assert not tops & {"datetime", "time", "zoneinfo", "calendar"}, tops
     assert "src.domain.clock" not in names
+
+
+def test_pipeline_importing_the_mock_is_named(tmp_path):
+    src = _tree(tmp_path, {"pipeline/build.py": "from src.providers.mock import MockProvider\n", "providers/mock.py": ""})
+    assert violations(src) == [
+        "src.pipeline.build imports src.providers.mock; src.pipeline imports only the domain and ports",
+        "src.pipeline.build imports the adapter src.providers.mock",
+    ]
