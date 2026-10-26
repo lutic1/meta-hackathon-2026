@@ -65,9 +65,9 @@ development_status:
   1-27-narrow-screen-message-and-leave-room-confirmation: backlog
   epic-1-retrospective: optional
 
-  epic-2: backlog
+  epic-2: in-progress
   2-1-model-ports-with-a-scripted-mock: backlog
-  2-2-spend-arithmetic-as-pure-domain-functions: backlog
+  2-2-spend-arithmetic-as-pure-domain-functions: done
   2-3-spend-ledger-and-cap-guard-every-paid-call: backlog
   2-4-model-call-cache-in-front-of-the-ledger: backlog
   2-5-local-ledger-file-and-disk-cache: backlog
