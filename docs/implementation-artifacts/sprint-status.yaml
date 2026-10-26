@@ -150,7 +150,7 @@ development_status:
   7-4-clue-cards-generated-once-per-demo-room: backlog
   7-5-clue-card-read-route: backlog
   7-6-clue-card-slot-beside-each-clue: backlog
-  7-7-hosted-build-runner-with-a-queued-state-and-a-watchdog: backlog
+  7-7-hosted-build-runner-with-a-queued-state-and-a-watchdog: done
   7-8-modal-functions-run_build-spawned-per-job-and-the-daily-ledg: backlog
   7-9-hosted-ledger-snapshot-merged-into-the-committed-export: backlog
   7-10-twenty-slot-judge-build-quota: backlog
