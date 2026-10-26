@@ -431,8 +431,8 @@ def test_a_hosted_session_writes_no_derived_value_or_profile_field_to_any_dict_o
     app.add_exception_handler(ApiError, handle_api_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     ticker = Ticker()
-    app.include_router(room_routes(stores.artifacts))
-    app.include_router(session_routes(stores.artifacts, stores.sessions, ticker, demo=False))
+    app.include_router(room_routes(stores.artifacts, stores.jobs))
+    app.include_router(session_routes(stores.artifacts, stores.sessions, ticker, demo=False, disclosure=[]))
     client = TestClient(app)
 
     started = client.post("/api/sessions", json={"room_id": code_and_find_room.id, "derived": SENTINEL_DERIVED.model_dump(mode="json")})
