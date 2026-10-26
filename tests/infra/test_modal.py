@@ -386,9 +386,11 @@ def test_a_session_replays_in_append_order_to_the_live_state(handles, code_and_f
     store = DictSessionStore(handles.sessions)
     machine = SessionStateMachine(code_and_find_room)
     live = machine.replay(SESSION_A, [])
+    played: list[Event] = []
     for event in _play(code_and_find_room):
         store.append(SESSION_A, event)
-        live = machine.apply(live, event)
+        live = machine.apply(live, event, history=machine.history(SESSION_A, played))
+        played.append(event)
     replayed = DictSessionStore(handles.sessions).read_all(SESSION_A)
     assert replayed == _play(code_and_find_room)
     assert machine.replay(SESSION_A, replayed) == live and live.locks_open

@@ -1,4 +1,4 @@
-"""Story 1.12: the session routes start a play-through, append events under one lock per session, replay the state with idle ticks and compute the result (AD-4, AD-13, AR-22).
+"""Stories 1.12 and 3.1: the session routes start a play-through, append events under one lock per session, replay the state with idle ticks and compute the result (AD-4, AD-13, AR-22).
 
 Since 1.13 every session start appends the First-room welcome at `t_ms` 0, so each log here opens with one `opening_line`;
 since 5.6 the state also reports the `Derived.fresh()` thresholds these starts carry.
@@ -24,6 +24,7 @@ from src.domain.schema import (
     OpeningLineEvent,
     Room,
     RoomResult,
+    RungChangeEvent,
     SessionStart,
     SessionState,
     Thresholds,
@@ -241,8 +242,11 @@ def test_twenty_concurrent_events_all_land_in_append_order_with_strictly_increas
         replies = list(pool.map(one, range(20)))
 
     log = stored(tmp_path, session_id)
-    assert log[0] == WELCOME and len(log) == 21 and all(event.type == "lock_input" for event in log[1:])
-    stamps = [event.t_ms for event in log]
+    # The third Wrong attempt opens the nudge (3.1): its `rung_change` lands right after it, with its `t_ms`.
+    posted = [event for event in log if event.type != "rung_change"]
+    assert log[0] == WELCOME and len(posted) == 21 and all(event.type == "lock_input" for event in posted[1:])
+    assert [event.type for event in log].index("rung_change") == 4 and len(log) == 22 and log[4].t_ms == log[3].t_ms
+    stamps = [event.t_ms for event in posted]
     assert stamps == sorted(stamps) and len(set(stamps)) == 21
     # Each reply carries the state that includes its own event and every earlier one.
     assert sorted(reply["wrong_attempts"][PZ["clock_code"]] for reply in replies) == list(range(1, 21))
@@ -420,3 +424,86 @@ def test_no_session_response_carries_a_solution_key_or_a_sentinel(tmp_path: Path
         assert b"solution" not in response.content
         assert all(sentinel.encode() not in response.content for sentinel in sentinels)
         assert "solution" not in json_keys(response.json())
+
+
+# --- Rung changes appended live (Story 3.1) ------------------------------------------------
+
+DEMO_6 = Thresholds(
+    nudge_threshold_ms=15_000, nudge_threshold_base_ms=90_000, rung_spacing_ms=15_000, rung_spacing_base_ms=90_000, source="fresh"
+)
+"""What a `Derived.fresh()` start reports at `DEMO_TIMESCALE=6`."""
+
+
+def demo_client(tmp_path: Path, room: Room, ticker: Ticker) -> TestClient:
+    return TestClient(make_app(tmp_path, room, settings=Settings.from_env({"DEMO_TIMESCALE": "6"}), clock=ticker))
+
+
+def stored_rungs(log: list[Event]) -> list[RungChangeEvent]:
+    return [event for event in log if isinstance(event, RungChangeEvent)]
+
+
+def test_at_timescale_6_a_wrong_code_every_2000_ms_appends_rungs_1_2_and_3_by_38000_ms(tmp_path: Path, code_and_find_room: Room):
+    ticker = Ticker()
+    client = demo_client(tmp_path, code_and_find_room, ticker)
+    session_id = start(client, code_and_find_room)
+    while ticker.ms < 40_000:
+        ticker.advance(2_000)
+        state = post(client, session_id, code("clock_code", "000"))
+    log = stored(tmp_path, session_id)
+    rungs = stored_rungs(log)
+    assert [(r.puzzle_id, r.rung, r.t_ms) for r in rungs] == [(PZ["clock_code"], 1, 6_000), (PZ["clock_code"], 2, 22_000),
+                                                              (PZ["clock_code"], 3, 38_000)]
+    # `t_ms` stamps are unscaled, and each Rung lands right after the Wrong attempt that triggered it, with its `t_ms`.
+    assert [event.t_ms for event in log if event.type == "lock_input"] == list(range(2_000, 40_001, 2_000))
+    for r in rungs:
+        trigger = log.index(r) - 1
+        assert r.triggered_by[-1] == trigger and log[trigger].t_ms == r.t_ms and len(r.triggered_by) in (3, 4)
+    assert state["rung_changes"] == [r.model_dump(mode="json") for r in rungs]
+    assert state["current_rung"][PZ["clock_code"]] == 3 and state["rungs_used"] == 3
+
+
+def test_at_timescale_6_with_the_2000_ms_poll_each_idle_rung_lands_on_the_first_tick_past_its_condition(
+    tmp_path: Path, code_and_find_room: Room
+):
+    ticker = Ticker()
+    client = demo_client(tmp_path, code_and_find_room, ticker)
+    session_id = start(client, code_and_find_room)
+    while len(stored_rungs(stored(tmp_path, session_id))) < 3 and ticker.ms < 120_000:
+        ticker.advance(2_000)
+        client.get(f"/api/sessions/{session_id}")
+    log = stored(tmp_path, session_id)
+    # Nominally 15, 30 and 45 s (FR-24); a tick needs 5000 ms since the last event and the poll comes every 2000 ms,
+    # so each Rung lands on the first tick at or past its condition: these are the real times.
+    assert [event.t_ms for event in log if event.type == "idle_tick"] == list(range(6_000, 54_001, 6_000))
+    rungs = stored_rungs(log)
+    assert [(r.puzzle_id, r.rung, r.t_ms) for r in rungs] == [(PZ["find_key"], 1, 18_000), (PZ["find_key"], 2, 36_000),
+                                                              (PZ["find_key"], 3, 54_000)]
+    for r in rungs:
+        tick = log.index(r) - 1
+        assert log[tick].type == "idle_tick" and log[tick].t_ms == r.t_ms and r.triggered_by[-1] == tick
+    # Reads within the tick gap replay the log and append nothing: no Rung change is ever duplicated.
+    for _ in range(2):
+        ticker.advance(2_000)
+        state = client.get(f"/api/sessions/{session_id}").json()
+    assert stored(tmp_path, session_id) == log
+    replayed = SessionStateMachine(code_and_find_room, opening="welcome", thresholds=DEMO_6).replay(session_id, log).model_dump(mode="json")
+    assert {**state, "disclosure": []} == replayed  # the demo Disclosure line is served on top (AD-15)
+    assert state["rung_changes"] == [r.model_dump(mode="json") for r in rungs]
+
+
+@pytest.mark.parametrize("persistence, threshold", [(1, 135_000), (-1, 60_000)])
+def test_the_session_starts_derived_block_sets_the_idle_nudge_threshold(
+    tmp_path: Path, code_and_find_room: Room, persistence: float, threshold: int
+):
+    ticker = Ticker()
+    client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker))
+    derived = Derived(sessions=2, persistence=persistence, time_to_first_hint_s=None, mean_rung_per_lock_type={})
+    session_id = start(client, code_and_find_room, derived=derived.model_dump())
+    while ticker.ms < threshold - IDLE_TICK_MS:
+        ticker.advance(IDLE_TICK_MS)
+        client.get(f"/api/sessions/{session_id}")
+    assert stored_rungs(stored(tmp_path, session_id)) == []
+    ticker.advance(IDLE_TICK_MS)
+    state = client.get(f"/api/sessions/{session_id}").json()
+    assert [(r.rung, r.t_ms) for r in stored_rungs(stored(tmp_path, session_id))] == [(1, threshold)]
+    assert state["current_rung"][PZ["find_key"]] == 1

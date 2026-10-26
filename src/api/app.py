@@ -30,10 +30,15 @@ start from the greeted block, else `Derived.fresh()`: the 1x values from
 `src/domain/rungs.py`, divided by `DEMO_TIMESCALE` on the session clock
 (AD-10). Nothing from the Derived block is stored. Every append runs under one
 lock per session id held in this process (`OpenSessions`), so events land one
-after another with strictly increasing `t_ms` and each reply carries the state
-that includes its own event; the lock and the clock reading at the session's
-start are transient request state, never replayed state. `t_ms` is stamped
-from the session clock at append, so a body carrying one is refused. Each
+after another and each reply carries the state that includes its own event:
+posted events, `idle_tick`s and opening lines have strictly increasing `t_ms`,
+and a `rung_change` the state machine selects on an appended event (3.1) is
+appended right after it, under the same lock, sharing that event's `t_ms`.
+The event and its `rung_change` are two store writes; should the second fail,
+replay still selects the same Rung on that event, so the served state is
+unchanged and only the log lacks it. The lock and the clock reading at the
+session's start are transient request state, never replayed state. `t_ms` is
+stamped from the session clock at append, so a body carrying one is refused. Each
 appended event is logged as one JSON line with `session_id`, the event type
 and `duration_ms` (AR-22). Every session state served, the greeted start
 reply included, carries its Room's Disclosure list, composed once at the
@@ -491,20 +496,26 @@ def session_routes(
             return []
 
     def stamp(session: OpenSession, log_: list[Event]) -> Milliseconds:
-        """`t_ms` from the session clock, past the last event's so the log is strictly increasing."""
+        """`t_ms` from the session clock, past the last event's; only a `rung_change` shares its trigger's `t_ms`."""
         elapsed = clock.now_ms() - session.started_ms
         return max(elapsed, log_[-1].t_ms + 1) if log_ else elapsed
 
     def append(
         session_id: SessionId, session: OpenSession, log_: list[Event], build: Callable[[Milliseconds], Event]
     ) -> SessionState:
-        """Under the session lock: append the event `build` makes for the stamped `t_ms` and reply with the state that includes it."""
+        """Under the session lock: append the event `build` makes for the stamped `t_ms`, then any `rung_change` it selected.
+
+        The selection is the state's Rung change triggered at the event's own
+        log position; the reply is the state that includes both.
+        """
         started = clock.now_ms()
         event = build(stamp(session, log_))
-        sessions.append(session_id, event)
-        state = served(session, session.machine.replay(session_id, [*log_, event]))
-        log.info(json.dumps({"session_id": session_id, "event": event.type, "duration_ms": clock.now_ms() - started}))
-        return state
+        state = session.machine.replay(session_id, [*log_, event])
+        selected = [change for change in state.rung_changes if change.triggered_by[-1:] == [len(log_)]]
+        for appended in (event, *selected):
+            sessions.append(session_id, appended)
+            log.info(json.dumps({"session_id": session_id, "event": appended.type, "duration_ms": clock.now_ms() - started}))
+        return served(session, state)
 
     def welcome(t_ms: Milliseconds) -> Event:
         return OpeningLineEvent(type="opening_line", kind="welcome", text=FIRST_ROOM_WELCOME, t_ms=t_ms)

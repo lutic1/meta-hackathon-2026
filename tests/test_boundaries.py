@@ -296,3 +296,39 @@ def test_demo_trickster_is_read_only_by_the_proposal_source_and_meta():
 def test_a_second_demo_timescale_reader_is_named(tmp_path):
     src = _tree(tmp_path, {"domain/session.py": "def apply(settings):\n    return settings.demo_timescale\n"})
     assert set(readers(src, "demo_timescale")) == {"src.domain.session"}
+
+
+# --- Rung selection (Story 3.1, AD-8, AD-10) ------------------------------------------------
+
+PHRASERS = {"src.providers.verbatim", "src.providers.ollama"}
+"""The `HintPhraser` implementations, which see the Derived block with each Rung text (AD-3)."""
+
+
+def test_rungs_imports_only_stdlib_pydantic_and_the_domain_with_no_clock_network_or_filesystem():
+    src = REPO / "src"
+    names = _imports(src / "domain" / "rungs.py", "src.domain.rungs", src)
+    tops = {name.split(".")[0] for name in names if not _in(name, "src.domain")}
+    assert tops <= set(sys.stdlib_module_names) | {"pydantic"}, tops
+    assert not tops & {"datetime", "time", "zoneinfo", "calendar", "os", "pathlib", "io", "shutil", "socket", "http", "urllib"}, tops
+    assert "src.domain.clock" not in names
+
+
+def persistence_readers(src_root: Path) -> set[str]:
+    """Every module under `src_root` that reads a `.persistence` attribute."""
+    out: set[str] = set()
+    for path in sorted(src_root.rglob("*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        if any(isinstance(node, ast.Attribute) and node.attr == "persistence" for node in ast.walk(tree)):
+            out.add(_module_name(path, src_root))
+    return out
+
+
+def test_only_rungs_and_the_phrasers_read_derived_persistence():
+    readers = persistence_readers(REPO / "src")
+    assert "src.domain.rungs" in readers and readers <= {"src.domain.rungs"} | PHRASERS, readers
+
+
+def test_a_second_persistence_reader_is_named(tmp_path):
+    src = _tree(tmp_path, {"domain/rungs.py": "def f(d):\n    return d.persistence\n",
+                           "api/app.py": "def g(body):\n    return body.derived.persistence\n"})
+    assert persistence_readers(src) == {"src.domain.rungs", "src.api.app"}

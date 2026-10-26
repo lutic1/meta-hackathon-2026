@@ -2,10 +2,10 @@
 
 A session is an append-only event log. `SessionStateMachine(room)` holds the
 session's Effective room and folds the log into a `SessionState`, so a replay
-from an empty state equals live play. `apply(state, event)` returns a new
-state and never mutates its input; time reaches it only as each event's
-`t_ms` (AD-10), and this module imports only the standard library, pydantic
-and the domain (AD-1).
+from an empty state equals live play. `apply(state, event, history=...)`
+returns a new state and never mutates its input; time reaches it only as
+each event's `t_ms` (AD-10), and this module imports only the standard
+library, pydantic and the domain (AD-1).
 
 Only the server opens a lock: a `find` click, a `code` input, an armed
 `order` sequence and a `use_on` pair are judged here against the Room's
@@ -39,16 +39,32 @@ available and unsolved.
 The session start fixes two things the log does not hold: the opening line's
 kind, which the empty state carries with no text while `phrasing` is true,
 and the session's `Thresholds`, which every replayed state reports (AR-31).
+
+Rungs (AD-4): after every event but a `rung_change`, `apply` asks
+`select_rung` (`domain/rungs.py`) whether a Rung opens on the Active puzzle,
+over the session's `Thresholds` (the 1x ones of `Derived.fresh()` when the
+machine was given none), and, when one does, records the `rung_change` in the
+state with the triggering event's `t_ms` and the verbatim Rung text; the API
+then appends it to the log right after that event. Rung selection reads the
+log before the event as this machine judged it, so `apply` takes that
+`history` as a required argument and `replay` and `result` keep it as they
+fold; a selection never lowers a Puzzle's `current_rung`. Replaying the log
+selects the same Rung on the same event, and the stored `rung_change` that
+follows replaces that selection rather than repeating it, so replay equals
+live and no Rung change is ever duplicated.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator, Sequence
+from dataclasses import replace
 from typing import Literal
 
+from .rungs import RUNG_NAMES, Judged, select_rung, unscaled_thresholds
 from .schema import (
     ClickEvent,
     CodeInput,
+    Derived,
     Event,
     HintRequestEvent,
     LockInput,
@@ -92,6 +108,7 @@ class SessionStateMachine:
         self.room = room
         self.opening = opening
         self.thresholds = thresholds
+        self._rung_thresholds = thresholds or unscaled_thresholds(Derived.fresh())
         self._puzzles = {puzzle.id: puzzle for puzzle in room.puzzles}
 
     # --- Reads ---------------------------------------------------------------
@@ -136,8 +153,36 @@ class SessionStateMachine:
         state.active_puzzle_id = self._active(state, None)
         return state
 
-    def apply(self, state: SessionState, event: Event) -> SessionState:
-        """The state after `event`: judged locks, counts and the recomputed Active puzzle, as a new value."""
+    def apply(self, state: SessionState, event: Event, *, history: Sequence[Judged]) -> SessionState:
+        """The state after `event`: judged locks, counts, the recomputed Active puzzle and any Rung, as a new value.
+
+        `history` is the log before `event` as this machine judged it
+        (`history(session_id, log)`), which `select_rung` reads.
+        """
+        return self._step(state, event, history)[0]
+
+    def history(self, session_id: SessionId, events: Iterable[Event]) -> list[Judged]:
+        """The log as this machine judges it: the `history` that `apply` takes for the event after it."""
+        return [judged for _, _, _, judged in self._fold(session_id, events)]
+
+    def replay(self, session_id: SessionId, events: Iterable[Event]) -> SessionState:
+        """The log folded from the empty state."""
+        state = self.initial(session_id)
+        for _, _, state, _ in self._fold(session_id, events):
+            pass
+        return state
+
+    def _fold(self, session_id: SessionId, events: Iterable[Event]) -> Iterator[tuple[Event, SessionState, SessionState, Judged]]:
+        """Each event with the state before and after it and its judgment, applied with the history so far."""
+        state = self.initial(session_id)
+        history: list[Judged] = []
+        for event in events:
+            after, judged = self._step(state, event, history)
+            history.append(judged)
+            yield event, state, after, judged
+            state = after
+
+    def _step(self, state: SessionState, event: Event, history: Sequence[Judged]) -> tuple[SessionState, Judged]:
         new = state.model_copy(deep=True)
         target: PuzzleId | None = None
         match event:
@@ -151,20 +196,34 @@ class SessionStateMachine:
                 new.opening_line = OpeningLine(kind=event.kind, text=event.text)
                 new.phrasing = False
             case RungChangeEvent():
-                new.current_rung[event.puzzle_id] = event.rung
-                new.rung_changes.append(event)
-        new.rungs_used = sum(new.current_rung.values())
+                self._record_rung(new, event)
         new.active_puzzle_id = self._active(new, target or state.active_puzzle_id)
         if new.order_buffer.puzzle_id is not None and new.order_buffer.puzzle_id != new.active_puzzle_id:
             new.order_buffer = OrderBuffer()
-        return new
-
-    def replay(self, session_id: SessionId, events: Iterable[Event]) -> SessionState:
-        """The log folded from the empty state."""
-        state = self.initial(session_id)
-        for event in events:
-            state = self.apply(state, event)
-        return state
+        judged = Judged(
+            t_ms=event.t_ms,
+            activity=isinstance(event, ClickEvent | LockInputEvent | HintRequestEvent),
+            wrong_attempt=next((p for p, n in new.wrong_attempts.items() if n > state.wrong_attempts[p]), None),
+            rung=(event.puzzle_id, event.rung) if isinstance(event, RungChangeEvent) else None,
+            active_puzzle_id=new.active_puzzle_id,
+        )
+        if not isinstance(event, RungChangeEvent):
+            step = select_rung([*history, judged], self._rung_thresholds)
+            if step is not None and step.rung > new.current_rung[step.puzzle_id]:
+                rungs = self._puzzles[step.puzzle_id].rungs
+                self._record_rung(new, RungChangeEvent(
+                    type="rung_change",
+                    puzzle_id=step.puzzle_id,
+                    rung=step.rung,
+                    triggered_by=list(step.triggered_by),
+                    phrased=False,
+                    phrasing_ms=None,
+                    text=getattr(rungs, RUNG_NAMES[step.rung - 1]),
+                    t_ms=event.t_ms,
+                ))
+                judged = replace(judged, rung=(step.puzzle_id, step.rung))
+        new.rungs_used = sum(new.current_rung.values())
+        return new, judged
 
     # --- Judging -------------------------------------------------------------
 
@@ -174,6 +233,16 @@ class SessionStateMachine:
         if puzzle is None or puzzle.id in state.locks_open or not set(puzzle.requires) <= set(state.locks_open):
             return None
         return puzzle
+
+    @staticmethod
+    def _record_rung(state: SessionState, event: RungChangeEvent) -> None:
+        """Open the Rung; a stored `rung_change` right after the event that selected it replaces that selection."""
+        last = state.rung_changes[-1] if state.rung_changes else None
+        if last is not None and (last.puzzle_id, last.rung) == (event.puzzle_id, event.rung):
+            state.rung_changes[-1] = event
+        else:
+            state.rung_changes.append(event)
+        state.current_rung[event.puzzle_id] = event.rung
 
     def _open(self, state: SessionState, puzzle: Puzzle) -> None:
         state.locks_open.append(puzzle.id)
@@ -295,8 +364,7 @@ class SessionStateMachine:
         first_hint: dict[str, int] = {}
         early_asks: set[str] = set()
         t_end = 0
-        for event in events:
-            before, state = state, self.apply(state, event)
+        for event, before, state, _ in self._fold(session_id, events):
             t_end = event.t_ms
             # After a hint request, `active_puzzle_id` is the Puzzle the request was resolved to.
             if isinstance(event, HintRequestEvent) and (hinted := state.active_puzzle_id) is not None:
