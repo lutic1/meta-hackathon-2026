@@ -1,12 +1,15 @@
-"""Stories 2.3 and 2.4: `src/pipeline/ports.py` declares `LedgerStore` (`append`, `entries`) and `Cache` (`get`, `put`) over the domain only (AD-1, AD-9)."""
+"""Stories 1.10, 2.3 and 2.4: `src/pipeline/ports.py` declares `ArtifactStore`, `SessionStore`, `LedgerStore` and `Cache` over the domain only and re-exports `Clock` (AD-1, AD-9, AD-10)."""
 
 import inspect
 import sys
 import typing
 from pathlib import Path
 
+from src.domain import clock
 from src.domain.ledger import LedgerEntry
-from src.pipeline.ports import Cache, LedgerStore
+from src.domain.schema import Event, Room, SessionId
+from src.pipeline import ports
+from src.pipeline.ports import ArtifactStore, Cache, Clock, LedgerStore, SessionStore
 from tests.test_boundaries import _imports
 
 REPO = Path(__file__).resolve().parents[2]
@@ -59,6 +62,41 @@ def test_a_structural_cache_double_satisfies_the_port():
     assert cache.get("k") is None
     cache.put("k", {"text": "hi"})
     assert cache.get("k") == {"text": "hi"}
+
+
+def _params(func) -> list[str]:
+    return [p.name for p in inspect.signature(func, eval_str=True).parameters.values()]
+
+
+def test_artifact_store_declares_put_read_and_list_rooms():
+    assert typing.is_protocol(ArtifactStore)
+    put = inspect.signature(ArtifactStore.put, eval_str=True)
+    assert _params(ArtifactStore.put) == ["self", "key", "data"]
+    assert put.parameters["key"].annotation is str and put.parameters["data"].annotation is bytes
+    assert put.return_annotation is None
+    assert _params(ArtifactStore.read) == ["self", "key"]
+    assert inspect.signature(ArtifactStore.read, eval_str=True).return_annotation is bytes
+    assert _params(ArtifactStore.list_rooms) == ["self"]
+    assert inspect.signature(ArtifactStore.list_rooms, eval_str=True).return_annotation == list[Room]
+    assert ports.ROOM_FILE == "room.json"
+
+
+def test_session_store_declares_append_read_all_list_ids_and_delete():
+    assert typing.is_protocol(SessionStore)
+    append = inspect.signature(SessionStore.append, eval_str=True)
+    assert _params(SessionStore.append) == ["self", "session_id", "event"]
+    assert append.parameters["session_id"].annotation == SessionId and append.parameters["event"].annotation == Event
+    assert append.return_annotation is None
+    assert _params(SessionStore.read_all) == ["self", "session_id"]
+    assert inspect.signature(SessionStore.read_all, eval_str=True).return_annotation == list[Event]
+    assert _params(SessionStore.list_ids) == ["self"]
+    assert inspect.signature(SessionStore.list_ids, eval_str=True).return_annotation == list[SessionId]
+    assert _params(SessionStore.delete) == ["self", "session_id"]
+    assert inspect.signature(SessionStore.delete, eval_str=True).return_annotation is None
+
+
+def test_clock_is_re_exported_from_the_domain():
+    assert Clock is clock.Clock and "Clock" in ports.__all__
 
 
 def test_ports_import_only_the_domain():

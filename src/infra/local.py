@@ -1,4 +1,11 @@
-"""Local-mode adapters (AD-9): the jsonl `LedgerStore` and the disk `Cache`.
+"""Local-mode disk adapters (AD-7, AD-9): the `ArtifactStore` under `rooms/`, the JSON `SessionStore`, the jsonl `LedgerStore` and the disk `Cache`.
+
+`DiskArtifactStore` maps a key to a file under its root (`rooms/`) and
+refuses any key that resolves outside it. `JsonSessionStore` keeps one
+JSON file per session under `rooms/sessions/` and holds no session state
+in a process variable, so every instance over the same directory reads the
+same log. Neither adapter deletes a Room, a photo or a cache entry: the
+only deletion here is `SessionStore.delete`, which Local mode never calls.
 
 `JsonlLedgerStore` appends one JSON line per entry to `spend/ledger.jsonl`
 under an exclusive file lock, outside `.cache/`, so the running total
@@ -9,8 +16,8 @@ spend. The file holds two kinds of line: an entry, and the epoch marker
 marker) and `entries` returns the current epoch's entries in append order,
 so `SpendLedger` counts exactly what the store returns. `DiskCache` keeps
 one JSON file per key under `.cache/`, written whole and renamed into
-place. The other local adapters (JSON `JobStore`, disk `ArtifactStore`,
-in-process `JobRunner`, JSON `SessionStore`) land with their stories.
+place. The JSON `JobStore` and the in-process `JobRunner` land with their
+stories.
 """
 
 from __future__ import annotations
@@ -24,12 +31,82 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TextIO
 
+from pydantic import TypeAdapter
+
 from src.domain.ledger import LedgerEntry
+from src.domain.schema import Event, Room, SessionId
+from src.pipeline.ports import ROOM_FILE
 
 LEDGER_PATH = Path("spend/ledger.jsonl")
 """The live ledger, git-ignored; `spend/exports/` beside it holds the committed daily exports."""
 CACHE_ROOT = Path(".cache")
 """The model-call cache, git-ignored; deleting it never touches `spend/`."""
+EVENTS = TypeAdapter(list[Event])
+
+def _replace(path: Path, data: bytes) -> None:
+    """Write `data` beside `path` and move it into place, so a reader never sees a partial file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+
+
+class DiskArtifactStore:
+    def __init__(self, root: Path) -> None:
+        self.root = root.resolve()
+
+    def _path(self, key: str) -> Path:
+        path = (self.root / key).resolve()
+        if Path(key).is_absolute() or path == self.root or not path.is_relative_to(self.root):
+            raise ValueError(f"artifact key {key!r} resolves outside {self.root.name}/")
+        return path
+
+    def put(self, key: str, data: bytes) -> None:
+        _replace(self._path(key), data)
+
+    def read(self, key: str) -> bytes:
+        try:
+            return self._path(key).read_bytes()
+        except FileNotFoundError:
+            raise KeyError(key) from None
+
+    def list_rooms(self) -> list[Room]:
+        """Every stored Room, newest `created` first."""
+        rooms = [Room.model_validate_json(path.read_bytes()) for path in self.root.rglob(ROOM_FILE)]
+        return sorted(rooms, key=lambda room: room.created, reverse=True)
+
+
+class JsonSessionStore:
+    def __init__(self, directory: Path) -> None:
+        self.directory = directory
+
+    def _path(self, session_id: str) -> Path:
+        if not session_id or Path(session_id).name != session_id:
+            raise ValueError(f"session id {session_id!r} is not a file name")
+        return self.directory / f"{session_id}.json"
+
+    def append(self, session_id: SessionId, event: Event) -> None:
+        path = self._path(session_id)
+        events = EVENTS.validate_json(path.read_bytes()) if path.exists() else []
+        events.append(event)
+        _replace(path, EVENTS.dump_json(events))
+
+    def read_all(self, session_id: SessionId) -> list[Event]:
+        try:
+            return EVENTS.validate_json(self._path(session_id).read_bytes())
+        except FileNotFoundError:
+            raise KeyError(session_id) from None
+
+    def list_ids(self) -> list[SessionId]:
+        if not self.directory.is_dir():
+            return []
+        return sorted(path.stem for path in self.directory.glob("*.json"))
+
+    def delete(self, session_id: SessionId) -> None:
+        try:
+            self._path(session_id).unlink()
+        except FileNotFoundError:
+            raise KeyError(session_id) from None
 
 
 def _read_ledger(file: TextIO) -> tuple[list[LedgerEntry], str | None]:

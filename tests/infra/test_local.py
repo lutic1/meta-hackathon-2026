@@ -1,4 +1,4 @@
-"""Story 2.5: the jsonl `LedgerStore` under a file lock outside `.cache/`, and the disk `Cache` under `.cache/` (AD-9)."""
+"""Stories 1.10 and 2.5: the disk `ArtifactStore` under `rooms/`, the JSON `SessionStore` under `rooms/sessions/`, the jsonl `LedgerStore` under a file lock outside `.cache/`, and the disk `Cache` under `.cache/` (AD-7, AD-9)."""
 
 import fcntl
 import inspect
@@ -10,13 +10,149 @@ from pathlib import Path
 import pytest
 
 from src.domain.ledger import SEED_USD, LedgerEntry, SpendCapExceeded, running_total_usd
+from src.domain.schema import (
+    ClickEvent,
+    CodeInput,
+    Event,
+    IdleTickEvent,
+    LockInputEvent,
+    Room,
+)
 from src.infra import local as local_module
-from src.infra.local import CACHE_ROOT, LEDGER_PATH, DiskCache, JsonlLedgerStore
+from src.infra.local import (
+    CACHE_ROOT,
+    LEDGER_PATH,
+    DiskArtifactStore,
+    DiskCache,
+    JsonlLedgerStore,
+    JsonSessionStore,
+)
+from src.pipeline.ports import ROOM_FILE, ArtifactStore, SessionStore
 from src.providers.base import ChatMessage, ChatResponse
 from src.providers.cache import GuardedCalls, cache_key
 from src.providers.spend import SpendLedger
+from tests.fixtures.rooms import IX, PZ
 from tests.providers.test_cache import Provider
 from tests.providers.test_spend import JOB, settled
+
+# --- The artifact store under rooms/ and the session store under rooms/sessions/ ---
+
+
+SESSION_A = "sess_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+SESSION_B = "sess_01BX5ZZKBKACTAV9WEVGEMMVRZ"
+
+
+def _events() -> list[Event]:
+    return [
+        ClickEvent(type="click", interactable_id=IX["key"], t_ms=1200),
+        LockInputEvent(type="lock_input", input=CodeInput(type="code", puzzle_id=PZ["clock_code"], code="415"), t_ms=4800),
+        IdleTickEvent(type="idle_tick", t_ms=9900),
+    ]
+
+
+def _store_room(store: DiskArtifactStore, room: Room, partition: str) -> dict[str, bytes]:
+    """Put the Room and its photos the way a build would, returning each key's bytes."""
+    written = {f"{partition}/{room.id}/{ROOM_FILE}": room.model_dump_json().encode()}
+    for index, photo in enumerate(room.photos):
+        written[f"{partition}/{room.id}/photos/{index}.jpg"] = Path(photo.downscaled_path).read_bytes()
+    for key, data in written.items():
+        store.put(key, data)
+    return written
+
+
+def test_the_fixture_room_and_its_photos_round_trip_under_rooms(tmp_path, four_lock_room):
+    root = tmp_path / "rooms"
+    store: ArtifactStore = DiskArtifactStore(root)
+    written = _store_room(store, four_lock_room, "local")
+    for key, data in written.items():
+        assert store.read(key) == data
+        assert (root / key).read_bytes() == data
+    assert all(path.is_relative_to(root) for path in tmp_path.rglob("*") if path.is_file())
+    assert Room.model_validate_json(store.read(f"local/{four_lock_room.id}/{ROOM_FILE}")) == four_lock_room
+
+
+def test_list_rooms_returns_the_stored_rooms_newest_first(tmp_path, four_lock_room, code_and_find_room):
+    store = DiskArtifactStore(tmp_path / "rooms")
+    assert store.list_rooms() == []
+    older = four_lock_room.model_copy(update={"created": four_lock_room.created.replace(year=2025)})
+    _store_room(store, older, "local")
+    _store_room(store, code_and_find_room, "demo")
+    store.put("sessions/sess_01ARZ3NDEKTSV4RRFFQ69G5FAV.json", b"[]")
+    assert store.list_rooms() == [code_and_find_room, older]
+
+
+@pytest.mark.parametrize("key", ["../x", "a/../../x", "/etc/passwd", "", "."])
+def test_a_key_outside_rooms_is_refused_and_nothing_is_written(tmp_path, key):
+    root = tmp_path / "rooms"
+    store = DiskArtifactStore(root)
+    with pytest.raises(ValueError, match="outside rooms/"):
+        store.put(key, b"x")
+    with pytest.raises(ValueError, match="outside rooms/"):
+        store.read(key)
+    assert not (tmp_path / "x").exists() and not root.exists()
+
+
+def test_a_symlink_that_points_outside_rooms_is_refused(tmp_path):
+    root = tmp_path / "rooms"
+    root.mkdir()
+    (root / "escape").symlink_to(tmp_path / "elsewhere")
+    with pytest.raises(ValueError, match="outside rooms/"):
+        DiskArtifactStore(root).put("escape/x", b"x")
+
+
+def test_reading_a_missing_key_raises_key_error(tmp_path):
+    with pytest.raises(KeyError):
+        DiskArtifactStore(tmp_path / "rooms").read("local/missing/room.json")
+
+
+def test_events_append_in_order_to_two_sessions_under_rooms_sessions(tmp_path):
+    directory = tmp_path / "rooms" / "sessions"
+    store: SessionStore = JsonSessionStore(directory)
+    assert store.list_ids() == []
+    a, b = _events(), _events()[:1]
+    for event in a:
+        store.append(SESSION_A, event)
+    for event in b:
+        store.append(SESSION_B, event)
+    assert store.read_all(SESSION_A) == a and store.read_all(SESSION_B) == b
+    assert store.list_ids() == [SESSION_A, SESSION_B]
+    assert sorted(p.name for p in directory.iterdir()) == [f"{SESSION_A}.json", f"{SESSION_B}.json"]
+    assert json.loads((directory / f"{SESSION_A}.json").read_text()) == [e.model_dump(mode="json") for e in a]
+
+
+def test_delete_removes_one_session_and_leaves_the_other(tmp_path):
+    store = JsonSessionStore(tmp_path / "rooms" / "sessions")
+    store.append(SESSION_A, _events()[0])
+    store.append(SESSION_B, _events()[0])
+    store.delete(SESSION_A)
+    assert store.list_ids() == [SESSION_B]
+    with pytest.raises(KeyError):
+        store.read_all(SESSION_A)
+    with pytest.raises(KeyError):
+        store.delete(SESSION_A)
+
+
+def test_a_new_instance_over_the_same_directory_reads_the_same_events(tmp_path):
+    directory = tmp_path / "rooms" / "sessions"
+    first = JsonSessionStore(directory)
+    for event in _events():
+        first.append(SESSION_A, event)
+    second = JsonSessionStore(directory)
+    assert second.read_all(SESSION_A) == _events()
+    second.append(SESSION_A, IdleTickEvent(type="idle_tick", t_ms=15000))
+    assert first.read_all(SESSION_A)[-1].t_ms == 15000
+    assert not [v for v in vars(first).values() if isinstance(v, (list, dict))]
+
+
+def test_a_session_id_that_is_not_a_file_name_is_refused(tmp_path):
+    store = JsonSessionStore(tmp_path / "rooms" / "sessions")
+    with pytest.raises(ValueError, match="not a file name"):
+        store.append("../x", _events()[0])
+    assert not (tmp_path / "rooms" / "x.json").exists()
+
+
+# --- The ledger file and the disk cache --------------------------------------------
+
 
 REPLY = ChatResponse(text='{"ok": true}', model="muse-spark-1.3", usage={"prompt_tokens": 10, "completion_tokens": 5}, raw={"id": "x"})
 KEY = cache_key("muse-spark-1.3", messages=[ChatMessage(role="user", content="Write four puzzles.")])

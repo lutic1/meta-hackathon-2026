@@ -1,5 +1,7 @@
-"""Storage adapters per mode (AD-9): `local.py` under `MODE=local`, `modal.py` under `MODE=hosted`.
+"""Storage and clock adapters behind the ports in `src/pipeline/ports.py` (AD-1, AD-9, AD-10).
 
-Each adapter implements a port from `src/pipeline/ports.py` over the
-domain only; API wiring picks one set from `Settings` and injects it.
+`local.py` holds the disk adapters Local mode runs on and `clocks.py` the
+session and build clocks; the hosted adapters land in `modal.py`. Adapters
+import only ports and the domain, and `src/api/wiring.py` picks them from
+`Settings.mode`.
 """
