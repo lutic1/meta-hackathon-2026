@@ -1,4 +1,4 @@
-"""Story 1.8: the session state machine, code and find locks, the Active puzzle and the Room result (AD-4)."""
+"""Stories 1.8 and 1.9: the session state machine, the four lock types, the Active puzzle and the Room result (AD-4)."""
 
 import inspect
 from typing import Any
@@ -304,10 +304,122 @@ def test_a_merge_hiding_the_armed_puzzle_disarms_the_buffer(four_lock_room):
     assert state.active_puzzle_id == PZ["find_key"] and state.order_buffer == OrderBuffer()
 
 
-def test_a_use_on_input_opens_nothing_and_counts_nothing_in_this_story(four_lock_room):
+def test_order_start_on_another_order_puzzle_disarms_the_buffer_and_arms_it_there(four_lock_room):
+    # A second order Puzzle, built directly as a Room: the door opens on a click sequence instead of a code.
+    room = with_puzzle(four_lock_room, "shelf_order", requires=[])
+    room = with_puzzle(room, "door_code", lock_type="order", requires=[],
+                       solution={"lock_type": "order", "interactables": [IX["door"], IX["rug"], IX["clock"]]})
+    machine = SessionStateMachine(room)
+    state = run(machine, order_start("shelf_order"), click("candle"), order_start("door_code"))
+    assert state.active_puzzle_id == PZ["door_code"]
+    assert state.order_buffer == OrderBuffer(puzzle_id=PZ["door_code"], clicks=[])
+    assert sum(state.wrong_attempts.values()) == 0
+
+
+# --- order locks (Story 1.9) -----------------------------------------------------
+
+
+SHELF = ("candle", "lantern", "hourglass")
+
+
+def test_an_armed_sequence_matching_the_solution_opens_the_lock_and_disarms_the_buffer(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    state = run(machine, code("clock_code", "415"), order_start("shelf_order"), click("candle"), click("lantern"))
+    assert state.order_buffer == OrderBuffer(puzzle_id=PZ["shelf_order"], clicks=[IX["candle"], IX["lantern"]])
+    assert state.locks_open == [PZ["clock_code"]]
+    state = machine.apply(state, click("hourglass"))
+    assert state.locks_open == [PZ["clock_code"], PZ["shelf_order"]] and state.order_buffer == OrderBuffer()
+    assert state.active_puzzle_id == PZ["find_key"] and sum(state.wrong_attempts.values()) == 0
+
+
+def test_clicks_while_unarmed_are_exploration_and_never_fill_the_buffer(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    state = run(machine, code("clock_code", "415"), *(click(name) for name in SHELF))
+    assert state.locks_open == [PZ["clock_code"]] and state.order_buffer == OrderBuffer()
+    assert sum(state.wrong_attempts.values()) == 0
+
+
+def test_every_armed_click_fills_the_buffer_whatever_it_hits(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    state = run(machine, code("clock_code", "415"), order_start("shelf_order"), click("rug"), click("door"))
+    assert state.order_buffer == OrderBuffer(puzzle_id=PZ["shelf_order"], clicks=[IX["rug"], IX["door"]])
+    assert state.locks_open == [PZ["clock_code"]] and sum(state.wrong_attempts.values()) == 0
+
+
+def test_a_full_length_mismatch_is_one_wrong_attempt_and_clears_the_buffer_which_stays_armed(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    state = run(machine, code("clock_code", "415"), order_start("shelf_order"),
+                click("lantern"), click("candle"), click("hourglass"))
+    assert state.wrong_attempts[PZ["shelf_order"]] == 1 and state.locks_open == [PZ["clock_code"]]
+    assert state.order_buffer == OrderBuffer(puzzle_id=PZ["shelf_order"], clicks=[])
+    assert state.active_puzzle_id == PZ["shelf_order"]
+    for name in SHELF:
+        state = machine.apply(state, click(name))
+    assert PZ["shelf_order"] in state.locks_open and state.wrong_attempts[PZ["shelf_order"]] == 1
+
+
+def test_order_stop_disarms_and_clears_the_buffer_with_no_wrong_attempt(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    state = run(machine, code("clock_code", "415"), order_start("shelf_order"), click("candle"), click("lantern"),
+                order_stop("shelf_order"))
+    assert state.order_buffer == OrderBuffer() and sum(state.wrong_attempts.values()) == 0
+    state = machine.apply(state, click("hourglass"))
+    assert state.locks_open == [PZ["clock_code"]] and state.order_buffer == OrderBuffer()
+
+
+def test_a_correct_sequence_for_an_order_puzzle_with_unmet_requires_never_opens_it_and_counts_nothing(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    state = run(machine, order_start("shelf_order"), *(click(name) for name in SHELF))
+    assert state.locks_open == [] and state.order_buffer == OrderBuffer()
+    assert sum(state.wrong_attempts.values()) == 0
+
+
+# --- use_on locks (Story 1.9) ----------------------------------------------------
+
+
+def test_a_matching_pair_resolves_its_puzzle_by_item_and_opens_the_lock(four_lock_room):
     machine = SessionStateMachine(four_lock_room)
     state = run(machine, click("key"), use_on("key", "chest"))
+    assert state.locks_open == [PZ["find_key"], PZ["key_on_chest"]] and state.inventory == [IX["key"]]
+    assert state.active_puzzle_id == PZ["clock_code"] and sum(state.wrong_attempts.values()) == 0
+
+
+def test_a_resolved_pair_that_does_not_match_counts_one_wrong_attempt_and_targets_that_puzzle(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    state = run(machine, click("key"), use_on("key", "rug"))
+    assert state.locks_open == [PZ["find_key"]] and state.wrong_attempts[PZ["key_on_chest"]] == 1
+    assert state.active_puzzle_id == PZ["key_on_chest"]
+    assert all(count == 0 for pid, count in state.wrong_attempts.items() if pid != PZ["key_on_chest"])
+
+
+def test_a_pair_matching_no_item_resolves_by_target(four_lock_room):
+    # The clock becomes a find Puzzle, built directly as a Room, so a second item can reach the inventory.
+    room = with_puzzle(four_lock_room, "clock_code", lock_type="find", solution={"lock_type": "find", "target": IX["clock"]})
+    machine = SessionStateMachine(room)
+    state = run(machine, click("key"), click("clock"), use_on("clock", "chest"))
+    assert state.inventory == [IX["key"], IX["clock"]] and state.locks_open == [PZ["find_key"], PZ["clock_code"]]
+    assert state.wrong_attempts[PZ["key_on_chest"]] == 1 and state.active_puzzle_id == PZ["key_on_chest"]
+    state = machine.apply(state, use_on("clock", "door"))  # neither item nor target: logged, counts nothing
+    assert state.wrong_attempts[PZ["key_on_chest"]] == 1 and state.locks_open == [PZ["find_key"], PZ["clock_code"]]
+
+
+def test_a_pair_whose_item_is_not_in_the_inventory_is_refused_and_counts_nothing(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    fresh = machine.initial(SESSION)
+    state = machine.apply(fresh, use_on("key", "chest"))
+    assert state.locks_open == [] and sum(state.wrong_attempts.values()) == 0
+    collected = machine.apply(fresh, click("key"))
+    state = machine.apply(collected, use_on("lantern", "chest"))  # the target alone would resolve the chest
     assert state.locks_open == [PZ["find_key"]] and sum(state.wrong_attempts.values()) == 0
+    assert state.active_puzzle_id == collected.active_puzzle_id == PZ["clock_code"]
+
+
+def test_a_correct_pair_for_a_use_on_puzzle_with_unmet_requires_never_opens_it_and_counts_nothing(four_lock_room):
+    room = with_puzzle(four_lock_room, "key_on_chest", requires=[PZ["find_key"], PZ["clock_code"]])
+    machine = SessionStateMachine(room)
+    state = run(machine, click("key"), use_on("key", "chest"))
+    assert state.locks_open == [PZ["find_key"]] and state.inventory == [IX["key"]]
+    assert sum(state.wrong_attempts.values()) == 0 and state.active_puzzle_id == PZ["clock_code"]
 
 
 # --- The opening line ----------------------------------------------------------
@@ -362,6 +474,58 @@ def test_the_replayed_state_equals_the_state_built_live(code_and_find_room):
     assert live.wrong_attempts == {PZ["find_key"]: 0, PZ["clock_code"]: 2, PZ["find_lantern"]: 0, PZ["door_code"]: 1}
     assert live.current_rung == {PZ["find_key"]: 0, PZ["clock_code"]: 1, PZ["find_lantern"]: 0, PZ["door_code"]: 1}
     assert live.rungs_used == 2 and [r.t_ms for r in live.rung_changes] == [16000, 26000]
+
+
+def four_lock_log() -> list[Event]:
+    """Every Puzzle of the four-lock room solved: a wrong and a refused pair, a mismatched sequence, a stop and more."""
+    return [
+        opening(100),
+        click("rug", 1000),
+        click("key", 2000),
+        use_on("key", "rug", 3000),  # resolved by item, mismatch: one Wrong attempt
+        use_on("lantern", "chest", 4000),  # item not carried: refused
+        idle(9000),
+        use_on("key", "chest", 10000),
+        code("clock_code", "000", 11000),
+        hint(None, 12000),
+        code("clock_code", "415", 13000),
+        click("candle", 14000),  # unarmed: exploration
+        order_start("shelf_order", 15000),
+        click("lantern", 16000),
+        click("candle", 17000),
+        click("hourglass", 18000),  # full length, mismatch: one Wrong attempt, still armed
+        click("candle", 19000),
+        order_stop("shelf_order", 20000),
+        click("lantern", 21000),  # unarmed again: exploration
+        order_start("shelf_order", 22000),
+        click("candle", 23000),
+        click("lantern", 24000),
+        rung("shelf_order", 1, 25000, 18),
+        click("hourglass", 26000),
+        use_on("key", "door", 27000),  # no available use_on Puzzle: logged, counts nothing
+        code("door_code", "7342", 28000),
+        idle(33000),
+    ]
+
+
+def test_the_replayed_four_lock_state_equals_the_state_built_live_at_every_step(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    log = four_lock_log()
+    live = machine.initial(SESSION)
+    for n, event in enumerate(log, start=1):
+        live = machine.apply(live, event)
+        assert machine.replay(SESSION, log[:n]) == live
+    armed = machine.replay(SESSION, log[:21])
+    assert armed.order_buffer == OrderBuffer(puzzle_id=PZ["shelf_order"], clicks=[IX["candle"], IX["lantern"]])
+    assert machine.is_complete(live) and live.active_puzzle_id is None and live.order_buffer == OrderBuffer()
+    assert live.locks_open == [PZ["find_key"], PZ["key_on_chest"], PZ["clock_code"], PZ["shelf_order"], PZ["door_code"]]
+    assert live.inventory == [IX["key"]]
+    assert live.wrong_attempts == {PZ["find_key"]: 0, PZ["clock_code"]: 1, PZ["shelf_order"]: 1,
+                                   PZ["key_on_chest"]: 1, PZ["door_code"]: 0}
+    result = machine.result(SESSION, log)
+    assert result.elapsed_ms == 28000 and result.wrong_attempts == 3
+    by_id = {puzzle.puzzle_id: puzzle for puzzle in result.puzzles}
+    assert (by_id[PZ["shelf_order"]].attempts, by_id[PZ["key_on_chest"]].attempts) == (2, 2)
 
 
 def test_apply_returns_a_new_state_each_time_and_leaves_its_input_unchanged(code_and_find_room):

@@ -7,13 +7,26 @@ state and never mutates its input; time reaches it only as each event's
 `t_ms` (AD-10), and this module imports only the standard library, pydantic
 and the domain (AD-1).
 
-Only the server opens a lock: a `find` click and a `code` input are judged
-here against the Room's solutions. A Wrong attempt is counted only on a
-failed input to an available Puzzle, never on a click, and an input to a
-Puzzle whose `requires` are not all open opens nothing and counts nothing.
-Order sequences and `use_on` pairs are judged by their own story; here
-`order_start` arms the buffer, `order_stop` disarms it, and any change of
-the Active puzzle disarms it with no Wrong attempt.
+Only the server opens a lock: a `find` click, a `code` input, an armed
+`order` sequence and a `use_on` pair are judged here against the Room's
+solutions. A Wrong attempt is counted only on a failed `code` input, a
+resolved `use_on` pair that does not match, or a mismatched full-length armed
+order buffer, never on a click, and an input to a Puzzle whose `requires` are
+not all open opens nothing and counts nothing.
+
+`order_start` is a lock input: it makes its Puzzle the Active puzzle and arms
+the buffer, which is armed only while its Puzzle is the Active puzzle. While
+armed, every hotspot click fills the buffer whichever object it hits; at
+solution length a match opens the lock and disarms, and a mismatch is one
+Wrong attempt on the armed Puzzle and clears the buffer, which stays armed.
+`order_stop` disarms and clears with no Wrong attempt, and so does any change
+of the Active puzzle, in the same step that recomputes it. Clicks while
+unarmed are exploration and never fill the buffer.
+
+`use_on` carries no `puzzle_id`: the server resolves the Puzzle from the
+`(item, target)` pair among the available `use_on` Puzzles, by `item`, else
+by `target`. A pair whose item is not in the inventory is refused, and a pair
+resolving to no Puzzle is logged; neither counts.
 
 The Active puzzle is the most recently targeted available unsolved Puzzle,
 else the earliest available unsolved one in `Room.puzzles[]` order, and null
@@ -38,6 +51,7 @@ from .schema import (
     OpeningLine,
     OpeningLineEvent,
     OrderBuffer,
+    OrderSolution,
     OrderStartInput,
     OrderStopInput,
     Puzzle,
@@ -49,6 +63,8 @@ from .schema import (
     SessionId,
     SessionState,
     TricksterWindow,
+    UseOnInput,
+    UseOnSolution,
 )
 
 
@@ -148,11 +164,48 @@ class SessionStateMachine:
             state.inventory.append(solution.target)
 
     def _click(self, state: SessionState, interactable_id: str) -> None:
-        """A click opens an available `find` Puzzle whose target it hits; any other click is exploration."""
+        """A click opens an available `find` Puzzle whose target it hits and fills the armed order buffer.
+
+        Any other click is exploration. At solution length the armed buffer
+        opens its lock and disarms, or counts one Wrong attempt and clears.
+        """
         for puzzle in self.available(state):
             solution = puzzle.solution
             if solution.lock_type == "find" and solution.target == interactable_id:
                 self._open(state, puzzle)
+        armed = self._armed(state)
+        if armed is None:
+            return
+        puzzle, solution = armed
+        buffer = state.order_buffer
+        buffer.clicks.append(interactable_id)
+        if len(buffer.clicks) < len(solution.interactables):
+            return
+        if buffer.clicks == solution.interactables:
+            self._open(state, puzzle)
+            state.order_buffer = OrderBuffer()
+        else:
+            state.wrong_attempts[puzzle.id] += 1
+            buffer.clicks = []
+
+    def _armed(self, state: SessionState) -> tuple[Puzzle, OrderSolution] | None:
+        """The armed `order` Puzzle and its solution while it is still available, else None."""
+        puzzle_id = state.order_buffer.puzzle_id
+        puzzle = None if puzzle_id is None else self._available_puzzle(state, puzzle_id)
+        if puzzle is None or not isinstance(puzzle.solution, OrderSolution):
+            return None
+        return puzzle, puzzle.solution
+
+    def _resolve_use_on(self, state: SessionState, lock_input: UseOnInput) -> tuple[Puzzle, UseOnSolution] | None:
+        """The available `use_on` Puzzle the pair names, by `item`, else by `target`; None when neither matches."""
+        candidates = [(p, p.solution) for p in self.available(state) if isinstance(p.solution, UseOnSolution)]
+        for puzzle, solution in candidates:
+            if solution.item == lock_input.item:
+                return puzzle, solution
+        for puzzle, solution in candidates:
+            if solution.target == lock_input.target:
+                return puzzle, solution
+        return None
 
     def _lock_input(self, state: SessionState, lock_input: LockInput) -> PuzzleId | None:
         """Judge a lock input; returns the Puzzle it targeted, or None when it named no available one."""
@@ -178,8 +231,18 @@ class SessionStateMachine:
                     return None
                 state.order_buffer = OrderBuffer()
                 return puzzle.id
-            case _:
-                return None  # `use_on` is resolved from its pair by its own story
+            case UseOnInput():
+                if lock_input.item not in state.inventory:
+                    return None  # refused: the player does not carry the item
+                resolved = self._resolve_use_on(state, lock_input)
+                if resolved is None:
+                    return None  # logged, counts nothing
+                puzzle, solution = resolved
+                if (solution.item, solution.target) == (lock_input.item, lock_input.target):
+                    self._open(state, puzzle)
+                else:
+                    state.wrong_attempts[puzzle.id] += 1
+                return puzzle.id
 
     def _hint_target(self, state: SessionState, puzzle_id: str | None) -> PuzzleId | None:
         """A `hint_request` targets the Puzzle it names only when that Puzzle is available and unsolved."""
