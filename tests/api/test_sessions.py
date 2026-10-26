@@ -1,4 +1,7 @@
-"""Story 1.12: the session routes start a play-through, append events under one lock per session, replay the state with idle ticks and compute the result (AD-4, AD-13, AR-22)."""
+"""Story 1.12: the session routes start a play-through, append events under one lock per session, replay the state with idle ticks and compute the result (AD-4, AD-13, AR-22).
+
+Since 1.13 every session start appends the First-room welcome at `t_ms` 0, so each log here opens with one `opening_line`.
+"""
 
 import json
 import re
@@ -10,10 +13,19 @@ from unittest.mock import ANY
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import IDLE_TICK_MS, OpenSessions, new_session_id
+from src.api.app import FIRST_ROOM_WELCOME, IDLE_TICK_MS, OpenSessions, new_session_id
 from src.api.wiring import session_store
 from src.config import Settings
-from src.domain.schema import ULID, Derived, Event, Room, RoomResult, SessionStart, SessionState
+from src.domain.schema import (
+    ULID,
+    Derived,
+    Event,
+    OpeningLineEvent,
+    Room,
+    RoomResult,
+    SessionStart,
+    SessionState,
+)
 from src.domain.session import SessionStateMachine
 from tests.api.test_app import ROOM_NOT_FOUND, UNKNOWN, make_app
 from tests.domain.test_redact import json_keys
@@ -92,6 +104,10 @@ def stored(tmp_path: Path, session_id: str) -> list[Event]:
         return []
 
 
+WELCOME = OpeningLineEvent(type="opening_line", kind="welcome", text=FIRST_ROOM_WELCOME, t_ms=0)
+"""The event every session start appends first (1.13)."""
+
+
 # --- POST /sessions ------------------------------------------------------------
 
 
@@ -100,9 +116,9 @@ def test_a_session_starts_fresh_with_a_sess_id_and_the_initial_state(client: Tes
     assert response.status_code == 200
     state = response.json()
     assert re.fullmatch(f"sess_{ULID}", state["id"])
-    assert state == SessionStateMachine(code_and_find_room).initial(state["id"]).model_dump(mode="json")
+    assert state == SessionStateMachine(code_and_find_room).replay(state["id"], [WELCOME]).model_dump(mode="json")
     assert state["room_id"] == code_and_find_room.id and state["active_puzzle_id"] == PZ["find_key"]
-    assert (state["opening_line"], state["phrasing"], state["cards"], state["disclosure"]) == (None, True, [], [])
+    assert (state["locks_open"], state["inventory"], state["cards"], state["disclosure"]) == ([], [], [], [])
     assert "thresholds" in state and state["thresholds"] is None
 
 
@@ -158,7 +174,7 @@ def test_a_click_and_a_lock_input_are_stamped_appended_and_applied(client: TestC
     state = post(client, session_id, code("clock_code", "nope"))
     assert state["wrong_attempts"][PZ["clock_code"]] == 1
     log = stored(tmp_path, session_id)
-    assert [(event.type, event.t_ms) for event in log] == [("click", 2_500), ("lock_input", 3_200)]
+    assert [(event.type, event.t_ms) for event in log] == [("opening_line", 0), ("click", 2_500), ("lock_input", 3_200)]
     assert state == SessionStateMachine(code_and_find_room).replay(session_id, log).model_dump(mode="json")
 
 
@@ -181,7 +197,7 @@ def test_a_client_timestamp_or_a_server_event_type_answers_422_and_appends_nothi
     post(client, session_id, click("rug"))
     response = client.post(f"/api/sessions/{session_id}/events", json=body)
     assert response.status_code == 422 and response.json() == INVALID_REQUEST
-    assert [event.type for event in stored(tmp_path, session_id)] == ["click"]
+    assert [event.type for event in stored(tmp_path, session_id)] == ["opening_line", "click"]
 
 
 def test_an_unknown_session_answers_404_on_every_session_route(client: TestClient, tmp_path: Path):
@@ -212,9 +228,9 @@ def test_twenty_concurrent_events_all_land_in_append_order_with_strictly_increas
         replies = list(pool.map(one, range(20)))
 
     log = stored(tmp_path, session_id)
-    assert len(log) == 20 and all(event.type == "lock_input" for event in log)
+    assert log[0] == WELCOME and len(log) == 21 and all(event.type == "lock_input" for event in log[1:])
     stamps = [event.t_ms for event in log]
-    assert stamps == sorted(stamps) and len(set(stamps)) == 20
+    assert stamps == sorted(stamps) and len(set(stamps)) == 21
     # Each reply carries the state that includes its own event and every earlier one.
     assert sorted(reply["wrong_attempts"][PZ["clock_code"]] for reply in replies) == list(range(1, 21))
     final = TestClient(app).get(f"/api/sessions/{session_id}").json()
@@ -248,7 +264,7 @@ def test_a_concurrent_read_that_appends_an_idle_tick_runs_under_the_same_lock(
     # A read that wins the lock first appends the one idle tick; a click that wins it first resets the
     # idle window, so no read does. Either way nothing is lost or interleaved and at most one tick lands.
     types = [event.type for event in log]
-    assert types.count("click") == 5 and types.count("idle_tick") <= 1 and len(types) == 5 + types.count("idle_tick")
+    assert types.count("click") == 5 and types.count("idle_tick") <= 1 and len(types) == 6 + types.count("idle_tick")
     stamps = [event.t_ms for event in log]
     assert stamps == sorted(stamps) and len(set(stamps)) == len(log)
     assert all(SessionState.model_validate(reply) for reply in replies)
@@ -266,7 +282,6 @@ def test_the_state_is_replayed_from_the_log_with_the_fields_this_story_declares(
     state = response.json()
     assert state["room_id"] == code_and_find_room.id
     assert state["locks_open"] == [PZ["find_key"], PZ["clock_code"]] and state["active_puzzle_id"] == PZ["find_lantern"]
-    assert (state["opening_line"], state["phrasing"]) == (None, True)
     assert (state["cards"], state["disclosure"], state["thresholds"]) == ([], [], None)
     assert not {"events", "log", "edit", "edits", "solution"} & json_keys(state)
 
@@ -284,29 +299,29 @@ def test_an_idle_tick_is_appended_at_5000_ms_since_the_last_event_and_not_at_499
     post(client, session_id, click("rug"))
     ticker.advance(IDLE_TICK_MS - 1)
     assert client.get(f"/api/sessions/{session_id}").status_code == 200
-    assert [event.type for event in stored(tmp_path, session_id)] == ["click"]
+    assert [event.type for event in stored(tmp_path, session_id)] == ["opening_line", "click"]
     ticker.advance(1)
     state = client.get(f"/api/sessions/{session_id}").json()
-    assert [(event.type, event.t_ms) for event in stored(tmp_path, session_id)] == [("click", 1_000), ("idle_tick", 6_000)]
+    assert [(event.type, event.t_ms) for event in stored(tmp_path, session_id)[1:]] == [("click", 1_000), ("idle_tick", 6_000)]
     assert state["locks_open"] == [] and state["inventory"] == []
     # The tick is now the last event, so the next read within 5000 ms appends nothing.
     ticker.advance(IDLE_TICK_MS - 1)
     client.get(f"/api/sessions/{session_id}")
-    assert len(stored(tmp_path, session_id)) == 2
+    assert len(stored(tmp_path, session_id)) == 3
     ticker.advance(1)
     client.get(f"/api/sessions/{session_id}")
-    assert [event.t_ms for event in stored(tmp_path, session_id)] == [1_000, 6_000, 11_000]
+    assert [event.t_ms for event in stored(tmp_path, session_id)] == [0, 1_000, 6_000, 11_000]
 
 
-def test_an_idle_tick_on_an_empty_log_counts_from_the_session_start(client: TestClient, tmp_path: Path, code_and_find_room: Room, ticker: Ticker):
+def test_an_idle_tick_on_a_fresh_log_counts_from_the_session_start(client: TestClient, tmp_path: Path, code_and_find_room: Room, ticker: Ticker):
     ticker.advance(40_000)
     session_id = start(client, code_and_find_room)
     ticker.advance(IDLE_TICK_MS - 1)
     client.get(f"/api/sessions/{session_id}")
-    assert stored(tmp_path, session_id) == []
+    assert stored(tmp_path, session_id) == [WELCOME]
     ticker.advance(1)
     client.get(f"/api/sessions/{session_id}")
-    assert [(event.type, event.t_ms) for event in stored(tmp_path, session_id)] == [("idle_tick", IDLE_TICK_MS)]
+    assert [(event.type, event.t_ms) for event in stored(tmp_path, session_id)] == [("opening_line", 0), ("idle_tick", IDLE_TICK_MS)]
 
 
 # --- GET /sessions/<id>/result ---------------------------------------------------------
@@ -357,6 +372,7 @@ def test_every_appended_event_logs_one_json_line_with_session_id_type_and_durati
     client.get(f"/api/sessions/{session_id}/result")
     lines = [json.loads(record.getMessage()) for record in caplog.records if record.name == "keyframe.sessions"]
     assert lines == [
+        {"session_id": session_id, "event": "opening_line", "duration_ms": 0},
         {"session_id": session_id, "event": "click", "duration_ms": 0},
         {"session_id": session_id, "event": "lock_input", "duration_ms": 0},
         {"session_id": session_id, "event": "idle_tick", "duration_ms": 0},

@@ -11,10 +11,16 @@ sees only the posted `derived`, and the hosted app never registers them
 (gated on `Settings.mode` when it lands, 7.2).
 
 Session routes are the one server-authoritative play surface (AD-4):
-`POST /sessions` starts a session, `POST /sessions/<id>/events` appends a
-client event and `GET /sessions/<id>` replays the state, appending an
-`idle_tick` when `IDLE_TICK_MS` have passed since the last event, and
-`GET /sessions/<id>/result` computes the `RoomResult` from the log. Every
+`POST /sessions` starts a session and appends its opening line at once,
+`POST /sessions/<id>/events` appends a client event and `GET /sessions/<id>`
+replays the state, appending an `idle_tick` when `IDLE_TICK_MS` have passed
+since the last event, and `GET /sessions/<id>/result` computes the
+`RoomResult` from the log. The opening line is the First-room welcome
+(`FIRST_ROOM_WELCOME`, the only copy of the text; the client renders what it
+receives) for every session start, whatever Derived block it carries, until
+the Greeting path (5.6) and the Demo room variant (7.15) land; a welcome is
+never phrased, so the start reply already carries it with `phrasing` false,
+and a reload replays the one event rather than appending another. Every
 append runs under one lock per session id held in this process
 (`OpenSessions`), so events land one after another with strictly increasing
 `t_ms` and each reply carries the state that includes its own event; the
@@ -58,6 +64,7 @@ from src.domain.schema import (
     Event,
     IdleTickEvent,
     Milliseconds,
+    OpeningLineEvent,
     PlayView,
     PostedEvent,
     Profile,
@@ -79,6 +86,9 @@ PROFILES = "profiles"
 
 IDLE_TICK_MS = 5000
 """A `GET /sessions/<id>` read appends an `idle_tick` once this long has passed since the last event (AD-4)."""
+
+FIRST_ROOM_WELCOME = "Welcome to your own room. Find what doesn't belong."
+"""The fixed First-room welcome (A-13, FR-21): the `opening_line` every session start appends, worded here alone."""
 
 EVENT = TypeAdapter(Event)
 
@@ -214,13 +224,17 @@ def session_routes(store: ArtifactStore, sessions: SessionStore, clock: Clock, *
         log.info(json.dumps({"session_id": session_id, "event": event.type, "duration_ms": clock.now_ms() - started}))
         return state
 
+    def welcome(t_ms: Milliseconds) -> Event:
+        return OpeningLineEvent(type="opening_line", kind="welcome", text=FIRST_ROOM_WELCOME, t_ms=t_ms)
+
     @router.post("")
     def start_session(body: SessionStart) -> SessionState:
-        """A fresh session over the stored Room; `derived` is validated here and read by the Rung thresholds (3.3)."""
+        """A fresh session over the stored Room, opened with the welcome; `derived` is validated here and read by the Rung thresholds (3.3)."""
         machine = SessionStateMachine(load_room(store, body.room_id))
         session_id = new_session_id()
-        open_sessions.open(session_id, machine, clock.now_ms())
-        return machine.initial(session_id)
+        session = open_sessions.open(session_id, machine, clock.now_ms())
+        with session.lock:
+            return append(session_id, session, [], welcome)
 
     @router.get("/{session_id}")
     def get_session(session_id: str) -> SessionState:
