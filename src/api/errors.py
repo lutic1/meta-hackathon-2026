@@ -71,6 +71,23 @@ class UploadRefused(ApiError):
         self.code = code
 
 
+class AccessDenied(ApiError):
+    """Hosted mode: a guarded route without the right `X-Access-Code` (AD-9, AD-13); refused before anything is read or stored."""
+
+    status = 403
+    code = "access_denied"
+
+    def __init__(self) -> None:
+        super().__init__("this route needs the access code")
+
+
+class BuildQuotaRefused(ApiError):
+    """The `BuildQuotaExceeded` refusal of `POST /builds` (AD-9, AD-13): every judge build is used, so no photo is stored."""
+
+    status = 403
+    code = "build_quota_exceeded"
+
+
 class ProfileNotFound(ApiError):
     status = 404
     code = "profile_not_found"

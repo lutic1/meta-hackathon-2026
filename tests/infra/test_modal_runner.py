@@ -33,6 +33,7 @@ from src.infra.modal import (
     call_key,
     hosted_stores,
     minted_ms,
+    slot_key,
 )
 from src.pipeline.architect import architect_stage
 from src.pipeline.build import STAGES, Build, StageResult, new_id
@@ -216,7 +217,8 @@ def test_the_runner_is_the_only_writer_of_the_record_and_a_web_read_never_writes
     done = _runner_build(handles, ticker, doubles).run(queued.id)
     assert done.status == "done" and web_writes == [0] * 6
     assert web.read(queued.id) == done and len(_job_writes(handles, queued.id)) == 1 + 2 * 6 + 1  # queued, then the runner's
-    assert [key for key, _ in handles.jobs.writes] == [queued.id, call_key(queued.id), *[queued.id] * 13]
+    # the build slot is claimed before the queued record (7.11); it is its own key, never the record
+    assert [key for key, _ in handles.jobs.writes] == [slot_key(1), queued.id, call_key(queued.id), *[queued.id] * 13]
     artifacts = handles.root / "rooms" / "demo" / queued.room_id
     assert sorted(p.relative_to(artifacts).as_posix() for p in artifacts.rglob("*") if p.is_file()) == sorted(
         [*(f"photos/{i}.jpg" for i in range(6)), *(f"originals/{i}.jpg" for i in range(6)), "photos.json", JOB_FILE]

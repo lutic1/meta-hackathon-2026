@@ -18,6 +18,7 @@ from src.domain.schema import (
     JobState,
     JobStatus,
     MaskPreview,
+    Room,
     SentBack,
     Stage,
     StageRecord,
@@ -25,7 +26,7 @@ from src.domain.schema import (
 from src.infra.clocks import BuildClock
 from src.pipeline.build import STAGES, TERMINAL, Build, StageResult, StageStop, error_code, new_id
 from src.pipeline.ingest import IngestRefused, photo_keys, read_photos
-from src.pipeline.ports import ArtifactStore, Clock, JobStore
+from src.pipeline.ports import ArtifactStore, BuildQuotaExceeded, Clock, JobStore
 from src.providers.base import ProviderError
 from tests.infra.test_clocks import Ticker
 from tests.pipeline.uploads import make_uploads
@@ -58,7 +59,7 @@ class MemoryJobStore:
         return sorted(self.rows)
 
     def reserve_build(self, job_id: JobId) -> None:
-        """No quota here: the stage runner never claims a slot."""
+        """No quota here: every claim is accepted and nothing is written."""
 
     def builds_left(self) -> int | None:
         return None
@@ -322,6 +323,63 @@ def test_a_refused_upload_creates_and_queues_no_job_and_stores_nothing(jobs, art
     assert info.value.code == "photo_count"
     assert jobs.list_ids() == [] and jobs.writes == [] and doubles.calls == []
     assert not (tmp_path / "rooms").exists()
+
+
+# --- The build slot: claimed after the ingest checks, before the first photo write (7.11) ---
+
+
+class OrderedArtifacts:
+    """An `ArtifactStore` over disk that logs each `put` into a shared log."""
+
+    def __init__(self, inner: ArtifactStore, log: list[str]) -> None:
+        self.inner, self.log = inner, log
+
+    def put(self, key: str, data: bytes) -> None:
+        self.log.append(f"put {key}")
+        self.inner.put(key, data)
+
+    def read(self, key: str) -> bytes:
+        return self.inner.read(key)
+
+    def list_rooms(self) -> list[Room]:
+        return self.inner.list_rooms()
+
+
+class QuotaJobStore(MemoryJobStore):
+    """`MemoryJobStore` with `left` build slots, logging each claim into a shared log."""
+
+    def __init__(self, log: list[str], left: int) -> None:
+        super().__init__()
+        self.log, self.left = log, left
+
+    def reserve_build(self, job_id: JobId) -> None:
+        if self.left == 0:
+            raise BuildQuotaExceeded(20)
+        self.left -= 1
+        self.log.append(f"claim {job_id}")
+
+
+def test_the_slot_is_claimed_for_the_job_before_the_first_photo_write(artifacts, ticker, doubles, uploads):
+    log: list[str] = []
+    jobs = QuotaJobStore(log, left=1)
+    queued = _build(jobs, OrderedArtifacts(artifacts, log), ticker, doubles).submit(uploads)
+    assert log[0] == f"claim {queued.id}" and log[1].startswith(f"put {queued.room_id}/") and jobs.left == 0
+
+
+def test_a_refused_upload_claims_no_slot(artifacts, ticker, doubles, tmp_path):
+    log: list[str] = []
+    jobs = QuotaJobStore(log, left=1)
+    with pytest.raises(IngestRefused):
+        _build(jobs, OrderedArtifacts(artifacts, log), ticker, doubles).submit(make_uploads(11))
+    assert log == [] and jobs.left == 1 and jobs.writes == []
+
+
+def test_a_refused_claim_stores_no_photo_and_creates_no_job(artifacts, ticker, doubles, uploads, tmp_path):
+    log: list[str] = []
+    jobs = QuotaJobStore(log, left=0)
+    with pytest.raises(BuildQuotaExceeded):
+        _build(jobs, OrderedArtifacts(artifacts, log), ticker, doubles).submit(uploads)
+    assert log == [] and jobs.writes == [] and doubles.calls == [] and not (tmp_path / "rooms").exists()
 
 
 # --- One JSON log line per stage ---

@@ -1,8 +1,11 @@
 """The stage runner (AD-7): a persisted, resumable Build job, and the one writer of its state.
 
 `Build.submit(uploads)` refuses a bad upload before any job exists, then
-mints the `job_` and `room_` ids, runs ingest and persists the job `queued`
-for `JobRunner.start(job_id)`. `Build.run(job_id)` runs the stages after
+mints the `job_` and `room_` ids, claims a build slot for the job through
+`JobStore.reserve_build` (the hosted store raises `BuildQuotaExceeded` once
+every slot is taken; the local store never refuses), and only then runs
+ingest, the first photo write, and persists the job `queued` for
+`JobRunner.start(job_id)`. `Build.run(job_id)` runs the stages after
 the last persisted one, in order, rereading job state from `JobStore` before
 each and persisting it after each stage with its duration from the build
 clock, which never sees `DEMO_TIMESCALE` (AD-10); a terminal job is left as
@@ -134,10 +137,14 @@ class Build:
         self._regen_max = regen_max
 
     def submit(self, uploads: Sequence[Upload]) -> JobState:
-        """Refuse the upload before any job exists, else mint the ids, run ingest and persist the job `queued`."""
+        """Refuse the upload before any job exists, else mint the ids, claim a build slot, run ingest and persist the job `queued`.
+
+        A refused upload claims no slot, and a refused claim (`BuildQuotaExceeded`) stores nothing.
+        """
         validate_upload(uploads)
         room_id = new_id("room")
         state = JobState(id=new_id("job"), status="running", stage="ingest", room_id=room_id, regen_max=self._regen_max)
+        self._jobs.reserve_build(state.id)
         state = self._finish(state, "ingest", lambda _: StageResult(count=len(store_upload(uploads, room_id, self._artifacts))))
         if state.status == "failed":
             return self._put(state)

@@ -56,15 +56,21 @@ and `GET /schema` the JSON Schema of every AD-2 model and of the `Event`,
 `PostedEvent` and `LockInput` unions under `$defs`, from which `npm run types`
 generates `web/types`.
 
-Build routes run the persisted job (AD-7): `POST /builds` reads the
-multipart body (the i-th `downscale` part with the i-th `original` part),
-lets ingest refuse it before any job exists (422 at stage `ingest` with
-`photo_count`, `unsupported_image` or `bad_downscale`), then persists the job
-`queued`, hands it to the `JobRunner` and answers 202 with the job state
-without waiting on a stage. `GET /builds/<job_id>` reads only the persisted
+Build routes run the persisted job (AD-7): `POST /builds` first runs the
+access guard wiring injects, then reads the multipart body (the i-th
+`downscale` part with the i-th `original` part), lets ingest refuse it
+before any job exists (422 at stage `ingest` with `photo_count`,
+`unsupported_image` or `bad_downscale`), claims a build slot (403
+`build_quota_exceeded` once every judge build is used, with no photo
+stored), then persists the job `queued`, hands it to the `JobRunner` and
+answers 202 with the job state without waiting on a stage. In hosted mode
+the guard refuses a missing or wrong `X-Access-Code` with 403
+`access_denied` before the body is read, so no job, slot or photo follows
+(AD-9). `GET /builds/<job_id>` reads only the persisted
 job state, 202 while `queued` or `running` and 200 when terminal, and never a
 Room; `GET /builds/<job_id>/room` is the one route a full Room leaves by
-(AD-3), open in Local mode, `room_not_found` until the job is `done`. At
+(AD-3), behind the same guard (open in Local mode), `room_not_found` until
+the job is `done`. Every other route is open in both modes. At
 startup the app exports the ledger and restarts every job left `queued` or
 `running`; the runner exports again after each Build ends (AD-9). The
 Trickster route and `GET /builds/<job_id>/view` land with their stories.
@@ -93,6 +99,7 @@ from starlette.concurrency import run_in_threadpool
 
 from src.api.errors import (
     ApiError,
+    BuildQuotaRefused,
     InvalidProfile,
     InvalidProfileName,
     JobNotFound,
@@ -106,6 +113,9 @@ from src.api.errors import (
 )
 from src.api.meta import disclosure_lines, meta
 from src.api.wiring import (
+    ACCESS_HEADER,
+    AccessGuard,
+    access_guard,
     artifact_store,
     build_clock,
     build_stages,
@@ -162,6 +172,7 @@ from src.pipeline.build import TERMINAL, Build, StageFn, error_code
 from src.pipeline.ingest import IngestRefused, UnsupportedImage, Upload
 from src.pipeline.ports import (
     ArtifactStore,
+    BuildQuotaExceeded,
     Clock,
     JobRunner,
     JobStore,
@@ -363,21 +374,30 @@ def job_status_code(state: JobState) -> int:
 
 
 def build_routes(
-    build: Build, jobs: JobStore, store: ArtifactStore, runner: JobRunner, on_terminal: Callable[[], object]
+    build: Build,
+    jobs: JobStore,
+    store: ArtifactStore,
+    runner: JobRunner,
+    on_terminal: Callable[[], object],
+    guard: AccessGuard,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/builds", tags=["builds"])
 
     @router.post("", status_code=202)
     async def post_build(request: Request, response: Response) -> JobState:
-        """Ingest refuses a bad upload before any job exists; an accepted one is queued and started, never awaited.
+        """The guard runs before the body is read; ingest refuses a bad upload before any slot is claimed or job exists.
 
+        An accepted upload claims a slot, is queued and started, never awaited.
         The multipart parse and ingest run in the thread pool, so a large body never holds the event loop.
         """
+        guard(request.headers.get(ACCESS_HEADER))
         content_type, body = request.headers.get("content-type", ""), await request.body()
         try:
             state = await run_in_threadpool(lambda: build.submit(read_uploads(content_type, body)))
         except (IngestRefused, UnsupportedImage) as exc:
             raise UploadRefused(error_code(exc), str(exc)) from None
+        except BuildQuotaExceeded as exc:
+            raise BuildQuotaRefused(str(exc)) from None
         if state.status in TERMINAL:
             on_terminal()
         else:
@@ -393,8 +413,9 @@ def build_routes(
         return state
 
     @router.get("/{job_id}/room")
-    def get_build_room(job_id: str) -> Room:
-        """The full Room, solutions included: the one route a Room leaves the server by (AD-3); no access code in Local mode."""
+    def get_build_room(job_id: str, request: Request) -> Room:
+        """The full Room, solutions included: the one route a Room leaves the server by (AD-3), behind the access guard."""
+        guard(request.headers.get(ACCESS_HEADER))
         state = read_job(jobs, job_id)
         if state.status != "done" or state.room_id is None:
             raise RoomNotFound(state.room_id or job_id)
@@ -597,6 +618,7 @@ def create_app(
     spawn: Spawn = spawn_thread,
     hosted: bool = False,
     stages: Mapping[Stage, StageFn] | None = None,
+    jobs: JobStore | None = None,
     ledger_path: Path = LEDGER_PATH,
     exports_root: Path = EXPORTS_ROOT,
     cache_root: Path = CACHE_ROOT,
@@ -609,8 +631,12 @@ def create_app(
     until 7.2 adds `mode`: every hosted session opens with the welcome and
     `Derived.fresh()` thresholds, and `greet` is never called.
 
+    The access guard comes from wiring over `Settings` and `hosted`.
+
     `stages` replaces the stage functions wiring builds over the per-role
-    providers (tests pass doubles); the paths and `today` let tests keep the
+    providers (tests pass doubles), and `jobs` the job store (tests pass the
+    hosted store, whose slot claims carry the build quota, until 7.2 has
+    wiring select it); the paths and `today` let tests keep the
     ledger, its exports and the cache out of the repo.
     """
     ledger = ledger_store(ledger_path)
@@ -619,7 +645,8 @@ def create_app(
     if stages is None:
         providers = model_providers(settings, model_cache(cache_root), spend_ledger(settings, ledger))
         stages = build_stages(providers, store, ledger, dry_run=settings.dry_run == "on")
-    jobs = job_store(rooms_root)
+    if jobs is None:
+        jobs = job_store(rooms_root)
     build = Build(jobs=jobs, artifacts=store, clock=build_clock(), stages=stages, regen_max=settings.regen_max)
     runner = job_runner(build, on_terminal=export)
 
@@ -641,7 +668,7 @@ def create_app(
     app.add_exception_handler(ApiError, handle_api_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.include_router(status_routes(settings))
-    app.include_router(build_routes(build, jobs, store, runner, on_terminal=export))
+    app.include_router(build_routes(build, jobs, store, runner, on_terminal=export, guard=access_guard(settings, hosted=hosted)))
     app.include_router(room_routes(store, jobs))
     app.include_router(profile_routes(store))
     scale = session_clock(settings)

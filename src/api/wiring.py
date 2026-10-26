@@ -22,6 +22,16 @@ starts every job a stopped process left `queued` or `running`; and
 terminal Build (AD-9). `session_clock` is the one place `DEMO_TIMESCALE`
 reaches a clock and `build_clock` never sees it (AD-10).
 
+`access_guard` is the hosted access check on `POST /builds` and
+`GET /builds/<job_id>/room` (AD-9): in hosted mode it refuses a missing or
+wrong `X-Access-Code` with `AccessDenied` (403 `access_denied`), comparing
+against `ACCESS_CODE` from `Settings` in constant time and refusing every
+code when none is set; in Local mode it lets every request through. The
+build quota is the `JobStore`'s own: the hosted store refuses the 21st
+slot claim with `BuildQuotaExceeded` and the local store never refuses, so
+no route handler reads the mode. Until 7.2 adds `Settings.mode`, the
+`hosted` flag `create_app` receives stands in for it.
+
 `build_stages` maps each stage after ingest to its function over the
 providers, the artifact store and the ledger store. Architect and segment
 (2.15) run on the `architect` role's provider, the one that finds the
@@ -38,6 +48,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 import threading
 from collections.abc import Callable, Mapping
 from datetime import date
@@ -47,6 +58,7 @@ from typing import Literal, get_args
 import httpx
 from pydantic import ValidationError
 
+from src.api.errors import AccessDenied
 from src.config import Settings
 from src.domain.ledger import CallKind
 from src.domain.schema import JobId, JobState, Role, Stage
@@ -103,6 +115,12 @@ call, so it carries the portrait budget of the Meta adapter.
 """
 
 
+ACCESS_HEADER = "X-Access-Code"
+"""The header carrying the hosted access code on the guarded routes (AD-9)."""
+
+type AccessGuard = Callable[[str | None], None]
+"""Given a request's `X-Access-Code` (`None` when absent), returns, or raises `AccessDenied`."""
+
 log = logging.getLogger("keyframe.builds")
 
 
@@ -111,6 +129,19 @@ class StageNotBuilt(Exception):
 
     def __init__(self, stage: Stage) -> None:
         super().__init__(f"the {stage} stage is not built yet")
+
+
+def access_guard(settings: Settings, *, hosted: bool) -> AccessGuard:
+    """The access check on the guarded routes: hosted, the `ACCESS_CODE` comparison; local, none (AD-9)."""
+    if not hosted:
+        return lambda code: None
+    expected = (settings.access_code or "").encode()
+
+    def guard(code: str | None) -> None:
+        if not expected or code is None or not secrets.compare_digest(code.encode(), expected):
+            raise AccessDenied()
+
+    return guard
 
 
 def hint_phraser(settings: Settings) -> HintPhraser:
