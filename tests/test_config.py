@@ -41,14 +41,67 @@ def test_reads_each_key_exactly_once_and_nothing_else():
     env = CountingEnv()
     Settings.from_env(env)
     assert env.reads == Counter(ENV_KEYS)
-    assert "MODE" not in env.reads and "MIN_CONTAINERS" not in env.reads
+    assert env.reads["MODE"] == 1 and env.reads["MIN_CONTAINERS"] == 1
     assert "CHAT_MODEL" not in env.reads and "IMAGE_MODEL" not in env.reads
     assert not any(key.startswith("MAX_COMPLETION_TOKENS_") for key in env.reads)
 
 
-def test_no_mode_or_min_containers_field():
-    assert "mode" not in Settings.model_fields
-    assert "min_containers" not in Settings.model_fields
+def test_mode_and_min_containers_default_to_local_and_zero():
+    s = Settings.from_env({})
+    assert (s.mode, s.min_containers) == ("local", 0)
+    s = Settings.from_env({"MODE": "hosted", "MIN_CONTAINERS": "1"})
+    assert (s.mode, s.min_containers) == ("hosted", 1)
+
+
+@pytest.mark.parametrize("env", [{"MODE": "cloud"}, {"MODE": "HOSTED"}, {"MIN_CONTAINERS": "-1"}, {"MIN_CONTAINERS": "one"}])
+def test_an_invalid_mode_or_min_containers_fails_at_startup(env):
+    with pytest.raises(ValidationError):
+        Settings.from_env(env)
+
+
+@pytest.mark.parametrize(("env", "cap"), [
+    ({}, 60), ({"MODE": "local"}, 60), ({"MODE": "hosted"}, 20),
+    ({"MODE": "local", "SPEND_CAP_USD": "5"}, 5), ({"MODE": "hosted", "SPEND_CAP_USD": "12.5"}, 12.5),
+    ({"MODE": "hosted", "SPEND_CAP_USD": ""}, 20),
+])
+def test_spend_cap_defaults_per_mode_and_an_explicit_value_overrides_it(env, cap):
+    assert Settings.from_env(env).spend_cap_usd == cap
+
+
+def test_the_mode_defaults_also_apply_to_settings_built_directly():
+    assert (Settings(mode="hosted").spend_cap_usd, Settings(mode="hosted").guide) == (20, "verbatim")
+    assert (Settings().spend_cap_usd, Settings().guide) == (60, "ollama")
+    assert Settings(mode="hosted", spend_cap_usd=3).spend_cap_usd == 3
+
+
+def test_guide_defaults_per_mode():
+    assert Settings.from_env({"MODE": "local"}).guide == "ollama"
+    assert Settings.from_env({"MODE": "hosted"}).guide == "verbatim"
+    assert Settings.from_env({"MODE": "hosted", "GUIDE": "verbatim"}).guide == "verbatim"
+
+
+def test_hosted_mode_with_guide_ollama_fails_at_startup():
+    with pytest.raises(ValidationError, match="MODE=hosted refuses GUIDE=ollama"):
+        Settings.from_env({"MODE": "hosted", "GUIDE": "ollama"})
+    with pytest.raises(ValidationError):
+        Settings(mode="hosted", guide="ollama")
+
+
+def test_hosted_mode_with_the_recorder_fails_at_startup():
+    with pytest.raises(ValidationError, match="MODE=hosted refuses DEMO_TRICKSTER=record"):
+        Settings.from_env({"MODE": "hosted", "DEMO_TRICKSTER": "record"})
+    assert Settings.from_env({"MODE": "local", "DEMO_TRICKSTER": "record"}).demo_trickster == "record"
+
+
+@pytest.mark.parametrize("value", ["live", "scripted", "authored"])
+def test_hosted_mode_starts_with_every_other_trickster_source(value):
+    assert Settings.from_env({"MODE": "hosted", "DEMO_TRICKSTER": value}).demo_trickster == value
+
+
+def test_a_refusal_names_only_the_refused_value_never_a_secret():
+    with pytest.raises(ValidationError) as excinfo:
+        Settings.from_env({"MODE": "hosted", "GUIDE": "ollama", "META_MODEL_API_KEY": "sk-sentinel", "ACCESS_CODE": "code-sentinel"})
+    assert "sentinel" not in str(excinfo.value)
 
 
 def test_values_are_read_and_blank_means_unset():

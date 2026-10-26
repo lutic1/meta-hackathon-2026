@@ -4,22 +4,32 @@
 `.env`, loaded at import; a variable that is already set wins) and
 validates it. Every other module receives what it needs by injection.
 `scripts/doctor.py` is exempt (stdlib, runs before `uv sync`).
+
+`MODE` picks the defaults a key takes when it is unset (`MODE_DEFAULTS`:
+`SPEND_CAP_USD` 60 and `GUIDE=ollama` locally, 20 and `GUIDE=verbatim`
+hosted) and the values the running mode refuses at startup
+(`MODE_REFUSED`: hosted refuses `GUIDE=ollama` and `DEMO_TRICKSTER=record`).
+An explicit `SPEND_CAP_USD` overrides the running mode's default; a later
+allocation is set by configuration at the ledger reset, with no date logic
+here (AD-6, AD-14).
 """
 
 from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from typing import Literal
+from typing import Any, Literal
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 load_dotenv()
 
 ROLES = ("architect", "riddler", "dryrun", "trickster", "image")
 
 ENV_KEYS = (
+    "MODE",
+    "MIN_CONTAINERS",
     "CACHE",
     "SPEND_CAP_USD",
     "DEMO_TIMESCALE",
@@ -45,17 +55,34 @@ SECRET_KEYS = ("META_MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "AC
 MUSE_SPARK = "muse-spark-1.3"
 MUSE_IMAGE = "muse-image-1.0"
 
+type Mode = Literal["local", "hosted"]
+
+MODE_DEFAULTS: dict[str, dict[str, object]] = {
+    "local": {"spend_cap_usd": 60, "guide": "ollama"},
+    "hosted": {"spend_cap_usd": 20, "guide": "verbatim"},
+}
+"""Per mode, the value a field takes when its key is unset: the 2.3 spend allocations and the Guide (AD-6, AD-14)."""
+MODE_REFUSED: dict[Mode, dict[str, str]] = {
+    "local": {},
+    "hosted": {"guide": "ollama", "demo_trickster": "record"},
+}
+"""Per mode, the values `Settings` refuses at startup: no Guide model and no recorder in Hosted mode (AD-14, AD-15)."""
+
 
 class Settings(BaseModel, frozen=True):
-    # Product flags (AD-14). `MODE` and `MIN_CONTAINERS` land with the first hosted story.
+    # Product flags (AD-14).
+    mode: Mode = "local"
+    min_containers: int = Field(default=0, ge=0)
+    """The warm-container floor the hosted `web` function is deployed with (AD-9)."""
     cache: Literal["on", "off"] = "on"
-    spend_cap_usd: float = Field(default=60, ge=0)  # the Local-mode allocation (AD-6)
+    spend_cap_usd: float = Field(default=60, ge=0)
+    """The running mode's allocation (AD-6): `SPEND_CAP_USD`, else the mode's default in `MODE_DEFAULTS`."""
     hosted_spend_cap_usd: float = Field(default=20, ge=0)
-    """The Hosted-mode allocation (AD-6); the two allocations sum to the combined ceiling the export reads against.
+    """The Hosted-mode allocation the local export adds to the Local one for the combined ceiling (AD-6).
 
-    Read per mode from `SPEND_CAP_USD` once `Settings.mode` lands (7.2); until
-    then the default holds, and the ceiling moves only when `SPEND_CAP_USD`
-    is set at the reset, with no date logic here.
+    The hosted process reads its own allocation from `SPEND_CAP_USD` in the
+    `keyframe` Secret; the local process cannot see that value, so the
+    ceiling it reports uses this default.
     """
     demo_timescale: int = Field(default=1, ge=1)
     demo_trickster: Literal["live", "record", "scripted", "authored"] = "live"
@@ -82,6 +109,24 @@ class Settings(BaseModel, frozen=True):
     fal_key: str | None = None
     ollama_host: str | None = None
     access_code: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _mode_defaults(cls, data: Any) -> Any:
+        """Fill each unset field `MODE_DEFAULTS` names with the running mode's value; a set one wins."""
+        if not isinstance(data, dict):
+            return data
+        return {**MODE_DEFAULTS.get(data.get("mode", "local"), {}), **data}
+
+    @field_validator(*sorted({field for refused in MODE_REFUSED.values() for field in refused}))
+    @classmethod
+    def _refused_in_mode(cls, value: str, info: ValidationInfo) -> str:
+        """Fail at startup on a value the running mode refuses; the error names only that field's value."""
+        mode = info.data.get("mode")
+        field = info.field_name or ""
+        if mode is not None and MODE_REFUSED[mode].get(field) == value:
+            raise ValueError(f"MODE={mode} refuses {field.upper()}={value}")
+        return value
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
