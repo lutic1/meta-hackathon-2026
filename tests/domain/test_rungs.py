@@ -376,3 +376,32 @@ def test_at_timescale_6_an_idle_only_log_reaches_the_three_rungs_at_15_30_and_45
     machine = SessionStateMachine(code_and_find_room, thresholds=DEMO)
     log = play(machine, opening(0), *ticks(1_000, 60_000, every=1_000))
     assert [(r.rung, r.t_ms) for r in rungs(log)] == [(1, 15_000), (2, 30_000), (3, 45_000)]
+
+
+# --- A Hint request never triggers a Rung (Story 3.3) ---------------------------------------
+
+
+def test_a_hint_request_never_triggers_a_rung_even_with_three_wrong_attempts_waiting_on_the_spacing(code_and_find_room: Room):
+    machine = SessionStateMachine(code_and_find_room, thresholds=DEMO)
+    wrong = [code("clock_code", "0", t) for t in (1_000, 2_000, 3_000, 4_000, 5_000, 6_000)]
+    log = play(machine, opening(0), *wrong)
+    assert [(r.rung, r.t_ms) for r in rungs(log)] == [(1, 3_000)]  # the next three wait on the 15000 ms spacing
+    log = play(machine, hint(None, 20_000), hint("clock_code", 21_000), after=log)
+    assert [(r.rung, r.t_ms) for r in rungs(log)] == [(1, 3_000)]
+    assert machine.replay(SESSION, log).current_rung[PZ["clock_code"]] == 1
+    # The next event that is not a Hint request opens the waiting direction Rung.
+    log = play(machine, click("rug", 22_000), after=log)
+    assert [(r.rung, r.t_ms) for r in rungs(log)] == [(1, 3_000), (2, 22_000)]
+
+
+def test_current_rung_text_is_the_verbatim_text_of_the_active_puzzles_current_rung(code_and_find_room: Room):
+    machine = SessionStateMachine(code_and_find_room, thresholds=DEMO)
+    clock = next(p for p in code_and_find_room.puzzles if p.id == PZ["clock_code"])
+    log = play(machine, opening(0), code("clock_code", "0", 1_000))
+    assert machine.current_rung_text(machine.replay(SESSION, log)) is None  # no Rung open
+    log = play(machine, *(code("clock_code", "0", t) for t in range(2_000, 22_001, 2_000)), after=log)
+    state = machine.replay(SESSION, log)
+    assert state.current_rung[PZ["clock_code"]] == 2 and machine.current_rung_text(state) == clock.rungs.direction
+    exited = play(machine, click("key", 30_000), code("clock_code", "415", 31_000), click("lantern", 32_000),
+                  code("door_code", "7342", 33_000), after=log)
+    assert machine.current_rung_text(machine.replay(SESSION, exited)) is None  # no Puzzle is active

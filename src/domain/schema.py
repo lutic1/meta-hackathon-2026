@@ -669,6 +669,16 @@ class Thresholds(Model):
     source: Literal["derived", "fresh"]
 
 
+class HintReply(Model):
+    """The answer to a `hint_request`: the current Rung through the Guide port, or the No-hint line at `rung` 0."""
+
+    puzzle_id: PuzzleId | None
+    """The Puzzle the request was answered for; null once the Exit has opened."""
+    rung: RungLevel
+    text: str
+    """The line exactly as shown."""
+
+
 class SessionState(Model):
     """Replayed from the log; carries `cards`, never an edit or the event log."""
 
@@ -692,6 +702,8 @@ class SessionState(Model):
     disclosure: list[str]
     judge_room: bool = False
     thresholds: Thresholds | None = None
+    hint_reply: HintReply | None = None
+    """Set only on the reply to the `hint_request` it answers; never replayed."""
 
 
 # --- Profile (AD-8) --------------------------------------------------------

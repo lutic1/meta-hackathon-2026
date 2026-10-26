@@ -258,8 +258,8 @@ def test_twenty_concurrent_events_all_land_in_append_order_with_strictly_increas
 def test_a_different_session_id_never_waits_on_this_sessions_lock(code_and_find_room: Room):
     sessions = OpenSessions()
     machine = SessionStateMachine(code_and_find_room)
-    a = sessions.open(new_session_id(), machine, 0, [])
-    b = sessions.open(new_session_id(), machine, 0, [])
+    a = sessions.open(new_session_id(), machine, 0, [], Derived.fresh())
+    b = sessions.open(new_session_id(), machine, 0, [], Derived.fresh())
     with a.lock:
         assert b.lock.acquire(timeout=1)
         b.lock.release()

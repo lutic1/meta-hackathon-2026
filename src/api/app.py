@@ -28,17 +28,27 @@ false; the Demo room variant lands with 7.15. A reload replays the one event
 rather than appending another. The session's `Thresholds` are fixed at the
 start from the greeted block, else `Derived.fresh()`: the 1x values from
 `src/domain/rungs.py`, divided by `DEMO_TIMESCALE` on the session clock
-(AD-10). Nothing from the Derived block is stored. Every append runs under one
-lock per session id held in this process (`OpenSessions`), so events land one
-after another and each reply carries the state that includes its own event:
+(AD-10). Nothing from the Derived block is written to the log; the block
+the thresholds came from is kept with the session's transient state, as the
+one input beside the Rung text that the Guide port sees. Every append runs
+under one lock per session id held in this process (`OpenSessions`), so
+events land one after another and each reply carries the state that
+includes its own event:
 posted events, `idle_tick`s and opening lines have strictly increasing `t_ms`,
 and a `rung_change` the state machine selects on an appended event (3.1) is
-appended right after it, under the same lock, sharing that event's `t_ms`.
+worded through the injected `HintPhraser` and appended right after it, under
+the same lock, sharing that event's `t_ms`, with `phrased`, `phrasing_ms`
+(null when not phrased) and the line exactly as shown in `text`.
 The event and its `rung_change` are two store writes; should the second fail,
-replay still selects the same Rung on that event, so the served state is
-unchanged and only the log lacks it. The lock and the clock reading at the
+replay still selects the same Rung on that event, so the served state keeps
+the Rung (in its verbatim words) and only the log lacks it. The lock and the clock reading at the
 session's start are transient request state, never replayed state. `t_ms` is
-stamped from the session clock at append, so a body carrying one is refused. Each
+stamped from the session clock at append, so a body carrying one is refused.
+A `hint_request` is answered on its reply in `hint_reply`: the current Rung
+of the Puzzle it resolved to, routed through the `HintPhraser`, or with no
+Rung open (or no Puzzle active, once the Exit has opened) the fixed
+`NO_HINT_LINE`, never phrased; it never opens a Rung, and a `puzzle_id` that
+is not in the Room is a malformed body, refused with nothing appended. Each
 appended event is logged as one JSON line with `session_id`, the event type
 and `duration_ms` (AR-22). Every session state served, the greeted start
 reply included, carries its Room's Disclosure list, composed once at the
@@ -145,6 +155,8 @@ from src.domain.schema import (
     API_MODELS,
     Derived,
     Event,
+    HintReply,
+    HintRequestBody,
     IdleTickEvent,
     JobId,
     JobState,
@@ -159,6 +171,7 @@ from src.domain.schema import (
     RoomId,
     RoomResult,
     RoomSummary,
+    RungChangeEvent,
     SessionId,
     SessionStart,
     SessionState,
@@ -194,6 +207,9 @@ IDLE_TICK_MS = 5000
 
 FIRST_ROOM_WELCOME = "Welcome to your own room. Find what doesn't belong."
 """The fixed First-room welcome (A-13, FR-21): the `opening_line` of every session start not greeted, worded here alone."""
+
+NO_HINT_LINE = "A fair ask. Look around a little longer; I'll speak up if you stay stuck."
+"""The fixed No-hint line (UX-DR76): the reply to a Hint request while no Rung is open, never phrased."""
 
 EVENT = TypeAdapter(Event)
 
@@ -454,7 +470,7 @@ def new_session_id() -> SessionId:
 
 @dataclass(slots=True)
 class OpenSession:
-    """One session's transient request state: its machine over the Effective room, its lock, its start and its Disclosure list."""
+    """One session's transient request state: its machine over the Effective room, its lock, its start, its Disclosure list and its Derived block."""
 
     machine: SessionStateMachine
     lock: threading.Lock
@@ -462,6 +478,8 @@ class OpenSession:
     """The session clock's reading when the session started; `t_ms` counts from it."""
     disclosure: list[str]
     """The Room's Disclosure list, composed when the session started (AD-15)."""
+    derived: Derived
+    """The block the thresholds came from (`Derived.fresh()` unless greeted), the Guide port's one input beside a Rung."""
 
 
 class OpenSessions:
@@ -471,9 +489,11 @@ class OpenSessions:
         self._guard = threading.Lock()
         self._open: dict[SessionId, OpenSession] = {}
 
-    def open(self, session_id: SessionId, machine: SessionStateMachine, started_ms: int, disclosure: list[str]) -> OpenSession:
+    def open(
+        self, session_id: SessionId, machine: SessionStateMachine, started_ms: int, disclosure: list[str], derived: Derived
+    ) -> OpenSession:
         with self._guard:
-            session = self._open[session_id] = OpenSession(machine, threading.Lock(), started_ms, disclosure)
+            session = self._open[session_id] = OpenSession(machine, threading.Lock(), started_ms, disclosure, derived)
         return session
 
     def any_on(self, room_id: RoomId) -> bool:
@@ -527,16 +547,37 @@ def session_routes(
         """Under the session lock: append the event `build` makes for the stamped `t_ms`, then any `rung_change` it selected.
 
         The selection is the state's Rung change triggered at the event's own
-        log position; the reply is the state that includes both.
+        log position, worded through the Guide port before it is appended; the
+        reply is the state that includes both.
         """
         started = clock.now_ms()
         event = build(stamp(session, log_))
         state = session.machine.replay(session_id, [*log_, event])
-        selected = [change for change in state.rung_changes if change.triggered_by[-1:] == [len(log_)]]
+        selected = [
+            worded(session, change) for change in state.rung_changes if change.triggered_by[-1:] == [len(log_)]
+        ]
         for appended in (event, *selected):
             sessions.append(session_id, appended)
             log.info(json.dumps({"session_id": session_id, "event": appended.type, "duration_ms": clock.now_ms() - started}))
+        if selected:
+            state = session.machine.replay(session_id, [*log_, event, *selected])
         return served(session, state)
+
+    def worded(session: OpenSession, change: RungChangeEvent) -> RungChangeEvent:
+        """The selected Rung as shown: its verbatim text through the Guide port, with whether it was phrased and how long that took."""
+        line = phraser.phrase(change.text, session.derived)
+        return change.model_copy(
+            update={"text": line.text, "phrased": line.phrased, "phrasing_ms": line.latency_ms if line.phrased else None}
+        )
+
+    def hint_reply(session: OpenSession, state: SessionState) -> HintReply:
+        """The current Rung of the Puzzle the request resolved to, through the Guide port, else the No-hint line, never phrased."""
+        puzzle_id = state.active_puzzle_id
+        rung_text = session.machine.current_rung_text(state)
+        if puzzle_id is None or rung_text is None:
+            return HintReply(puzzle_id=puzzle_id, rung=0, text=NO_HINT_LINE)
+        line = phraser.phrase(rung_text, session.derived)
+        return HintReply(puzzle_id=puzzle_id, rung=state.current_rung[puzzle_id], text=line.text)
 
     def welcome(t_ms: Milliseconds) -> Event:
         return OpeningLineEvent(type="opening_line", kind="welcome", text=FIRST_ROOM_WELCOME, t_ms=t_ms)
@@ -575,7 +616,7 @@ def session_routes(
         )
         disclosure = disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=open_sessions.any_on(room.id))
         session_id = new_session_id()
-        session = open_sessions.open(session_id, machine, clock.now_ms(), disclosure)
+        session = open_sessions.open(session_id, machine, clock.now_ms(), disclosure, derived)
         if greeted:
             state = served(session, machine.initial(session_id))
             spawn(lambda: greet(session_id, session, derived))
@@ -596,9 +637,15 @@ def session_routes(
     @router.post("/{session_id}/events")
     def post_event(session_id: str, body: PostedEvent) -> SessionState:
         session = open_sessions.get(session_id)
+        hint = isinstance(body, HintRequestBody)
+        if hint and body.puzzle_id is not None and all(puzzle.id != body.puzzle_id for puzzle in session.machine.room.puzzles):
+            raise RequestValidationError(
+                [{"loc": ("body", "puzzle_id"), "msg": f"no puzzle {body.puzzle_id} in this room", "type": "value_error"}]
+            )
         with session.lock:
             log_ = events(session_id)
-            return append(session_id, session, log_, lambda t_ms: EVENT.validate_python({**body.model_dump(), "t_ms": t_ms}))
+            state = append(session_id, session, log_, lambda t_ms: EVENT.validate_python({**body.model_dump(), "t_ms": t_ms}))
+            return state.model_copy(update={"hint_reply": hint_reply(session, state)}) if hint else state
 
     @router.get("/{session_id}/result")
     def get_result(session_id: str) -> RoomResult:

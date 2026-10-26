@@ -427,12 +427,13 @@ def test_session_state_fields():
         "trickster_window": {"state": "pending", "index": 0}, "trickster_calls": 0, "cards": [], "room_revision": 0,
         "disclosure": [],
     })
-    assert state.judge_room is False and state.thresholds is None and state.cards == []
+    assert state.judge_room is False and state.thresholds is None and state.hint_reply is None and state.cards == []
     assert set(SessionState.model_fields) == {
         "id", "room_id", "locks_open", "inventory", "current_rung", "wrong_attempts", "rungs_used", "order_buffer",
         "active_puzzle_id", "opening_line", "phrasing", "rung_changes", "trickster_window", "trickster_calls", "cards",
-        "room_revision", "disclosure", "judge_room", "thresholds",
+        "room_revision", "disclosure", "judge_room", "thresholds", "hint_reply",
     }
+    assert set(schema.HintReply.model_fields) == {"puzzle_id", "rung", "text"}
     assert set(schema.Thresholds.model_fields) == {
         "nudge_threshold_ms", "nudge_threshold_base_ms", "rung_spacing_ms", "rung_spacing_base_ms", "source",
     }

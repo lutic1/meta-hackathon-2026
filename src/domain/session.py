@@ -40,7 +40,8 @@ The session start fixes two things the log does not hold: the opening line's
 kind, which the empty state carries with no text while `phrasing` is true,
 and the session's `Thresholds`, which every replayed state reports (AR-31).
 
-Rungs (AD-4): after every event but a `rung_change`, `apply` asks
+Rungs (AD-4): after every event but a `rung_change` or a `hint_request`
+(a Hint request never triggers a Rung), `apply` asks
 `select_rung` (`domain/rungs.py`) whether a Rung opens on the Active puzzle,
 over the session's `Thresholds` (the 1x ones of `Derived.fresh()` when the
 machine was given none), and, when one does, records the `rung_change` in the
@@ -51,7 +52,14 @@ log before the event as this machine judged it, so `apply` takes that
 fold; a selection never lowers a Puzzle's `current_rung`. Replaying the log
 selects the same Rung on the same event, and the stored `rung_change` that
 follows replaces that selection rather than repeating it, so replay equals
-live and no Rung change is ever duplicated.
+live and no Rung change is ever duplicated. The API words a selected Rung
+through the Guide port before it appends it, so the stored `rung_change`
+carries the line exactly as shown.
+
+A `hint_request` is answered with `current_rung_text`: the text of the
+current Rung of the Puzzle it resolved to, which is the Active puzzle after
+it, or nothing while no Rung is open there or no Puzzle is active (the API
+then answers the No-hint line).
 """
 
 from __future__ import annotations
@@ -117,6 +125,13 @@ class SessionStateMachine:
         """The available unsolved Puzzles in Room order: closed, with every Puzzle in `requires` open."""
         open_ids = set(state.locks_open)
         return [p for p in self.room.puzzles if p.id not in open_ids and set(p.requires) <= open_ids]
+
+    def current_rung_text(self, state: SessionState) -> str | None:
+        """The verbatim text of the Active puzzle's current Rung; None while no Rung is open there or no Puzzle is active."""
+        puzzle_id = state.active_puzzle_id
+        if puzzle_id is None or state.current_rung[puzzle_id] == 0:
+            return None
+        return self._rung_text(puzzle_id, state.current_rung[puzzle_id])
 
     def is_complete(self, state: SessionState) -> bool:
         """Whether the exit lock has opened."""
@@ -207,10 +222,9 @@ class SessionStateMachine:
             rung=(event.puzzle_id, event.rung) if isinstance(event, RungChangeEvent) else None,
             active_puzzle_id=new.active_puzzle_id,
         )
-        if not isinstance(event, RungChangeEvent):
+        if not isinstance(event, RungChangeEvent | HintRequestEvent):
             step = select_rung([*history, judged], self._rung_thresholds)
             if step is not None and step.rung > new.current_rung[step.puzzle_id]:
-                rungs = self._puzzles[step.puzzle_id].rungs
                 self._record_rung(new, RungChangeEvent(
                     type="rung_change",
                     puzzle_id=step.puzzle_id,
@@ -218,7 +232,7 @@ class SessionStateMachine:
                     triggered_by=list(step.triggered_by),
                     phrased=False,
                     phrasing_ms=None,
-                    text=getattr(rungs, RUNG_NAMES[step.rung - 1]),
+                    text=self._rung_text(step.puzzle_id, step.rung),
                     t_ms=event.t_ms,
                 ))
                 judged = replace(judged, rung=(step.puzzle_id, step.rung))
@@ -233,6 +247,9 @@ class SessionStateMachine:
         if puzzle is None or puzzle.id in state.locks_open or not set(puzzle.requires) <= set(state.locks_open):
             return None
         return puzzle
+
+    def _rung_text(self, puzzle_id: PuzzleId, rung: int) -> str:
+        return getattr(self._puzzles[puzzle_id].rungs, RUNG_NAMES[rung - 1])
 
     @staticmethod
     def _record_rung(state: SessionState, event: RungChangeEvent) -> None:

@@ -12,12 +12,13 @@ otherwise; in Local mode the same test decides whether a session start is
 greeted.
 
 `select_rung(events, thresholds)` runs inside `SessionStateMachine.apply`
-after every event but a `rung_change`, over the log as `apply` judged it
-(`Judged`), and names at most one Rung to open on the Active puzzle. Time
-reaches it only as `t_ms` and the session's `Thresholds`, whose nudge
-threshold `nudge_threshold_ms` computed from the Derived block, so the same
-log always selects the same Rungs, live or replayed. This module imports only
-the standard library, pydantic and the domain (AD-1).
+after every event but a `rung_change` or a `hint_request`, over the log as
+`apply` judged it (`Judged`), and names at most one Rung to open on the
+Active puzzle. Time reaches it only as `t_ms` and the session's
+`Thresholds`, whose nudge threshold `nudge_threshold_ms` computed from the
+Derived block, so the same log always selects the same Rungs, live or
+replayed. This module imports only the standard library, pydantic and the
+domain (AD-1).
 
 Idle counts from the `t_ms` of the last click, lock input or `hint_request`;
 an `idle_tick` never resets it. The nudge (rung 1) opens once Idle reaches

@@ -763,6 +763,41 @@
       "title": "GuideModel",
       "type": "object"
     },
+    "HintReply": {
+      "additionalProperties": false,
+      "description": "The answer to a `hint_request`: the current Rung through the Guide port, or the No-hint line at `rung` 0.",
+      "properties": {
+        "puzzle_id": {
+          "anyOf": [
+            {
+              "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Puzzle Id"
+        },
+        "rung": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Rung",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "puzzle_id",
+        "rung",
+        "text"
+      ],
+      "title": "HintReply",
+      "type": "object"
+    },
     "HintRequestBody": {
       "additionalProperties": false,
       "description": "`puzzle_id` is always omitted by the client and resolved to the Active puzzle.",
@@ -3034,6 +3069,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Thresholds"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hint_reply": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HintReply"
             },
             {
               "type": "null"
