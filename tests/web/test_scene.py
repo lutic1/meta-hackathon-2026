@@ -197,9 +197,11 @@ def test_every_hotspot_is_a_focusable_button_that_enter_activates_with_the_ring_
     assert "hotspot.setAttribute('aria-label', interactable.label)" in layer
     assert "if (event.key === 'Enter') handlers.onActivate(interactable)" in layer
     rules = _rules("scene/scene.css")
-    assert rules[".hotspot:focus-visible .hotspot-halo"] == {"fill": "none", "stroke": "var(--focus-ring-inner)",
-                                                            "stroke-width": "6px"}
-    assert rules[".hotspot:focus-visible .hotspot-outline"] == {"stroke": "var(--focus-ring)"}
+    # Outside the edge: 2 px focus-ring-inner against the polygon, 2 px focus-ring beyond it, as on every element.
+    assert rules[".hotspot:focus-visible .hotspot-halo"] == {"fill": "none", "stroke": "var(--focus-ring)",
+                                                            "stroke-width": "8px"}
+    assert rules[".hotspot:focus-visible .hotspot-outline"] == {"stroke": "var(--focus-ring-inner)",
+                                                               "stroke-width": "4px"}
 
 
 def test_every_scene_color_pair_is_in_the_contrast_table():

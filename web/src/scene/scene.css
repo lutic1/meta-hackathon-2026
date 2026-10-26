@@ -75,17 +75,19 @@
   stroke: var(--hotspot-outline);
   stroke-width: 2px;
 }
-/* Keyboard focus: the two-tone focus ring traced along the polygon in place of the box around it (DESIGN.md). */
+/* Keyboard focus: the two-tone focus ring traced along the polygon in place of the box around it (DESIGN.md):
+   outside the edge, 2 px focus-ring-inner against it and 2 px focus-ring beyond (strokes straddle the edge). */
 .hotspot:focus-visible {
   outline-color: transparent;
 }
 .hotspot:focus-visible .hotspot-halo {
   fill: none;
-  stroke: var(--focus-ring-inner);
-  stroke-width: 6px;
+  stroke: var(--focus-ring);
+  stroke-width: 8px;
 }
 .hotspot:focus-visible .hotspot-outline {
-  stroke: var(--focus-ring);
+  stroke: var(--focus-ring-inner);
+  stroke-width: 4px;
 }
 .hotspot:hover .hotspot-halo {
   fill: var(--hotspot-glow);
