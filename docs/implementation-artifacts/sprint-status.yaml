@@ -77,7 +77,7 @@ development_status:
   2-9-lean-sit-the-checklist-and-scripts-sit-py-over-the-live-seam: done
   2-10-persisted-build-job-and-the-ingest-stage: done
   2-11-local-jobstore-and-in-process-jobrunner: done
-  2-12-build-routes-per-role-provider-wiring-and-the-ledger-hooks: backlog
+  2-12-build-routes-per-role-provider-wiring-and-the-ledger-hooks: done
   2-13-mask-selection-and-box-conversion-as-pure-domain-functions: done
   2-14-architect-prompt-builder: done
   2-15-architect-and-segment-stages-with-the-mask-preview: done
