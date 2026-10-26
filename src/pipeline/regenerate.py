@@ -17,7 +17,9 @@ This module is the only writer of the count. The stages only read it: as the
 never served attempt n-1's answer, and into provenance. `riddler_prompt`
 picks the Riddler's prompt: the authoring prompt on attempt 0, then the 2.19
 regeneration variant over the last failed attempt's reasons only, never its
-draft.
+draft. A fixed message no structured reason carries (the author stage's A-24
+refusals, the puzzle count, a Dry run refusal) goes into that prompt as a line
+of its own, so every retry is told why its attempt failed.
 """
 
 from __future__ import annotations
@@ -95,7 +97,13 @@ def send_back(state: JobState, failure: FailedAttempt, error: ErrorDetail, artif
 
 
 def riddler_prompt(state: JobState, view: RoomView, artifacts: ArtifactStore) -> RiddlerPrompt:
-    """The authoring prompt on attempt 0; after that, the regeneration variant over the last failed attempt's reasons only."""
+    """The authoring prompt on attempt 0; after that, the regeneration variant over the last failed attempt's reasons only.
+
+    Its fixed messages that no structured reason carries come first.
+    """
     if state.regeneration_count == 0:
         return build_author_prompt(view)
-    return build_regeneration_prompt(view, read_reasons(view.id, artifacts))
+    reasons = read_reasons(view.id, artifacts)
+    covered = {reason.message for reason in reasons}
+    messages = [message for message in state.sent_back[-1].messages if message not in covered] if state.sent_back else []
+    return build_regeneration_prompt(view, [*messages, *reasons])

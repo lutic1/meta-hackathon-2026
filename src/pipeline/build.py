@@ -166,7 +166,10 @@ class Build:
             result = fn(state)
         except FailedAttempt as exc:
             recorded = self._record(state, stage, exc.result, self._clock.now_ms() - start, code=error_code(exc))
-            return send_back(recorded, exc, error_detail(exc, stage), self._artifacts)
+            try:
+                return send_back(recorded, exc, error_detail(exc, stage), self._artifacts)
+            except Exception as err:  # noqa: BLE001 - a failed attempt the loop cannot record ends the job failed (AD-13)
+                return recorded.model_copy(update={"status": "failed", "stage": stage, "error": error_detail(err, stage)})
         except StageStop as exc:
             recorded = self._record(state, stage, exc.result, self._clock.now_ms() - start, code=error_code(exc))
             return recorded.model_copy(update={"status": exc.status, "stage": stage, "error": error_detail(exc, stage)})

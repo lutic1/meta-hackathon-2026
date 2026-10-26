@@ -165,7 +165,9 @@ def _objects(view: RoomView) -> str:
     return json.dumps([ix.model_dump() for ix in view.interactables], indent=2)
 
 
-def _reason_line(reason: ValidatorReason) -> str:
+def _reason_line(reason: ValidatorReason | str) -> str:
+    if isinstance(reason, str):
+        return f"- {reason}"
     where = f"puzzle {reason.puzzle_id}, " if reason.puzzle_id is not None else ""
     return f"- rule {reason.rule}, {where}field {reason.field}: {reason.message}"
 
@@ -193,9 +195,13 @@ def build_author_prompt(view: RoomView, lock_types: tuple[LockType, ...] = LOCK_
 
 
 def build_regeneration_prompt(
-    view: RoomView, reasons: Sequence[ValidatorReason], lock_types: tuple[LockType, ...] = LOCK_TYPES
+    view: RoomView, reasons: Sequence[ValidatorReason | str], lock_types: tuple[LockType, ...] = LOCK_TYPES
 ) -> RiddlerPrompt:
-    """The authoring prompt plus the refused attempt's reasons (rule, Puzzle, field, fixed message), never its draft."""
+    """The authoring prompt plus the refused attempt's reasons, never its draft.
+
+    A structured reason reads as its rule, Puzzle, field and fixed message; a
+    plain string is a fixed message with no structured reason behind it (A-24).
+    """
     prompt = build_author_prompt(view, lock_types)
     sent_back = "\n".join((
         "Your previous draft was refused and is not shown. The Validator sent it back for these reasons; write a",

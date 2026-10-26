@@ -7,10 +7,11 @@ from pathlib import Path
 import pytest
 
 from src.council.riddler import build_regeneration_prompt
-from src.domain.schema import JobState, SentBack
+from src.domain.schema import JobState, SentBack, ValidatorReason
 from src.domain.validator import RULES
 from src.infra.clocks import BuildClock
 from src.pipeline.author import (
+    COUNT_MESSAGE,
     SHAPE_MESSAGE,
     assemble_provenance,
     author_stage,
@@ -20,7 +21,13 @@ from src.pipeline.author import (
 )
 from src.pipeline.build import Build, StageResult
 from src.pipeline.ports import room_key
-from src.pipeline.regenerate import FailedAttempt, read_reasons
+from src.pipeline.regenerate import (
+    REASONS,
+    FailedAttempt,
+    read_reasons,
+    reasons_key,
+    riddler_prompt,
+)
 from src.providers.base import ModelProvider
 from src.providers.cache import GuardedCalls
 from src.providers.meta_api import MetaModelProvider
@@ -139,13 +146,66 @@ def test_under_cache_on_attempt_n_is_never_served_the_cached_answer_of_attempt_n
     assert [row.cached for row in rows] == [False, False, False] and len({row.id for row in rows}) == 3
     assert len([entry for entry in store.entries() if entry.status == "settled"]) == 3
 
-    # Attempts 1 and 2 sent the same prompt (a Dry run refusal carries no Validator reasons); only the attempt told them
-    # apart. A third regeneration over that prompt is billed again, and only a repeat of the same attempt is a hit.
+    # Attempts 1 and 2 sent the same prompt (each carries the Dry run's one fixed message and no Validator reasons); only
+    # the attempt told them apart. A third regeneration over that prompt is billed again, and only a repeat of the same attempt is a hit.
     state = jobs.read(ended.id)
     assert read_reasons(state.room_id, artifacts) == []
     again = run_author(state.model_copy(update={"regeneration_count": 3}), provider=meta, artifacts=artifacts).calls[0]
     repeat = run_author(state, provider=meta, artifacts=artifacts).calls[0]
     assert (again.cached, repeat.cached) == (False, True)
+
+
+def test_unreadable_output_is_rewritten_from_its_fixed_message_only(loop, uploads, artifacts, four_lock_room):
+    unreadable = "not json: the Riddler muses on CLUE-NOISE-QZX"
+    provider = riddler(unreadable, reply())
+    runner = loop(provider)
+    done = runner.run(runner.submit(uploads).id)
+    assert (done.status, done.regeneration_count) == ("done", 1)
+    assert read_reasons(done.room_id, artifacts) == []
+    second = chat_calls(provider)[1]
+    view = prompt_view(done.room_id, four_lock_room.interactables)
+    assert second.messages == build_regeneration_prompt(view, [SHAPE_MESSAGE]).messages()
+    sent = "\n".join(message.content for message in second.messages)
+    assert f"- {SHAPE_MESSAGE}" in sent
+    assert "not json" not in sent and "CLUE-NOISE-QZX" not in sent
+
+
+def test_a_dry_run_refusal_is_rewritten_from_its_fixed_message(loop, uploads, doubles):
+    provider = riddler(reply(), reply())
+    dry_run_fails(doubles, attempts=1)
+    runner = loop(provider)
+    runner.run(runner.submit(uploads).id)
+    sent = "\n".join(message.content for message in chat_calls(provider)[1].messages)
+    assert f"- {DRY_MESSAGE}" in sent
+
+
+def test_a_count_refusal_carries_its_fixed_message_beside_the_validator_reasons(artifacts, four_lock_room):
+    reasons = [ValidatorReason(rule=5, puzzle_id=None, field="clue", message=RULES[5].message)]
+    artifacts.put(reasons_key(four_lock_room.id), REASONS.dump_json(reasons))
+    sent_back = [SentBack(attempt=0, stage="validate", messages=[COUNT_MESSAGE, RULES[5].message])]
+    state = JobState(id="job_00000000000000000000000001", status="running", stage="author", room_id=four_lock_room.id,
+                     regen_max=2, regeneration_count=1, sent_back=sent_back)
+    view = prompt_view(four_lock_room.id, four_lock_room.interactables)
+    prompt = riddler_prompt(state, view, artifacts)
+    assert prompt.messages() == build_regeneration_prompt(view, [COUNT_MESSAGE, *reasons]).messages()
+    assert prompt.user.count(RULES[5].message) == 1
+
+
+def test_a_failed_attempt_the_loop_cannot_record_ends_the_job_failed(loop, uploads, artifacts, monkeypatch):
+    put = artifacts.put
+
+    def broken_put(key: str, data: bytes) -> None:
+        if key.endswith("/reasons.json"):
+            raise OSError("the volume is gone")
+        put(key, data)
+
+    monkeypatch.setattr(artifacts, "put", broken_put)
+    provider = riddler(reply(p2=LEAKY))
+    runner = loop(provider)
+    ended = runner.run(runner.submit(uploads).id)
+    assert (ended.status, ended.stage, ended.error.code) == ("failed", "validate", "o_s_error")
+    assert ended.regeneration_count == 0 and ended.sent_back == []
+    assert [record.stage for record in ended.stages][-1] == "validate"
 
 
 # --- Exhaustion ends the job needs_recapture ------------------------------------------
