@@ -34,6 +34,8 @@ pretending to run.
 
 from __future__ import annotations
 
+import json
+import logging
 import threading
 from collections.abc import Callable, Mapping
 from datetime import date
@@ -41,6 +43,7 @@ from pathlib import Path
 from typing import Literal, get_args
 
 import httpx
+from pydantic import ValidationError
 
 from src.config import Settings
 from src.domain.ledger import CallKind
@@ -95,6 +98,9 @@ Architect 15 s, Riddler 45 s and Dry run 30 s are the `budgets.md` rows; the
 Trickster has no row and takes its 30 s window; the image role makes no chat
 call, so it carries the portrait budget of the Meta adapter.
 """
+
+
+log = logging.getLogger("keyframe.builds")
 
 
 class StageNotBuilt(Exception):
@@ -222,10 +228,20 @@ def job_runner(build: Build, on_terminal: Callable[[], object]) -> JobRunner:
 
 
 def resume_jobs(jobs: JobStore, runner: JobRunner) -> list[JobId]:
-    """Start every job left `queued` or `running` when the API last stopped; each resumes after its last persisted stage (AD-7)."""
-    left = [job_id for job_id in jobs.list_ids() if jobs.read(job_id).status not in TERMINAL]
-    for job_id in left:
-        runner.start(job_id)
+    """Start every job left `queued` or `running` when the API last stopped; each resumes after its last persisted stage (AD-7).
+
+    A job file that does not parse is logged and skipped, so one corrupt record never stops the API from starting.
+    """
+    left: list[JobId] = []
+    for job_id in jobs.list_ids():
+        try:
+            status = jobs.read(job_id).status
+        except ValidationError as exc:
+            log.warning(json.dumps({"job_id": job_id, "event": "job_unreadable", "error": f"{exc.error_count()} errors"}))
+            continue
+        if status not in TERMINAL:
+            runner.start(job_id)
+            left.append(job_id)
     return left
 
 

@@ -274,6 +274,19 @@ def test_resume_jobs_starts_exactly_the_jobs_left_queued_or_running(tmp_path):
     assert failed.id not in runner.started
 
 
+def test_resume_jobs_skips_a_job_file_that_does_not_parse_and_starts_the_rest(tmp_path, caplog):
+    jobs = job_store(tmp_path)
+    build = Build(jobs=jobs, artifacts=artifact_store(tmp_path / "rooms"), clock=BuildClock(monotonic_ns=Ticker()),
+                  stages=_mock_stages(tmp_path), regen_max=2)
+    queued = build.submit(make_uploads(6))
+    corrupt = "job_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    (tmp_path / JOBS_DIR / f"{corrupt}.json").write_text("{}")
+    runner = RecordingRunner()
+
+    assert resume_jobs(jobs, runner) == [queued.id] == runner.started
+    assert corrupt in caplog.text and "job_unreadable" in caplog.text
+
+
 def test_job_runner_runs_the_job_in_the_background_then_calls_the_terminal_hook(tmp_path):
     jobs = MemoryJobStore()
     build = Build(jobs=jobs, artifacts=artifact_store(tmp_path / "rooms"), clock=BuildClock(monotonic_ns=Ticker()),

@@ -244,7 +244,10 @@ def export_path(exports_root: Path, today: date) -> Path:
 
 
 def export_ledger(store: JsonlLedgerStore, exports_root: Path, today: date, ceiling_usd: float) -> LedgerExport:
-    """Write today's export from the store's current epoch and return it; an empty ledger exports a total of 0."""
+    """Write today's export from the store's current epoch and return it; an empty ledger exports a total of 0.
+
+    The file is replaced whole, so a reader (or `git add`) never sees a partial export.
+    """
     entries = store.entries()
     local_total = running_total_usd(entries)
     export = LedgerExport(
@@ -256,8 +259,7 @@ def export_ledger(store: JsonlLedgerStore, exports_root: Path, today: date, ceil
         total_usd=local_total,
         ceiling_usd=ceiling_usd,
     )
-    exports_root.mkdir(parents=True, exist_ok=True)
-    export_path(exports_root, today).write_text(export.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    _replace(export_path(exports_root, today), (export.model_dump_json(indent=2) + "\n").encode())
     return export
 
 

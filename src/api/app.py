@@ -340,9 +340,14 @@ def read_uploads(content_type: str, body: bytes) -> list[Upload]:
 
 
 def read_job(jobs: JobStore, job_id: str) -> JobState:
-    """The persisted job state, or `JobNotFound`; an id the store refuses is as unknown as a missing one."""
+    """The persisted job state, or `JobNotFound`; an id the store refuses is as unknown as a missing one.
+
+    A job file that does not parse is not an unknown job: its `ValidationError` surfaces as a 500.
+    """
     try:
         return jobs.read(job_id)
+    except ValidationError:
+        raise
     except (KeyError, ValueError):
         raise JobNotFound(job_id) from None
 
@@ -359,10 +364,13 @@ def build_routes(
 
     @router.post("", status_code=202)
     async def post_build(request: Request, response: Response) -> JobState:
-        """Ingest refuses a bad upload before any job exists; an accepted one is queued and started, never awaited."""
+        """Ingest refuses a bad upload before any job exists; an accepted one is queued and started, never awaited.
+
+        The multipart parse and ingest run in the thread pool, so a large body never holds the event loop.
+        """
+        content_type, body = request.headers.get("content-type", ""), await request.body()
         try:
-            uploads = read_uploads(request.headers.get("content-type", ""), await request.body())
-            state = await run_in_threadpool(build.submit, uploads)
+            state = await run_in_threadpool(lambda: build.submit(read_uploads(content_type, body)))
         except (IngestRefused, UnsupportedImage) as exc:
             raise UploadRefused(error_code(exc), str(exc)) from None
         if state.status in TERMINAL:

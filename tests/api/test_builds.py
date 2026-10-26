@@ -115,12 +115,15 @@ def read_export(tmp_path: Path) -> LedgerExport:
 
 
 def wait_export(tmp_path: Path, job_id: str, timeout_s: float = 5.0) -> LedgerExport:
-    """The export once it holds an entry of `job_id`: the runner writes it after the job is terminal in the store."""
+    """The export once it holds an entry of `job_id`: the runner writes it after the job is terminal in the store.
+
+    The export replaces its file whole, so every read while the runner rewrites it parses.
+    """
     deadline = time.monotonic() + timeout_s
     while True:
-        path = export_path(tmp_path / EXPORTS_ROOT, TODAY)
-        if path.exists() and any(entry.job_id == job_id for entry in read_export(tmp_path).entries):
-            return read_export(tmp_path)
+        export = read_export(tmp_path) if export_path(tmp_path / EXPORTS_ROOT, TODAY).exists() else None
+        if export is not None and any(entry.job_id == job_id for entry in export.entries):
+            return export
         assert time.monotonic() < deadline, f"no export entry for {job_id}"
         time.sleep(0.01)
 
@@ -256,6 +259,13 @@ def test_an_unknown_job_answers_404(client: TestClient):
         response = client.get(path)
         assert response.status_code == 404
         assert response.json() == {"error": {"code": "job_not_found", "message": ANY, "stage": None}}
+
+
+def test_a_job_file_that_does_not_parse_is_a_server_error_not_an_unknown_job(tmp_path: Path, stages: Stages):
+    (tmp_path / "rooms" / "jobs").mkdir(parents=True)
+    (tmp_path / "rooms" / "jobs" / f"{UNKNOWN_JOB}.json").write_text("{}")
+    client = TestClient(builds_app(tmp_path, stages), raise_server_exceptions=False)
+    assert client.get(f"/api/builds/{UNKNOWN_JOB}").status_code == 500
 
 
 def test_job_state_reads_the_same_from_a_second_app_over_the_same_store(client: TestClient, tmp_path: Path):

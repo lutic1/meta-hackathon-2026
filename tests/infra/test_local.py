@@ -438,10 +438,33 @@ def test_export_ledger_writes_the_current_epoch_entries_and_the_totals_to_the_da
     path = root / "spend" / "exports" / "ledger-2026-10-26.json"
     assert export_path(EXPORTS_ROOT, date(2026, 10, 26)) == Path("spend/exports/ledger-2026-10-26.json")
     assert path.is_file() and not path.is_relative_to(root / CACHE_ROOT)
+    assert [entry.name for entry in path.parent.iterdir()] == [path.name], "the export is moved into place, no temp file left"
     assert LedgerExport.model_validate_json(path.read_text()) == export
     assert export.entries == [first, second] and export.epoch is None and export.date == "2026-10-26"
     assert (export.local_total_usd, export.hosted_total_usd, export.total_usd, export.ceiling_usd) == (0.75, 0.0, 0.75, 80.0)
     assert export.total_usd == pytest.approx(running_total_usd(store.entries()))
+
+
+def test_a_reader_never_sees_a_partial_export_while_it_is_rewritten(root):
+    store = ledger_store(root)
+    for _ in range(50):
+        store.append(settled(0.01))
+    path = export_path(root / EXPORTS_ROOT, date(2026, 10, 26))
+    export_ledger(store, root / EXPORTS_ROOT, date(2026, 10, 26), ceiling_usd=80)
+    stop = threading.Event()
+
+    def rewrite() -> None:
+        while not stop.is_set():
+            export_ledger(store, root / EXPORTS_ROOT, date(2026, 10, 26), ceiling_usd=80)
+
+    writer = threading.Thread(target=rewrite)
+    writer.start()
+    try:
+        for _ in range(300):
+            assert len(LedgerExport.model_validate_json(path.read_bytes()).entries) == 50
+    finally:
+        stop.set()
+        writer.join()
 
 
 def test_an_empty_ledger_exports_a_valid_file_with_a_total_of_0(root):
