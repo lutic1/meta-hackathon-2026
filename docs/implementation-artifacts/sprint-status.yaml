@@ -93,7 +93,7 @@ development_status:
   2-25-capture-screen-end-states-failed-too-few-objects-re-capture: backlog
   2-26-capture-measured-p50-per-stage-over-five-live-builds: backlog
   2-27-buildview-projection-never-carrying-a-solution: done
-  2-28-build-view-route: backlog
+  2-28-build-view-route: done
   2-29-build-view-header-model-table-and-in-play-block: backlog
   2-30-build-view-puzzle-graph-and-mask-overlays: backlog
   2-31-build-view-verdict-table-dry-run-rows-json-pane-and-the-entr: backlog
