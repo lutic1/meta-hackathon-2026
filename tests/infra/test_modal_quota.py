@@ -4,7 +4,8 @@ No test reaches Modal: the Dict is a plain dict whose `put` honours
 `skip_if_exists` under one lock, standing in for the conditional write
 Modal documents; the Volume is a temporary directory behind a stub.
 Whether Modal's own `put(..., skip_if_exists=True)` is atomic under
-concurrent writers is a live check, outside this suite.
+concurrent writers is a live check outside this suite, pending in the
+sprint status until it is run.
 """
 
 from __future__ import annotations

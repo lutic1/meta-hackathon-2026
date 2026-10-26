@@ -32,7 +32,8 @@ slot and no count is read, changed and written back; with all 20 taken it
 raises `BuildQuotaExceeded` and writes nothing. No slot is ever released,
 so every accepted Build counts whatever its end status (A-25), and
 `builds_left` counts the free slots in the Dict, so a restart keeps the
-count. `DictSessionStore` keeps one key per session id holding its
+count; a slot key can still expire after 7 idle days, which only frees a
+build. `DictSessionStore` keeps one key per session id holding its
 events in append order; `DictLedgerStore` keeps one key per `call_` ULID, so
 settling a call replaces its reserved entry under the same key (the only
 rewrite), returns every current-epoch entry so the total is summed on read,

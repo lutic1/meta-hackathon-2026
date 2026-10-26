@@ -77,7 +77,8 @@ class JobStore(Protocol):
     The store also keeps the judge build quota (AD-9, FR-32):
     `reserve_build` claims one build slot for a job, or raises
     `BuildQuotaExceeded` when none is left; a claimed slot stays claimed
-    whatever status the job ends in (A-25). `builds_left` reads the slots
+    whatever status the job ends in (A-25), though a hosted slot key can
+    expire after 7 idle days, which only frees a build. `builds_left` reads the slots
     still free without claiming one, `None` for a store with no quota. The
     local store has none and never refuses a Build.
     """
