@@ -26,7 +26,7 @@ from src.api.meta import HOSTED_LINE, RETENTION_HOSTED
 from src.api.wiring import hint_phraser
 from src.domain.schema import Derived, JobState, RungChangeEvent
 from src.domain.session import SessionStateMachine
-from src.infra.modal import DictSessionStore, ModalHandles, hosted_stores
+from src.infra.modal import DictSessionStore, ModalHandles, call_key, hosted_stores
 from src.providers.verbatim import VerbatimPhraser
 from tests.api.hosted import hosted_handles, hosted_settings, make_hosted_app
 from tests.api.test_app import make_app
@@ -156,6 +156,7 @@ def test_the_full_room_download_without_the_code_is_refused_with_403_and_no_room
 def test_the_job_state_route_is_served_from_the_dict(tmp_path: Path, handles: ModalHandles):
     client = TestClient(make_hosted_app(tmp_path, handles))
     hosted_stores(handles).jobs.put(JobState(id=JOB, status="running", stage="architect", regen_max=2))
+    handles.jobs[call_key(JOB)] = "fc-1"  # its runner's call, which the watchdog polls as still running
     response = client.get(f"/api/builds/{JOB}")
     assert (response.status_code, response.json()["status"], response.json()["stage"]) == (202, "running", "architect")
     assert client.get(f"/api/builds/{UNKNOWN_JOB}").status_code == 404

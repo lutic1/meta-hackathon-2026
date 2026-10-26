@@ -19,8 +19,12 @@ between the modes, so `create_app` holds no mode branch of its own: the
 hosted app serves no profile route, greets no returning player, runs no
 local ledger export and resumes no job in process, it serves
 `POST /access/check`, and its `guard` is the hosted `access_guard`. The
-hosted `JobRunner` is wired with `run_build` in 7.8; until then `NoRunner`
-leaves an accepted job `queued`, no stage run.
+hosted `JobRunner` spawns `run_build` with the job id (`handles.spawn`), so
+no stage runs in the web container, and the web side's job reads run the
+watchdog over `handles.poll` (AD-7). `run_hosted_build` is the body of the
+spawned `run_build`: the remaining stages of one Judge build over the
+runner's own hosted stores, whose job reads run no watchdog, with the
+providers' Cache behind the build's `CacheKeyLog` (AD-8).
 
 `artifact_store`, `job_store`, `session_store`, `ledger_store` and
 `model_cache` build the local disk adapters.
@@ -92,7 +96,7 @@ from src.infra.local import (
     ThreadJobRunner,
     export_ledger,
 )
-from src.infra.modal import ModalHandles, hosted_stores, wall_ms
+from src.infra.modal import CacheKeyLog, ModalHandles, ModalJobRunner, hosted_stores, run_judge_build, wall_ms
 from src.pipeline.architect import architect_stage
 from src.pipeline.author import author_stage, validate_stage
 from src.pipeline.build import TERMINAL, Build, StageFn
@@ -347,13 +351,6 @@ def build_clock() -> BuildClock:
 # --- MODE: the adapters and what differs between the modes (AD-9) -------------
 
 
-class NoRunner:
-    """The hosted `JobRunner` until 7.8 spawns `run_build`: an accepted job stays `queued` and no stage runs in the web container (AD-7)."""
-
-    def start(self, job_id: JobId) -> None:
-        log.warning(json.dumps({"job_id": job_id, "event": "no_hosted_runner"}))
-
-
 def do_nothing() -> None:
     """A hook the running mode has nothing to do in."""
 
@@ -400,12 +397,12 @@ def wire(
     milliseconds, times the hosted access attempts.
     """
     if settings.mode == "hosted":
-        if handles is None:
-            raise ValueError("MODE=hosted runs on Modal: deploy src/api/modal_app.py, which passes the handles")
-        hosted = hosted_stores(handles)
+        if handles is None or handles.spawn is None:
+            raise ValueError("MODE=hosted runs on Modal: deploy src/api/modal_app.py, which passes the handles and run_build.spawn")
+        hosted = hosted_stores(handles, poll=handles.poll)
         build = _build(settings, hosted.artifacts, hosted.jobs, hosted.cache, hosted.ledger, stages)
         return Wiring(
-            hosted.artifacts, hosted.jobs, hosted.sessions, build, NoRunner(),
+            hosted.artifacts, hosted.jobs, hosted.sessions, build, ModalJobRunner(hosted.jobs, handles.spawn),
             on_terminal=do_nothing, startup=do_nothing,
             guard=access_guard(settings, hosted=True, attempts=hosted.attempts, now_ms=access_clock),
             access_check=True, profiles=False, greets=False,
@@ -425,6 +422,25 @@ def wire(
         artifacts, jobs, session_store(rooms_root), build, runner,
         on_terminal=export, startup=startup, guard=access_guard(settings, hosted=False), access_check=False, profiles=True, greets=True,
     )
+
+
+def run_hosted_build(
+    settings: Settings, handles: ModalHandles, job_id: JobId, *, stages: Mapping[Stage, StageFn] | None = None
+) -> JobState:
+    """The spawned `run_build`: run the job's remaining stages as the one writer of its record, and return its last state (AD-7).
+
+    The runner's stores carry no poll, so it never fails the job it runs;
+    the providers read the Cache through the build's `CacheKeyLog`, which
+    lists every key in `cache-keys.json` before its entry is touched (AD-8).
+    `stages` replaces the stage functions, as in `wire`.
+    """
+    stores = hosted_stores(handles)
+    room_id = stores.jobs.stored(job_id).room_id
+    if room_id is None:
+        raise ValueError(f"job {job_id} names no room")
+    keys = CacheKeyLog(stores.cache, stores.artifacts, room_id)
+    build = _build(settings, stores.artifacts, stores.jobs, keys, stores.ledger, stages)
+    return run_judge_build(build.run, job_id, keys=keys)
 
 
 def _build(

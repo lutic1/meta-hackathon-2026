@@ -3,6 +3,7 @@
 import ast
 import json
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -42,12 +43,17 @@ from src.infra.local import (
     ThreadJobRunner,
 )
 from src.infra.modal import (
+    CACHE_KEYS_FILE,
+    CacheKeyLog,
     DictJobStore,
     DictLedgerStore,
     DictSessionStore,
+    ModalJobRunner,
+    RunnerState,
     VolumeArtifactStore,
     VolumeCache,
     call_key,
+    hosted_stores,
 )
 from src.pipeline.build import STAGES, Build, StageFn, StageResult
 from src.pipeline.ports import ArtifactStore, room_key
@@ -61,7 +67,7 @@ from tests.api.hosted import hosted_handles, hosted_settings
 from tests.infra.test_clocks import Ticker
 from tests.pipeline.stages import labels
 from tests.pipeline.test_author_stage import reply, riddler, store_interactables
-from tests.pipeline.test_build import MemoryJobStore
+from tests.pipeline.test_build import Doubles, MemoryJobStore
 from tests.pipeline.test_dryrun_stage import Solver
 from tests.pipeline.test_segment_stage import INSIDE
 from tests.pipeline.uploads import make_uploads
@@ -432,18 +438,50 @@ def test_hosted_mode_wires_the_dict_and_volume_adapters_and_writes_nothing_local
     assert (handles.jobs, handles.sessions, handles.ledger) == ({}, {}, {}) and not handles.root.exists()
 
 
-def test_the_hosted_runner_leaves_the_job_queued_before_run_build(tmp_path):
+def test_the_hosted_runner_spawns_run_build_with_the_job_id_only_and_the_web_reads_run_the_watchdog(tmp_path):
     handles = hosted_handles(tmp_path)
     wired = _wire(tmp_path, hosted_settings(), handles=handles)
-    assert type(wired.runner) is wiring.NoRunner
+    assert type(wired.runner) is ModalJobRunner and wired.jobs.poll is handles.poll
     queued = wired.build.submit(make_uploads(6))
     wired.runner.start(queued.id)
-    assert wired.jobs.read(queued.id).status == "queued" and call_key(queued.id) not in handles.jobs
+    assert handles.spawn.job_ids == [queued.id] and handles.jobs[call_key(queued.id)] == "fc-1"
+    assert wired.jobs.read(queued.id).status == "queued"  # the stage doubles raise if called: none ran here
 
 
-def test_hosted_mode_without_the_modal_handles_is_refused(tmp_path):
+def test_hosted_mode_without_the_modal_handles_or_the_spawn_is_refused(tmp_path):
     with pytest.raises(ValueError, match="modal_app"):
         _wire(tmp_path, hosted_settings())
+    with pytest.raises(ValueError, match="run_build.spawn"):
+        _wire(tmp_path, hosted_settings(), handles=replace(hosted_handles(tmp_path), spawn=None))
+
+
+def _no_watchdog(call_id: str) -> RunnerState:
+    raise AssertionError("the runner's job reads polled its own call")
+
+
+def test_run_hosted_build_runs_the_rest_of_the_job_over_the_runners_own_stores_with_the_cache_behind_the_key_log(tmp_path, monkeypatch):
+    handles = replace(hosted_handles(tmp_path), poll=_no_watchdog)
+    ticker = Ticker()
+    queued = Build(
+        jobs=hosted_stores(handles).jobs, artifacts=hosted_stores(handles).artifacts, clock=BuildClock(monotonic_ns=ticker),
+        stages=Doubles(ticker).stages(), regen_max=2,
+    ).submit(make_uploads(6))
+    handles.jobs[call_key(queued.id)] = "fc-1"
+    doubles = Doubles(ticker)
+    seen: dict[str, object] = {}
+
+    def providers(settings, cache, ledger):
+        seen["cache"] = cache
+        return model_providers(settings, cache, ledger)
+
+    monkeypatch.setattr(wiring, "model_providers", providers)
+    monkeypatch.setattr(wiring, "build_stages", lambda *args, **kwargs: doubles.stages())
+    done = wiring.run_hosted_build(hosted_settings(), handles, queued.id)
+    assert done.status == "done" and doubles.calls == list(STAGES[1:]) and hosted_stores(handles).jobs.read(queued.id) == done
+    assert type(seen["cache"]) is CacheKeyLog
+    assert (handles.root / "rooms" / "judge" / str(queued.room_id) / CACHE_KEYS_FILE).read_text() == "[]"
+    assert wiring.run_hosted_build(hosted_settings(), handles, queued.id) == done  # a rerun on a terminal job rewrites nothing
+    assert doubles.calls == list(STAGES[1:])
 
 
 def test_wire_injects_the_access_guard_of_the_running_mode(tmp_path):

@@ -1,4 +1,4 @@
-"""Story 7.2: `src/api/modal_app.py` defines the hosted app offline (AD-9, AD-14).
+"""Stories 7.2 and 7.8: `src/api/modal_app.py` defines the hosted app and its functions offline (AD-7, AD-9, AD-14).
 
 The module is reloaded with spies on the Modal decorators, so each test
 sees the arguments the module passes; no Modal service is reached, no
@@ -7,26 +7,36 @@ token is read and no handle is hydrated.
 
 import importlib
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import modal
+import modal.exception
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api import modal_app
+from src.api import modal_app, wiring
 from src.config import Settings
-from src.infra.modal import JOBS_DICT, LEDGER_DICT, MOUNT, SESSIONS_DICT, VOLUME
+from src.domain.ledger import LedgerEntry
+from src.infra.modal import JOBS_DICT, LEDGER_DICT, MOUNT, SESSIONS_DICT, VOLUME, DictLedgerStore, snapshot_path
+from src.providers.spend import new_call_id
 from tests.api.hosted import hosted_handles
+from tests.infra.test_local import JOB_A as JOB
 
 MODAL_ENV = ("MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "MODAL_PROFILE", "MODAL_ENVIRONMENT", "MODAL_CONFIG_PATH")
 
 
 class Spies:
-    """The arguments of every `App.function`, `modal.concurrent` and `Image.env` call made while the module loads."""
+    """The arguments of every `App.function`, `modal.concurrent` and `Image.env` call made while the module loads.
+
+    `made[i]` is the Function the i-th `App.function` decorator returned.
+    """
 
     def __init__(self) -> None:
         self.function: list[dict[str, Any]] = []
+        self.made: list[Any] = []
         self.concurrent: list[dict[str, Any]] = []
         self.env: list[dict[str, Any]] = []
 
@@ -42,7 +52,13 @@ def spies(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Spies]:
 
     def spy_function(self: modal.App, **kwargs: Any) -> Any:
         found.function.append(kwargs)
-        return function(self, **kwargs)
+        decorator = function(self, **kwargs)
+
+        def record(f: Any) -> Any:
+            found.made.append(decorator(f))
+            return found.made[-1]
+
+        return record
 
     def spy_concurrent(**kwargs: Any) -> Any:
         found.concurrent.append(kwargs)
@@ -64,9 +80,16 @@ def load() -> Any:
     return importlib.reload(modal_app)
 
 
+def functions(module: Any, spies: Spies) -> dict[str, dict[str, Any]]:
+    """The `App.function` arguments of each of the module's functions, by name, in definition order."""
+    names = {id(getattr(module, name)): name for name in ("web", "run_build", "ledger_export")}
+    return {names[id(made)]: kwargs for made, kwargs in zip(spies.made, spies.function, strict=True)}
+
+
 def test_web_is_one_container_of_20_concurrent_inputs_with_min_containers_from_settings(spies: Spies):
     module = load()
-    assert spies.function == [{"min_containers": 0, "max_containers": 1}]  # no GPU, no extra Secret or Volume
+    # no GPU, no extra Secret or Volume, and no timeout: web keeps Modal's default
+    assert functions(module, spies)["web"] == {"min_containers": 0, "max_containers": 1}
     assert spies.concurrent == [{"max_inputs": 20}]
     assert module.settings.min_containers == 0
     assert module.web._is_web_endpoint()
@@ -74,8 +97,29 @@ def test_web_is_one_container_of_20_concurrent_inputs_with_min_containers_from_s
 
 def test_min_containers_is_read_through_settings_at_deploy(spies: Spies, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("MIN_CONTAINERS", "1")
-    load()
-    assert spies.function == [{"min_containers": 1, "max_containers": 1}]
+    module = load()
+    assert functions(module, spies)["web"] == {"min_containers": 1, "max_containers": 1}
+
+
+def test_the_app_defines_web_run_build_and_ledger_export(spies: Spies):
+    module = load()
+    found = functions(module, spies)
+    assert list(found) == ["web", "run_build", "ledger_export"]
+    assert found["run_build"] == {"timeout": 900, "max_containers": 1}  # one runner at a time, no retries (AD-13)
+    assert list(found["ledger_export"]) == ["schedule"]
+    cron = found["ledger_export"]["schedule"]
+    assert isinstance(cron, modal.Cron)
+    assert (cron.proto_message.cron.cron_string, cron.proto_message.cron.timezone) == ("0 6 * * *", "America/New_York")
+    assert ZoneInfo(module.SNAPSHOT_TZ).key == "America/New_York"
+    assert not module.run_build._is_web_endpoint() and not module.ledger_export._is_web_endpoint()
+
+
+def test_run_build_and_ledger_export_carry_the_keyframe_secret_and_the_volume():
+    for function in (modal_app.run_build, modal_app.ledger_export):
+        spec = function._spec_
+        assert [repr(secret) for secret in spec.secrets] == ["modal.Secret.from_name('keyframe')"]
+        assert {path: repr(volume) for path, volume in spec.volumes.items()} == {"/data": "modal.Volume.from_name('keyframe-data')"}
+        assert spec.gpus is None
 
 
 def test_the_decorators_stack_function_over_concurrent_over_asgi_app():
@@ -108,7 +152,8 @@ def test_importing_the_module_contacts_no_modal_service_and_hydrates_no_handle(s
     handles = module.handles()
     assert (handles.jobs, handles.sessions, handles.ledger, handles.volume) == (module.jobs, module.sessions, module.ledger, module.volume)
     assert handles.root == MOUNT
-    for handle in (module.secret, module.volume, module.jobs, module.sessions, module.ledger, module.web):
+    assert callable(handles.spawn) and handles.poll is module.poll_call
+    for handle in (module.secret, module.volume, module.jobs, module.sessions, module.ledger, module.web, module.run_build, module.ledger_export):
         assert not handle._is_hydrated
     assert [repr(d) for d in (module.jobs, module.sessions, module.ledger)] == [
         f"modal.Dict.from_name('{name}')" for name in (JOBS_DICT, SESSIONS_DICT, LEDGER_DICT)
@@ -126,3 +171,73 @@ def test_web_returns_the_app_over_the_hosted_adapters(tmp_path: Path, monkeypatc
     client = TestClient(app)
     assert client.get("/api/meta").json()["mode"] == "hosted"
     assert client.get("/api/profile/dev").status_code == 404
+
+
+# --- run_build, ledger_export and the call poll -----------------------------------------
+
+
+def test_run_build_runs_the_job_over_the_hosted_handles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """`run_build`'s body, called locally: the runner body in wiring, given the container's settings, the handles and the job id."""
+    hosted = Settings.from_env({"MODE": "hosted", "MODEL_PROVIDER": "mock"})
+    handles = hosted_handles(tmp_path)
+    ran: list[tuple[object, ...]] = []
+    monkeypatch.setattr(modal_app, "settings", hosted)
+    monkeypatch.setattr(modal_app, "handles", lambda: handles)
+    monkeypatch.setattr(wiring, "run_hosted_build", lambda *args: ran.append(args))
+    with pytest.warns(UserWarning, match="executing locally"):
+        assert modal_app.run_build.local(JOB) is None
+    assert ran == [(hosted, handles, JOB)]
+
+
+def test_ledger_export_writes_todays_snapshot_in_new_york(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    handles = hosted_handles(tmp_path)
+    entry = LedgerEntry(call_id=new_call_id(), kind="vision", status="settled", usd=0.025)
+    DictLedgerStore(handles.ledger).append(entry)
+    monkeypatch.setattr(modal_app, "handles", lambda: handles)
+    with pytest.warns(UserWarning, match="executing locally"):
+        modal_app.ledger_export.local()
+    day = datetime.now(ZoneInfo("America/New_York")).date()
+    lines = (handles.root / snapshot_path(day)).read_text().splitlines()
+    assert [LedgerEntry.model_validate_json(line) for line in lines] == [entry]
+
+
+class Call:
+    """A `FunctionCall` whose `get(timeout=0)` raises `raises`, or returns."""
+
+    def __init__(self, raises: BaseException | None) -> None:
+        self.raises = raises
+        self.timeouts: list[float] = []
+
+    def get(self, *, timeout: float) -> None:
+        self.timeouts.append(timeout)
+        if self.raises is not None:
+            raise self.raises
+
+
+OUTCOMES: dict[str, tuple[BaseException | None, str]] = {
+    "no output yet": (TimeoutError(), "running"),
+    "past the runner's timeout": (modal.exception.FunctionTimeoutError("timed out"), "timed_out"),
+    "an expired result": (modal.exception.OutputExpiredError("expired"), "expired"),
+    **{f"a failed poll ({error.__name__})": (error("poll failed"), "unknown") for error in modal_app.POLL_ERRORS},
+    "a runner that raised": (ValueError("boom"), "crashed"),
+    "a runner that returned": (None, "finished"),
+}
+
+
+@pytest.mark.parametrize(("raises", "state"), OUTCOMES.values(), ids=OUTCOMES.keys())
+def test_the_call_poll_reads_each_modal_outcome_without_waiting(monkeypatch: pytest.MonkeyPatch, raises: BaseException | None, state: str):
+    calls: dict[str, Call] = {}
+
+    def from_id(call_id: str) -> Call:
+        calls[call_id] = Call(raises)
+        return calls[call_id]
+
+    monkeypatch.setattr(modal.FunctionCall, "from_id", from_id)
+    assert modal_app.poll_call("fc-1") == state
+    assert list(calls) == ["fc-1"] and calls["fc-1"].timeouts == [0]
+
+
+def test_modals_timeout_error_is_not_the_builtin_one():
+    """`modal.exception.TimeoutError` is the base of the timed out and expired outcomes, never "still running"."""
+    assert not issubclass(modal.exception.TimeoutError, TimeoutError)
+    assert issubclass(modal.exception.FunctionTimeoutError, modal.exception.TimeoutError)

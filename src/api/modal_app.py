@@ -11,20 +11,33 @@ API under `/api/` from one origin with no CORS, in one container
 `MIN_CONTAINERS` is read through `Settings` when the module is imported,
 so a deploy takes it from the deploying shell (default 0).
 
-Importing this module contacts no Modal service: the Secret, the Volume and
-the three Dicts are lazy handles, and FastAPI and the app are imported
-inside `web`. `run_build` and the two Cron functions join with their
-stories (7.8 and the session sweep).
+`POST /builds` ingests and commits the photos, writes the `queued` record
+and spawns `run_build` with the job id only, then answers at once; `web`
+keeps its default timeout and never runs a stage (AD-7). `run_build` is
+the stage runner, `timeout=900` and `max_containers=1`, so a second
+spawned Build waits `queued` until the first ends; it sets no `retries`
+(AD-13). Each read of an in-flight job polls the runner's call with
+`FunctionCall.from_id(id).get(timeout=0)` for the watchdog. `ledger_export`
+runs daily at 06:00 New York time and writes the hosted ledger snapshot
+`spend/hosted-<date>.jsonl` to the Volume (AD-9).
+
+Importing this module contacts no Modal service: the Secret, the Volume,
+the three Dicts and the functions are lazy handles, and FastAPI, the app
+and the wiring are imported inside the functions. The session sweep Cron
+joins with its story.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import modal
+import modal.exception
 
 from src.config import Settings
-from src.infra.modal import JOBS_DICT, LEDGER_DICT, MOUNT, SESSIONS_DICT, VOLUME, ModalHandles
+from src.infra.modal import JOBS_DICT, LEDGER_DICT, MOUNT, SESSIONS_DICT, VOLUME, ModalHandles, RunnerState, export_hosted_ledger
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -34,6 +47,16 @@ SECRET = "keyframe"
 """The one Secret (AD-14), attached at the App level."""
 WEB_DIST = "/root/web/dist"
 """Where the image puts `web/dist`: beside `/root/src`, where `src/api/app.py` looks for it."""
+SNAPSHOT_TZ = "America/New_York"
+"""The daily ledger snapshot runs at 06:00 in this zone and is named by its date there (AD-9)."""
+POLL_ERRORS = (
+    modal.exception.ConnectionError,
+    modal.exception.InternalError,
+    modal.exception.ResourceExhaustedError,
+    modal.exception.ServiceError,
+    modal.exception.AuthError,
+)
+"""Modal client errors: the poll failed, or the runner itself raised one, so the call's state is not known."""
 
 settings = Settings.from_env()
 """Read where the deploy runs for `MIN_CONTAINERS`, and again in each container, which is `MODE=hosted`."""
@@ -55,8 +78,29 @@ app = modal.App(APP_NAME, image=image, secrets=[secret], volumes={MOUNT.as_posix
 
 
 def handles() -> ModalHandles:
-    """The AD-9 handles the hosted adapters run over."""
-    return ModalHandles(jobs=jobs, sessions=sessions, ledger=ledger, volume=volume, root=MOUNT)
+    """The AD-9 handles the hosted adapters run over, with `run_build.spawn` and the call poll."""
+    return ModalHandles(jobs=jobs, sessions=sessions, ledger=ledger, volume=volume, root=MOUNT, spawn=run_build.spawn, poll=poll_call)
+
+
+def poll_call(call_id: str) -> RunnerState:
+    """The state of a spawned call, without waiting; the except order matters (keyframe-modal).
+
+    The builtin `TimeoutError` means no output yet; Modal's own
+    `TimeoutError` subclasses are the call's timeout and its expired result.
+    """
+    try:
+        modal.FunctionCall.from_id(call_id).get(timeout=0)
+    except TimeoutError:
+        return "running"
+    except modal.exception.FunctionTimeoutError:
+        return "timed_out"
+    except modal.exception.OutputExpiredError:
+        return "expired"
+    except POLL_ERRORS:
+        return "unknown"
+    except Exception:  # noqa: BLE001 - `get` re-raises whatever the runner raised
+        return "crashed"
+    return "finished"
 
 
 @app.function(min_containers=settings.min_containers, max_containers=1)
@@ -67,3 +111,17 @@ def web() -> FastAPI:
     from src.api.app import create_app
 
     return create_app(settings, handles=handles())
+
+
+@app.function(timeout=900, max_containers=1)
+def run_build(job_id: str) -> None:
+    """The stage runner (AD-7): the one writer of the job's record, spawned per Build with its id only."""
+    from src.api.wiring import run_hosted_build
+
+    run_hosted_build(settings, handles(), job_id)
+
+
+@app.function(schedule=modal.Cron("0 6 * * *", timezone=SNAPSHOT_TZ))
+def ledger_export() -> None:
+    """The daily hosted ledger snapshot: every current-epoch entry to `spend/hosted-<date>.jsonl` on the Volume, committed (AD-9)."""
+    export_hosted_ledger(handles(), datetime.now(ZoneInfo(SNAPSHOT_TZ)).date())

@@ -59,7 +59,7 @@ store writes every key of the port (`<room_id>/room.json`,
 `rooms/judge/`, so a Judge room plays by its id, and `list_rooms()` lists
 `rooms/demo/` alone, so no Judge room is ever listed; `is_demo_room(room_id)`
 is true only for a Room under `rooms/demo/`. Cache entries live at
-`/data/cache/<key>.json`. `run_build` (Story 7.8) must run a Judge build
+`/data/cache/<key>.json`. `run_build` runs a Judge build
 through `run_judge_build`, with a `CacheKeyLog` as the providers' Cache: the
 log adds each key to `rooms/judge/<room_id>/cache-keys.json`, committed,
 before the Build first reads or writes its entry, so no entry a runner
@@ -87,6 +87,12 @@ takes it within `SESSION_TTL_MS` of its last event.
 is more than `SESSION_TTL_MS` old, the last event's wall time being the
 Session's `sess_` ULID mint time plus that event's `t_ms` (unscaled
 milliseconds since the start, AD-10).
+
+The hosted app hands `run_build.spawn` and the watchdog's call poll in on
+`ModalHandles` (`spawn`, `poll`), so this module still never imports
+`modal`. `export_hosted_ledger(handles, day)`, which the daily
+`ledger_export` Cron runs, writes the current epoch's ledger entries, one
+JSON line each, to `/data/spend/hosted-<date>.jsonl` and commits (AD-9).
 """
 
 from __future__ import annotations
@@ -150,6 +156,8 @@ CACHE_KEYS_FILE = "cache-keys.json"
 """Every Cache key a Judge build read or wrote, beside its originals at `rooms/judge/<room_id>/cache-keys.json` (AD-8)."""
 CACHE_DIR = "cache"
 """Cache entries live under `/data/cache/`, one JSON file per key."""
+SPEND_DIR = "spend"
+"""The daily hosted ledger snapshots live under `/data/spend/` (AD-9)."""
 EPOCH_KEY = "epoch"
 """The reserved `keyframe-ledger` key holding the current epoch (AD-9); never a `call_` id."""
 EVENTS = TypeAdapter(list[Event])
@@ -221,6 +229,10 @@ class ModalHandles:
     """`keyframe-data`."""
     root: Path = MOUNT
     """The Volume's mount path; tests pass a temporary directory."""
+    spawn: Spawn | None = None
+    """`run_build.spawn`, which the hosted `JobRunner` starts each Build with; `None` where nothing spawns (the runner, the Cron functions)."""
+    poll: Poll | None = None
+    """The web side's watchdog poll of a spawned call; `None` where no job read runs the watchdog."""
 
 
 # --- The Volume: one adapter, one lock ---------------------------------------
@@ -577,6 +589,27 @@ class DictLedgerStore:
     def start_epoch(self, epoch: str) -> None:
         """Write the epoch marker: every entry appended after it carries `epoch` and the earlier ones stop counting."""
         self.ledger[EPOCH_KEY] = epoch
+
+
+# --- The daily ledger snapshot (AD-9) --------------------------------------------
+
+
+def snapshot_path(day: date) -> str:
+    """The Volume path of the hosted ledger snapshot taken on `day`: `spend/hosted-<date>.jsonl`."""
+    return f"{SPEND_DIR}/hosted-{day.isoformat()}.jsonl"
+
+
+def export_hosted_ledger(handles: ModalHandles, day: date) -> list[LedgerEntry]:
+    """Write every current-epoch `keyframe-ledger` entry as one JSON line to `spend/hosted-<day>.jsonl`, commit, and return the entries.
+
+    The entries are the hosted `LedgerStore`'s own, so the snapshot sums to
+    the total it returns; an empty ledger writes an empty file. The file is
+    written whole and replaces any earlier snapshot of the same day.
+    """
+    entries = DictLedgerStore(handles.ledger).entries()
+    lines = "".join(entry.model_dump_json() + "\n" for entry in entries)
+    VolumeFiles(handles.volume, handles.root).write(snapshot_path(day), lines.encode())
+    return entries
 
 
 # --- Construction --------------------------------------------------------------

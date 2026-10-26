@@ -1,6 +1,7 @@
 """The hosted app over plain dicts and a temporary Volume directory, so no test reaches Modal (AD-17)."""
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -8,8 +9,8 @@ from fastapi import FastAPI
 
 from src.api.app import create_app
 from src.config import Settings
-from src.domain.schema import Room, Stage
-from src.infra.modal import ModalHandles
+from src.domain.schema import JobId, Room, Stage
+from src.infra.modal import ModalHandles, RunnerState
 from src.pipeline.build import StageFn
 from src.pipeline.ports import Clock
 from tests.api.test_app import idle_stages
@@ -29,13 +30,36 @@ class NullVolume:
         pass
 
 
+@dataclass(frozen=True)
+class SpawnedCall:
+    object_id: str
+
+
+class Spawn:
+    """`run_build.spawn`: records each job id it was given and returns a call at once, running nothing."""
+
+    def __init__(self) -> None:
+        self.job_ids: list[JobId] = []
+
+    def __call__(self, job_id: JobId) -> SpawnedCall:
+        self.job_ids.append(job_id)
+        return SpawnedCall(f"fc-{len(self.job_ids)}")
+
+
+def still_running(call_id: str) -> RunnerState:
+    """The watchdog's poll of a call Modal still holds: running, so no job read marks it."""
+    return "running"
+
+
 def hosted_settings(**env: str) -> Settings:
     return Settings.from_env({**HOSTED, **env})
 
 
 def hosted_handles(tmp_path: Path) -> ModalHandles:
-    """The three Dicts as plain dicts (the jobs Dict with `put`, for the build quota) and the Volume mounted at `tmp_path/data`."""
-    return ModalHandles(jobs=RecordingDict(), sessions={}, ledger={}, volume=NullVolume(), root=tmp_path / "data")
+    """The three Dicts as plain dicts (the jobs Dict with `put`, for the build quota), the Volume mounted at `tmp_path/data`, a recording spawn and a poll that reads running."""
+    return ModalHandles(
+        jobs=RecordingDict(), sessions={}, ledger={}, volume=NullVolume(), root=tmp_path / "data", spawn=Spawn(), poll=still_running
+    )
 
 
 def make_hosted_app(
