@@ -1,13 +1,11 @@
 """Stories 5.6 and 3.1: the nudge threshold over the Derived block, computed in `domain/rungs.py` alone, and the Rung for each Puzzle selected in pure code from the session log (AD-4, AD-8, AD-10, AR-31)."""
 
 import ast
-import inspect
 from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
-from src.domain import session as session_module
 from src.domain.rungs import (
     NUDGE_THRESHOLD_CEILING_MS,
     NUDGE_THRESHOLD_FLOOR_MS,
@@ -318,7 +316,7 @@ def test_replay_and_result_fold_through_the_judged_history(code_and_find_room: R
     assert result.rungs_used == 3 and next(p for p in result.puzzles if p.puzzle_id == PZ["find_key"]).rungs_used == 3
 
 
-# --- The Loosen hook (reserved for 4.1) ------------------------------------------------
+# --- The Loosen hook ----------------------------------------------------------------
 
 
 def test_the_loosen_hook_opens_a_named_rung_at_once_outside_the_spacing():
@@ -329,7 +327,6 @@ def test_the_loosen_hook_opens_a_named_rung_at_once_outside_the_spacing():
     assert select_rung(events, DEMO) is None
     assert select_rung(events, DEMO, loosen=(pid, "near_answer")) == RungStep(pid, 3, (2,))
     assert select_rung(events, DEMO, loosen=(pid, "nudge")) is None
-    assert "loosen" not in inspect.getsource(session_module)  # no event reaches it in this story
 
 
 def test_select_rung_returns_the_same_result_for_the_same_inputs():

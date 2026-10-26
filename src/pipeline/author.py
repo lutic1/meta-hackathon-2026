@@ -63,7 +63,7 @@ from src.domain.schema import (
     UseOnSolution,
     ValidatorResult,
 )
-from src.domain.validator import RULES, validate
+from src.domain.validator import BUILD_RULES, RULES, validate
 from src.pipeline.build import StageFn, StageResult, new_id
 from src.pipeline.ingest import read_photos
 from src.pipeline.ports import ArtifactStore, LedgerStore
@@ -222,9 +222,9 @@ def assemble_provenance(state: JobState, entries: Iterable[LedgerEntry], hashes:
 
 
 def rule_verdicts(result: ValidatorResult) -> list[RuleVerdict]:
-    """One verdict per rule in the Validator table, by its check-phrased name."""
+    """One verdict per build rule in the Validator table, by its check-phrased name."""
     failing = {reason.rule for reason in result.reasons}
-    return [RuleVerdict(rule=number, name=rule.name, passed=number not in failing) for number, rule in RULES.items()]
+    return [RuleVerdict(rule=number, name=RULES[number].name, passed=number not in failing) for number in BUILD_RULES]
 
 
 # --- The stages ------------------------------------------------------------

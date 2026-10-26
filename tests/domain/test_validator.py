@@ -95,8 +95,8 @@ def test_each_negative_fixture_fails_its_rule_with_the_fixed_message(four_lock_r
         assert reason.field and (reason.puzzle_id is None or reason.puzzle_id.startswith("pz_"))
 
 
-def test_the_table_holds_rules_1_to_8_with_their_check_names_and_fixed_messages():
-    assert sorted(RULES) == list(range(1, 9))
+def test_the_table_holds_rules_1_to_9_with_their_check_names_and_fixed_messages():
+    assert sorted(RULES) == list(range(1, 10))
     assert RULES[1].name == "No two locks wait on each other"
     assert RULES[1].message == "Two locks would wait on each other forever."
     assert RULES[5].name == "No hint, clue or evidence gives an answer away"

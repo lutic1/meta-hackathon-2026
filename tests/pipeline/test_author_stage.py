@@ -11,7 +11,7 @@ from src.council import architect as architect_prompt
 from src.council.riddler import build_author_prompt, response_schema
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import JobState, Puzzle, RoomDraft, StageRecord
-from src.domain.validator import RULES
+from src.domain.validator import BUILD_RULES, RULES
 from src.infra.clocks import BuildClock
 from src.pipeline.author import (
     COUNT_MESSAGE,
@@ -268,7 +268,7 @@ def test_the_failed_attempt_is_raised_for_the_regeneration_loop_with_its_message
 def test_a_passing_draft_records_every_rule_as_passed_and_writes_no_room(build, uploads, artifacts):
     runner = build(riddler(reply()))
     done = runner.run(runner.submit(uploads).id)
-    assert [(v.rule, v.name, v.passed) for v in done.validator] == [(n, rule.name, True) for n, rule in RULES.items()]
+    assert [(v.rule, v.name, v.passed) for v in done.validator] == [(n, RULES[n].name, True) for n in BUILD_RULES]
     assert done.sent_back == []
     with pytest.raises(KeyError):
         artifacts.read(room_key(done.room_id))  # the scene stage (a double here) writes it
@@ -294,7 +294,7 @@ def test_a_failing_draft_records_per_rule_verdicts_quotes_no_token_and_writes_no
     runner = build(riddler(reply(p2=LEAKY)))
     stopped = runner.run(runner.submit(uploads).id)
     assert (stopped.status, stopped.stage, stopped.error.code) == ("needs_recapture", "validate", "validation_error")
-    assert [(v.rule, v.passed) for v in stopped.validator] == [(n, n != 5) for n in RULES]
+    assert [(v.rule, v.passed) for v in stopped.validator] == [(n, n != 5) for n in BUILD_RULES]
     assert stopped.sent_back == [stopped.sent_back[0]] and stopped.sent_back[0].messages == [RULES[5].message]
     assert "415" not in json.dumps(stopped.model_dump(mode="json")["sent_back"]) and "415" not in stopped.error.message
     assert "dryrun" not in doubles.calls
@@ -392,5 +392,5 @@ def test_the_recorded_riddler_response_replays_through_the_meta_adapter_into_a_p
     assert isinstance(read_draft(state.room_id, artifacts), RoomDraft)
     assert all(isinstance(puzzle, Puzzle) for puzzle in read_puzzles(state.room_id, artifacts))
     validated = run_validate(state, artifacts=artifacts, ledger=store)
-    assert all(verdict.passed for verdict in validated.validator) and len(validated.validator) == len(RULES)
+    assert all(verdict.passed for verdict in validated.validator) and len(validated.validator) == len(BUILD_RULES)
     assert draft_key(state.room_id).endswith("/draft.json")

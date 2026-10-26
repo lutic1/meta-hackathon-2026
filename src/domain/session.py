@@ -60,14 +60,26 @@ A `hint_request` is answered with `current_rung_text`: the text of the
 current Rung of the Puzzle it resolved to, which is the Active puzzle after
 it, or nothing while no Rung is open there or no Puzzle is active (the API
 then answers the No-hint line).
+
+Trickster edits (AD-12): the machine is built over the stored Room and
+judges each event over the Effective room, `apply_edit` folded over the
+accepted `trickster_card` events before it and the event itself, each read
+from the `TricksterEdit` the card carries (kept in the `history` as
+`Judged.accepted_edit`). So a Merge that hides the Active puzzle moves it in
+the card's own step, and replay equals live. An accepted card raises
+`room_revision` by one; a rejected or skipped card changes nothing here. An
+accepted `loosen` opens its Rung on its Puzzle at once, through the
+`select_rung` Loosen hook, with a `rung_change` triggered by the card.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import replace
+from functools import reduce
 from typing import Literal
 
+from .edits import accepted_edit, apply_edit
 from .rungs import RUNG_NAMES, Judged, select_rung, unscaled_thresholds
 from .schema import (
     ClickEvent,
@@ -77,6 +89,7 @@ from .schema import (
     HintRequestEvent,
     LockInput,
     LockInputEvent,
+    LoosenPayload,
     OpeningLine,
     OpeningLineEvent,
     OrderBuffer,
@@ -92,6 +105,8 @@ from .schema import (
     SessionId,
     SessionState,
     Thresholds,
+    TricksterCardEvent,
+    TricksterEdit,
     TricksterWindow,
     UseOnInput,
     UseOnSolution,
@@ -118,6 +133,7 @@ class SessionStateMachine:
         self.thresholds = thresholds
         self._rung_thresholds = thresholds or unscaled_thresholds(Derived.fresh())
         self._puzzles = {puzzle.id: puzzle for puzzle in room.puzzles}
+        self._effective: dict[tuple[str, ...], SessionStateMachine] = {}
 
     # --- Reads ---------------------------------------------------------------
 
@@ -197,7 +213,25 @@ class SessionStateMachine:
             yield event, state, after, judged
             state = after
 
+    def _edited(self, edits: Sequence[TricksterEdit]) -> SessionStateMachine:
+        """This machine over the Effective room: its Room with `edits` folded in, in log order."""
+        if not edits:
+            return self
+        key = tuple(edit.id for edit in edits)
+        if key not in self._effective:
+            room = reduce(apply_edit, edits, self.room)
+            self._effective[key] = SessionStateMachine(room, opening=self.opening, thresholds=self.thresholds)
+        return self._effective[key]
+
     def _step(self, state: SessionState, event: Event, history: Sequence[Judged]) -> tuple[SessionState, Judged]:
+        """Judge `event` over the Effective room of the accepted edits before it and its own."""
+        edit = accepted_edit(event)
+        edits = [judged.accepted_edit for judged in history if judged.accepted_edit is not None]
+        return self._edited([*edits, *([edit] if edit is not None else [])])._judge(state, event, history, edit)
+
+    def _judge(
+        self, state: SessionState, event: Event, history: Sequence[Judged], edit: TricksterEdit | None
+    ) -> tuple[SessionState, Judged]:
         new = state.model_copy(deep=True)
         target: PuzzleId | None = None
         match event:
@@ -212,6 +246,8 @@ class SessionStateMachine:
                 new.phrasing = False
             case RungChangeEvent():
                 self._record_rung(new, event)
+            case TricksterCardEvent() if edit is not None:
+                new.room_revision += 1
         new.active_puzzle_id = self._active(new, target or state.active_puzzle_id)
         if new.order_buffer.puzzle_id is not None and new.order_buffer.puzzle_id != new.active_puzzle_id:
             new.order_buffer = OrderBuffer()
@@ -221,9 +257,15 @@ class SessionStateMachine:
             wrong_attempt=next((p for p, n in new.wrong_attempts.items() if n > state.wrong_attempts[p]), None),
             rung=(event.puzzle_id, event.rung) if isinstance(event, RungChangeEvent) else None,
             active_puzzle_id=new.active_puzzle_id,
+            accepted_edit=edit,
         )
         if not isinstance(event, RungChangeEvent | HintRequestEvent):
-            step = select_rung([*history, judged], self._rung_thresholds)
+            loosen = edit.payload if edit is not None and isinstance(edit.payload, LoosenPayload) else None
+            step = select_rung(
+                [*history, judged],
+                self._rung_thresholds,
+                loosen=None if loosen is None else (loosen.puzzle, loosen.rung),
+            )
             if step is not None and step.rung > new.current_rung[step.puzzle_id]:
                 self._record_rung(new, RungChangeEvent(
                     type="rung_change",
@@ -380,9 +422,12 @@ class SessionStateMachine:
         opened_at: dict[str, int] = {}
         first_hint: dict[str, int] = {}
         early_asks: set[str] = set()
+        edits: list[TricksterEdit] = []
         t_end = 0
-        for event, before, state, _ in self._fold(session_id, events):
+        for event, before, state, judged in self._fold(session_id, events):
             t_end = event.t_ms
+            if judged.accepted_edit is not None:
+                edits.append(judged.accepted_edit)
             # After a hint request, `active_puzzle_id` is the Puzzle the request was resolved to.
             if isinstance(event, HintRequestEvent) and (hinted := state.active_puzzle_id) is not None:
                 first_hint.setdefault(hinted, event.t_ms)
@@ -390,7 +435,7 @@ class SessionStateMachine:
                     early_asks.add(hinted)
             for puzzle_id in state.locks_open[len(before.locks_open):]:
                 opened_at[puzzle_id] = event.t_ms
-            for puzzle in self.available(state):
+            for puzzle in self._edited(edits).available(state):
                 available_at.setdefault(puzzle.id, event.t_ms)
         exit_ids = [puzzle.id for puzzle in self.room.puzzles if puzzle.is_exit]
         elapsed = opened_at.get(exit_ids[0], t_end) if exit_ids else t_end

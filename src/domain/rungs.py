@@ -36,7 +36,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from .schema import Derived, Milliseconds, PuzzleId, RungName, Thresholds
+from .schema import Derived, Milliseconds, PuzzleId, RungName, Thresholds, TricksterEdit
 
 ThresholdSource = Literal["derived", "fresh"]
 """`Thresholds.source`: the Derived block of a returning player, or `Derived.fresh()`."""
@@ -96,6 +96,8 @@ class Judged:
     """The Rung this event opened: a `rung_change`, or the Rung `select_rung` chose on it."""
     active_puzzle_id: PuzzleId | None
     """The Active puzzle after this event."""
+    accepted_edit: TricksterEdit | None = None
+    """The edit this event's accepted `trickster_card` carries: the Effective room holds it from this event on."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,9 +120,8 @@ def select_rung(
     `events` is the log up to and including the event just applied, and
     `thresholds` the session's, already divided by the timescale; the
     Derived block reaches the timing only through its nudge threshold.
-    `loosen` is the reserved Loosen hook (Epic 4): it opens the named Rung on
-    its Puzzle at once, outside the spacing, triggered by the last event; no
-    event reaches it yet.
+    `loosen` is the Loosen hook: an accepted `loosen` card opens the named
+    Rung on its Puzzle at once, outside the spacing, triggered by the card.
     """
     if not events:
         return None

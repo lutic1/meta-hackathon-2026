@@ -17,7 +17,7 @@ from src.council.riddler import (
 )
 from src.domain.redact import to_prompt_view
 from src.domain.schema import Derived, InteractableView, Room, RoomDraft, RoomView, ValidatorReason, strict_schema
-from src.domain.validator import LORE_MAX_WORDS, RULES
+from src.domain.validator import BUILD_RULES, LORE_MAX_WORDS, RULES
 from src.providers.base import ChatMessage
 from tests.fixtures.rooms import IX
 
@@ -187,7 +187,7 @@ def test_instructions_name_the_allowed_lock_types_and_exactly_one_exit(four_lock
     assert '"lock_type" is one of: code, find.' in cut6
     assert '"order"' not in cut6 and '"use_on"' not in cut6
     for rule in RULES.values():
-        assert f"{rule.number}. {rule.name}." in system
+        assert (f"{rule.number}. {rule.name}." in system) == (rule.number in BUILD_RULES)  # a draft holds no Decoy
         assert rule.message not in system
 
 

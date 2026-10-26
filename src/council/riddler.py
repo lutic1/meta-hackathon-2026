@@ -35,7 +35,7 @@ from src.domain.schema import (
     UseOnSolution,
     ValidatorReason,
 )
-from src.domain.validator import CODE_LENGTH, LORE_MAX_WORDS, ORDER_LENGTH, RULES
+from src.domain.validator import BUILD_RULES, CODE_LENGTH, LORE_MAX_WORDS, ORDER_LENGTH, RULES
 from src.providers.base import ChatMessage, ReasoningEffort
 
 LOCK_TYPES: tuple[LockType, ...] = ("code", "order", "use_on", "find")
@@ -141,7 +141,7 @@ def _system(lock_types: tuple[LockType, ...]) -> str:
         "  a solution token.",
         "",
         "The Validator refuses a draft that fails any of these checks, and the build sends it back to you:",
-        *(f"{rule.number}. {rule.name}." for rule in RULES.values()),
+        *(f"{rule.number}. {rule.name}." for rule in RULES.values() if rule.number in BUILD_RULES),
         "",
         "Voice",
         '- The "clue" and the "lore" speak in the Riddler\'s voice: wry and teasing, never mocking, never',
