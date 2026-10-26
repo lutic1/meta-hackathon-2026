@@ -25,7 +25,7 @@ def test_the_list_comes_only_from_get_rooms_read_afresh_on_every_visit():
     render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
     assert "} else if (meta.mode === 'local') {" in render
     assert render.index("await answered(mine, listRooms)") < render.index("show(")
-    assert "content = { name: 'rooms', rooms, profile: place.profile }" in render
+    assert "content = { name: 'rooms', rooms, profile: place.profile, retention: meta.retention }" in render
     # No room list of the browser's own: nothing cached across visits and no browser storage anywhere.
     assert "listRooms" not in shell.split("async function render()", 1)[0].split("export function startShell", 1)[1]
     for path, text in source_ts().items():
@@ -76,9 +76,10 @@ def test_a_refused_start_shows_the_session_start_refused_banner_whose_try_again_
     assert "heading: strings.sessionStartRefused" in refused and "sentence: strings.sessionStartRefusedBody" in refused
     assert "actions: [{ label: strings.tryAgain, onActivate: () => void start(room) }]" in refused
     # The banner slot sits at the top of the left area, above the list; showBanner moves focus to the banner.
-    shell = _ts("shell.ts")
-    assert "left.append(banners, storedRooms(content.rooms, content.profile, banners))" in shell
-    assert "const banners = bannerSlot()" in shell
+    capture = _ts("capture.ts")
+    assert "left.append(banners, controls)" in capture
+    assert "storedRooms(rooms, profile, banners))" in capture
+    assert "const banners = bannerSlot()" in capture
 
 
 def test_the_row_is_chrome_with_a_hairline_rule_and_a_lamp_ring_on_hover():

@@ -1,0 +1,23 @@
+/* {components.capture-dropzone}: a chrome-raised tray at least 320 px high, rounded lg, the picker sentence and
+   "Choose photos" centered; a dashed hairline border at rest, dashed lamp while files are dragged over it. */
+.capture-dropzone {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 320px;
+  padding: var(--spacing-5);
+  background: var(--chrome-raised);
+  border: 2px dashed var(--hairline);
+  border-radius: var(--rounded-lg);
+}
+.capture-dropzone.drag-over {
+  border-color: var(--lamp);
+}
+.capture-dropzone-sentence {
+  margin: 0;
+  color: var(--text);
+  text-align: center;
+}

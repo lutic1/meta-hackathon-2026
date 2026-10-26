@@ -1,13 +1,12 @@
 import './shell.css'
 import type { Meta, RoomSummary } from '../types'
 import { getMeta, getSession, listRooms, RequestFailed } from './api/index.ts'
+import { captureScreen } from './capture.ts'
 import { disclosureBanner } from './components/disclosure-banner.ts'
-import { bannerSlot } from './components/error-banner.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { topBar } from './components/top-bar.ts'
 import { currentPlace } from './router.ts'
 import { mountScene } from './scene/index.ts'
-import { storedRooms } from './stored-rooms.ts'
 import { strings } from './strings.ts'
 
 /** How long the server-unreachable state waits between attempts (UX-DR61). */
@@ -28,7 +27,8 @@ function refused(error: unknown): null {
  * surface ever shows without its Disclosure lines. While a request fails the page body holds only the centered
  * status strip, retried every 2000 ms; nothing is guessed in the meantime. A session the server refuses (4xx) has
  * no Room, so its route shows the global lines with an empty body; its own states belong to later surfaces.
- * In Local mode `#/` also waits for `GET /rooms`, read afresh on every visit: the browser keeps no list of its own.
+ * In Local mode `#/` also waits for `GET /rooms`, read afresh on every visit: the browser keeps no list of its own;
+ * it is the Capture screen, its Retention summary the `retention` text of the same `GET /meta`.
  */
 export function startShell(root: HTMLElement): void {
   const metas = new Map<string, Meta>()
@@ -72,7 +72,7 @@ export function startShell(root: HTMLElement): void {
     } else if (meta.mode === 'local') {
       const rooms = await answered(mine, listRooms)
       if (rooms === undefined) return
-      content = { name: 'rooms', rooms, profile: place.profile }
+      content = { name: 'rooms', rooms, profile: place.profile, retention: meta.retention }
     }
     if (mine !== generation) return
     const banner = disclosureBanner(disclosure)
@@ -91,8 +91,11 @@ interface Surface {
   mount?: () => () => void
 }
 
-/** What a route's body holds: the Play layout, the Stored Rooms list (Local `#/`) or nothing yet. */
-type Content = { name: 'play' } | { name: 'rooms'; rooms: RoomSummary[]; profile: string } | { name: 'empty' }
+/** What a route's body holds: the Play layout, the Capture screen with the Stored Rooms list (Local `#/`) or nothing yet. */
+type Content =
+  | { name: 'play' }
+  | { name: 'rooms'; rooms: RoomSummary[]; profile: string; retention: string }
+  | { name: 'empty' }
 
 /** The body for a route; each later surface story fills its own. */
 function surface(content: Content): Surface {
@@ -100,14 +103,10 @@ function surface(content: Content): Surface {
   element.className = 'shell-body'
   if (content.name === 'empty') return { element }
   if (content.name === 'rooms') {
-    // The Capture layout's left area: the banner slot on top; the dropzone joins above the list in 2.16.
     element.classList.add('capture-layout')
-    const left = document.createElement('section')
-    left.className = 'capture-left'
-    const banners = bannerSlot()
-    left.append(banners, storedRooms(content.rooms, content.profile, banners))
-    element.append(left)
-    return { element }
+    const capture = captureScreen(content.rooms, content.profile, content.retention)
+    element.append(capture.left, capture.right)
+    return { element, mount: capture.mount }
   }
   element.classList.add('play-layout')
   const sceneColumn = document.createElement('section')

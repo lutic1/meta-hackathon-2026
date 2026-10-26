@@ -1,0 +1,71 @@
+/* The Photo tray on chrome-raised: the count line in label, then {components.photo-tray-thumb} at 120 x 90,
+   rounded sm, 12 px gaps, in upload order. */
+.photo-tray {
+  padding: var(--spacing-3) var(--spacing-4) var(--spacing-4);
+  background: var(--chrome-raised);
+  border-radius: var(--rounded-lg);
+}
+.photo-tray-count {
+  margin: 0 0 var(--spacing-2);
+  color: var(--text);
+}
+.photo-tray-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.photo-tray-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  width: 120px;
+}
+.photo-tray-thumb {
+  position: relative;
+  width: 120px;
+  height: 90px;
+  border-radius: var(--rounded-sm);
+  background: var(--chrome);
+}
+.photo-tray-thumb img {
+  display: block;
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: var(--rounded-sm);
+}
+/* A rejected file: a 2 px wrong border drawn inside the thumbnail, so the grid never shifts. */
+.photo-tray-thumb.rejected {
+  outline: 2px solid var(--wrong);
+  outline-offset: -2px;
+}
+/* The remove control: a 32 px scrim square at the top-right corner, a × in text, 1 px hairline border. */
+.photo-tray-remove {
+  position: absolute;
+  top: var(--spacing-1);
+  right: var(--spacing-1);
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: var(--scrim);
+  color: var(--text);
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-md);
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.photo-tray-remove:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.photo-tray-why {
+  margin: 0;
+  color: var(--wrong);
+}

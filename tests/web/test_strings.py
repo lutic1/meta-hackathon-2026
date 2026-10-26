@@ -58,6 +58,25 @@ def test_the_shell_strings_are_the_experience_lines():
     assert local == "Local mode · Cache on · profile dev"
 
 
+def test_the_capture_strings_are_the_experience_lines():
+    strings = _strings()
+    assert strings["inputRequirement"] == "6 to 10 JPEG photos"
+    assert strings["iphoneTip"] == "On iPhone, set Settings > Camera > Formats to Most Compatible so photos save as JPEG."
+    assert strings["reminder"] == "Leave out faces, documents and other people's belongings."
+    assert strings["pickerSentence"] == "Choose 6 to 10 JPEG photos of one room."
+    assert (strings["choosePhotos"], strings["upload"]) == ("Choose photos", "Upload")
+    assert strings["readingPhotos"] == "Reading your photos"  # the ingest stage name, Upload's pending label
+    assert strings["removePhoto"].format(n=3) == "Remove photo 3" and strings["photosChosen"].format(n=8) == "8 photos chosen"
+    assert strings["notAJpeg"] == "Not a JPEG"
+    assert strings["photosRefused"] == "Keyframe needs 6 to 10 JPEG photos."  # verbatim, FR-1
+    assert strings["choosePhotosAgain"] == "Choose photos again"
+    assert strings["photosUnreadable"] == "Keyframe couldn't read these photos. Choose them again."
+    assert strings["uploadFailed"] == "Your photos didn't reach Keyframe."
+    assert strings["uploadFailedBody"] == "Nothing was built. Check the connection and try again."
+    assert strings["retentionHeading"] == "Where your photos go." and strings["playHistory"] == "Your play history"
+    assert strings["privacyLine"] == "the player profile stays on your machine."  # verbatim, the Privacy line
+
+
 def _code(text: str) -> str:
     """TypeScript with its comments removed, so a doc comment may quote a line it explains."""
     return re.sub(r"/\*.*?\*/|//[^\n]*", "", text, flags=re.DOTALL)

@@ -46,13 +46,14 @@ export function bannerSlot(): HTMLElement {
   return slot
 }
 
-/** Shows `state` in `slot`, replacing any older banner, and moves focus to it; null clears the slot. */
-export function showBanner(slot: HTMLElement, state: BannerState | null): void {
+/** Shows `state` in `slot`, replacing any older banner, and moves focus to it; null clears the slot. Returns the banner. */
+export function showBanner(slot: HTMLElement, state: BannerState | null): HTMLElement | null {
   if (state === null) {
     slot.replaceChildren()
-    return
+    return null
   }
   const element = banner(state)
   slot.replaceChildren(element)
   element.focus()
+  return element
 }
