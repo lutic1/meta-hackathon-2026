@@ -1,4 +1,4 @@
-"""Stories 1.11, 1.12, 3.2 and 3.7: wiring is the one module that builds an adapter; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter (AD-5, AD-9, AD-14)."""
+"""Stories 1.11, 1.12, 1.14, 3.2 and 3.7: wiring is the one module that builds an adapter; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter (AD-5, AD-9, AD-14)."""
 
 import ast
 from pathlib import Path
@@ -6,11 +6,26 @@ from pathlib import Path
 import pytest
 
 import src.api.wiring as wiring
-from src.api.wiring import SESSIONS_DIR, artifact_store, hint_phraser, session_clock, session_store
+from src.api.wiring import (
+    JOBS_DIR,
+    SESSIONS_DIR,
+    artifact_store,
+    hint_phraser,
+    job_store,
+    session_clock,
+    session_store,
+)
 from src.config import Settings
 from src.domain.schema import GuideModel
 from src.infra.clocks import BuildClock, SessionClock
-from src.infra.local import ROOMS_ROOT, DiskArtifactStore, DiskCache, JsonlLedgerStore, JsonSessionStore
+from src.infra.local import (
+    ROOMS_ROOT,
+    DiskArtifactStore,
+    DiskCache,
+    JsonJobStore,
+    JsonlLedgerStore,
+    JsonSessionStore,
+)
 from src.providers.base import HintPhraser
 from src.providers.meta_api import MetaModelProvider
 from src.providers.mock import MockProvider
@@ -19,7 +34,7 @@ from src.providers.verbatim import VerbatimPhraser
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 ADAPTERS = (
-    DiskArtifactStore, JsonSessionStore, JsonlLedgerStore, DiskCache, SessionClock, BuildClock,
+    DiskArtifactStore, JsonJobStore, JsonSessionStore, JsonlLedgerStore, DiskCache, SessionClock, BuildClock,
     VerbatimPhraser, OllamaPhraser, MockProvider, MetaModelProvider,
 )
 """Every class under `src/infra` and `src/providers` that implements a port."""
@@ -91,13 +106,19 @@ def _constructed(path: Path) -> set[str]:
 
 def test_wiring_is_the_only_module_that_constructs_an_adapter():
     constructors = {path.relative_to(SRC).as_posix(): _constructed(path) for path in SRC.rglob("*.py") if _constructed(path)}
-    assert constructors == {"api/wiring.py": {"DiskArtifactStore", "JsonSessionStore", "SessionClock", "VerbatimPhraser", "OllamaPhraser"}}
+    assert constructors == {"api/wiring.py": {"DiskArtifactStore", "JsonJobStore", "JsonSessionStore", "SessionClock", "VerbatimPhraser", "OllamaPhraser"}}
 
 
 def test_artifact_store_is_the_disk_store_under_rooms(tmp_path):
     store = artifact_store()
     assert type(store) is DiskArtifactStore and store.root == ROOMS_ROOT.resolve()
     assert artifact_store(tmp_path / "rooms").root == tmp_path / "rooms"
+
+
+def test_job_store_is_the_json_records_under_rooms_jobs(tmp_path):
+    store = job_store()
+    assert type(store) is JsonJobStore and store.directory == ROOMS_ROOT / "jobs"
+    assert JOBS_DIR == "jobs" and job_store(tmp_path).directory == tmp_path / "jobs"
 
 
 def test_session_store_is_the_json_log_under_rooms_sessions(tmp_path):

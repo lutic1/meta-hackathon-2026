@@ -28,8 +28,15 @@ lock and the clock reading at the session's start are transient request
 state, never replayed state. `t_ms` is stamped from the session clock at
 append, so a body carrying one is refused. Each appended event is logged as
 one JSON line with `session_id`, the event type and `duration_ms` (AR-22).
-The Trickster route, the build routes, `GET /schema` and `GET /meta` land
-with their stories.
+Every session state served carries the global Disclosure lines
+`src/api/meta.py` composes (AD-15); the per-Room line joins in 6.2.
+
+`GET /rooms` lists one `RoomSummary` per stored Room through
+`ArtifactStore.list_rooms()`, newest build first, with `job_id` read from
+the job record that names the Room (AD-9); `GET /meta` serves the `Meta`
+model and `GET /schema` the JSON Schema of every AD-2 model under `$defs`,
+from which `web/types` are generated. The Trickster route and the build
+routes land with their stories.
 """
 
 from __future__ import annotations
@@ -40,11 +47,13 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import TypeAdapter, ValidationError
+from pydantic.json_schema import models_json_schema
 
 from src.api.errors import (
     ApiError,
@@ -57,26 +66,39 @@ from src.api.errors import (
     handle_api_error,
     handle_validation_error,
 )
-from src.api.wiring import artifact_store, session_clock, session_store
+from src.api.meta import MetaProfile, disclosure_lines, meta
+from src.api.wiring import artifact_store, job_store, session_clock, session_store
 from src.config import Settings
 from src.domain.redact import to_play_view
 from src.domain.schema import (
+    API_MODELS,
     Event,
     IdleTickEvent,
+    JobId,
+    Meta,
     Milliseconds,
     OpeningLineEvent,
     PlayView,
     PostedEvent,
     Profile,
     Room,
+    RoomId,
     RoomResult,
+    RoomSummary,
     SessionId,
     SessionStart,
     SessionState,
 )
 from src.domain.session import SessionStateMachine
 from src.infra.local import ROOMS_ROOT
-from src.pipeline.ports import ArtifactStore, Clock, SessionStore, photo_key, room_key
+from src.pipeline.ports import (
+    ArtifactStore,
+    Clock,
+    JobStore,
+    SessionStore,
+    photo_key,
+    room_key,
+)
 from src.providers.spend import new_ulid
 
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
@@ -104,8 +126,31 @@ def load_room(store: ArtifactStore, room_id: str) -> Room:
     return Room.model_validate_json(data)
 
 
-def room_routes(store: ArtifactStore) -> APIRouter:
+def room_summary(room: Room, job_id: JobId) -> RoomSummary:
+    """The listing row (AD-9): the first photo is the cover, and `built_at` is the Room's build time."""
+    return RoomSummary(
+        room_id=room.id,
+        name=room.name,
+        cover_photo=0,
+        puzzle_count=len(room.puzzles),
+        job_id=job_id,
+        built_at=room.created,
+    )
+
+
+def jobs_by_room(jobs: JobStore) -> dict[RoomId, JobId]:
+    """The job record that names each Room; a job that has no Room yet names none."""
+    return {job.room_id: job.id for job in map(jobs.read, jobs.list_ids()) if job.room_id is not None}
+
+
+def room_routes(store: ArtifactStore, jobs: JobStore) -> APIRouter:
     router = APIRouter(prefix="/api/rooms", tags=["rooms"])
+
+    @router.get("")
+    def list_rooms() -> list[RoomSummary]:
+        """Every stored Room with a job record, newest build first; a Room without one has no `job_id` to list."""
+        job_ids = jobs_by_room(jobs)
+        return [room_summary(room, job_ids[room.id]) for room in store.list_rooms() if room.id in job_ids]
 
     @router.get("/{room_id}")
     def get_room(room_id: str) -> PlayView:
@@ -159,6 +204,29 @@ def profile_routes(store: ArtifactStore) -> APIRouter:
     return router
 
 
+# --- Status and schema (AD-2, AD-15) ----------------------------------------
+
+
+def api_schema() -> dict[str, Any]:
+    """The JSON Schema of every AD-2 model, each under `$defs` by its name, in one document."""
+    _, schema = models_json_schema([(model, "validation") for model in API_MODELS], ref_template="#/$defs/{model}")
+    return {"title": "Keyframe Schema v1", **schema}
+
+
+def status_routes(settings: Settings) -> APIRouter:
+    router = APIRouter(prefix="/api", tags=["status"])
+
+    @router.get("/meta")
+    def get_meta(profile: MetaProfile = "dev") -> Meta:
+        return meta(settings, profile)
+
+    @router.get("/schema")
+    def get_schema() -> dict[str, Any]:
+        return api_schema()
+
+    return router
+
+
 # --- Sessions (AD-4) --------------------------------------------------------
 
 
@@ -197,9 +265,15 @@ class OpenSessions:
         return session
 
 
-def session_routes(store: ArtifactStore, sessions: SessionStore, clock: Clock, *, demo: bool) -> APIRouter:
+def session_routes(
+    store: ArtifactStore, sessions: SessionStore, clock: Clock, *, demo: bool, disclosure: list[str]
+) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     open_sessions = OpenSessions()
+
+    def served(state: SessionState) -> SessionState:
+        """The state as the client sees it: with the global Disclosure lines (AD-15)."""
+        return state.model_copy(update={"disclosure": list(disclosure)})
 
     def events(session_id: SessionId) -> list[Event]:
         """The session's log; a session that has appended nothing yet has none."""
@@ -220,7 +294,7 @@ def session_routes(store: ArtifactStore, sessions: SessionStore, clock: Clock, *
         started = clock.now_ms()
         event = build(stamp(session, log_))
         sessions.append(session_id, event)
-        state = session.machine.replay(session_id, [*log_, event])
+        state = served(session.machine.replay(session_id, [*log_, event]))
         log.info(json.dumps({"session_id": session_id, "event": event.type, "duration_ms": clock.now_ms() - started}))
         return state
 
@@ -244,7 +318,7 @@ def session_routes(store: ArtifactStore, sessions: SessionStore, clock: Clock, *
             last_ms = log_[-1].t_ms if log_ else 0
             if clock.now_ms() - session.started_ms - last_ms >= IDLE_TICK_MS:
                 return append(session_id, session, log_, lambda t_ms: IdleTickEvent(type="idle_tick", t_ms=t_ms))
-            return session.machine.replay(session_id, log_)
+            return served(session.machine.replay(session_id, log_))
 
     @router.post("/{session_id}/events")
     def post_event(session_id: str, body: PostedEvent) -> SessionState:
@@ -279,10 +353,17 @@ def create_app(
     app.add_exception_handler(ApiError, handle_api_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     store = artifact_store(rooms_root)
-    app.include_router(room_routes(store))
+    app.include_router(status_routes(settings))
+    app.include_router(room_routes(store, job_store(rooms_root)))
     app.include_router(profile_routes(store))
     app.include_router(
-        session_routes(store, session_store(rooms_root), clock or session_clock(settings), demo=settings.demo_timescale > 1)
+        session_routes(
+            store,
+            session_store(rooms_root),
+            clock or session_clock(settings),
+            demo=settings.demo_timescale > 1,
+            disclosure=disclosure_lines(settings),
+        )
     )
     if web_dist.is_dir():
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
