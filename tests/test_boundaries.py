@@ -7,6 +7,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 
 PORTS = {"src.providers.base", "src.pipeline.ports", "src.domain.clock"}
+GUARDS = {"src.providers.spend", "src.providers.cache"}
+"""The guarded-call path (AD-6) lives inside src/providers, so adapters may import it."""
 ADAPTER_PACKAGES = ("src.providers", "src.infra")
 ADAPTER_IMPORTERS = ("src.providers", "src.infra", "src.api")
 
@@ -73,7 +75,7 @@ def violations(src_root: Path) -> list[str]:
                     allowed = allowed or _in(name, "src.council")
                 if not allowed:
                     out.append(f"{module} imports {name}; {package} imports only the domain and ports")
-            elif _is_adapter(module) and internal and not (_in(name, "src.domain") or name in PORTS):
+            elif _is_adapter(module) and internal and not (_in(name, "src.domain") or name in PORTS | GUARDS):
                 out.append(f"{module} imports {name}; adapters import only ports and the domain")
             if internal and _is_adapter(name) and not _in(module, *ADAPTER_IMPORTERS):
                 out.append(f"{module} imports the adapter {name}")
@@ -142,6 +144,23 @@ def test_pipeline_may_import_council_domain_and_ports(tmp_path):
 def test_adapter_importing_config_is_named(tmp_path):
     src = _tree(tmp_path, {"providers/meta_api.py": "from ..config import Settings\n", "config.py": ""})
     assert violations(src) == ["src.providers.meta_api imports src.config; adapters import only ports and the domain"]
+
+
+def test_adapters_may_import_the_guarded_call_path(tmp_path):
+    src = _tree(tmp_path, {
+        "providers/meta_api.py": "from .cache import GuardedCalls\nfrom .spend import SpendLedger\n",
+        "providers/cache.py": "from .spend import SpendLedger\n",
+        "providers/spend.py": "", "infra/local.py": "from src.providers.spend import SpendLedger\n",
+    })
+    assert violations(src) == []
+
+
+def test_pipeline_importing_the_guarded_call_path_is_named(tmp_path):
+    src = _tree(tmp_path, {"pipeline/build.py": "from src.providers.cache import GuardedCalls\n", "providers/cache.py": ""})
+    assert violations(src) == [
+        "src.pipeline.build imports src.providers.cache; src.pipeline imports only the domain and ports",
+        "src.pipeline.build imports the adapter src.providers.cache",
+    ]
 
 
 def test_infra_adapter_importing_council_is_named(tmp_path):

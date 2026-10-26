@@ -2,13 +2,13 @@
 
 Each port is a Protocol over domain models only; `src/infra` implements it
 per mode (`MODE=local|hosted`) and wiring injects the adapter. `ArtifactStore`,
-`SessionStore` and the `Clock` re-export land with 1.10; `Cache`, `JobStore`
-and `JobRunner` with the stories that need them.
+`SessionStore` and the `Clock` re-export land with 1.10; `JobStore` and
+`JobRunner` with the stories that need them.
 """
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from src.domain.ledger import LedgerEntry
 
@@ -24,3 +24,16 @@ class LedgerStore(Protocol):
     def append(self, entry: LedgerEntry) -> None: ...
 
     def entries(self) -> list[LedgerEntry]: ...
+
+
+class Cache(Protocol):
+    """Model-call responses under their AD-6 key: local `.cache/`, hosted the `keyframe-data` Volume.
+
+    `providers/cache.py` computes the key and encodes each response as one
+    JSON object, so the store only maps a key to an object; `get` returns
+    `None` on a miss. The cache never holds a ledger entry (AD-6).
+    """
+
+    def get(self, key: str) -> dict[str, Any] | None: ...
+
+    def put(self, key: str, value: dict[str, Any]) -> None: ...

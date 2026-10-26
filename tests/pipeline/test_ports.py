@@ -1,4 +1,4 @@
-"""Story 2.3: `src/pipeline/ports.py` declares `LedgerStore` (`append`, `entries`) over the domain only (AD-1, AD-9)."""
+"""Stories 2.3 and 2.4: `src/pipeline/ports.py` declares `LedgerStore` (`append`, `entries`) and `Cache` (`get`, `put`) over the domain only (AD-1, AD-9)."""
 
 import inspect
 import sys
@@ -6,7 +6,7 @@ import typing
 from pathlib import Path
 
 from src.domain.ledger import LedgerEntry
-from src.pipeline.ports import LedgerStore
+from src.pipeline.ports import Cache, LedgerStore
 from tests.test_boundaries import _imports
 
 REPO = Path(__file__).resolve().parents[2]
@@ -32,6 +32,33 @@ def test_a_structural_double_satisfies_the_port():
 
     store: LedgerStore = Memory()
     assert store.entries() == []
+
+
+def test_cache_declares_get_and_put_over_json_objects():
+    assert typing.is_protocol(Cache)
+    get = inspect.signature(Cache.get, eval_str=True)
+    put = inspect.signature(Cache.put, eval_str=True)
+    assert [p.name for p in get.parameters.values()] == ["self", "key"]
+    assert get.parameters["key"].annotation is str and get.return_annotation == dict[str, typing.Any] | None
+    assert [p.name for p in put.parameters.values()] == ["self", "key", "value"]
+    assert put.parameters["value"].annotation == dict[str, typing.Any] and put.return_annotation is None
+
+
+def test_a_structural_cache_double_satisfies_the_port():
+    class Memory:
+        def __init__(self) -> None:
+            self.rows: dict[str, dict[str, typing.Any]] = {}
+
+        def get(self, key: str) -> dict[str, typing.Any] | None:
+            return self.rows.get(key)
+
+        def put(self, key: str, value: dict[str, typing.Any]) -> None:
+            self.rows[key] = value
+
+    cache: Cache = Memory()
+    assert cache.get("k") is None
+    cache.put("k", {"text": "hi"})
+    assert cache.get("k") == {"text": "hi"}
 
 
 def test_ports_import_only_the_domain():
