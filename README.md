@@ -51,7 +51,9 @@ src/providers/base.py      the ModelProvider interface. Depend on this only.
 src/providers/mock.py      deterministic fake, scriptable for tests and demos
 src/providers/meta_api.py  Meta Model API stub, wire up Oct 26
 tests/                     offline tests (conftest blocks every non-loopback socket)
+scripts/check.sh           pre-push check and the whole CI job (--predeploy before modal deploy)
 scripts/doctor.py          Mac and cloud environment check, stdlib only
+.github/workflows/ci.yml   one job, check: runs scripts/check.sh on master and pull requests
 docs/MONDAY.md             the Mon Oct 26 kickoff checklist
 docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
 _bmad/                     BMAD Method v6 install (hackathon tooling)
@@ -83,6 +85,16 @@ Configuration: copy `.env.example` to `.env`. `MODEL_PROVIDER=mock`
 today, `MODEL_PROVIDER=meta` once the API is wired on Mon Oct 26. See
 [docs/MONDAY.md](docs/MONDAY.md) for the kickoff checklist (no paid call on Oct 26; the first live
 calls run Tue Oct 27 behind the spend cap through `scripts/sit.py`).
+
+## Contributing
+
+Run `bash scripts/check.sh` before every push. It is the whole CI
+job (`.github/workflows/ci.yml`, one job named `check`): the privacy
+check, `uv lock --check`, `uv sync --locked`, the offline `pytest`
+suite, the wheel check for macOS arm64 and Linux x86_64, and, once
+`web/` exists, `npm ci`, the Vite build and `tsc --noEmit`. CI holds
+no secret and never deploys; `modal deploy` stays a manual step after
+`bash scripts/check.sh --predeploy`.
 
 ## Key dates
 
