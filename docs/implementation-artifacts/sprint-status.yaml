@@ -78,7 +78,7 @@ development_status:
   2-10-persisted-build-job-and-the-ingest-stage: backlog
   2-11-local-jobstore-and-in-process-jobrunner: backlog
   2-12-build-routes-per-role-provider-wiring-and-the-ledger-hooks: backlog
-  2-13-mask-selection-and-box-conversion-as-pure-domain-functions: backlog
+  2-13-mask-selection-and-box-conversion-as-pure-domain-functions: done
   2-14-architect-prompt-builder: backlog
   2-15-architect-and-segment-stages-with-the-mask-preview: backlog
   2-16-capture-screen-choose-and-upload-photos-with-the-retention-s: backlog
