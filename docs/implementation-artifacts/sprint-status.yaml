@@ -72,7 +72,7 @@ development_status:
   2-4-model-call-cache-in-front-of-the-ledger: done
   2-5-local-ledger-file-and-disk-cache: done
   2-6-ledger-export-and-reset-script: backlog
-  2-7-meta-model-api-adapter-for-chat-segment-and-image: backlog
+  2-7-meta-model-api-adapter-for-chat-segment-and-image: done
   2-8-openai-compatible-adapter-for-the-riddler-fallback: done
   2-9-lean-sit-the-checklist-and-scripts-sit-py-over-the-live-seam: backlog
   2-10-persisted-build-job-and-the-ingest-stage: backlog
