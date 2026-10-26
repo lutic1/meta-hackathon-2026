@@ -159,7 +159,7 @@ development_status:
   7-10-twenty-slot-judge-build-quota: done
   # 7.11 is gated on the 7.10 live atomicity check passing.
   7-11-access-code-guard-and-the-quota-refusal: done
-  7-12-post-access-check-before-photo-selection: backlog
+  7-12-post-access-check-before-photo-selection: done
   7-13-seed-the-demo-rooms-with-their-job-records: done
   7-14-hosted-room-partitions-demo-rooms-listed-judge-rooms-apart: done
   7-15-demo-room-welcome-on-session-start: backlog
