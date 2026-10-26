@@ -165,7 +165,7 @@ development_status:
   7-15-demo-room-welcome-on-session-start: backlog
   7-16-hosted-landing-with-demo-room-cards: backlog
   7-17-access-code-build-panel-and-the-hosted-capture-differences: backlog
-  7-18-judge-room-deletion-records-and-the-session-sweep: backlog
+  7-18-judge-room-deletion-records-and-the-session-sweep: done
   7-19-judge-data-purge-script: backlog
   7-20-deleted-rooms-answer-410-and-the-hourly-session-sweep-runs: backlog
   7-21-deleted-judge-room-notice-and-the-deleted-tue-nov-10-strip: backlog
