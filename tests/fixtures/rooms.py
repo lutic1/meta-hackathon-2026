@@ -135,6 +135,27 @@ FIND_LANTERN = _puzzle(
 )
 CUT6_DOOR_CODE = {**DOOR_CODE, "requires": [PZ["clock_code"], PZ["find_lantern"]]}
 
+# Sentinel solutions for the AD-3 prompt tests: ids and a code string that appear nowhere else in a room.
+SENTINEL_CODE = "ZQXJV-9731"
+SENTINEL_IX = [f"ix_{'9' * 25}{n}" for n in range(1, 5)]
+SENTINEL_ORDER = SENTINEL_IX[:3]
+SENTINEL_PAIR = (SENTINEL_IX[0], SENTINEL_IX[1])
+SENTINEL_FIND = SENTINEL_IX[3]
+SENTINEL_SOLUTIONS: dict[str, dict[str, Any]] = {
+    "code": {"code": SENTINEL_CODE},
+    "order": {"interactables": SENTINEL_ORDER},
+    "use_on": {"item": SENTINEL_PAIR[0], "target": SENTINEL_PAIR[1]},
+    "find": {"target": SENTINEL_FIND},
+}
+
+
+def with_sentinel_solutions(room: Room) -> Room:
+    """The room with one sentinel solution per lock type; the sentinel ids and code appear nowhere else in it."""
+    data = room.model_dump()
+    for puzzle in data["puzzles"]:
+        puzzle["solution"] = {"lock_type": puzzle["lock_type"], **SENTINEL_SOLUTIONS[puzzle["lock_type"]]}
+    return Room.model_validate(data)
+
 
 def _provenance() -> dict[str, Any]:
     stages = ("ingest", "architect", "segment", "author", "validate", "dryrun", "scene")
