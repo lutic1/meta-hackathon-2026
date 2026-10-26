@@ -159,7 +159,7 @@ development_status:
   7-5-clue-card-read-route: backlog
   7-6-clue-card-slot-beside-each-clue: backlog
   7-7-hosted-build-runner-with-a-queued-state-and-a-watchdog: done
-  7-8-modal-functions-run_build-spawned-per-job-and-the-daily-ledg: backlog
+  7-8-modal-functions-run_build-spawned-per-job-and-the-daily-ledg: done
   7-9-hosted-ledger-snapshot-merged-into-the-committed-export: backlog
   # 7.10 AC 4 live check PENDING: 20 or more concurrent reserve_build calls on a
   # keyframe-jobs Dict in a non-judging Modal Environment; exactly 20 must succeed.
