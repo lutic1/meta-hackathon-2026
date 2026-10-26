@@ -57,7 +57,8 @@ store writes every key of the port (`<room_id>/room.json`,
 `<room_id>/photos/<i>.jpg`, `<room_id>/originals/<i>.jpg`, ...) under
 `rooms/judge/`, reads a key from `rooms/demo/` first and then
 `rooms/judge/`, so a Judge room plays by its id, and `list_rooms()` lists
-`rooms/demo/` alone, so no Judge room is ever listed. Cache entries live at
+`rooms/demo/` alone, so no Judge room is ever listed; `is_demo_room(room_id)`
+is true only for a Room under `rooms/demo/`. Cache entries live at
 `/data/cache/<key>.json`. `run_build` (Story 7.8) must run a Judge build
 through `run_judge_build`, with a `CacheKeyLog` as the providers' Cache: the
 log adds each key to `rooms/judge/<room_id>/cache-keys.json`, committed,
@@ -123,7 +124,13 @@ from src.domain.schema import (
     TricksterCardEvent,
     UseOnInput,
 )
-from src.pipeline.ports import ROOM_FILE, ArtifactStore, BuildQuotaExceeded, Cache
+from src.pipeline.ports import (
+    ROOM_FILE,
+    ArtifactStore,
+    BuildQuotaExceeded,
+    Cache,
+    room_key,
+)
 
 JOBS_DICT = "keyframe-jobs"
 SESSIONS_DICT = "keyframe-sessions"
@@ -324,6 +331,10 @@ class VolumeArtifactStore:
         """Every Room under `rooms/demo/<room_id>/`, newest `created` first, and none under `rooms/judge/`; the route maps each to its `RoomSummary`."""
         rooms = [Room.model_validate_json(data) for data in self.files.read_glob(f"{self.demo}/*/{ROOM_FILE}")]
         return sorted(rooms, key=lambda room: room.created, reverse=True)
+
+    def is_demo_room(self, room_id: str) -> bool:
+        """Whether the Room is stored under `rooms/demo/<room_id>/`, after one reload; a Judge room or an unknown id is not."""
+        return self.files.exists(f"{self.demo}/{self._clean(room_key(room_id))}")
 
 
 class VolumeCache:

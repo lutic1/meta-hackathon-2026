@@ -23,11 +23,13 @@ block with `sessions` >= 1 is greeted: the start reply carries
 the request, its phrased line or, on a fallback, the template appended as the
 one `opening_line` when it returns, with `phraser_fallback` logged against the
 session when the Guide model fell back. Every other start, and every hosted
-start whatever block it carries, appends the First-room welcome
-(`FIRST_ROOM_WELCOME`, the only copy of the text; the client renders what it
-receives) at once, so its reply already carries the line with `phrasing`
-false; the Demo room variant lands with 7.15. A reload replays the one event
-rather than appending another. The session's `Thresholds` are fixed at the
+start whatever block it carries, appends a welcome at once, so its reply
+already carries the line with `phrasing` false: the Demo room welcome
+(`DEMO_ROOM_WELCOME`) on a Room `ArtifactStore.is_demo_room` names (hosted,
+one under `rooms/demo/`; local, none), else the First-room welcome
+(`FIRST_ROOM_WELCOME`). The two lines sit side by side here, the only copy
+of either text; the client renders what it receives. A reload replays the
+one event rather than appending another. The session's `Thresholds` are fixed at the
 start from the greeted block, else `Derived.fresh()`: the 1x values from
 `src/domain/rungs.py`, divided by `DEMO_TIMESCALE` on the session clock
 (AD-10), and so is the Trickster window the machine opens windows against.
@@ -202,7 +204,9 @@ IDLE_TICK_MS = 5000
 """A `GET /sessions/<id>` read appends an `idle_tick` once this long has passed since the last event (AD-4)."""
 
 FIRST_ROOM_WELCOME = "Welcome to your own room. Find what doesn't belong."
-"""The fixed First-room welcome (A-13, FR-21): the `opening_line` of every session start not greeted, worded here alone."""
+"""The fixed First-room welcome (A-13, FR-21): the `opening_line` of every session start neither greeted nor on a Demo room, worded here alone."""
+DEMO_ROOM_WELCOME = "Welcome to someone else's room. Find what doesn't belong."
+"""The fixed Demo room welcome (FR-31, UX-DR45): the `opening_line` of every session start on a Demo room, worded here alone."""
 
 NO_HINT_LINE = "A fair ask. Look around a little longer; I'll speak up if you stay stuck."
 """The fixed No-hint line (UX-DR76): the reply to a Hint request while no Rung is open, never phrased."""
@@ -598,8 +602,10 @@ def session_routes(
         line = phraser.phrase(rung_text, session.derived)
         return HintReply(puzzle_id=puzzle_id, rung=state.current_rung[puzzle_id], text=line.text)
 
-    def welcome(t_ms: Milliseconds) -> Event:
-        return OpeningLineEvent(type="opening_line", kind="welcome", text=FIRST_ROOM_WELCOME, t_ms=t_ms)
+    def welcome(room_id: RoomId) -> Callable[[Milliseconds], Event]:
+        """The Room's welcome: the Demo room line on a Demo room, else the First-room line."""
+        text = DEMO_ROOM_WELCOME if store.is_demo_room(room_id) else FIRST_ROOM_WELCOME
+        return lambda t_ms: OpeningLineEvent(type="opening_line", kind="welcome", text=text, t_ms=t_ms)
 
     def greet(session_id: SessionId, session: OpenSession, derived: Derived) -> None:
         """Off the request: one composer call, then its line appended under the session lock as the one opening line.
@@ -626,7 +632,7 @@ def session_routes(
 
     @router.post("")
     def start_session(body: SessionStart) -> SessionState:
-        """A fresh session over the stored Room: greeted from a returning block where wiring greets, else opened with the welcome."""
+        """A fresh session over the stored Room: greeted from a returning block where wiring greets, else opened with the Room's welcome."""
         room = load_room(store, body.room_id)
         greeted = greets and is_returning(body.derived)
         derived = body.derived if greeted else Derived.fresh()
@@ -642,7 +648,7 @@ def session_routes(
             spawn(lambda: greet(session_id, session, derived))
             return state
         with session.lock:
-            return append(session_id, session, [], welcome)
+            return append(session_id, session, [], welcome(room.id))
 
     @router.get("/{session_id}")
     def get_session(session_id: str) -> SessionState:

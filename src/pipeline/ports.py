@@ -49,6 +49,10 @@ class ArtifactStore(Protocol):
     `<room_id>/photos/0.jpg`; one that resolves outside the store is refused
     with `ValueError`, and `read` of a missing key raises `KeyError`. Bytes
     round-trip unchanged: the store re-encodes nothing.
+
+    `is_demo_room` tells whether a stored `room_id` is a Demo room (AD-9):
+    hosted, one seeded under `rooms/demo/`; local, never. `POST /sessions`
+    picks the welcome from it.
     """
 
     def put(self, key: str, data: bytes) -> None: ...
@@ -56,6 +60,8 @@ class ArtifactStore(Protocol):
     def read(self, key: str) -> bytes: ...
 
     def list_rooms(self) -> list[Room]: ...
+
+    def is_demo_room(self, room_id: str) -> bool: ...
 
 
 class BuildQuotaExceeded(Exception):

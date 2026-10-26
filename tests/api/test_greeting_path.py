@@ -13,7 +13,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import FIRST_ROOM_WELCOME, IDLE_TICK_MS
+from src.api.app import DEMO_ROOM_WELCOME, FIRST_ROOM_WELCOME, IDLE_TICK_MS
 from src.api.meta import SCRIPTED_LINE, disclosure_lines
 from src.config import Settings
 from src.domain.rungs import ThresholdSource
@@ -31,6 +31,7 @@ PHRASED = load("llama3.2-3b/generate-greet").body["response"]
 RETURNING = Derived(sessions=1, persistence=0.4173, time_to_first_hint_s=137.9, mean_rung_per_lock_type={"code": 2.71})
 SENTINEL_VALUES = ("0.4173", "137.9", "2.71")
 WELCOME_LINE = {"kind": "welcome", "text": FIRST_ROOM_WELCOME}
+DEMO_WELCOME_LINE = {"kind": "welcome", "text": DEMO_ROOM_WELCOME}
 GREETING_PENDING = {"kind": "greeting", "text": None}
 INVALID_REQUEST = {"error": {"code": "invalid_request", "message": ANY, "stage": None}}
 SESSIONS_LOG = "keyframe.sessions"
@@ -305,7 +306,7 @@ def test_a_hosted_start_gets_the_welcome_and_fresh_thresholds_whatever_block_it_
     client = TestClient(make_hosted_app(tmp_path, hosted_handles(tmp_path), code_and_find_room, phraser=spy, spawn=later))
     received = RETURNING.model_copy(update={"sessions": sessions, "persistence": 1})
     state = begin(client, code_and_find_room, received)
-    assert opening(state) == (WELCOME_LINE, False)
+    assert opening(state) == (DEMO_WELCOME_LINE, False)  # seeded as a Demo room, so its welcome since 7.15
     assert spy.greeted == [] and later.tasks == []
     assert client.get(f"/api/sessions/{state['id']}").json()["thresholds"] == thresholds(90_000, 90_000, 90_000, "fresh")
 

@@ -90,6 +90,10 @@ class DiskArtifactStore:
         rooms = [Room.model_validate_json(path.read_bytes()) for path in self.root.rglob(ROOM_FILE)]
         return sorted(rooms, key=lambda room: room.created, reverse=True)
 
+    def is_demo_room(self, room_id: str) -> bool:
+        """Never: Local mode has no Demo rooms, so every local start gets the First-room welcome."""
+        return False
+
 
 def _json_name(kind: str, id_: str) -> str:
     """`<id>.json` for a store keyed one file per id; an id that is not a plain file name is refused."""

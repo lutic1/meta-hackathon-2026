@@ -45,6 +45,7 @@ from src.pipeline.ports import (
     JobRunner,
     JobStore,
     SessionStore,
+    room_key,
 )
 from src.providers.base import ChatMessage, ChatResponse
 from src.providers.cache import GuardedCalls, cache_key
@@ -567,3 +568,12 @@ def test_deleting_the_cache_leaves_the_ledger_and_exports_unchanged_and_the_next
     assert ledger.running_total_usd() == pytest.approx(0.025)
     assert [e["status"] for e in lines(root)] == ["reserved", "settled", "reserved", "settled"]
     assert DiskCache(root / CACHE_ROOT).get(KEY) is not None
+
+
+def test_a_local_store_names_no_room_a_demo_room(tmp_path, four_lock_room):
+    """Story 7.15: Local mode has no Demo rooms, so every local start gets the First-room welcome."""
+    store = DiskArtifactStore(tmp_path / "rooms")
+    store.put(room_key(four_lock_room.id), four_lock_room.model_dump_json().encode())
+    _store_room(store, four_lock_room, "demo")
+    assert store.is_demo_room(four_lock_room.id) is False
+    assert store.is_demo_room("room_01ARZ3NDEKTSV4RRFFQ69G5FAV") is False

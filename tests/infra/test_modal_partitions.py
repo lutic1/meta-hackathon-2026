@@ -394,3 +394,21 @@ def test_local_list_rooms_still_lists_every_stored_room(tmp_path, four_lock_room
     app.include_router(room_routes(local_store, jobs))
     listed = TestClient(app).get("/api/rooms").json()
     assert sorted(row["room_id"] for row in listed) == sorted([four_lock_room.id, code_and_find_room.id])
+
+
+# --- Story 7.15: is_demo_room names a Room under rooms/demo/ alone ---------------------
+
+
+def test_is_demo_room_is_true_for_a_demo_room_only_and_reloads_before_it_looks(handles, stores, log, four_lock_room, code_and_find_room):
+    seed_demo(handles, code_and_find_room)
+    store_room(stores.artifacts, four_lock_room)
+    log.clear()
+    assert stores.artifacts.is_demo_room(code_and_find_room.id) is True
+    assert stores.artifacts.is_demo_room(four_lock_room.id) is False
+    assert stores.artifacts.is_demo_room("room_01ARZ3NDEKTSV4RRFFQ69G5FAV") is False
+    assert log.count("reload") == 3 and "commit" not in log
+
+
+def test_a_judge_room_id_never_reads_as_a_demo_room_through_a_climbing_key(stores):
+    with pytest.raises(ValueError, match="outside its partition"):
+        stores.artifacts.is_demo_room("../judge/room_x")

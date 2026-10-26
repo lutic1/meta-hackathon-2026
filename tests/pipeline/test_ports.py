@@ -1,4 +1,4 @@
-"""Stories 1.10, 2.3, 2.4, 2.10 and 7.10: `src/pipeline/ports.py` declares `ArtifactStore`, `SessionStore`, `LedgerStore`, `Cache`, `JobStore` and `JobRunner` over the domain only and re-exports `Clock` (AD-1, AD-7, AD-9, AD-10)."""
+"""Stories 1.10, 2.3, 2.4, 2.10, 7.10 and 7.15: `src/pipeline/ports.py` declares `ArtifactStore`, `SessionStore`, `LedgerStore`, `Cache`, `JobStore` and `JobRunner` over the domain only and re-exports `Clock` (AD-1, AD-7, AD-9, AD-10)."""
 
 import inspect
 import sys
@@ -91,6 +91,13 @@ def test_artifact_store_declares_put_read_and_list_rooms():
     assert _params(ArtifactStore.list_rooms) == ["self"]
     assert inspect.signature(ArtifactStore.list_rooms, eval_str=True).return_annotation == list[Room]
     assert ports.ROOM_FILE == "room.json"
+
+
+def test_artifact_store_declares_the_demo_room_read_over_a_room_id():
+    """Story 7.15: the port tells whether a `room_id` is a Demo room, so `POST /sessions` picks the welcome from it."""
+    is_demo = inspect.signature(ArtifactStore.is_demo_room, eval_str=True)
+    assert _params(ArtifactStore.is_demo_room) == ["self", "room_id"]
+    assert is_demo.parameters["room_id"].annotation is str and is_demo.return_annotation is bool
 
 
 def test_session_store_declares_append_read_all_list_ids_and_delete():

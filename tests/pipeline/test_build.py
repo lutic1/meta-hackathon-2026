@@ -344,6 +344,9 @@ class OrderedArtifacts:
     def list_rooms(self) -> list[Room]:
         return self.inner.list_rooms()
 
+    def is_demo_room(self, room_id: str) -> bool:
+        return self.inner.is_demo_room(room_id)
+
 
 class QuotaJobStore(MemoryJobStore):
     """`MemoryJobStore` with `left` build slots, logging each claim into a shared log."""
