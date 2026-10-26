@@ -109,6 +109,21 @@ def hint_events(log: list[Any]) -> list[Any]:
     return [event for event in log if event.type == "hint_request"]
 
 
+def assert_the_phraser_saw_only_whole_rungs(room: Room, phraser: SpyVerbatim) -> None:
+    """Every `phrase` call got one whole Rung of the room and the session's Derived block, and nothing else of it (AD-3)."""
+    rungs = {rung_text(room, p.id, n) for p in room.puzzles for n in (1, 2, 3)}
+    ids = {ix.id for ix in room.interactables} | {p.id for p in room.puzzles} | {room.id}
+    labels = {ix.label for ix in room.interactables}
+    clues_and_lore = {p.clue for p in room.puzzles} | {p.lore for p in room.puzzles}
+    solutions = {SENTINEL_CODE, json.dumps(SENTINEL_ORDER), " ".join(SENTINEL_ORDER), *SENTINEL_PAIR, SENTINEL_FIND}
+    for text, derived in phraser.phrased:
+        assert text in rungs and derived == Derived.fresh()
+        assert not any(other in text for other in rungs - {text}), text
+        seen = json.dumps([text, derived.model_dump(mode="json")])
+        assert not any(token in seen for token in ids | labels | clues_and_lore | solutions), seen
+        assert "solution" not in seen
+
+
 # --- At rung 2, ten Hint requests each answer the direction -------------------------------------
 
 
@@ -133,6 +148,7 @@ def test_ten_hint_requests_at_rung_2_each_answer_the_direction_through_the_phras
     hints = hint_events(log)
     assert len(hints) == 10 and all(event.puzzle_id is None for event in hints)
     assert [event.t_ms for event in hints] == list(range(42_000, 222_001, 20_000))  # stamped by the server clock
+    assert client.get(f"/api/sessions/{session_id}").json()["hint_reply"] is None  # never replayed
 
 
 def test_a_hint_request_naming_an_available_unsolved_puzzle_is_answered_for_it_and_makes_it_the_active_puzzle(
@@ -346,8 +362,8 @@ def test_the_scripted_attack_suite_opens_nothing_and_returns_nothing_above_the_c
     tmp_path: Path, four_lock_room: Room, rung: int
 ):
     room = with_sentinel_solutions(four_lock_room)
-    ticker = Ticker()
-    client = demo_client(tmp_path, room, ticker, VerbatimPhraser())
+    ticker, phraser = Ticker(), SpyVerbatim()
+    client = demo_client(tmp_path, room, ticker, phraser)
     session_id = start(client, room)
     before = climb(client, session_id, ticker, rung)
     assert before["current_rung"][PZ["clock_code"]] == rung
@@ -370,6 +386,8 @@ def test_the_scripted_attack_suite_opens_nothing_and_returns_nothing_above_the_c
     after = client.get(f"/api/sessions/{session_id}").json()
     for key in ("locks_open", "inventory", "current_rung", "rung_changes"):
         assert after[key] == before[key]
+    assert bool(phraser.phrased) == (rung > 0)
+    assert_the_phraser_saw_only_whole_rungs(room, phraser)
 
 
 # --- No solution and no Rung above the current one in any play response --------------------------------------------------
@@ -377,8 +395,8 @@ def test_the_scripted_attack_suite_opens_nothing_and_returns_nothing_above_the_c
 
 def test_no_play_response_carries_a_solution_a_sentinel_or_a_rung_above_the_current_one(tmp_path: Path, four_lock_room: Room):
     room = with_sentinel_solutions(four_lock_room)
-    ticker = Ticker()
-    client = demo_client(tmp_path, room, ticker, VerbatimPhraser())
+    ticker, phraser = Ticker(), SpyVerbatim()
+    client = demo_client(tmp_path, room, ticker, phraser)
     responses = [client.get(f"/api/rooms/{room.id}"), client.post("/api/sessions", json={"room_id": room.id})]
     session_id = responses[-1].json()["id"]
     bodies = [HINT, click("key"), HINT, *[code("clock_code", "000")] * 3, HINT, {**HINT, "puzzle_id": PZ["key_on_chest"]},
@@ -399,3 +417,9 @@ def test_no_play_response_carries_a_solution_a_sentinel_or_a_rung_above_the_curr
         current = SessionState.model_validate(body).current_rung if "current_rung" in body else {}
         higher = [text for (puzzle_id, n), text in all_rungs.items() if n > current.get(puzzle_id, 0)]
         assert not any(text.encode() in response.content for text in higher), response.request.url
+    # Every Rung the Guide port saw, for each appended rung_change and each answered Hint request, and nothing else (AD-3).
+    rung_changes = [e for e in stored(tmp_path, session_id) if isinstance(e, RungChangeEvent)]
+    answered = [r.json()["hint_reply"] for r in responses if r.request.method == "POST" and r.json().get("hint_reply")]
+    assert rung_changes and any(reply["rung"] > 0 for reply in answered)
+    assert len(phraser.phrased) == len(rung_changes) + sum(reply["rung"] > 0 for reply in answered)
+    assert_the_phraser_saw_only_whole_rungs(room, phraser)
