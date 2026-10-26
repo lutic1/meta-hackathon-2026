@@ -9,11 +9,14 @@ clock, which never sees `DEMO_TIMESCALE` (AD-10); a terminal job is left as
 it is, so a restart after scene never rewrites anything, and no job state
 lives in a process variable between stages. Each stage after
 ingest is a `StageFn` injected by wiring; what it returns (done-row count,
-model id, call rows, sent-back messages) goes into job state beside the
-timing (AD-16), and the build time is the sum of the finished stages. An
-error raised by a stage ends the job `failed` with that stage and the
-class name in snake_case (`spend_cap_exceeded`, `provider_error`; AD-13);
-the runner itself sets only `queued`, `running`, `done` and `failed`.
+model id, call rows, sent-back messages, the mask preview) goes into job
+state beside the timing (AD-16), and the build time is the sum of the
+finished stages. An error raised by a stage ends the job `failed` with
+that stage and the class name in snake_case (`spend_cap_exceeded`,
+`provider_error`; AD-13); a `StageStop` ends it in the status the stage
+names instead, keeping the stage's record and call rows (segment's
+`TooFewInteractables`); the runner itself sets only `queued`, `running`,
+`done` and `failed`.
 One JSON log line per stage carries `job_id`, `stage`, `duration_ms` and
 `spend_usd` (AR-22).
 """
@@ -35,6 +38,7 @@ from src.domain.schema import (
     JobId,
     JobState,
     JobStatus,
+    MaskPreview,
     SentBack,
     Stage,
     StageRecord,
@@ -70,16 +74,31 @@ def error_detail(exc: BaseException, stage: Stage | None) -> ErrorDetail:
 
 @dataclass(frozen=True)
 class StageResult:
-    """What a finished stage adds to job state beside its timing: its done row, call rows and sent-back messages."""
+    """What a finished stage adds to job state beside its timing: its done row, call rows, sent-back messages and mask preview."""
 
     count: int | None = None
     model: str | None = None
     calls: list[CallRow] = field(default_factory=list)
     sent_back: list[SentBack] = field(default_factory=list)
+    mask_preview: list[MaskPreview] = field(default_factory=list)
 
 
 type StageFn = Callable[[JobState], StageResult]
 """A stage after ingest: given the persisted job state, it reads the artifacts it needs and returns what it adds."""
+
+
+class StageStop(Exception):
+    """A stage's own end to the job (AD-7, AD-13): the status it ends in instead of `failed`, with what the stage did first.
+
+    The job keeps the stage's record and call rows under `status`, with the
+    stop's code and message as its `error`; no later stage runs.
+    """
+
+    status: JobStatus
+
+    def __init__(self, message: str, result: StageResult | None = None) -> None:
+        super().__init__(message)
+        self.result = result or StageResult()
 
 
 class Build:
@@ -131,22 +150,28 @@ class Build:
         return state
 
     def _finish(self, state: JobState, stage: Stage, fn: StageFn) -> JobState:
-        """Run `stage` against the build clock: the state with its record appended, or `failed` at that stage."""
+        """Run `stage` against the build clock: the state with its record appended, stopped by the stage, or `failed` at it."""
         start = self._clock.now_ms()
         try:
             result = fn(state)
+        except StageStop as exc:
+            recorded = self._record(state, stage, exc.result, self._clock.now_ms() - start, code=error_code(exc))
+            return recorded.model_copy(update={"status": exc.status, "stage": stage, "error": error_detail(exc, stage)})
         except Exception as exc:  # noqa: BLE001 - any error a stage raises ends the job failed (AD-13)
             duration_ms = self._clock.now_ms() - start
             self._log(state.id, stage, duration_ms, 0.0, code=error_code(exc))
             return state.model_copy(update={"status": "failed", "stage": stage, "error": error_detail(exc, stage)})
-        duration_ms = self._clock.now_ms() - start
-        spend_usd = sum(row.spend_usd for row in result.calls)
-        self._log(state.id, stage, duration_ms, spend_usd)
+        return self._record(state, stage, result, self._clock.now_ms() - start)
+
+    def _record(self, state: JobState, stage: Stage, result: StageResult, duration_ms: int, *, code: str | None = None) -> JobState:
+        """The state with the stage's record, call rows, sent-back messages and mask preview appended, and its log line written."""
+        self._log(state.id, stage, duration_ms, sum(row.spend_usd for row in result.calls), code=code)
         record = StageRecord(stage=stage, duration_ms=duration_ms, count=result.count, model=result.model)
         return state.model_copy(update={
             "stages": [*state.stages, record],
             "calls": [*state.calls, *result.calls],
             "sent_back": [*state.sent_back, *result.sent_back],
+            "mask_preview": [*state.mask_preview, *result.mask_preview],
             "build_time_ms": (state.build_time_ms or 0) + duration_ms,
         })
 

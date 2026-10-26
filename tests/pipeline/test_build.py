@@ -17,14 +17,14 @@ from src.domain.schema import (
     JobId,
     JobState,
     JobStatus,
+    MaskPreview,
     SentBack,
     Stage,
     StageRecord,
 )
 from src.infra.clocks import BuildClock
-from src.infra.local import DiskArtifactStore
-from src.pipeline.build import STAGES, TERMINAL, Build, StageResult, error_code, new_id
-from src.pipeline.ingest import IngestRefused, Upload, photo_keys, read_photos
+from src.pipeline.build import STAGES, TERMINAL, Build, StageResult, StageStop, error_code, new_id
+from src.pipeline.ingest import IngestRefused, photo_keys, read_photos
 from src.pipeline.ports import ArtifactStore, Clock, JobStore
 from src.providers.base import ProviderError
 from tests.infra.test_clocks import Ticker
@@ -88,31 +88,6 @@ class Doubles:
 
     def stages(self) -> dict[Stage, Callable[[JobState], StageResult]]:
         return {stage: self._stage(stage) for stage in AFTER_INGEST}
-
-
-@pytest.fixture(scope="module")
-def uploads() -> list[Upload]:
-    return make_uploads(6)
-
-
-@pytest.fixture
-def ticker() -> Ticker:
-    return Ticker()
-
-
-@pytest.fixture
-def jobs() -> MemoryJobStore:
-    return MemoryJobStore()
-
-
-@pytest.fixture
-def artifacts(tmp_path) -> DiskArtifactStore:
-    return DiskArtifactStore(tmp_path / "rooms")
-
-
-@pytest.fixture
-def doubles(ticker) -> Doubles:
-    return Doubles(ticker)
 
 
 def _build(jobs, artifacts, ticker, doubles, *, regen_max: int = 2) -> Build:
@@ -379,3 +354,33 @@ def test_the_build_takes_the_job_store_the_clock_and_every_stage_after_ingest(jo
     with pytest.raises(ValueError, match="scene"):
         Build(jobs=jobs, artifacts=artifacts, clock=BuildClock(monotonic_ns=ticker), stages={}, regen_max=2)
     assert jobs.list_ids() == []
+
+
+# --- A stage's own stop, and the mask preview a stage returns ---
+
+
+class Recapture(StageStop):
+    status = "needs_recapture"
+
+
+def test_a_stage_stop_ends_the_job_in_the_stages_status_keeping_its_record_and_calls(jobs, artifacts, ticker, doubles, uploads, caplog):
+    caplog.set_level(logging.INFO, logger="src.pipeline.build")
+    build = _build(jobs, artifacts, ticker, doubles)
+    doubles.raises["validate"] = Recapture("rule 5 failed twice", StageResult(count=3, calls=[ARCHITECT_ROW], sent_back=[SENT_BACK]))
+    ended = build.run(build.submit(uploads).id)
+    assert (ended.status, ended.stage) == ("needs_recapture", "validate")
+    assert ended.error is not None and (ended.error.code, ended.error.message, ended.error.stage) == ("recapture", "rule 5 failed twice", "validate")
+    assert doubles.calls == ["architect", "segment", "author", "validate"]
+    assert ended.stages[-1] == StageRecord(stage="validate", duration_ms=1_000, count=3, model=None)
+    assert ended.calls == [ARCHITECT_ROW] and ended.sent_back == [SENT_BACK] and ended.build_time_ms == 4_000
+    assert jobs.read(ended.id) == ended and build.run(ended.id) == ended and doubles.calls[-1] == "validate"
+    assert _lines(caplog, ended.id)[-1] == {"job_id": ended.id, "stage": "validate", "duration_ms": 1_000, "spend_usd": 0.03, "code": "recapture"}
+
+
+def test_the_mask_preview_a_stage_returns_is_persisted_into_job_state(jobs, artifacts, ticker, doubles, uploads):
+    build = _build(jobs, artifacts, ticker, doubles)
+    preview = [MaskPreview(id="ix_01ARZ3NDEKTSV4RRFFQ69G5FAV", label="lamp", photo=0, polygons=[[(0, 0), (1, 0), (1, 1)]])]
+    doubles.results["segment"] = StageResult(count=1, model="sam-3.1", mask_preview=preview)
+    done = build.run(build.submit(uploads).id)
+    assert done.mask_preview == preview and doubles.seen["author"].mask_preview == preview
+    assert doubles.seen["segment"].mask_preview == [] and jobs.read(done.id).mask_preview == preview
