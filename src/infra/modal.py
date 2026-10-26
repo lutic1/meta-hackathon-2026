@@ -68,16 +68,20 @@ finds them all (AD-8).
 Retention (AD-8, AD-9) is two hosted-only functions that Local mode never
 calls. `delete_judge_room(handles, room_id, today=...)` deletes a Judge
 room together: its Sessions (`SessionStore.list_ids` and `read_all`, then
-`delete`), every Cache entry its `cache-keys.json` lists, its folder under
-`rooms/judge/` (Room, final record, photos and originals), committing the
-Volume, and its job keys in `keyframe-jobs`, and only then writes the
-ids-only `DeletionRecord` to `rooms/deleted/<room_id>.json`. It refuses a
-Demo room id, deleting nothing. Every step skips what an earlier, failed
-attempt already removed, and none removes what a later one reads, so an
-error part-way raises before any record is written and a rerun completes
-the deletion. A Session belongs to a Room when one of its events names one
-of the Room's interactables or puzzles; a Session holding only its opening
-line and idle ticks names none and is left to the sweep.
+`delete`), every Cache entry its `cache-keys.json` lists, and its folder
+under `rooms/judge/` (Room, photos, originals), committing the Volume; only
+then does it write the ids-only `DeletionRecord` to
+`rooms/deleted/<room_id>.json`, and after it remove the folder's final
+record and pop the job keys in `keyframe-jobs`. It refuses a Demo room id,
+and a Room whose job may still be running, deleting nothing. Every step
+skips what an earlier, failed attempt already removed, and whatever names
+the job (the final record, the Dict entry, or the deletion record) outlives
+the step that needs it, so an error before the record raises with none
+written, and a rerun after any error completes the deletion. A Session
+belongs to a Room when one of its events names one of the Room's
+interactables or puzzles; a Session holding only its opening line, idle
+ticks and hints with no puzzle names none and is left to the sweep, which
+takes it within `SESSION_TTL_MS` of its last event.
 `sweep_sessions(handles, now=...)` deletes every Session whose last event
 is more than `SESSION_TTL_MS` old, the last event's wall time being the
 Session's `sess_` ULID mint time plus that event's `t_ms` (unscaled
@@ -268,6 +272,13 @@ class VolumeFiles:
                 else:
                     path.unlink(missing_ok=True)
             self.volume.commit()
+
+    def names(self, rel: str) -> list[str]:
+        """Reload, then the sorted names of the entries in the folder at `rel`; none when it is absent."""
+        path = self._path(rel)
+        with VOLUME_LOCK:
+            self.volume.reload()
+            return sorted(child.name for child in path.iterdir()) if path.is_dir() else []
 
     def read_glob(self, *patterns: str) -> list[bytes]:
         """Reload once, then read every file matching each pattern under the root fully, in path order per pattern, before the lock is released."""
@@ -689,19 +700,21 @@ def deletion_record_path(room_id: str) -> str:
 
 
 def delete_judge_room(handles: ModalHandles, room_id: str, *, today: date) -> DeletionRecord:
-    """Delete a Judge room with its Sessions, listed Cache entries and job keys, commit, then write and return its ids-only record (AD-8, AD-9).
+    """Delete a Judge room with its Sessions, listed Cache entries and job keys, commit, and return its ids-only record (AD-8, AD-9).
 
-    A Demo room id is refused with `ValueError` before anything is deleted.
-    An id that names no Judge folder and no job returns its record again,
-    rewritten and committed, when one exists, and raises `KeyError` when
-    none does. Each
-    step skips what an earlier attempt already removed, and each runs while
-    what the later ones read is still there: the Sessions and Cache entries
-    go while the Room and `cache-keys.json` remain, the folder while the
-    job keys still name the Room, and the record is written last. So a
-    failure part-way raises with no record written, and a rerun deletes
-    what is left. Cache entries not listed in `cache-keys.json`, every Demo
-    room's included, are never touched.
+    A Demo room id is refused with `ValueError` before anything is deleted,
+    and so is a Room whose job is `queued` or `running` and younger than
+    `DEADLINE_S`, since its runner may still write. The Sessions and Cache
+    entries go while the Room and `cache-keys.json` remain, then everything
+    in the folder but its final record, which still names the job when the
+    Dict entry has expired. Only then is the record written, before the
+    final record and the job keys go, so a failure before it raises with no
+    record written, and one after it leaves the record naming the job. Each
+    step skips what an earlier attempt already removed, so a rerun deletes
+    what is left: an id that names no Judge folder and no job pops the job
+    keys its record names and returns that record, rewritten and committed,
+    and raises `KeyError` when it has none. Cache entries not listed in
+    `cache-keys.json`, every Demo room's included, are never touched.
     """
     ROOM_ID.validate_python(room_id)
     files = VolumeFiles(handles.volume, handles.root)
@@ -711,30 +724,48 @@ def delete_judge_room(handles: ModalHandles, room_id: str, *, today: date) -> De
     jobs = DictJobStore(handles.jobs, files)
     job_id = jobs.job_of(room_id)
     if job_id is None and not files.exists(folder):
-        return _rewrite_record(files, room_id)
+        return _finish_deleted(handles.jobs, files, room_id)
+    if job_id is not None:
+        state = jobs.stored(job_id)
+        if state.status in IN_FLIGHT and wall_ms() - minted_ms(job_id) <= DEADLINE_S * 1000:
+            raise ValueError(f"{room_id} has a {state.status} job {job_id}; delete it once the job has ended")
     room = _judge_room(files, folder)
     if room is not None:
         _delete_room_sessions(DictSessionStore(handles.sessions), room)
     files.remove(*(f"{CACHE_DIR}/{key}.json" for key in _listed_cache_keys(files, folder)))
+    files.remove(*(f"{folder}/{name}" for name in files.names(folder) if name != JOB_FILE))
+    record = _stored_record(files, room_id) or DeletionRecord(room_id=room_id, job_id=job_id, deleted_on=today)
+    files.write(deletion_record_path(room_id), record.model_dump_json().encode())
     files.remove(folder)
-    if job_id is not None:
-        for key in (job_id, call_key(job_id)):
-            if key in handles.jobs:
-                handles.jobs.pop(key)
-    record = DeletionRecord(room_id=room_id, job_id=job_id, deleted_on=today)
+    _pop_job_keys(handles.jobs, record.job_id)
+    return record
+
+
+def _stored_record(files: VolumeFiles, room_id: str) -> DeletionRecord | None:
+    """The record a deletion already wrote; `None` when there is none."""
+    try:
+        return DeletionRecord.model_validate_json(files.read(deletion_record_path(room_id)))
+    except KeyError:
+        return None
+
+
+def _finish_deleted(jobs: DictLike, files: VolumeFiles, room_id: str) -> DeletionRecord:
+    """Pop the job keys a deleted room's record names, then write and commit that record again in case its first commit failed; `KeyError` when there is none."""
+    record = _stored_record(files, room_id)
+    if record is None:
+        raise KeyError(room_id)
+    _pop_job_keys(jobs, record.job_id)
     files.write(deletion_record_path(room_id), record.model_dump_json().encode())
     return record
 
 
-def _rewrite_record(files: VolumeFiles, room_id: str) -> DeletionRecord:
-    """The record of a room already deleted, written and committed again in case its first commit failed; `KeyError` when there is none."""
-    path = deletion_record_path(room_id)
-    try:
-        record = DeletionRecord.model_validate_json(files.read(path))
-    except KeyError:
-        raise KeyError(room_id) from None
-    files.write(path, record.model_dump_json().encode())
-    return record
+def _pop_job_keys(jobs: DictLike, job_id: JobId | None) -> None:
+    """Pop the job's state and `call:` keys from `keyframe-jobs`, skipping any already gone; its quota slot stays claimed."""
+    if job_id is None:
+        return
+    for key in (job_id, call_key(job_id)):
+        if key in jobs:
+            jobs.pop(key)
 
 
 def _judge_room(files: VolumeFiles, folder: str) -> Room | None:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 import json
 import secrets
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -31,11 +32,13 @@ from src.infra.local import DiskArtifactStore, DiskCache, JsonJobStore, JsonlLed
 from src.infra.modal import (
     CACHE_DIR,
     CACHE_KEYS_FILE,
+    DEADLINE_S,
     JOB_FILE,
     SESSION_TTL_MS,
     DeletionRecord,
     DictSessionStore,
     ModalHandles,
+    VolumeFiles,
     call_key,
     delete_judge_room,
     hosted_stores,
@@ -59,13 +62,15 @@ ENTRY = {"text": "cached", "model": "muse-spark-1.3", "usage": {}, "raw": None}
 
 
 class FlakyDict(RecordingDict):
-    """A `keyframe-*` Dict whose next `pop` raises once `fail_pops` is set, as a Modal client error would."""
+    """A `keyframe-*` Dict whose next `pop` raises once `fail_pops` is set, or whose `pop` of `fail_key` raises once, as a Modal client error would."""
 
     fail_pops = 0
+    fail_key: str | None = None
 
     def pop(self, key: Any, /) -> Any:
-        if self.fail_pops:
-            self.fail_pops -= 1
+        if self.fail_pops or key == self.fail_key:
+            self.fail_pops = max(self.fail_pops - 1, 0)
+            self.fail_key = None
             raise ConnectionError("the Dict did not answer")
         return super().pop(key)
 
@@ -286,29 +291,73 @@ def test_a_listed_key_that_is_not_a_file_name_stops_the_deletion_before_any_cach
 # --- A deletion that fails part-way raises, writes no record, and a rerun completes it ------
 
 
-FAILURES = {
-    "session delete": lambda h: setattr(h.sessions, "fail_pops", 1),
-    "cache entry commit": lambda h: setattr(h.volume, "fail_at", 1),
-    "folder commit": lambda h: setattr(h.volume, "fail_at", 2),
-    "job key delete": lambda h: setattr(h.jobs, "fail_pops", 1),
-    "record commit": lambda h: setattr(h.volume, "fail_at", 3),
+def fail_record_write(handles: ModalHandles, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The next write of a deletion record raises before anything reaches the disk."""
+    real = VolumeFiles.write
+    pending = [True]
+
+    def write(self: VolumeFiles, rel: str, data: bytes) -> None:
+        if rel.startswith("rooms/deleted/") and pending:
+            pending.clear()
+            raise ConnectionError("the write did not reach the Volume")
+        real(self, rel, data)
+
+    monkeypatch.setattr(VolumeFiles, "write", write)
+
+
+FAILURES: dict[str, tuple[Callable[[Scene, pytest.MonkeyPatch], None], bool]] = {
+    "session delete": (lambda scene, _: setattr(scene.handles.sessions, "fail_pops", 1), False),
+    "cache entry commit": (lambda scene, _: setattr(scene.handles.volume, "fail_at", 1), False),
+    "folder commit": (lambda scene, _: setattr(scene.handles.volume, "fail_at", 2), False),
+    "record write": (lambda scene, mp: fail_record_write(scene.handles, mp), False),
+    "record write with the job entry expired": (lambda scene, mp: (scene.handles.jobs.pop(scene.state.id), fail_record_write(scene.handles, mp)), False),
+    "record commit": (lambda scene, _: setattr(scene.handles.volume, "fail_at", 3), True),
+    "final record commit": (lambda scene, _: setattr(scene.handles.volume, "fail_at", 4), True),
+    "job key delete": (lambda scene, _: setattr(scene.handles.jobs, "fail_pops", 1), True),
+    "call key delete": (lambda scene, _: setattr(scene.handles.jobs, "fail_key", call_key(scene.state.id)), True),
 }
+"""Each failure point, and whether the record is on disk when it raises: it is written once the Room's content is gone, before the job is forgotten."""
 
 
 @pytest.mark.parametrize("failure", list(FAILURES))
-def test_a_deletion_that_fails_part_way_raises_writes_no_record_and_a_rerun_completes_it(handles, ticker, four_lock_room, code_and_find_room, failure):
+def test_a_deletion_that_fails_part_way_raises_and_a_rerun_completes_it_with_the_right_job_id(handles, ticker, four_lock_room, code_and_find_room, monkeypatch, failure):
     scene = Scene(handles, ticker, four_lock_room, code_and_find_room)
-    FAILURES[failure](handles)
+    fail, record_written = FAILURES[failure]
+    fail(scene, monkeypatch)
 
     with pytest.raises(ConnectionError):
         delete_judge_room(handles, scene.room_id, today=NOV_10)
-    if failure != "record commit":  # the record is the last write, so only its own commit fails after it is on disk
-        assert not scene.record_file.exists()
+    assert scene.record_file.exists() == record_written
+    if record_written:  # the Room, photos, originals, Sessions and listed Cache entries went before the record
+        assert not scene.folder.exists() or [path.name for path in scene.folder.iterdir()] == [JOB_FILE]
+        assert DictSessionStore(handles.sessions).list_ids() == [scene.demo_session]
 
-    record = delete_judge_room(handles, scene.room_id, today=NOV_10)
+    record = delete_judge_room(handles, scene.room_id, today=date(2026, 11, 11))
     scene.assert_deleted()
-    assert record == DeletionRecord(room_id=scene.room_id, job_id=scene.state.id, deleted_on=NOV_10)
+    assert record == DeletionRecord(room_id=scene.room_id, job_id=scene.state.id, deleted_on=NOV_10 if record_written else date(2026, 11, 11))
     assert DeletionRecord.model_validate_json(scene.record_file.read_bytes()) == record
+
+
+# --- A Room whose job may still be running is refused -----------------------------------
+
+
+def test_a_room_whose_job_is_still_running_is_refused_and_nothing_is_deleted(handles, ticker, four_lock_room, code_and_find_room):
+    scene = Scene(handles, ticker, four_lock_room, code_and_find_room)
+    handles.jobs[scene.state.id] = scene.state.model_copy(update={"status": "running", "stage": "scene"}).model_dump(mode="json")
+    files_before, sessions_before = _snapshot(handles.root), dict(handles.sessions)
+
+    with pytest.raises(ValueError, match="running job"):
+        delete_judge_room(handles, scene.room_id, today=NOV_10)
+    assert _snapshot(handles.root) == files_before and dict(handles.sessions) == sessions_before
+
+
+def test_a_room_whose_job_is_stuck_running_past_its_deadline_is_deleted(handles, ticker, four_lock_room, code_and_find_room, monkeypatch):
+    scene = Scene(handles, ticker, four_lock_room, code_and_find_room)
+    handles.jobs[scene.state.id] = scene.state.model_copy(update={"status": "running", "stage": "scene"}).model_dump(mode="json")
+    late = minted_ms(scene.state.id) + DEADLINE_S * 1000 + 1
+    monkeypatch.setattr("src.infra.modal.wall_ms", lambda: late)
+    delete_judge_room(handles, scene.room_id, today=NOV_10)
+    scene.assert_deleted()
 
 
 # --- The Session sweep ------------------------------------------------------------------
