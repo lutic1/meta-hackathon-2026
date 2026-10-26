@@ -35,9 +35,9 @@ that includes its own event; the lock and the clock reading at the session's
 start are transient request state, never replayed state. `t_ms` is stamped
 from the session clock at append, so a body carrying one is refused. Each
 appended event is logged as one JSON line with `session_id`, the event type
-and `duration_ms` (AR-22). Every session state served carries the global
-Disclosure lines `src/api/meta.py` composes (AD-15); the per-Room line joins
-in 6.2.
+and `duration_ms` (AR-22). Every session state served, the greeted start
+reply included, carries the global Disclosure lines `src/api/meta.py`
+composes (AD-15); the per-Room line joins in 6.2.
 
 `GET /rooms` lists one `RoomSummary` per stored Room with a job record
 through `ArtifactStore.list_rooms()`, newest build first, with `job_id` read
@@ -78,7 +78,7 @@ from src.api.errors import (
 from src.api.meta import disclosure_lines, meta
 from src.api.wiring import artifact_store, hint_phraser, job_store, session_clock, session_store
 from src.config import Settings
-from src.council.greeting import compose_greeting
+from src.council.greeting import Greeting, compose_greeting
 from src.domain.redact import to_play_view
 from src.domain.rungs import (
     RUNG_SPACING_MS,
@@ -121,6 +121,7 @@ from src.pipeline.ports import (
 )
 from src.providers.base import HintPhraser
 from src.providers.spend import new_ulid
+from src.providers.verbatim import greeting_template
 
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 """The Vite build; `vite.config.ts` proxies `/api/*` to uvicorn in development instead."""
@@ -357,12 +358,20 @@ def session_routes(
         return OpeningLineEvent(type="opening_line", kind="welcome", text=FIRST_ROOM_WELCOME, t_ms=t_ms)
 
     def greet(session_id: SessionId, session: OpenSession, derived: Derived) -> None:
-        """Off the request: one composer call, then its line appended under the session lock as the one opening line."""
-        greeting = compose_greeting(phraser, derived)
+        """Off the request: one composer call, then its line appended under the session lock as the one opening line.
+
+        A composer that raises falls back to the template like any other fallback, so the session never stays pending.
+        """
+        started = clock.now_ms()
+        line: dict[str, object] = {"session_id": session_id, "event": "phraser_fallback"}
+        try:
+            greeting = compose_greeting(phraser, derived)
+        except Exception as exc:
+            elapsed_ms = clock.now_ms() - started
+            greeting = Greeting(text=greeting_template(derived), reason="phraser_fallback", latency_ms=elapsed_ms)
+            line["error"] = f"{type(exc).__name__}: {exc}"
         if greeting.reason == "phraser_fallback":
-            log.warning(
-                json.dumps({"session_id": session_id, "event": "phraser_fallback", "duration_ms": greeting.latency_ms})
-            )
+            log.warning(json.dumps({**line, "duration_ms": greeting.latency_ms}))
         with session.lock:
             append(
                 session_id,
@@ -383,7 +392,7 @@ def session_routes(
         session_id = new_session_id()
         session = open_sessions.open(session_id, machine, clock.now_ms())
         if greeted:
-            state = machine.initial(session_id)
+            state = served(machine.initial(session_id))
             spawn(lambda: greet(session_id, session, derived))
             return state
         with session.lock:

@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.app import FIRST_ROOM_WELCOME, IDLE_TICK_MS
+from src.api.meta import SCRIPTED_LINE, disclosure_lines
 from src.config import Settings
 from src.domain.rungs import ThresholdSource
 from src.domain.schema import Derived, GuideModel, OpeningLineEvent, Room, Thresholds
@@ -116,10 +117,13 @@ def fallback_lines(caplog: pytest.LogCaptureFixture) -> list[dict[str, Any]]:
 
 
 def test_a_returning_start_replies_with_a_pending_greeting_then_appends_the_composed_line_once(
-    client: TestClient, tmp_path: Path, code_and_find_room: Room, ticker: Ticker, spy: SpyPhraser, later: Later
+    tmp_path: Path, code_and_find_room: Room, ticker: Ticker, spy: SpyPhraser, later: Later
 ):
+    settings = Settings(demo_trickster="scripted", guide="verbatim")
+    client = TestClient(make_app(tmp_path, code_and_find_room, settings=settings, clock=ticker, phraser=spy, spawn=later))
     state = begin(client, code_and_find_room)
     assert opening(state) == (GREETING_PENDING, True)
+    assert state["disclosure"] == disclosure_lines(settings) == [SCRIPTED_LINE]
     assert stored(tmp_path, state["id"]) == [] and spy.greeted == []
 
     ticker.advance(1_600)
@@ -127,7 +131,8 @@ def test_a_returning_start_replies_with_a_pending_greeting_then_appends_the_comp
     assert spy.greeted == [RETURNING]  # exactly the Derived block of the start
     log = stored(tmp_path, state["id"])
     assert log == [OpeningLineEvent(type="opening_line", kind="greeting", text=PHRASED, t_ms=1_600)]
-    assert opening(client.get(f"/api/sessions/{state['id']}").json()) == ({"kind": "greeting", "text": PHRASED}, False)
+    reply = client.get(f"/api/sessions/{state['id']}").json()
+    assert opening(reply) == ({"kind": "greeting", "text": PHRASED}, False) and reply["disclosure"] == [SCRIPTED_LINE]
 
 
 def test_polled_every_2000_ms_before_and_after_the_line_the_session_holds_one_opening_line_and_replays_the_same(
@@ -247,6 +252,25 @@ def test_past_5_s_or_unreachable_the_template_is_the_opening_line_and_phraser_fa
     assert stored(tmp_path, state["id"]) == [OpeningLineEvent(type="opening_line", kind="greeting", text=template, t_ms=0)]
     assert opening(client.get(f"/api/sessions/{state['id']}").json()) == ({"kind": "greeting", "text": template}, False)
     assert fallback_lines(caplog) == [{"session_id": state["id"], "event": "phraser_fallback", "duration_ms": ANY}]
+
+
+def test_a_composer_that_raises_falls_back_to_the_template_and_logs_phraser_fallback_once(
+    tmp_path: Path, code_and_find_room: Room, later: Later, caplog: pytest.LogCaptureFixture
+):
+    class Broken(SpyPhraser):
+        def greet(self, derived: Derived) -> PhraserResponse:
+            raise RuntimeError("adapter bug")
+
+    client = TestClient(make_app(tmp_path, code_and_find_room, phraser=Broken(), spawn=later))
+    with caplog.at_level(logging.INFO):
+        session_id = begin(client, code_and_find_room)["id"]
+        later.run()
+    template = greeting_template(RETURNING)
+    assert [(event.type, event.text) for event in stored(tmp_path, session_id)] == [("opening_line", template)]
+    assert opening(client.get(f"/api/sessions/{session_id}").json()) == ({"kind": "greeting", "text": template}, False)
+    assert fallback_lines(caplog) == [
+        {"session_id": session_id, "event": "phraser_fallback", "error": "RuntimeError: adapter bug", "duration_ms": ANY}
+    ]
 
 
 def test_under_guide_verbatim_the_template_lands_and_no_fallback_is_logged(
