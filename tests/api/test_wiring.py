@@ -241,11 +241,12 @@ def test_the_landed_stages_run_on_their_roles_and_a_stage_not_landed_raises_stag
 
     state = build.run(build.submit(make_uploads(6)).id)
 
-    # The unscripted Riddler mock answers with no draft, so author sends it back and the job ends needs_recapture there.
+    # The unscripted Riddler mock answers with no draft, so author sends every attempt back and the job ends
+    # needs_recapture there after regen_max + 1 Riddler calls.
     assert (state.status, state.stage) == ("needs_recapture", "author")
     assert [record.stage for record in state.stages][1:3] == ["architect", "segment"]
     assert [type(call) for call in architect.calls] == [ChatCall] + [SegmentCall] * len(candidates)
-    assert [type(call) for call in providers["riddler"].calls] == [ChatCall]
+    assert [type(call) for call in providers["riddler"].calls] == [ChatCall] * 3
     assert len(state.mask_preview) == len(candidates)
     for stage in ("dryrun", "scene"):
         with pytest.raises(StageNotBuilt):
