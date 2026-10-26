@@ -145,7 +145,7 @@ development_status:
 
   epic-7: in-progress
   7-1-hosted-stores-on-modal-dict-and-volume: done
-  7-2-modal-app-entry-settings-mode-and-the-hosted-texts: backlog
+  7-2-modal-app-entry-settings-mode-and-the-hosted-texts: done
   7-3-first-manual-modal-deploy-as-a-smoke-test: backlog
   7-4-clue-cards-generated-once-per-demo-room: backlog
   7-5-clue-card-read-route: backlog
