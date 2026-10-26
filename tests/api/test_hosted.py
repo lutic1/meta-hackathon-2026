@@ -2,7 +2,7 @@
 
 The hosted route table is the local one without the profile routes;
 `POST /builds` and `GET /builds/<job_id>/room` answer 403 `access_denied`
-until 7.11; a session takes `Derived.fresh()` whatever block it receives
+without the access code (the 7.11 guard wiring injects); a session takes `Derived.fresh()` whatever block it receives
 and shows a Rung as written; no response carries a solution. The handles
 are plain dicts and a temporary Volume directory, so nothing reaches Modal.
 """
@@ -125,10 +125,10 @@ def test_the_api_module_imports_under_mode_hosted_and_builds_no_app_without_the_
     assert result.stdout.startswith("refused: MODE=hosted runs on Modal"), result.stdout + result.stderr
 
 
-# --- The build routes are refused until 7.11 ------------------------------------------------
+# --- The build routes are refused without the access code -----------------------------------
 
 
-def test_post_builds_is_refused_with_403_and_no_photo_is_stored_and_no_job_created(
+def test_post_builds_without_the_code_is_refused_with_403_and_no_photo_is_stored_and_no_job_created(
     tmp_path: Path, handles: ModalHandles, code_and_find_room
 ):
     client = TestClient(make_hosted_app(tmp_path, handles, code_and_find_room))
@@ -140,7 +140,7 @@ def test_post_builds_is_refused_with_403_and_no_photo_is_stored_and_no_job_creat
 
 
 @pytest.mark.parametrize("job_id", [JOB, UNKNOWN_JOB])
-def test_the_full_room_download_is_refused_with_403_and_no_room_leaves(
+def test_the_full_room_download_without_the_code_is_refused_with_403_and_no_room_leaves(
     tmp_path: Path, handles: ModalHandles, four_lock_room, job_id: str
 ):
     room = with_sentinel_solutions(four_lock_room)
