@@ -100,7 +100,9 @@ def test_dev_server_proxies_api_to_uvicorn_without_cors():
 def test_root_page_mounts_an_empty_three_scene_into_a_canvas():
     html = (WEB / "index.html").read_text()
     assert '<div id="app"></div>' in html and 'src="/src/main.ts"' in html
-    assert "mountScene(document.querySelector<HTMLDivElement>('#app')!)" in (WEB / "src/main.ts").read_text()
+    # Story 1.17: the app shell owns #app and mounts the Scene in the Play layout's Scene column.
+    assert "startShell(document.querySelector<HTMLDivElement>('#app')!)" in (WEB / "src/main.ts").read_text()
+    assert "mount: () => mountScene(sceneColumn)" in (WEB / "src/shell.ts").read_text()
     scene = (WEB / "src/scene/index.ts").read_text()
     assert "from 'three'" in scene
     assert "new WebGLRenderer(" in scene and "new Scene()" in scene

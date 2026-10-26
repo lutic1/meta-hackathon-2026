@@ -1,0 +1,44 @@
+/* {components.error-banner} and its {components.warning-banner} variant: full width of the left area,
+   serif heading and one body-md sentence left, secondary actions right, a 4 px edge, no portrait. */
+.banner-slot:empty {
+  display: none;
+}
+.banner {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-5);
+  width: 100%;
+  padding: var(--spacing-4) var(--spacing-5) var(--spacing-4) 20px;
+  border-radius: var(--rounded-md);
+  color: var(--text);
+}
+.banner-error {
+  background: var(--error-surface);
+  border-left: 4px solid var(--error-edge);
+}
+.banner-warning {
+  background: var(--warning-surface);
+  border-left: 4px solid var(--warning-edge);
+}
+.banner-text {
+  min-width: 0;
+}
+.banner-heading {
+  margin: 0;
+}
+.banner-error .banner-heading {
+  color: var(--error-text);
+}
+.banner-warning .banner-heading {
+  color: var(--warning-text);
+}
+.banner-sentence {
+  margin: var(--spacing-1) 0 0;
+}
+.banner-actions {
+  flex: none;
+  display: flex;
+  gap: var(--spacing-2);
+}

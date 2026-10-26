@@ -1,4 +1,4 @@
 import './style.css'
-import { mountScene } from './scene/index.ts'
+import { startShell } from './shell.ts'
 
-mountScene(document.querySelector<HTMLDivElement>('#app')!)
+startShell(document.querySelector<HTMLDivElement>('#app')!)

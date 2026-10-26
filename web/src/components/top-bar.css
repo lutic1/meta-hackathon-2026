@@ -1,0 +1,41 @@
+/* The top bar (UX-DR7): 48 px on chrome; wordmark and mode indicator left, the Timer slot centered,
+   the Play screen's controls right. */
+.top-bar {
+  box-sizing: border-box;
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--spacing-4);
+  height: var(--spacing-top-bar);
+  padding: 0 var(--spacing-frame-margin);
+  background: var(--chrome);
+}
+.top-bar-start {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+.top-bar-wordmark {
+  flex: none;
+  color: var(--text);
+}
+/* {components.mode-indicator}: body-sm in text-muted. */
+.mode-indicator {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+}
+.top-bar-timer {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+}
+.top-bar-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}

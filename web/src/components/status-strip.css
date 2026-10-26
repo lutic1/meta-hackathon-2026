@@ -1,0 +1,10 @@
+/* {components.status-strip}: warning-surface, text, body-sm, 32 px. */
+.status-strip {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: var(--spacing-status-strip);
+  padding: 0 var(--spacing-4);
+  background: var(--warning-surface);
+  color: var(--text);
+}
