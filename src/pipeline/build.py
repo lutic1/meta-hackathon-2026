@@ -9,14 +9,17 @@ clock, which never sees `DEMO_TIMESCALE` (AD-10); a terminal job is left as
 it is, so a restart after scene never rewrites anything, and no job state
 lives in a process variable between stages. Each stage after
 ingest is a `StageFn` injected by wiring; what it returns (done-row count,
-model id, call rows, sent-back messages, the mask preview, the Validator's
-per-rule verdicts) goes into job state beside the timing (AD-16), the
-latest verdicts replacing earlier ones, and the build time is the sum of
-the finished stages. An error raised by a stage ends the job `failed` with
-that stage and the class name in snake_case (`spend_cap_exceeded`,
-`provider_error`; AD-13); a `StageStop` ends it in the status the stage
-names instead, keeping the stage's record and call rows (segment's
-`TooFewInteractables`, a draft's `ValidationError`); the runner itself sets only `queued`, `running`,
+model id, call rows, the mask preview, the Validator's per-rule verdicts)
+goes into job state beside the timing (AD-16), the latest verdicts
+replacing earlier ones, and the build time is the sum of the finished
+stages. An error raised by a stage ends the job `failed` with that stage
+and the class name in snake_case (`spend_cap_exceeded`, `provider_error`;
+AD-13); a `StageStop` ends it in the status the stage names instead,
+keeping the stage's record and call rows (segment's `TooFewInteractables`).
+A `FailedAttempt` (a draft's `ValidationError`, the Dry run's refusal) keeps
+its stage's record and goes to the regeneration loop (`regenerate.py`),
+which records it and either sends the job back to author for another
+attempt or ends it; the runner itself sets only `queued`, `running`,
 `done` and `failed`.
 One JSON log line per stage carries `job_id`, `stage`, `duration_ms` and
 `spend_usd` (AR-22).
@@ -41,12 +44,12 @@ from src.domain.schema import (
     JobStatus,
     MaskPreview,
     RuleVerdict,
-    SentBack,
     Stage,
     StageRecord,
 )
 from src.pipeline.ingest import IngestRefused, Upload, store_upload, validate_upload
 from src.pipeline.ports import ArtifactStore, Clock, JobStore
+from src.pipeline.regenerate import FailedAttempt, rewriting, send_back
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +79,11 @@ def error_detail(exc: BaseException, stage: Stage | None) -> ErrorDetail:
 
 @dataclass(frozen=True)
 class StageResult:
-    """What a finished stage adds to job state beside its timing: its done row, call rows, sent-back messages, mask preview and verdicts."""
+    """What a finished stage adds to job state beside its timing: its done row, call rows, mask preview and verdicts."""
 
     count: int | None = None
     model: str | None = None
     calls: list[CallRow] = field(default_factory=list)
-    sent_back: list[SentBack] = field(default_factory=list)
     mask_preview: list[MaskPreview] = field(default_factory=list)
     validator: list[RuleVerdict] = field(default_factory=list)
     """The Validator's per-rule verdicts on this attempt's draft; empty from every other stage."""
@@ -137,14 +139,18 @@ class Build:
         return self._put(state.model_copy(update={"status": "queued", "stage": None}))
 
     def run(self, job_id: JobId) -> JobState:
-        """Run every stage after the last persisted one, in order, rereading the job from the store before each; a terminal job is left as it is."""
+        """Run every stage after the last persisted one, in order, rereading the job from the store before each; a terminal job is left as it is.
+
+        After a failed attempt the regeneration loop has advanced the count,
+        and the next stage is author again.
+        """
         while (state := self._jobs.read(job_id)).status not in TERMINAL:
             if not state.stages:
                 raise ValueError(f"{job_id} holds no ingest record to resume from")
             finished = STAGES.index(state.stages[-1].stage) + 1
             if finished == len(STAGES):
                 return self._put(state.model_copy(update={"status": "done", "stage": None}))
-            stage = STAGES[finished]
+            stage = "author" if rewriting(state) else STAGES[finished]
             state = self._put(state.model_copy(update={"status": "running", "stage": stage}))
             self._put(self._finish(state, stage, self._stages[stage]))
         return state
@@ -154,10 +160,13 @@ class Build:
         return state
 
     def _finish(self, state: JobState, stage: Stage, fn: StageFn) -> JobState:
-        """Run `stage` against the build clock: the state with its record appended, stopped by the stage, or `failed` at it."""
+        """Run `stage` against the build clock: the state with its record appended, sent back, stopped by the stage, or `failed` at it."""
         start = self._clock.now_ms()
         try:
             result = fn(state)
+        except FailedAttempt as exc:
+            recorded = self._record(state, stage, exc.result, self._clock.now_ms() - start, code=error_code(exc))
+            return send_back(recorded, exc, error_detail(exc, stage), self._artifacts)
         except StageStop as exc:
             recorded = self._record(state, stage, exc.result, self._clock.now_ms() - start, code=error_code(exc))
             return recorded.model_copy(update={"status": exc.status, "stage": stage, "error": error_detail(exc, stage)})
@@ -168,13 +177,12 @@ class Build:
         return self._record(state, stage, result, self._clock.now_ms() - start)
 
     def _record(self, state: JobState, stage: Stage, result: StageResult, duration_ms: int, *, code: str | None = None) -> JobState:
-        """The state with the stage's record, call rows, sent-back messages and mask preview appended, verdicts replaced, and its log line written."""
+        """The state with the stage's record, call rows and mask preview appended, verdicts replaced, and its log line written."""
         self._log(state.id, stage, duration_ms, sum(row.spend_usd for row in result.calls), code=code)
         record = StageRecord(stage=stage, duration_ms=duration_ms, count=result.count, model=result.model)
         return state.model_copy(update={
             "stages": [*state.stages, record],
             "calls": [*state.calls, *result.calls],
-            "sent_back": [*state.sent_back, *result.sent_back],
             "mask_preview": [*state.mask_preview, *result.mask_preview],
             "validator": result.validator or state.validator,
             "build_time_ms": (state.build_time_ms or 0) + duration_ms,

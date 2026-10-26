@@ -1,8 +1,10 @@
 """The author and validate stages (AD-7, AD-12, AD-16, AD-18): one Riddler call, its draft mapped, then the Validator.
 
 `run_author` builds the 2.19 prompt over the stored Interactables alone (a
-`RoomView` with no Puzzle, AD-3) and makes one `chat` call through the
-`riddler` role's port at reasoning `medium`, with `attempt` set to the
+`RoomView` with no Puzzle, AD-3), the regeneration variant over the last
+failed attempt's reasons after the first attempt (`regenerate.py`), and
+makes one `chat` call through the `riddler` role's port at reasoning
+`medium`, with `attempt` set to the
 job's Regeneration count, so the AD-6 cache never serves an earlier
 attempt's answer, and the job id and `author` stage tagging its ledger entry,
 so provenance sums its spend. It records one call row from the call's
@@ -21,19 +23,17 @@ than 6 Puzzles never passes. It writes no `room` artifact either way: the
 scene stage writes it, once (AD-12).
 
 A failed attempt raises `ValidationError` with its fixed messages, which
-quote no solution token or answer, and the Validator's structured reasons,
-recorded in job state as one `SentBack` list. It is the regeneration loop's
-to catch (2.21); a `ValidationError` that reaches the runner ends the job
-`needs_recapture`, so a draft never ends a Build `failed`. The Riddler's
-45 s budget (`budgets.md`) is measured by the runner's stage timing, never
-enforced.
+quote no solution token or answer, and the Validator's structured reasons.
+The regeneration loop records it as one `SentBack` list and either has the
+Riddler write another attempt or ends the job, so a draft never ends a
+Build `failed`. The Riddler's 45 s budget (`budgets.md`) is measured by the
+runner's stage timing, never enforced.
 """
 
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Collection, Iterable, Sequence
-from dataclasses import replace
+from collections.abc import Collection, Iterable
 from datetime import UTC, datetime
 
 import pydantic
@@ -48,7 +48,6 @@ from src.domain.schema import (
     Interactable,
     InteractableView,
     JobState,
-    JobStatus,
     Model,
     OrderSolution,
     Provenance,
@@ -60,16 +59,15 @@ from src.domain.schema import (
     RoomId,
     RoomView,
     RuleVerdict,
-    SentBack,
     Stage,
     UseOnSolution,
-    ValidatorReason,
     ValidatorResult,
 )
 from src.domain.validator import RULES, validate
-from src.pipeline.build import StageFn, StageResult, StageStop, new_id
+from src.pipeline.build import StageFn, StageResult, new_id
 from src.pipeline.ingest import read_photos
 from src.pipeline.ports import ArtifactStore, LedgerStore
+from src.pipeline.regenerate import FailedAttempt, riddler_prompt
 from src.pipeline.segment import read_interactables
 from src.providers.base import ChatResponse, ModelProvider
 
@@ -96,20 +94,14 @@ class DraftRefused(Exception):
     """A Riddler reply that fails the response schema or the exact-id match; the message is a fixed reason (A-24)."""
 
 
-class ValidationError(StageStop):
-    """A failed attempt (AD-13): its fixed messages and the Validator's reasons, for the regeneration loop.
+class ValidationError(FailedAttempt):
+    """A draft the author stage could not read (A-24) or the Validator refused (AD-13), for the regeneration loop.
 
-    It never ends a Build `failed`: uncaught by the loop, it ends the job
-    `needs_recapture` with the stage's record, call rows, verdicts and
-    sent-back messages kept.
+    It never ends a Build `failed`: the stage's record, call rows and
+    verdicts are kept, and the loop decides what follows.
     """
 
-    status: JobStatus = "needs_recapture"
-
-    def __init__(self, messages: Sequence[str], result: StageResult, reasons: Sequence[ValidatorReason] = ()) -> None:
-        super().__init__("The draft was sent back: " + " ".join(messages), result)
-        self.messages = list(messages)
-        self.reasons = list(reasons)
+    gate = "validate"
 
 
 def draft_key(room_id: RoomId) -> str:
@@ -244,12 +236,6 @@ def _room_id(state: JobState) -> RoomId:
     return state.room_id
 
 
-def _sent_back(state: JobState, messages: Sequence[str], result: StageResult, reasons: Sequence[ValidatorReason] = ()) -> ValidationError:
-    """The failed attempt: its fixed messages recorded as one `SentBack` list under the current Regeneration count."""
-    record = SentBack(attempt=state.regeneration_count, stage="validate", messages=list(messages))
-    return ValidationError(messages, replace(result, sent_back=[record]), reasons)
-
-
 def _call_row(reply: ChatResponse, provider: ModelProvider) -> CallRow:
     """The `riddler` call row from the call's receipt; the mock has none, so its row is unbilled on the mock host."""
     receipt = reply.receipt
@@ -269,7 +255,7 @@ def run_author(state: JobState, *, provider: ModelProvider, artifacts: ArtifactS
     """One Riddler `chat` call at attempt = the Regeneration count; the `RoomDraft` and the mapped Puzzles persisted, one call row."""
     room_id = _room_id(state)
     interactables = read_interactables(room_id, artifacts)
-    prompt = build_author_prompt(prompt_view(room_id, interactables))
+    prompt = riddler_prompt(state, prompt_view(room_id, interactables), artifacts)
     reply = provider.chat(
         prompt.messages(),
         response_schema=prompt.response_schema,
@@ -284,7 +270,7 @@ def run_author(state: JobState, *, provider: ModelProvider, artifacts: ArtifactS
         artifacts.put(draft_key(room_id), draft.model_dump_json().encode())
         puzzles = map_draft(draft, {ix.id for ix in interactables})
     except DraftRefused as exc:
-        raise _sent_back(state, [str(exc)], StageResult(model=reply.model, calls=[row])) from None
+        raise ValidationError([str(exc)], StageResult(model=reply.model, calls=[row])) from None
     artifacts.put(puzzles_key(room_id), PUZZLES.dump_json(puzzles))
     return StageResult(count=len(puzzles), model=reply.model, calls=[row])
 
@@ -308,7 +294,7 @@ def run_validate(state: JobState, *, artifacts: ArtifactStore, ledger: LedgerSto
     if len(puzzles) not in PUZZLE_COUNT:
         messages.insert(0, COUNT_MESSAGE)
     if messages:
-        raise _sent_back(state, messages, stage_result, result.reasons)
+        raise ValidationError(messages, stage_result, result.reasons)
     return stage_result
 
 

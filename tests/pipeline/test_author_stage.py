@@ -36,6 +36,7 @@ from src.pipeline.author import (
 )
 from src.pipeline.build import Build, new_id
 from src.pipeline.ports import room_key
+from src.pipeline.regenerate import REASONS, FailedAttempt, reasons_key
 from src.pipeline.segment import INTERACTABLES, interactables_key
 from src.providers.base import ProviderError
 from src.providers.cache import GuardedCalls
@@ -68,14 +69,18 @@ def riddler(*texts: str) -> MockProvider:
 
 @pytest.fixture
 def build(jobs, artifacts, ticker, doubles, four_lock_room):
-    """A Build whose segment double stores the four-lock room's Interactables, then the real author and validate stages."""
+    """A Build whose segment double stores the four-lock room's Interactables, then the real author and validate stages.
+
+    It allows one attempt by default (`REGEN_MAX=0`), so the regeneration loop
+    ends the job at the first refusal; the loop itself is tested in `test_regenerate.py`.
+    """
     doubles.hooks["segment"] = lambda state: store_interactables(artifacts, state, four_lock_room)
 
-    def make(provider: MockProvider, ledger: MemoryLedgerStore | None = None) -> Build:
+    def make(provider: MockProvider, ledger: MemoryLedgerStore | None = None, *, regen_max: int = 0) -> Build:
         stages = doubles.stages()
         stages["author"] = author_stage(provider, artifacts)
         stages["validate"] = validate_stage(artifacts, ledger or MemoryLedgerStore())
-        return Build(jobs=jobs, artifacts=artifacts, clock=BuildClock(monotonic_ns=ticker), stages=stages, regen_max=2)
+        return Build(jobs=jobs, artifacts=artifacts, clock=BuildClock(monotonic_ns=ticker), stages=stages, regen_max=regen_max)
 
     return make
 
@@ -117,6 +122,7 @@ def test_one_riddler_chat_call_over_the_2_19_prompt_persists_the_room_draft_and_
 
 def test_the_call_carries_the_regeneration_count_as_attempt(seeded, artifacts):
     provider = riddler(reply())
+    artifacts.put(reasons_key(seeded.room_id), REASONS.dump_json([]))
     run_author(seeded.model_copy(update={"regeneration_count": 2}), provider=provider, artifacts=artifacts)
     assert provider.calls[0].attempt == 2
 
@@ -252,8 +258,8 @@ def test_output_failing_the_response_schema_is_a_failed_attempt_with_the_shape_r
 def test_the_failed_attempt_is_raised_for_the_regeneration_loop_with_its_messages(seeded, artifacts):
     with pytest.raises(ValidationError) as caught:
         run_author(seeded, provider=riddler("not json"), artifacts=artifacts)
-    assert caught.value.messages == [SHAPE_MESSAGE] and caught.value.status == "needs_recapture"
-    assert len(caught.value.result.calls) == 1 and caught.value.result.sent_back[0].stage == "validate"
+    assert caught.value.messages == [SHAPE_MESSAGE] and isinstance(caught.value, FailedAttempt)
+    assert len(caught.value.result.calls) == 1 and caught.value.gate == "validate"
 
 
 # --- validate on every draft ------------------------------------------------------
