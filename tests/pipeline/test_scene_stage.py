@@ -5,7 +5,7 @@ from collections.abc import Callable
 import pytest
 
 from src.domain.schema import CallRow, DryRunVerdict, JobState, JobStatus, Room
-from src.domain.validator import RULES
+from src.domain.validator import BUILD_RULES
 from src.infra.clocks import BuildClock
 from src.infra.local import DiskArtifactStore
 from src.pipeline.author import author_stage, read_puzzles, validate_stage
@@ -146,7 +146,7 @@ def test_the_final_job_record_holds_timings_calls_verdicts_count_scenes_and_buil
     assert [stage.stage for stage in record.stages] == list(STAGES)
     assert record.build_time_ms == sum(stage.duration_ms for stage in record.stages)
     assert [row.role for row in record.calls] == ["riddler", "dryrun"]
-    assert [(v.rule, v.passed) for v in record.validator] == [(n, True) for n in RULES]
+    assert [(v.rule, v.passed) for v in record.validator] == [(n, True) for n in BUILD_RULES]
     puzzle_ids = [puzzle.id for puzzle in stored_room(artifacts, done).puzzles]
     assert record.dry_run == [DryRunVerdict(puzzle_id=pid, verdict="pass") for pid in puzzle_ids]
     assert record.regeneration_count == 0
