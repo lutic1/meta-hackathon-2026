@@ -86,6 +86,21 @@ def test_ratified_scaffold_has_no_violation():
     assert violations(REPO / "src") == []
 
 
+def greet_callers(src_root: Path) -> list[str]:
+    """Every module under `src_root` that calls `greet` on anything (AD-3: the Greeting composer alone may)."""
+    out: list[str] = []
+    for path in sorted(src_root.rglob("*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        calls = (node.func for node in ast.walk(tree) if isinstance(node, ast.Call))
+        if any(isinstance(func, ast.Attribute) and func.attr == "greet" for func in calls):
+            out.append(_module_name(path, src_root))
+    return out
+
+
+def test_the_greeting_composer_is_the_only_module_that_calls_greet():
+    assert greet_callers(REPO / "src") == ["src.council.greeting"]
+
+
 def test_schema_imports_only_stdlib_and_pydantic():
     src = REPO / "src"
     path = src / "domain" / "schema.py"
@@ -190,6 +205,15 @@ def test_ledger_imports_only_stdlib_and_pydantic_and_no_clock():
     assert all(_in(name, "src.domain") for name in names if name.startswith("src.")), names
     assert not tops & {"datetime", "time", "zoneinfo", "calendar"}, tops
     assert "src.domain.clock" not in names
+
+
+def test_a_second_greet_caller_is_named(tmp_path):
+    src = _tree(tmp_path, {
+        "council/greeting.py": "def compose(phraser, derived):\n    return phraser.greet(derived)\n",
+        "api/app.py": "def start(phraser, derived):\n    return phraser.greet(derived)\n",
+        "providers/verbatim.py": "class VerbatimPhraser:\n    def greet(self, derived):\n        return derived\n",
+    })
+    assert greet_callers(src) == ["src.api.app", "src.council.greeting"]
 
 
 def test_pipeline_importing_the_mock_is_named(tmp_path):
