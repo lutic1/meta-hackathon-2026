@@ -173,6 +173,7 @@ def _open_responses(client: TestClient, room: Room, job_id: str) -> list[Respons
         client.post(f"/api/sessions/{session_id}/events", json=click),
         client.get(f"/api/sessions/{session_id}/result"),
         client.get(f"/api/builds/{job_id}"),
+        client.get(f"/api/builds/{job_id}/view"),
         client.get("/api/schema"),
         client.get("/api/meta"),
     ]

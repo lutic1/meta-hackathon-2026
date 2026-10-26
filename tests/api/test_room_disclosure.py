@@ -167,7 +167,7 @@ def test_without_a_room_the_function_composes_only_the_global_lines(demo_room: R
         assert not any(line.startswith("This room was built earlier") for line in disclosure_lines(settings(**env), None, job(demo_room, call(1, cached=True)), earlier_session=True))
 
 
-# --- BuildView (2.27 not shipped) ------------------------------------------------
+# --- BuildView: the same function fills its Disclosure list ---------------------
 
 
 def routes(app: FastAPI) -> dict[str, list[str]]:
@@ -185,12 +185,18 @@ def _callers(name: str) -> set[str]:
     return out
 
 
-def test_until_the_build_view_ships_no_build_view_route_exists_and_the_function_has_no_build_view_caller(tmp_path: Path, built_room: Room):
-    """2.27 and 2.28 replace this with `BuildView.disclosure` equal to the list `disclosure_lines` composes for the Room."""
-    app = app_over(tmp_path, built_room, None, {})
-    assert "/api/builds/{job_id}/view" not in routes(app)
+@pytest.mark.parametrize("env", [{}, DEMO_ENV, {"DEMO_TRICKSTER": "authored"}])
+def test_the_build_views_disclosure_is_the_list_the_function_composes_for_the_room(
+    tmp_path: Path, built_room: Room, demo_room: Room, env: dict[str, str]
+):
+    for room, cached in ((built_room, False), (built_room, True), (demo_room, False)):
+        job_state = job(room, call(1, cached=cached))
+        client = TestClient(app_over(tmp_path / f"{room.name}-{cached}", room, job_state, env))
+        view = client.get(f"/api/builds/{JOB}/view")
+        assert view.status_code == 200, view.text
+        assert view.json()["disclosure"] == disclosure_lines(settings(**env), room, job_state)
     assert _callers("disclosure_lines") == {"api/meta.py", "api/app.py"}
-    assert _callers("to_build_view") == set()
+    assert _callers("to_build_view") == {"api/app.py"}
 
 
 # --- No Room content in any line, no sentinel in any response -----------------------
@@ -303,5 +309,6 @@ def test_no_route_or_settings_flag_injects_play_or_build_output(tmp_path: Path, 
         "/api/rooms/{room_id}/photos/{index}": ["get"], "/api/profile/{name}": ["get", "put"], "/api/sessions": ["post"],
         "/api/sessions/{session_id}": ["get"], "/api/sessions/{session_id}/events": ["post"], "/api/sessions/{session_id}/result": ["get"],
         "/api/builds": ["post"], "/api/builds/{job_id}": ["get"], "/api/builds/{job_id}/room": ["get"],
+        "/api/builds/{job_id}/view": ["get"],
     }
     assert [name for name in Settings.model_fields if "demo" in name] == ["demo_timescale", "demo_trickster"]

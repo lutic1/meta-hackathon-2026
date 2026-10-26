@@ -12,8 +12,9 @@ timescale line, the Trickster-source line and, in Hosted mode, the hosted
 line); with one, that Room's list, the global lines plus the earlier-builds
 line for a Demo room (one with a `name`), a Room with an earlier session, or
 a Build whose job call rows hold any call served from the Cache. The session state
-carries the Room's list, and `BuildView` reads the same function when its
-projection lands (2.27). No other module writes a Disclosure line.
+carries the Room's list, and `GET /builds/<job_id>/view` fills
+`BuildView.disclosure` from the same function over the Room and its job
+record. No other module writes a Disclosure line.
 
 `retention` is the Retention summary for the running mode (`RETENTION`):
 the shared opening, then the Local ending or the Hosted ending. The Hosted
