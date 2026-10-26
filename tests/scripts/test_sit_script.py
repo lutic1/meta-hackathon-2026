@@ -22,7 +22,7 @@ SCRIPT = REPO / "scripts/sit.py"
 CASES = REPO / "tests/sit"
 SHIPPED_CASES = [
     "test_00_cap_refusal", "test_01_cache_hit", "test_02_architect", "test_03_segment", "test_04_image", "test_05_fallback_chat",
-    "test_06_ollama_guide",
+    "test_06_ollama_guide", "test_07_riddler",
 ]
 CHAT = load("muse-spark-1.3/chat-three-objects")
 MESSAGES = [ChatMessage(role="user", content="Say ok.")]
@@ -305,6 +305,8 @@ class Vendors:
         if request.url.path.endswith("/images/generations"):
             return httpx.Response(200, json=load("muse-image-1.0/portrait-riddler").body)
         body = json.loads(request.content)
+        if (body.get("response_format") or {}).get("json_schema", {}).get("name") == "RiddlerResponse":
+            return httpx.Response(200, json=load("muse-spark-1.3/chat-riddler-author").body)
         text = json.dumps(ARCHITECT_REPLY) if body.get("response_format") else "ok"
         reply = {**CHAT.body, "choices": [{**CHAT.body["choices"][0], "message": {"role": "assistant", "content": text}}]}
         return httpx.Response(200, json=reply)
@@ -332,6 +334,7 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
         "llama3.2-3b/generate-phrase-longest.json",
         "muse-image-1.0/image-sit-clue-card.json",
         "muse-spark-1.3/chat-architect-two-photos.json",
+        "muse-spark-1.3/chat-riddler-author.json",
         "muse-spark-1.3/chat-sit-ok.json",
         "muse-spark-open/chat-riddler-author.json",
         "sam-3.1/segment-absent-label.json",
@@ -345,9 +348,10 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
         "inference.baseten.co/v1/chat/completions",
         "127.0.0.1/api/generate", "127.0.0.1/api/generate",  # phrase, greet
         "127.0.0.1/api/generate",  # the unreachable leg, refused
+        "api.meta.ai/v1/chat/completions",  # the Riddler
     ]
     kinds = [(e.kind, e.status) for e in sit_script.JsonlLedgerStore(tmp_path / LEDGER_PATH).entries()]
-    assert kinds == [(k, s) for k in ("vision", "vision", "sam", "sam", "image", "riddler") for s in ("reserved", "settled")]
+    assert kinds == [(k, s) for k in ("vision", "vision", "sam", "sam", "image", "riddler", "riddler") for s in ("reserved", "settled")]
     for name in ("chat-architect-two-photos", "chat-sit-ok"):
         assert Fixture.model_validate_json((tmp_path / f"tests/fixtures/providers/muse-spark-1.3/{name}.json").read_bytes()).status == 200
     assert "PASS test_00_cap_refusal: " in out.out and "refused at cap 0.0000 USD, no entry, no request" in out.out
@@ -355,14 +359,16 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     assert "billed 0.01 USD, recorded" in out.out
     assert "meta-models/muse-spark-open: 4 puzzles" in out.out
     assert "PASS test_06_ollama_guide: " in out.out and "21 tokens out in" in out.out and "decode 20 tok/s" in out.out
+    assert "PASS test_07_riddler: " in out.out and "5 puzzles in" in out.out and "rules 8 of 8 passed; 3174 out" in out.out
 
     # A second run on the same day: the image and the cache-hit calls are served from the cache, the rest run again.
     assert sit_script.main([], root=tmp_path, cases_root=CASES, transport=transport) == 0
     again = capsys.readouterr().out
     assert "served from the cache" in again and "first call already cached" in again
-    assert vendors.paths[9:] == [
+    assert vendors.paths[10:] == [
         "api.meta.ai/v1/chat/completions",
         "api.meta.ai/v1/responses", "api.meta.ai/v1/responses",
         "inference.baseten.co/v1/chat/completions",
         "127.0.0.1/api/generate", "127.0.0.1/api/generate", "127.0.0.1/api/generate",
+        "api.meta.ai/v1/chat/completions",
     ]

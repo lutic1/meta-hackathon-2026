@@ -9,13 +9,14 @@ clock, which never sees `DEMO_TIMESCALE` (AD-10); a terminal job is left as
 it is, so a restart after scene never rewrites anything, and no job state
 lives in a process variable between stages. Each stage after
 ingest is a `StageFn` injected by wiring; what it returns (done-row count,
-model id, call rows, sent-back messages, the mask preview) goes into job
-state beside the timing (AD-16), and the build time is the sum of the
-finished stages. An error raised by a stage ends the job `failed` with
+model id, call rows, sent-back messages, the mask preview, the Validator's
+per-rule verdicts) goes into job state beside the timing (AD-16), the
+latest verdicts replacing earlier ones, and the build time is the sum of
+the finished stages. An error raised by a stage ends the job `failed` with
 that stage and the class name in snake_case (`spend_cap_exceeded`,
 `provider_error`; AD-13); a `StageStop` ends it in the status the stage
 names instead, keeping the stage's record and call rows (segment's
-`TooFewInteractables`); the runner itself sets only `queued`, `running`,
+`TooFewInteractables`, a draft's `ValidationError`); the runner itself sets only `queued`, `running`,
 `done` and `failed`.
 One JSON log line per stage carries `job_id`, `stage`, `duration_ms` and
 `spend_usd` (AR-22).
@@ -39,6 +40,7 @@ from src.domain.schema import (
     JobState,
     JobStatus,
     MaskPreview,
+    RuleVerdict,
     SentBack,
     Stage,
     StageRecord,
@@ -74,13 +76,15 @@ def error_detail(exc: BaseException, stage: Stage | None) -> ErrorDetail:
 
 @dataclass(frozen=True)
 class StageResult:
-    """What a finished stage adds to job state beside its timing: its done row, call rows, sent-back messages and mask preview."""
+    """What a finished stage adds to job state beside its timing: its done row, call rows, sent-back messages, mask preview and verdicts."""
 
     count: int | None = None
     model: str | None = None
     calls: list[CallRow] = field(default_factory=list)
     sent_back: list[SentBack] = field(default_factory=list)
     mask_preview: list[MaskPreview] = field(default_factory=list)
+    validator: list[RuleVerdict] = field(default_factory=list)
+    """The Validator's per-rule verdicts on this attempt's draft; empty from every other stage."""
 
 
 type StageFn = Callable[[JobState], StageResult]
@@ -164,7 +168,7 @@ class Build:
         return self._record(state, stage, result, self._clock.now_ms() - start)
 
     def _record(self, state: JobState, stage: Stage, result: StageResult, duration_ms: int, *, code: str | None = None) -> JobState:
-        """The state with the stage's record, call rows, sent-back messages and mask preview appended, and its log line written."""
+        """The state with the stage's record, call rows, sent-back messages and mask preview appended, verdicts replaced, and its log line written."""
         self._log(state.id, stage, duration_ms, sum(row.spend_usd for row in result.calls), code=code)
         record = StageRecord(stage=stage, duration_ms=duration_ms, count=result.count, model=result.model)
         return state.model_copy(update={
@@ -172,6 +176,7 @@ class Build:
             "calls": [*state.calls, *result.calls],
             "sent_back": [*state.sent_back, *result.sent_back],
             "mask_preview": [*state.mask_preview, *result.mask_preview],
+            "validator": result.validator or state.validator,
             "build_time_ms": (state.build_time_ms or 0) + duration_ms,
         })
 
