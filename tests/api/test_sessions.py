@@ -1,7 +1,8 @@
 """Stories 1.12 and 3.1: the session routes start a play-through, append events under one lock per session, replay the state with idle ticks and compute the result (AD-4, AD-13, AR-22).
 
 Since 1.13 every session start appends the First-room welcome at `t_ms` 0, so each log here opens with one `opening_line`;
-since 5.6 the state also reports the `Derived.fresh()` thresholds these starts carry.
+since 5.6 the state also reports the `Derived.fresh()` thresholds these starts carry;
+4.2 checks that wiring hands the machine the Trickster window divided by `DEMO_TIMESCALE`.
 """
 
 import json
@@ -28,6 +29,7 @@ from src.domain.schema import (
     SessionStart,
     SessionState,
     Thresholds,
+    TricksterCardEvent,
 )
 from src.domain.session import SessionStateMachine
 from tests.api.test_app import ROOM_NOT_FOUND, UNKNOWN, make_app
@@ -507,3 +509,30 @@ def test_the_session_starts_derived_block_sets_the_idle_nudge_threshold(
     state = client.get(f"/api/sessions/{session_id}").json()
     assert [(r.rung, r.t_ms) for r in stored_rungs(stored(tmp_path, session_id))] == [(1, threshold)]
     assert state["current_rung"][PZ["find_key"]] == 1
+
+
+# --- The Trickster window from the session clock (Story 4.2) ---------------------------------
+
+
+def test_at_timescale_6_wiring_opens_a_trickster_window_30_s_after_start_and_after_the_last_card(
+    tmp_path: Path, four_lock_room: Room, ticker: Ticker
+):
+    client = demo_client(tmp_path, four_lock_room, ticker)
+    session_id = start(client, four_lock_room)
+    ticker.advance(29_999)
+    assert post(client, session_id, code("clock_code", "415"))["trickster_window"] == {"state": "closed", "index": None}
+    ticker.advance(1)
+    assert post(client, session_id, click("key"))["trickster_window"] == {"state": "open", "index": 0}  # 180000 / 6
+    skipped = TricksterCardEvent(type="trickster_card", edit_id=None, edit=None, puzzle_id=None, accepted=False,
+                                 reason="provider_unavailable", room_revision=0, t_ms=31_000)
+    session_store(tmp_path / "rooms").append(session_id, skipped)  # the 4.4 route's skipped card, written directly
+    ticker.advance(30_999)
+    state = post(client, session_id, use_on("key", "chest"))
+    assert state["trickster_calls"] == 1 and state["trickster_window"] == {"state": "closed", "index": None}
+    ticker.advance(1)
+    post(client, session_id, order("start", "shelf_order"))
+    for name in ("candle", "lantern", "hourglass"):
+        state = post(client, session_id, click(name))
+    assert PZ["shelf_order"] in state["locks_open"] and state["trickster_window"] == {"state": "open", "index": 1}
+    log = [event for event in stored(tmp_path, session_id) if not isinstance(event, RungChangeEvent)]
+    assert [event.t_ms for event in log] == [0, 29_999, 30_000, 31_000, 60_999, 61_000, 61_001, 61_002, 61_003]

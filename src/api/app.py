@@ -30,7 +30,8 @@ false; the Demo room variant lands with 7.15. A reload replays the one event
 rather than appending another. The session's `Thresholds` are fixed at the
 start from the greeted block, else `Derived.fresh()`: the 1x values from
 `src/domain/rungs.py`, divided by `DEMO_TIMESCALE` on the session clock
-(AD-10). Nothing from the Derived block is written to the log; the block
+(AD-10), and so is the Trickster window the machine opens windows against.
+Nothing from the Derived block is written to the log; the block
 the thresholds came from is kept with the session's transient state, as the
 one input beside the Rung text that the Guide port sees. Every append runs
 under one lock per session id held in this process (`OpenSessions`), so
@@ -465,19 +466,20 @@ def spawn_thread(task: Callable[[], None]) -> None:
     threading.Thread(target=task, name="greeting", daemon=True).start()
 
 
-def session_thresholds(derived: Derived, scale: SessionClock) -> Thresholds:
-    """The session's thresholds: the 1x values `rungs` computes from `derived`, divided by the session clock (AD-10)."""
+def session_thresholds(derived: Derived, scale: SessionClock) -> tuple[Thresholds, Milliseconds]:
+    """The session's thresholds and Trickster window: the 1x values `rungs` computes from `derived`, divided by the session clock (AD-10)."""
     nudge_ms = nudge_threshold_ms(derived)
     scaled = scale.thresholds(
         nudge_threshold_ms=nudge_ms, rung_spacing_ms=RUNG_SPACING_MS, trickster_window_ms=TRICKSTER_WINDOW_MS
     )
-    return Thresholds(
+    thresholds = Thresholds(
         nudge_threshold_ms=scaled.nudge_threshold_ms,
         nudge_threshold_base_ms=nudge_ms,
         rung_spacing_ms=scaled.rung_spacing_ms,
         rung_spacing_base_ms=RUNG_SPACING_MS,
         source=threshold_source(derived),
     )
+    return thresholds, scaled.trickster_window_ms
 
 
 def new_session_id() -> SessionId:
@@ -628,8 +630,9 @@ def session_routes(
         room = load_room(store, body.room_id)
         greeted = greets and is_returning(body.derived)
         derived = body.derived if greeted else Derived.fresh()
+        thresholds, window_ms = session_thresholds(derived, scale)
         machine = SessionStateMachine(
-            room, opening="greeting" if greeted else "welcome", thresholds=session_thresholds(derived, scale)
+            room, opening="greeting" if greeted else "welcome", thresholds=thresholds, trickster_window_ms=window_ms
         )
         disclosure = disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=open_sessions.any_on(room.id))
         session_id = new_session_id()

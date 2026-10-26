@@ -67,9 +67,23 @@ accepted `trickster_card` events before it and the event itself, each read
 from the `TricksterEdit` the card carries (kept in the `history` as
 `Judged.accepted_edit`). So a Merge that hides the Active puzzle moves it in
 the card's own step, and replay equals live. An accepted card raises
-`room_revision` by one; a rejected or skipped card changes nothing here. An
-accepted `loosen` opens its Rung on its Puzzle at once, through the
-`select_rung` Loosen hook, with a `rung_change` triggered by the card.
+`room_revision` by one; a rejected or skipped card leaves the Effective room
+and `room_revision` as they were. An accepted `loosen` opens its Rung on its
+Puzzle at once, through the `select_rung` Loosen hook, with a `rung_change`
+triggered by the card.
+
+Trickster windows (AD-4, AD-10): `apply` opens `trickster_window` on an
+event that opens a lock other than the Exit puzzle's, once the event's
+`t_ms` is at least the window threshold past the previous card (the session
+start for the first window, A-26), and only while fewer than
+`TRICKSTER_CALLS_MAX` cards are in the log. The threshold is the 1x
+`TRICKSTER_WINDOW_MS` unless wiring passes the session clock's scaled one.
+The open window's index is the number of cards before it, counted from 0
+per session. Every `trickster_card` (accepted, rejected or skipped) closes
+the window at its `t_ms`, counts one proposal call and appends its
+`to_card_view` projection to `cards`; so a seventh window never opens and no
+seventh call is made. `game_state_summary` is the Trickster's only input
+about play (FR-18): the open locks, the elapsed time and the Rungs used.
 """
 
 from __future__ import annotations
@@ -77,10 +91,19 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import replace
 from functools import reduce
-from typing import Literal
+from typing import Annotated, Literal
+
+from pydantic import Field
 
 from .edits import accepted_edit, apply_edit
-from .rungs import RUNG_NAMES, Judged, select_rung, unscaled_thresholds
+from .redact import to_card_view
+from .rungs import (
+    RUNG_NAMES,
+    TRICKSTER_WINDOW_MS,
+    Judged,
+    select_rung,
+    unscaled_thresholds,
+)
 from .schema import (
     ClickEvent,
     CodeInput,
@@ -90,6 +113,8 @@ from .schema import (
     LockInput,
     LockInputEvent,
     LoosenPayload,
+    Milliseconds,
+    Model,
     OpeningLine,
     OpeningLineEvent,
     OrderBuffer,
@@ -112,6 +137,22 @@ from .schema import (
     UseOnSolution,
 )
 
+TRICKSTER_CALLS_MAX = 6
+"""At most this many Trickster proposal calls, and so cards, per session; the seventh is refused (FR-18)."""
+
+
+class GameStateSummary(Model):
+    """The Trickster's only input about play (FR-18): no Player profile field, no Derived key, no solution."""
+
+    locks_open: list[PuzzleId]
+    elapsed_ms: Milliseconds
+    rungs_used: Annotated[int, Field(ge=0)]
+
+
+def game_state_summary(state: SessionState, elapsed_ms: Milliseconds) -> GameStateSummary:
+    """The open locks and the Rungs used from `state`, with the session time elapsed that the caller read."""
+    return GameStateSummary(locks_open=list(state.locks_open), elapsed_ms=elapsed_ms, rungs_used=state.rungs_used)
+
 
 def _normalize_code(code: str) -> str:
     """A-20: codes are compared trimmed and case-folded."""
@@ -127,10 +168,12 @@ class SessionStateMachine:
         *,
         opening: Literal["greeting", "welcome"] | None = None,
         thresholds: Thresholds | None = None,
+        trickster_window_ms: Milliseconds = TRICKSTER_WINDOW_MS,
     ) -> None:
         self.room = room
         self.opening = opening
         self.thresholds = thresholds
+        self.trickster_window_ms = trickster_window_ms
         self._rung_thresholds = thresholds or unscaled_thresholds(Derived.fresh())
         self._puzzles = {puzzle.id: puzzle for puzzle in room.puzzles}
         self._effective: dict[tuple[str, ...], SessionStateMachine] = {}
@@ -220,7 +263,9 @@ class SessionStateMachine:
         key = tuple(edit.id for edit in edits)
         if key not in self._effective:
             room = reduce(apply_edit, edits, self.room)
-            self._effective[key] = SessionStateMachine(room, opening=self.opening, thresholds=self.thresholds)
+            self._effective[key] = SessionStateMachine(
+                room, opening=self.opening, thresholds=self.thresholds, trickster_window_ms=self.trickster_window_ms
+            )
         return self._effective[key]
 
     def _step(self, state: SessionState, event: Event, history: Sequence[Judged]) -> tuple[SessionState, Judged]:
@@ -246,8 +291,10 @@ class SessionStateMachine:
                 new.phrasing = False
             case RungChangeEvent():
                 self._record_rung(new, event)
-            case TricksterCardEvent() if edit is not None:
-                new.room_revision += 1
+            case TricksterCardEvent():
+                self._close_window(new, event, edit)
+        if self._opens_window(state, new, event.t_ms):
+            new.trickster_window = TricksterWindow(state="open", index=new.trickster_calls)
         new.active_puzzle_id = self._active(new, target or state.active_puzzle_id)
         if new.order_buffer.puzzle_id is not None and new.order_buffer.puzzle_id != new.active_puzzle_id:
             new.order_buffer = OrderBuffer()
@@ -280,6 +327,27 @@ class SessionStateMachine:
                 judged = replace(judged, rung=(step.puzzle_id, step.rung))
         new.rungs_used = sum(new.current_rung.values())
         return new, judged
+
+    # --- Trickster windows ---------------------------------------------------
+
+    @staticmethod
+    def _close_window(state: SessionState, event: TricksterCardEvent, edit: TricksterEdit | None) -> None:
+        """A card closes the window, counts one proposal call and joins `cards`; an accepted one raises `room_revision`."""
+        state.trickster_window = TricksterWindow(state="closed")
+        state.trickster_calls = min(state.trickster_calls + 1, TRICKSTER_CALLS_MAX)
+        state.cards.append(to_card_view(event))
+        if edit is not None:
+            state.room_revision += 1
+
+    def _opens_window(self, before: SessionState, after: SessionState, t_ms: Milliseconds) -> bool:
+        """A non-exit lock just opened, no window is open, a call is left and the threshold has passed since the last card."""
+        if after.trickster_window.state != "closed" or after.trickster_calls >= TRICKSTER_CALLS_MAX:
+            return False
+        opened = after.locks_open[len(before.locks_open):]
+        if all(self._puzzles[puzzle_id].is_exit for puzzle_id in opened):
+            return False
+        last_closed = after.cards[-1].t_ms if after.cards else 0
+        return t_ms - last_closed >= self.trickster_window_ms
 
     # --- Judging -------------------------------------------------------------
 
