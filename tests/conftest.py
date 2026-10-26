@@ -15,6 +15,8 @@ ROLES = ("ARCHITECT", "RIDDLER", "DRYRUN", "TRICKSTER", "IMAGE")
 # A loopback HTTPS proxy (the cloud containers have one) would carry a request past the socket guard.
 PROXY_KEYS = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
 
+collect_ignore = ["sit"]  # the live-seam cases run only through scripts/sit.py (Story 2.9)
+
 # Runs before any test module imports src.config, so .env cannot reach module-level Settings.
 os.environ["MODEL_PROVIDER"] = "mock"
 os.environ["GUIDE"] = "verbatim"  # the offline suite never resolves a Guide model (AD-5)
