@@ -11,11 +11,44 @@ from __future__ import annotations
 
 import sys
 
+from typing import Any
+
 from src.config import Settings
+from src.domain.ledger import LedgerEntry
 from src.domain.schema import Role
 from src.providers.base import ChatMessage, ModelProvider
+from src.providers.cache import GuardedCalls
 from src.providers.meta_api import MetaModelProvider
 from src.providers.mock import MockProvider
+from src.providers.spend import SpendLedger
+
+ARCHITECT_BUDGET_S = 15.0
+
+
+class MemoryLedgerStore:
+    """One process's ledger, until the local ledger file lands (Story 2.5)."""
+
+    def __init__(self) -> None:
+        self.rows: list[LedgerEntry] = []
+
+    def append(self, entry: LedgerEntry) -> None:
+        self.rows.append(entry)
+
+    def entries(self) -> list[LedgerEntry]:
+        return list(self.rows)
+
+
+class MemoryCache:
+    """One process's model-call cache, until the disk cache lands (Story 2.5)."""
+
+    def __init__(self) -> None:
+        self.rows: dict[str, dict[str, Any]] = {}
+
+    def get(self, key: str) -> dict[str, Any] | None:
+        return self.rows.get(key)
+
+    def put(self, key: str, value: dict[str, Any]) -> None:
+        self.rows[key] = value
 
 
 def get_provider(settings: Settings, role: Role = "architect") -> ModelProvider:
@@ -23,9 +56,13 @@ def get_provider(settings: Settings, role: Role = "architect") -> ModelProvider:
     if settings.model_provider == "mock":
         return MockProvider(role)
     if settings.model_provider == "meta":
+        ledger = SpendLedger(MemoryLedgerStore(), cap_usd=settings.spend_cap_usd)
         return MetaModelProvider(
             api_key=settings.meta_model_api_key,
             base_url=settings.meta_model_api_base_url,
+            calls=GuardedCalls(MemoryCache(), ledger, host="api.meta.ai", enabled=settings.cache == "on"),
+            chat_kind="vision",
+            budget_s=ARCHITECT_BUDGET_S,
         )
     raise ValueError(f"Unknown MODEL_PROVIDER {settings.model_provider!r}. Use 'mock' or 'meta'.")
 

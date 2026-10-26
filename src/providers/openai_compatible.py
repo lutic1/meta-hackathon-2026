@@ -106,8 +106,8 @@ def provider_error(response: httpx.Response) -> ProviderError:
 
 
 def transport_error(exc: httpx.RequestError) -> ProviderError:
-    kind = "timeout" if isinstance(exc, httpx.TimeoutException) else "transport_error"
-    return ProviderError(None, kind, str(exc) or type(exc).__name__)
+    code = "timeout" if isinstance(exc, httpx.TimeoutException) else "transport_error"
+    return ProviderError(None, code, str(exc) or type(exc).__name__)
 
 
 def post_with_retry(

@@ -231,9 +231,9 @@ def test_other_failures_raise_a_provider_error_with_no_retry(failure):
     assert len(h.host.requests) == 1 and h.waits == []
     if isinstance(failure, type):
         assert info.value.status is None
-        assert info.value.kind == ("timeout" if failure is httpx.ReadTimeout else "transport_error")
+        assert info.value.code == ("timeout" if failure is httpx.ReadTimeout else "transport_error")
     else:
-        assert (info.value.status, info.value.kind) == (failure.status_code, failure.json()["error"]["type"])
+        assert (info.value.status, info.value.code) == (failure.status_code, failure.json()["error"]["type"])
     assert [e.status for e in h.store.rows] == ["reserved"] and h.cache.rows == {}
 
 
@@ -263,11 +263,11 @@ def test_an_error_body_without_the_envelope_and_an_empty_404_are_typed():
     h = Harness(httpx.Response(400, json={"error": "bad"}))
     with pytest.raises(ProviderError) as info:
         h.chat()
-    assert info.value.kind == "unparsed"
+    assert info.value.code == "unparsed"
     empty = Harness(httpx.Response(404))
     with pytest.raises(ProviderError) as info:
         empty.chat()
-    assert (info.value.status, info.value.kind) == (404, "no_body")
+    assert (info.value.status, info.value.code) == (404, "no_body")
 
 
 def test_a_reply_cut_off_by_length_or_without_usage_is_a_provider_error():
@@ -276,7 +276,7 @@ def test_a_reply_cut_off_by_length_or_without_usage_is_a_provider_error():
     h = Harness(httpx.Response(200, json=cut))
     with pytest.raises(ProviderError) as info:
         h.chat()
-    assert (info.value.status, info.value.kind) == (200, "length") and len(h.host.requests) == 1
+    assert (info.value.status, info.value.code) == (200, "length") and len(h.host.requests) == 1
     unpriced = Harness(httpx.Response(200, json={k: v for k, v in body.items() if k != "usage"}))
     with pytest.raises(ProviderError, match="no_usage"):
         unpriced.chat()
@@ -422,4 +422,4 @@ def test_live_host_is_blocked_by_the_offline_guard():
     provider = OpenAICompatibleProvider("k", BASE_URL, calls)
     with pytest.raises(ProviderError, match="tests run offline") as info:
         provider.chat(MESSAGES)
-    assert info.value.kind == "transport_error"
+    assert info.value.code == "transport_error"

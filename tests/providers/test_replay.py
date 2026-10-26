@@ -6,8 +6,12 @@ import socket
 import pytest
 
 from src.providers.base import ChatMessage, ChatResponse, ImageResponse
+from src.providers.cache import GuardedCalls
 from src.providers.meta_api import MetaModelProvider
+from src.providers.spend import SpendLedger
 from tests.providers.replay import FIXTURES, Fixture, MissingFixture, load, transport
+from tests.providers.test_cache import MemoryCache
+from tests.providers.test_spend import MemoryLedgerStore
 
 FILES = sorted(path for path in FIXTURES.rglob("*") if path.is_file())
 
@@ -21,7 +25,8 @@ def _refuse_sockets(monkeypatch):
 
 
 def _provider(name: str) -> MetaModelProvider:
-    return MetaModelProvider("test-key", transport=transport(name))
+    calls = GuardedCalls(MemoryCache(), SpendLedger(MemoryLedgerStore(), cap_usd=60.0), host="api.meta.ai")
+    return MetaModelProvider("test-key", calls=calls, chat_kind="vision", budget_s=15.0, transport=transport(name))
 
 
 def test_chat_fixture_replays_into_a_chat_response(monkeypatch):
@@ -53,7 +58,7 @@ def test_missing_fixture_is_named_and_never_reaches_the_network(monkeypatch):
 
 
 def test_a_sample_fixture_exists_per_tier_1_response_type():
-    assert {path.parent.name for path in FILES} >= {"muse-spark-1.3", "muse-image-1.0"}
+    assert {path.parent.name for path in FILES} >= {"muse-spark-1.3", "sam-3.1", "muse-image-1.0"}
 
 
 @pytest.mark.parametrize("path", FILES, ids=[str(path.relative_to(FIXTURES)) for path in FILES])

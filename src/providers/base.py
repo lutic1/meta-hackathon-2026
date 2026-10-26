@@ -30,17 +30,18 @@ def check_reasoning_effort(effort: str) -> None:
 
 
 class ProviderError(Exception):
-    """A model call that failed after the adapter's one retry, or that it never re-sent (AD-13).
+    """A hosted call that failed: after the adapter's one retry, or on what is never retried (AD-13).
 
-    `status` is the HTTP status, or `None` when no response came back
-    (a transport error or a timeout); `kind` is the vendor's error type,
-    or the adapter's own name for what went wrong.
+    `status` is the HTTP status, or `None` when no response came back (a
+    transport error or a timeout); `code` is the API's error code or type, or
+    the adapter's own name for what went wrong (`timeout`, `transport_error`,
+    `retry_wait_s`, `incomplete`, ...).
     """
 
-    def __init__(self, status: int | None, kind: str, message: str) -> None:
-        super().__init__(f"{status} {kind}: {message}")
+    def __init__(self, status: int | None, code: str, message: str) -> None:
+        super().__init__(f"{status if status is not None else 'transport'} {code}: {message}")
         self.status = status
-        self.kind = kind
+        self.code = code
 
 
 @dataclass
