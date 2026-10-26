@@ -84,7 +84,7 @@ development_status:
   2-16-capture-screen-choose-and-upload-photos-with-the-retention-s: backlog
   2-17-capture-timer-from-upload-to-the-first-hotspot-response: backlog
   2-18-capture-progress-stage-list-regeneration-rows-mask-preview-a: backlog
-  2-19-riddler-prompt-builder-with-the-generated-line-voice-rules: backlog
+  2-19-riddler-prompt-builder-with-the-generated-line-voice-rules: done
   2-20-riddler-authoring-stage-behind-the-validator: backlog
   2-21-regeneration-loop-ending-in-needs_recapture: backlog
   2-22-scene-stage-writes-the-immutable-room-and-the-final-job-reco: backlog
