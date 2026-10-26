@@ -51,11 +51,10 @@ providers, the artifact store and the ledger store. Architect and segment
 (2.15) run on the `architect` role's provider, the one that finds the
 objects in the photos; author (2.20) runs on the `riddler` role's provider
 and validate reads the ledger for provenance; scene (2.22) writes the Room
-with its provenance from the ledger. With `DRY_RUN=off` (cut 4) the dryrun
-slot records every Puzzle `skipped` and makes no call; with `DRY_RUN=on`
-it lands with its story (2.24), and until then the slot raises
-`StageNotBuilt`, so a Build ends `failed` there rather than pretending to
-run.
+with its provenance from the ledger. With `DRY_RUN=on` the dryrun stage
+(2.24) runs on the `dryrun` role's provider and reads the ledger for the
+attempt's Room; with `DRY_RUN=off` (cut 4) the slot records every Puzzle
+`skipped` and makes no call.
 """
 
 from __future__ import annotations
@@ -96,7 +95,8 @@ from src.infra.local import (
 from src.infra.modal import ModalHandles, hosted_stores, wall_ms
 from src.pipeline.architect import architect_stage
 from src.pipeline.author import author_stage, validate_stage
-from src.pipeline.build import STAGES, TERMINAL, Build, StageFn, StageResult
+from src.pipeline.build import TERMINAL, Build, StageFn
+from src.pipeline.dryrun import dry_run_stage
 from src.pipeline.ports import ArtifactStore, AttemptStore, Cache, JobRunner, JobStore, LedgerStore, SessionStore
 from src.pipeline.scene import scene_stage, skipped_dry_run_stage
 from src.pipeline.segment import segment_stage
@@ -147,13 +147,6 @@ ACCESS_ATTEMPTS = AttemptLimit(attempts=10, window_ms=10 * 60 * 1000, key="attem
 """AD-9: more than 10 access attempts from one client IP in 10 minutes, right code or wrong, answer 429 `too_many_attempts`."""
 
 log = logging.getLogger("keyframe.builds")
-
-
-class StageNotBuilt(Exception):
-    """A stage whose story has not landed yet: the Build ends `failed` there with code `stage_not_built`."""
-
-    def __init__(self, stage: Stage) -> None:
-        super().__init__(f"the {stage} stage is not built yet")
 
 
 class AccessGuard:
@@ -254,26 +247,18 @@ def model_providers(settings: Settings, cache: Cache, ledger: SpendLedger) -> di
 def build_stages(
     providers: Mapping[Role, ModelProvider], artifacts: ArtifactStore, ledger: LedgerStore, *, dry_run: bool = True
 ) -> dict[Stage, StageFn]:
-    """The function for each stage after ingest over the per-role providers; a stage whose story has not landed raises `StageNotBuilt`.
+    """The function for each stage after ingest over the per-role providers, in stage order.
 
     `dry_run` is `DRY_RUN=on`; off (cut 4), the dryrun slot records every Puzzle `skipped` and makes no call.
     """
-
-    def not_built(stage: Stage) -> StageFn:
-        def run(state: JobState) -> StageResult:
-            raise StageNotBuilt(stage)
-
-        return run
-
-    stages = {stage: not_built(stage) for stage in STAGES[1:]}
-    stages["architect"] = architect_stage(providers["architect"], artifacts)
-    stages["segment"] = segment_stage(providers["architect"], artifacts)
-    stages["author"] = author_stage(providers["riddler"], artifacts)
-    stages["validate"] = validate_stage(artifacts, ledger)
-    if not dry_run:
-        stages["dryrun"] = skipped_dry_run_stage(artifacts)
-    stages["scene"] = scene_stage(artifacts, ledger)
-    return stages
+    return {
+        "architect": architect_stage(providers["architect"], artifacts),
+        "segment": segment_stage(providers["architect"], artifacts),
+        "author": author_stage(providers["riddler"], artifacts),
+        "validate": validate_stage(artifacts, ledger),
+        "dryrun": dry_run_stage(providers["dryrun"], artifacts, ledger) if dry_run else skipped_dry_run_stage(artifacts),
+        "scene": scene_stage(artifacts, ledger),
+    }
 
 
 def artifact_store(root: Path = ROOMS_ROOT) -> ArtifactStore:

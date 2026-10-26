@@ -102,6 +102,37 @@ def test_the_greeting_composer_is_the_only_module_that_calls_greet():
     assert greet_callers(REPO / "src") == ["src.council.greeting", "src.providers.ollama"]
 
 
+def check_dry_run_callers(root: Path) -> list[str]:
+    """Every file under `root` that calls `check_dry_run`, directly or as an attribute (AD-12: the dryrun stage alone may)."""
+    out: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in ast.walk(tree):
+            func = node.func if isinstance(node, ast.Call) else None
+            if (isinstance(func, ast.Name) and func.id == "check_dry_run") or (
+                isinstance(func, ast.Attribute) and func.attr == "check_dry_run"
+            ):
+                out.append(str(path.relative_to(root)))
+                break
+    return out
+
+
+def test_the_dryrun_stage_is_the_only_caller_of_check_dry_run_so_the_only_place_answers_meet_solutions():
+    # Story 2.24: across src/, scripts/ and the live SIT cases, only the pipeline dryrun stage compares answers to solutions.
+    assert check_dry_run_callers(REPO / "src") == ["pipeline/dryrun.py"]
+    assert check_dry_run_callers(REPO / "scripts") == []
+    assert check_dry_run_callers(REPO / "tests" / "sit") == []
+
+
+def test_a_second_check_dry_run_caller_is_named(tmp_path):
+    src = _tree(tmp_path, {
+        "pipeline/dryrun.py": "from src.domain.validator import check_dry_run\n\ndef run(room, answers):\n    return check_dry_run(room, answers)\n",
+        "api/app.py": "from src.domain import validator\n\ndef peek(room, answers):\n    return validator.check_dry_run(room, answers)\n",
+        "domain/validator.py": "def check_dry_run(room, answers):\n    return room\n",
+    })
+    assert check_dry_run_callers(src) == ["api/app.py", "pipeline/dryrun.py"]
+
+
 def test_pipeline_imports_only_the_domain_the_council_and_ports():
     src = REPO / "src"
     modules = sorted(src.glob("pipeline/*.py"))

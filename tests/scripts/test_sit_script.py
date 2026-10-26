@@ -3,6 +3,7 @@
 import importlib.util
 import io
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,7 @@ from src.config import Settings
 from src.domain.ledger import spark_cost_usd
 from src.infra.local import CACHE_ROOT, LEDGER_PATH
 from src.providers.base import ChatMessage
+from tests.fixtures.rooms import INTERACTABLES, IX, PZ
 from tests.providers.replay import Fixture, load
 
 REPO = Path(__file__).resolve().parents[2]
@@ -22,7 +24,7 @@ SCRIPT = REPO / "scripts/sit.py"
 CASES = REPO / "tests/sit"
 SHIPPED_CASES = [
     "test_00_cap_refusal", "test_01_cache_hit", "test_02_architect", "test_03_segment", "test_04_image", "test_05_fallback_chat",
-    "test_06_ollama_guide", "test_07_riddler",
+    "test_06_ollama_guide", "test_07_riddler", "test_08_dry_run", "test_09_full_build",
 ]
 CHAT = load("muse-spark-1.3/chat-three-objects")
 MESSAGES = [ChatMessage(role="user", content="Say ok.")]
@@ -54,9 +56,9 @@ def write_case(folder: Path, name: str, body: str) -> Path:
     return path
 
 
-def jpeg(width: int, height: int) -> bytes:
+def jpeg(width: int, height: int, colour: str = "#a0b0c0") -> bytes:
     out = io.BytesIO()
-    Image.new("RGB", (width, height), "#a0b0c0").save(out, format="JPEG")
+    Image.new("RGB", (width, height), colour).save(out, format="JPEG")
     return out.getvalue()
 
 
@@ -281,12 +283,45 @@ def _riddler_reply() -> str:
     return json.dumps({key: {**puzzle, "is_exit": key == "p1"} for key in ("p1", "p2", "p3", "p4")})
 
 
+FIXTURE_LABELS = {IX[name]: label for name, (label, *_) in INTERACTABLES.items()}
+"""The synthetic room's fixed `ix_` ids by label, as the recorded Riddler reply names them."""
+BUILD_REPLY = {
+    "candidates": [
+        {"label": label, "plural": False, "photo": photo, "attributes": attributes, "confidence": round(0.95 - i * 0.01, 2),
+         "box": [min(1000, round(x0 / 1.28)), min(1000, round(y0 / 0.96)), min(1000, round(x1 / 1.28)), min(1000, round(y1 / 0.96))]}
+        for i, (label, photo, (x0, y0, x1, y1), attributes) in enumerate(INTERACTABLES.values())
+    ]
+}
+"""The full Build's Architect reply: the synthetic room's objects, boxes on the 0 to 1000 grid of a 1280 by 960 photo."""
+BUILD_PHOTOS = 6
+
+
+def _user_text(body: dict) -> str:
+    content = next(m["content"] for m in body["messages"] if m["role"] == "user")
+    return content if isinstance(content, str) else "".join(part.get("text", "") for part in content)
+
+
+def _images(body: dict) -> int:
+    content = next(m["content"] for m in body["messages"] if m["role"] == "user")
+    return 0 if isinstance(content, str) else sum(part["type"] == "image_url" for part in content)
+
+
+def _chat(text: str) -> dict:
+    return {**CHAT.body, "choices": [{**CHAT.body["choices"][0], "message": {"role": "assistant", "content": text}}]}
+
+
 class Vendors:
-    """One handler for every host: Meta's chat, segment and image endpoints, the Baseten chat endpoint and Ollama's generate."""
+    """One handler for every host: Meta's chat, segment and image endpoints, the Baseten chat endpoint and Ollama's generate.
+
+    The Riddler's recorded reply is replayed with its fixed `ix_` ids rewritten, by label, to the ids
+    the prompt lists, so the full Build's minted ids match; the Dry run replays its recorded reply
+    over the synthetic room, and over a Build's room answers each listed Puzzle with the last draft's solution.
+    """
 
     def __init__(self) -> None:
         self.segments = 0
         self.paths: list[str] = []
+        self.draft: dict = {}
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.paths.append(f"{request.url.host}{request.url.path}")
@@ -300,16 +335,46 @@ class Vendors:
             choice = {**draft["choices"][0], "message": {"role": "assistant", "content": _riddler_reply()}}
             return httpx.Response(200, json={**draft, "choices": [choice]})
         if request.url.path.endswith("/responses"):
+            if json.loads(request.content)["input"][0]["content"][0]["text"] in FIXTURE_LABELS.values():
+                return httpx.Response(200, json=load("sam-3.1/segment-no-mask").body)  # the Build's objects keep their boxes
             self.segments += 1
             return httpx.Response(200, json=load("sam-3.1/segment-two-masks" if self.segments % 2 else "sam-3.1/segment-no-mask").body)
         if request.url.path.endswith("/images/generations"):
             return httpx.Response(200, json=load("muse-image-1.0/portrait-riddler").body)
         body = json.loads(request.content)
-        if (body.get("response_format") or {}).get("json_schema", {}).get("name") == "RiddlerResponse":
-            return httpx.Response(200, json=load("muse-spark-1.3/chat-riddler-author").body)
-        text = json.dumps(ARCHITECT_REPLY) if body.get("response_format") else "ok"
-        reply = {**CHAT.body, "choices": [{**CHAT.body["choices"][0], "message": {"role": "assistant", "content": text}}]}
-        return httpx.Response(200, json=reply)
+        schema = (body.get("response_format") or {}).get("json_schema", {}).get("name")
+        if schema == "RiddlerResponse":
+            return httpx.Response(200, json=self.riddler(_user_text(body)))
+        if schema == "DryRunAnswers":
+            return httpx.Response(200, json=self.dry_run(_user_text(body)))
+        if schema == "ArchitectResponse" and _images(body) == BUILD_PHOTOS:
+            return httpx.Response(200, json=_chat(json.dumps(BUILD_REPLY)))
+        return httpx.Response(200, json=_chat(json.dumps(ARCHITECT_REPLY) if body.get("response_format") else "ok"))
+
+    def riddler(self, prompt: str) -> dict:
+        recorded = load("muse-spark-1.3/chat-riddler-author").body
+        listed = {label: ix for ix, label in re.findall(r'"id": "(ix_\w+)",\s*"label": "([^"]+)"', prompt)}
+        text = recorded["choices"][0]["message"]["content"]
+        for fixed, label in FIXTURE_LABELS.items():
+            text = text.replace(fixed, listed.get(label, fixed))
+        self.draft = json.loads(text)
+        return {**recorded, "choices": [{**recorded["choices"][0], "message": {"role": "assistant", "content": text}}]}
+
+    def dry_run(self, prompt: str) -> dict:
+        if PZ["find_key"] in prompt:
+            return load("muse-spark-1.3/chat-dry-run").body
+        puzzles = re.findall(r"^Puzzle (pz_\w+)$", prompt, re.MULTILINE)
+        solutions = [puzzle["solution"] for puzzle in self.draft.values() if puzzle is not None]
+        answers = [{"puzzle_id": pid, "answer": solution} for pid, solution in zip(puzzles, solutions, strict=True)]
+        return _chat(json.dumps({"answers": answers}))
+
+
+BUILD_PATHS = [
+    "api.meta.ai/v1/chat/completions",  # the full Build's Architect
+    *["api.meta.ai/v1/responses"] * len(INTERACTABLES),  # one segment call per object
+    "api.meta.ai/v1/chat/completions",  # its Riddler
+    "api.meta.ai/v1/chat/completions",  # its Dry run
+]
 
 
 def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_their_fixtures(tmp_path, capsys, monkeypatch):
@@ -319,6 +384,8 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     (tmp_path / "photos").mkdir()
     (tmp_path / "photos/a.jpg").write_bytes(jpeg(1280, 960))
     (tmp_path / "photos/b.jpg").write_bytes(jpeg(960, 1280))
+    for name, colour in zip("cdef", ("#b7a98a", "#cfd6dc", "#a8b59a", "#c9b7b0"), strict=True):
+        (tmp_path / f"photos/{name}.jpg").write_bytes(jpeg(1280, 960, colour))
     vendors = Vendors()
     transport = sit_script.RecordingTransport(httpx.MockTransport(vendors))
 
@@ -334,6 +401,7 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
         "llama3.2-3b/generate-phrase-longest.json",
         "muse-image-1.0/image-sit-clue-card.json",
         "muse-spark-1.3/chat-architect-two-photos.json",
+        "muse-spark-1.3/chat-dry-run.json",
         "muse-spark-1.3/chat-riddler-author.json",
         "muse-spark-1.3/chat-sit-ok.json",
         "muse-spark-open/chat-riddler-author.json",
@@ -349,9 +417,17 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
         "127.0.0.1/api/generate", "127.0.0.1/api/generate",  # phrase, greet
         "127.0.0.1/api/generate",  # the unreachable leg, refused
         "api.meta.ai/v1/chat/completions",  # the Riddler
+        "api.meta.ai/v1/chat/completions",  # the Dry run
+        *BUILD_PATHS,
     ]
-    kinds = [(e.kind, e.status) for e in sit_script.JsonlLedgerStore(tmp_path / LEDGER_PATH).entries()]
-    assert kinds == [(k, s) for k in ("vision", "vision", "sam", "sam", "image", "riddler", "riddler") for s in ("reserved", "settled")]
+    entries = sit_script.JsonlLedgerStore(tmp_path / LEDGER_PATH).entries()
+    kinds = [(e.kind, e.status) for e in entries]
+    calls = ("vision", "vision", "sam", "sam", "image", "riddler", "riddler", "dryrun")
+    assert kinds[: 2 * len(calls)] == [(k, s) for k in calls for s in ("reserved", "settled")]
+    built = [e for e in entries[2 * len(calls):] if e.status == "settled"]
+    assert [e.kind for e in built if e.kind != "sam"] == ["vision", "riddler", "dryrun"] and len(built) == 3 + len(INTERACTABLES)
+    tagged = [(e.kind, e.stage) for e in built if e.job_id is not None]
+    assert tagged == [("riddler", "author"), ("dryrun", "dryrun")]  # the Build's own calls, tagged for provenance
     for name in ("chat-architect-two-photos", "chat-sit-ok"):
         assert Fixture.model_validate_json((tmp_path / f"tests/fixtures/providers/muse-spark-1.3/{name}.json").read_bytes()).status == 200
     assert "PASS test_00_cap_refusal: " in out.out and "refused at cap 0.0000 USD, no entry, no request" in out.out
@@ -360,15 +436,22 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     assert "meta-models/muse-spark-open: 4 puzzles" in out.out
     assert "PASS test_06_ollama_guide: " in out.out and "21 tokens out in" in out.out and "decode 20 tok/s" in out.out
     assert "PASS test_07_riddler: " in out.out and "5 puzzles in" in out.out and "rules 8 of 8 passed; 3174 out" in out.out
+    lines = {line.split(":")[0]: line for line in out.out.splitlines() if line.startswith("PASS")}
+    assert "(reached 5 of 5 answers in " in lines["PASS test_08_dry_run"] and "; 10120 in, 2650 out)" in lines["PASS test_08_dry_run"]
+    assert "(done in " in lines["PASS test_09_full_build"]
+    assert "; reached 5 of 5 answers; 0 of 2 regenerations; every stage within budget)" in lines["PASS test_09_full_build"]
 
     # A second run on the same day: the image and the cache-hit calls are served from the cache, the rest run again.
+    first = len(vendors.paths)
     assert sit_script.main([], root=tmp_path, cases_root=CASES, transport=transport) == 0
     again = capsys.readouterr().out
     assert "served from the cache" in again and "first call already cached" in again
-    assert vendors.paths[10:] == [
+    assert vendors.paths[first:] == [
         "api.meta.ai/v1/chat/completions",
         "api.meta.ai/v1/responses", "api.meta.ai/v1/responses",
         "inference.baseten.co/v1/chat/completions",
         "127.0.0.1/api/generate", "127.0.0.1/api/generate", "127.0.0.1/api/generate",
         "api.meta.ai/v1/chat/completions",
+        "api.meta.ai/v1/chat/completions",
+        *BUILD_PATHS,
     ]

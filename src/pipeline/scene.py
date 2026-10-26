@@ -20,14 +20,11 @@ verdict as `skipped`, and the Validator's pass alone lets scene write the Room.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
-from src.domain.schema import DryRunVerdict, JobState, Room, RoomId
-from src.pipeline.author import assemble_provenance, prompt_hashes, prompt_view, read_puzzles
+from src.domain.schema import DryRunVerdict, JobState, RoomId
+from src.pipeline.author import assemble_room, read_puzzles
 from src.pipeline.build import StageFn, StageResult
 from src.pipeline.ingest import read_photos
 from src.pipeline.ports import ArtifactStore, LedgerStore, room_key
-from src.pipeline.segment import read_interactables
 
 SCENE_BUDGET_MS = 10_000
 """`budgets.md`: the scene build's 10 s, measured through the stage timing, never enforced."""
@@ -53,16 +50,7 @@ def run_scene(state: JobState, *, artifacts: ArtifactStore, ledger: LedgerStore)
     photos = read_photos(room_id, artifacts)
     key = room_key(room_id)
     if not _stored(key, artifacts):
-        interactables = read_interactables(room_id, artifacts)
-        room = Room(
-            id=room_id,
-            created=datetime.now(UTC),
-            photos=photos,
-            interactables=interactables,
-            puzzles=read_puzzles(room_id, artifacts),
-            provenance=assemble_provenance(state, ledger.entries(), prompt_hashes(prompt_view(room_id, interactables))),
-        )
-        artifacts.put(key, room.model_dump_json().encode())
+        artifacts.put(key, assemble_room(state, artifacts, ledger).model_dump_json().encode())
     return StageResult(count=len(photos))
 
 

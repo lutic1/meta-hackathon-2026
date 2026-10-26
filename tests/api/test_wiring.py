@@ -1,4 +1,4 @@
-"""Stories 1.11, 1.12, 1.14, 2.12, 2.22, 3.2, 3.7 and 7.2: wiring is the one module that builds an adapter; one `ModelProvider` per council role, `PROVIDER_<ROLE>` replacing only its own; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter; `MODE` selects the local or the hosted adapters (AD-5, AD-7, AD-9, AD-14)."""
+"""Stories 1.11, 1.12, 1.14, 2.12, 2.22, 2.24, 3.2, 3.7 and 7.2: wiring is the one module that builds an adapter; one `ModelProvider` per council role, `PROVIDER_<ROLE>` replacing only its own; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter; `MODE` selects the local or the hosted adapters (AD-5, AD-7, AD-9, AD-14)."""
 
 import ast
 import json
@@ -13,7 +13,6 @@ from src.api.wiring import (
     JOBS_DIR,
     ROLE_CALLS,
     SESSIONS_DIR,
-    StageNotBuilt,
     artifact_store,
     build_clock,
     build_stages,
@@ -29,7 +28,7 @@ from src.api.wiring import (
     spend_ledger,
 )
 from src.config import Settings
-from src.domain.schema import GuideModel, JobId, JobState, Role, Stage
+from src.domain.schema import GuideModel, JobId, JobState, Role, Room, Stage
 from src.infra.clocks import BuildClock, SessionClock
 from src.infra.local import (
     CACHE_ROOT,
@@ -51,7 +50,7 @@ from src.infra.modal import (
     call_key,
 )
 from src.pipeline.build import STAGES, Build, StageFn, StageResult
-from src.pipeline.ports import room_key
+from src.pipeline.ports import ArtifactStore, room_key
 from src.providers.base import HintPhraser, ModelProvider
 from src.providers.meta_api import MetaModelProvider
 from src.providers.mock import ChatCall, MockProvider, MockScript, SegmentCall
@@ -63,6 +62,7 @@ from tests.infra.test_clocks import Ticker
 from tests.pipeline.stages import labels
 from tests.pipeline.test_author_stage import reply, riddler, store_interactables
 from tests.pipeline.test_build import MemoryJobStore
+from tests.pipeline.test_dryrun_stage import Solver
 from tests.pipeline.test_segment_stage import INSIDE
 from tests.pipeline.uploads import make_uploads
 
@@ -242,7 +242,7 @@ def _mock_stages(tmp_path: Path, providers: dict[Role, ModelProvider] | None = N
     return build_stages(providers, artifact_store(tmp_path / "rooms"), ledger_store(tmp_path / LEDGER_PATH))
 
 
-def test_the_landed_stages_run_on_their_roles_and_a_stage_not_landed_raises_stage_not_built(tmp_path):
+def test_every_stage_runs_on_its_role(tmp_path):
     jobs = MemoryJobStore()
     candidates = labels(6)
     architect = MockProvider("architect", MockScript(chat=[json.dumps({"candidates": candidates})], segment=[[INSIDE]] * 6))
@@ -260,8 +260,50 @@ def test_the_landed_stages_run_on_their_roles_and_a_stage_not_landed_raises_stag
     assert [type(call) for call in architect.calls] == [ChatCall] + [SegmentCall] * len(candidates)
     assert [type(call) for call in providers["riddler"].calls] == [ChatCall] * 3
     assert len(state.mask_preview) == len(candidates)
-    with pytest.raises(StageNotBuilt):
-        stages["dryrun"](state)
+    assert providers["dryrun"].calls == []
+
+
+def storing(artifacts: ArtifactStore, room: Room) -> StageFn:
+    """A segment slot that stores `room`'s Interactables, so author drafts over them."""
+
+    def segment(state: JobState) -> StageResult:
+        store_interactables(artifacts, state, room)
+        return StageResult()
+
+    return segment
+
+
+def test_dry_run_on_runs_the_dryrun_stage_on_its_role_before_scene_writes_the_room(tmp_path, four_lock_room):
+    jobs = MemoryJobStore()
+    artifacts = artifact_store(tmp_path / "rooms")
+    solver = Solver(jobs, artifacts)
+    providers = {**_providers(tmp_path, {"MODEL_PROVIDER": "mock"}), "riddler": riddler(reply()), "dryrun": solver}
+    stages = build_stages(providers, artifacts, ledger_store(tmp_path / LEDGER_PATH), dry_run=True)
+    stages["architect"] = lambda state: StageResult()
+    stages["segment"] = storing(artifacts, four_lock_room)
+    build = Build(jobs=jobs, artifacts=artifacts, clock=BuildClock(monotonic_ns=Ticker()), stages=stages, regen_max=2)
+
+    done = build.run(build.submit(make_uploads(6)).id)
+
+    assert done.status == "done" and len(solver.calls) == 1
+    assert {verdict.verdict for verdict in done.dry_run} == {"pass"} and len(done.dry_run) == 5
+    assert [row.role for row in done.calls] == ["riddler", "dryrun"]
+    assert artifacts.read(room_key(done.room_id))
+
+
+def test_the_unscripted_dry_run_mock_reaches_no_answer_so_the_loop_ends_needs_recapture_at_dryrun(tmp_path, four_lock_room):
+    providers = {**_providers(tmp_path, {"MODEL_PROVIDER": "mock"}), "riddler": riddler(*[reply()] * 3)}
+    artifacts = artifact_store(tmp_path / "rooms")
+    stages = build_stages(providers, artifacts, ledger_store(tmp_path / LEDGER_PATH))
+    stages["architect"] = lambda state: StageResult()
+    stages["segment"] = storing(artifacts, four_lock_room)
+    build = Build(jobs=MemoryJobStore(), artifacts=artifacts, clock=BuildClock(monotonic_ns=Ticker()), stages=stages, regen_max=2)
+
+    ended = build.run(build.submit(make_uploads(6)).id)
+
+    assert (ended.status, ended.stage, ended.error.code) == ("needs_recapture", "dryrun", "dry_run_error")
+    assert [type(call) for call in providers["dryrun"].calls] == [ChatCall] * 3
+    assert {verdict.verdict for verdict in ended.dry_run} == {"fail"}
 
 
 def test_dry_run_off_builds_over_the_mocks_to_a_done_room_with_no_dry_run_call_and_a_restart_never_rewrites_it(

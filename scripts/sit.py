@@ -149,13 +149,17 @@ class Sit:
         """The Guide adapter over the verbatim one, at `OLLAMA_HOST` unless `host` says otherwise; no cache or ledger, the model is free."""
         return OllamaPhraser(host or self.settings.ollama_host, fallback=VerbatimPhraser(), transport=self.transport)
 
-    def photos(self, count: int) -> list[bytes]:
-        """The first `count` JPEGs under `photos/` in name order, downscaled to the 1280 px long edge."""
+    def originals(self, count: int) -> list[bytes]:
+        """The bytes of the first `count` JPEGs under `photos/` in name order, as the camera wrote them."""
         folder = self.root / PHOTOS_ROOT
         paths = sorted(p for p in folder.glob("*") if p.suffix.lower() in PHOTO_SUFFIXES) if folder.is_dir() else []
         if len(paths) < count:
             raise FileNotFoundError(f"{PHOTOS_ROOT}/ holds {len(paths)} JPEG(s); the SIT needs {count} (own room photos, no faces or documents)")
-        return [downscale(path.read_bytes()) for path in paths[:count]]
+        return [path.read_bytes() for path in paths[:count]]
+
+    def photos(self, count: int) -> list[bytes]:
+        """The first `count` JPEGs under `photos/` in name order, downscaled to the 1280 px long edge."""
+        return [downscale(original) for original in self.originals(count)]
 
     def fixture_path(self, name: str, *, model: str) -> Path:
         return self.root / FIXTURES_ROOT / model / f"{name}.json"

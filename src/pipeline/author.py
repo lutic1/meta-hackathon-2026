@@ -236,14 +236,28 @@ def _room_id(state: JobState) -> RoomId:
     return state.room_id
 
 
-def _call_row(reply: ChatResponse, provider: ModelProvider) -> CallRow:
-    """The `riddler` call row from the call's receipt; the mock has none, so its row is unbilled on the mock host."""
+def assemble_room(state: JobState, artifacts: ArtifactStore, ledger: LedgerStore) -> Room:
+    """The attempt's Room from the stored photos, Interactables and mapped Puzzles, with its provenance from the ledger."""
+    room_id = _room_id(state)
+    interactables = read_interactables(room_id, artifacts)
+    return Room(
+        id=room_id,
+        created=datetime.now(UTC),
+        photos=read_photos(room_id, artifacts),
+        interactables=interactables,
+        puzzles=read_puzzles(room_id, artifacts),
+        provenance=assemble_provenance(state, ledger.entries(), prompt_hashes(prompt_view(room_id, interactables))),
+    )
+
+
+def call_row(reply: ChatResponse, provider: ModelProvider, role: Role) -> CallRow:
+    """The `role` call row from the call's receipt; the mock has none, so its row is unbilled on the mock host."""
     receipt = reply.receipt
     if receipt is None:
-        return CallRow(id=new_id("call"), role="riddler", model=reply.model, host=provider.name, cached=False, spend_usd=0.0)
+        return CallRow(id=new_id("call"), role=role, model=reply.model, host=provider.name, cached=False, spend_usd=0.0)
     return CallRow(
         id=receipt.call_id,
-        role="riddler",
+        role=role,
         model=reply.model,
         host=receipt.host,
         cached=receipt.cached,
@@ -264,7 +278,7 @@ def run_author(state: JobState, *, provider: ModelProvider, artifacts: ArtifactS
         job_id=state.id,
         stage="author",
     )
-    row = _call_row(reply, provider)
+    row = call_row(reply, provider, "riddler")
     try:
         draft = parse_draft(reply.text, prompt.response_schema)
         artifacts.put(draft_key(room_id), draft.model_dump_json().encode())
@@ -277,21 +291,11 @@ def run_author(state: JobState, *, provider: ModelProvider, artifacts: ArtifactS
 
 def run_validate(state: JobState, *, artifacts: ArtifactStore, ledger: LedgerStore) -> StageResult:
     """`validate` on the mapped draft, its per-rule verdicts recorded; a fail raises `ValidationError`, and no `room` artifact is written."""
-    room_id = _room_id(state)
-    interactables = read_interactables(room_id, artifacts)
-    puzzles = read_puzzles(room_id, artifacts)
-    room = Room(
-        id=room_id,
-        created=datetime.now(UTC),
-        photos=read_photos(room_id, artifacts),
-        interactables=interactables,
-        puzzles=puzzles,
-        provenance=assemble_provenance(state, ledger.entries(), prompt_hashes(prompt_view(room_id, interactables))),
-    )
+    room = assemble_room(state, artifacts, ledger)
     result = validate(room)
     stage_result = StageResult(validator=rule_verdicts(result))
     messages = list(dict.fromkeys(reason.message for reason in result.reasons))
-    if len(puzzles) not in PUZZLE_COUNT:
+    if len(room.puzzles) not in PUZZLE_COUNT:
         messages.insert(0, COUNT_MESSAGE)
     if messages:
         raise ValidationError(messages, stage_result, result.reasons)
