@@ -7,6 +7,7 @@ limit runs offline and a restarted app sees the same count.
 
 from __future__ import annotations
 
+import asyncio
 import secrets
 from pathlib import Path
 from unittest.mock import ANY
@@ -232,13 +233,58 @@ def _routes(client: TestClient) -> set[tuple[str, str]]:
     return {(path, method.upper()) for path, operations in paths.items() for method in operations}
 
 
-def test_local_mode_does_not_serve_the_check_the_only_route_difference_it_adds(tmp_path: Path):
-    local = TestClient(make_app(tmp_path / "local", settings=Settings.from_env({"ACCESS_CODE": CODE}), stages=Stages().functions()))
-    response = check(local, CODE)
-    assert response.status_code == 404
+@pytest.mark.parametrize("built", [False, True], ids=["no-dist", "built-dist"])
+def test_local_mode_does_not_serve_the_check_the_only_route_difference_it_adds(tmp_path: Path, built: bool):
+    dist = tmp_path / "web" / "dist"
+    if built:
+        dist.mkdir(parents=True)
+        (dist / "index.html").write_text("<!doctype html><div id=\"app\"></div>")
+    settings = Settings.from_env({"ACCESS_CODE": CODE})
+    local = TestClient(make_app(tmp_path / "local", web_dist=dist, settings=settings, stages=Stages().functions()))
+    assert check(local, CODE).status_code == 404
+    assert local.get("/api/access/check").status_code == 404
+    assert local.post("/api/no-such-route", json={}).status_code == 404
     hosted = Hosted(tmp_path / "hosted")
     assert _routes(hosted.client) - _routes(local) == {("/api/access/check", "POST")}
     assert {path for path, _ in _routes(local) - _routes(hosted.client)} == {"/api/profile/{name}"}
+
+
+def test_the_attempt_store_is_never_called_on_the_event_loop(
+    tmp_path: Path, four_lock_room: Room, monkeypatch: pytest.MonkeyPatch
+):
+    on_loop: list[bool] = []
+
+    def record() -> None:
+        """Whether this attempt store call runs on the event loop."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            on_loop.append(False)
+        else:
+            on_loop.append(True)
+
+    read, write = DictAttemptStore.read, DictAttemptStore.write
+
+    def recorded_read(self: DictAttemptStore, key: str) -> list[int]:
+        record()
+        return read(self, key)
+
+    def recorded_write(self: DictAttemptStore, key: str, times: list[int]) -> None:
+        record()
+        write(self, key, times)
+
+    monkeypatch.setattr(DictAttemptStore, "read", recorded_read)
+    monkeypatch.setattr(DictAttemptStore, "write", recorded_write)
+    hosted = Hosted(tmp_path, four_lock_room)
+    client = hosted.client
+    done = hosted.done(four_lock_room)
+
+    assert check(client, CODE).status_code == 200
+    assert post(client, {ACCESS_HEADER: CODE}).status_code == 202
+    assert post(client, {ACCESS_HEADER: WRONG_CODE}).status_code == 403
+    assert client.get(f"/api/builds/{done.id}/room", headers={ACCESS_HEADER: CODE}).status_code == 200
+
+    assert len(on_loop) == 8 and not any(on_loop)
 
 
 # --- A check that answered ok does not stand in for the re-check on POST /builds ----

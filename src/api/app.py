@@ -110,7 +110,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, FastAPI, Request, Response
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import TypeAdapter, ValidationError
@@ -421,9 +421,9 @@ def build_routes(
         """The guard runs before the body is read; ingest refuses a bad upload before any slot is claimed or job exists.
 
         An accepted upload claims a slot, is queued and started, never awaited.
-        The multipart parse and ingest run in the thread pool, so a large body never holds the event loop.
+        The guard's attempt store I/O, the multipart parse and ingest run in the thread pool, so none of them holds the event loop.
         """
-        guard(request.headers.get(ACCESS_HEADER), client_ip(request))
+        await run_in_threadpool(guard, request.headers.get(ACCESS_HEADER), client_ip(request))
         content_type, body = request.headers.get("content-type", ""), await request.body()
         try:
             state = await run_in_threadpool(lambda: build.submit(read_uploads(content_type, body)))
@@ -672,6 +672,20 @@ def session_routes(
     return router
 
 
+API_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+
+
+def unknown_api_routes() -> APIRouter:
+    """The last API route: any other `/api/` path answers 404, never the static mount's 405 to a POST."""
+    router = APIRouter()
+
+    @router.api_route("/api/{path:path}", methods=API_METHODS, include_in_schema=False)
+    def unknown_api_path(path: str) -> None:
+        raise HTTPException(status_code=404)
+
+    return router
+
+
 def create_app(
     settings: Settings,
     *,
@@ -689,6 +703,10 @@ def create_app(
     today: Callable[[], date] = date.today,
 ) -> FastAPI:
     """The app over the adapters `wire` selects; routes are registered before the static mount so `/api/` wins.
+
+    An `/api/` path no route serves answers 404 in both modes, before the
+    static mount, so a route one mode leaves out (`POST /access/check` in
+    Local mode) is not found whether or not `web/dist` is built.
 
     `handles` are the Modal handles `src/api/modal_app.py` passes under
     `MODE=hosted`. Tests pass the session clock, the Guide adapter and the
@@ -750,6 +768,7 @@ def create_app(
             greets=wired.greets,
         )
     )
+    app.include_router(unknown_api_routes())
     if web_dist.is_dir():
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
     return app
