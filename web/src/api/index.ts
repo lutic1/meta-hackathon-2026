@@ -1,5 +1,15 @@
 // The HTTP client: every route under /api/ on the page's own origin (AD-9), typed by the generated web/types (AD-2).
-import type { Derived, ErrorEnvelope, JobState, Meta, RoomSummary, SessionStart, SessionState } from '../../types'
+import type {
+  Derived,
+  ErrorEnvelope,
+  JobState,
+  Meta,
+  PlayView,
+  PostedEvent,
+  RoomSummary,
+  SessionStart,
+  SessionState,
+} from '../../types'
 
 /** A request that got no answer, or an answer that was not a 2xx, with the AD-13 envelope's `code` when it carried one. */
 export class RequestFailed extends Error {
@@ -65,6 +75,11 @@ export function listRooms(): Promise<RoomSummary[]> {
   return getJson<RoomSummary[]>('/rooms')
 }
 
+/** `GET /rooms/<room_id>`: the stored Room's `PlayView`, its photos in upload order (A-12) and its Interactables. */
+export function getRoom(roomId: string): Promise<PlayView> {
+  return getJson<PlayView>(`/rooms/${encodeURIComponent(roomId)}`)
+}
+
 /** The URL of photo `index` of a stored Room: its downscaled JPEG. */
 export function photoUrl(roomId: string, index: number): string {
   return `/api/rooms/${encodeURIComponent(roomId)}/photos/${index}`
@@ -98,4 +113,9 @@ export function postBuild(photos: readonly UploadPhoto[]): Promise<JobState> {
     body.append(ORIGINAL, original, original.name)
   })
   return postJson<JobState>('/builds', body)
+}
+
+/** `POST /sessions/<id>/events`: one posted event, never stamped by the client (the API stamps `t_ms`); the new state. */
+export function postEvent(sessionId: string, body: PostedEvent): Promise<SessionState> {
+  return postJson<SessionState>(`/sessions/${encodeURIComponent(sessionId)}/events`, body)
 }

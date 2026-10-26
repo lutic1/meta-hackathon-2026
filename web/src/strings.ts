@@ -1,5 +1,7 @@
 // Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75);
-// "No rooms yet." is the one line EXPERIENCE.md gives only in Component Patterns (Stored Room row).
+// "No rooms yet." is the one line EXPERIENCE.md gives only in Component Patterns (Stored Room row). EXPERIENCE.md
+// words no Scene loading line and no thumbnail name, so the loading line reuses the "Setting the scene" stage name
+// and a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb.
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -36,6 +38,8 @@ export const strings = {
   retentionHeading: 'Where your photos go.',
   playHistory: 'Your play history',
   privacyLine: 'the player profile stays on your machine.',
+  sceneLoading: 'Setting the scene',
+  photoThumbnail: 'Photo {n}',
 } as const
 
 /** `template` with each `{name}` replaced by `values[name]`. */

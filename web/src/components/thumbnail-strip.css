@@ -1,0 +1,40 @@
+/* The Thumbnail strip: a row of {components.thumbnail} 8 px apart that scrolls inside its own row; 4 px of padding
+   keeps the focus ring inside the scroller. Others sit at 80% opacity, hover borders lamp-strong, current lamp. */
+.thumbnail-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: 0 var(--spacing-1);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.thumbnail {
+  box-sizing: border-box;
+  flex: none;
+  width: 96px;
+  height: 72px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--rounded-sm);
+  background: var(--chrome);
+  opacity: 0.8;
+  cursor: pointer;
+  transition:
+    opacity var(--motion-hover) var(--motion-ease),
+    border-color var(--motion-hover) var(--motion-ease);
+}
+.thumbnail img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--rounded-sm);
+}
+.thumbnail:hover {
+  border-color: var(--lamp-strong);
+}
+.thumbnail[aria-current='true'] {
+  border-color: var(--lamp);
+  opacity: 1;
+}

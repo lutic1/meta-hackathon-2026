@@ -1,5 +1,5 @@
 import './shell.css'
-import type { Meta, RoomSummary } from '../types'
+import type { Meta, RoomSummary, SessionState } from '../types'
 import { getMeta, getSession, listRooms, RequestFailed } from './api/index.ts'
 import { captureScreen } from './capture.ts'
 import { disclosureBanner } from './components/disclosure-banner.ts'
@@ -68,7 +68,7 @@ export function startShell(root: HTMLElement): void {
       const state = await answered(mine, () => getSession(sessionId).catch(refused))
       if (state === undefined) return
       if (state !== null) disclosure = state.disclosure
-      if (name === 'play' && state !== null) content = { name: 'play' }
+      if (name === 'play' && state !== null) content = { name: 'play', session: state }
     } else if (meta.mode === 'local') {
       const rooms = await answered(mine, listRooms)
       if (rooms === undefined) return
@@ -91,9 +91,9 @@ interface Surface {
   mount?: () => () => void
 }
 
-/** What a route's body holds: the Play layout, the Capture screen with the Stored Rooms list (Local `#/`) or nothing yet. */
+/** What a route's body holds: the Play layout for a session, the Capture screen with the Stored Rooms list (Local `#/`) or nothing yet. */
 type Content =
-  | { name: 'play' }
+  | { name: 'play'; session: SessionState }
   | { name: 'rooms'; rooms: RoomSummary[]; profile: string; retention: string }
   | { name: 'empty' }
 
@@ -114,7 +114,7 @@ function surface(content: Content): Surface {
   const sideColumn = document.createElement('aside')
   sideColumn.className = 'side-column'
   element.append(sceneColumn, sideColumn)
-  return { element, mount: () => mountScene(sceneColumn) }
+  return { element, mount: () => mountScene(sceneColumn, content.session) }
 }
 
 /** The page body empty except the centered status strip (UX-DR61). */

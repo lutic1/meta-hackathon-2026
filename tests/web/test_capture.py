@@ -244,6 +244,8 @@ def test_while_the_upload_is_pending_upload_shows_its_pending_label_and_the_drop
 
 def test_the_client_calls_only_its_own_server_under_api():
     for path, text in source_ts().items():
+        # The SVG namespace the Scene's Hotspots are created in is a name, never a request.
+        text = text.replace("'http://www.w3.org/2000/svg'", "")
         assert not re.search(r"https?:|wss?:|\bnew (WebSocket|EventSource)\(|sendBeacon", text), path
         for call in re.findall(r"fetch\(([^,)]+)", text):
             assert call == "`/api${path}`", f"{path} fetches {call}"

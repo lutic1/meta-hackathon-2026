@@ -21,6 +21,9 @@ def _strings() -> dict[str, str]:
 
 COMPONENT_PATTERNS_ONLY = {"noRooms"}
 """Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list)."""
+UNWORDED = {"photoThumbnail": "Remove photo {n}"}
+"""Names EXPERIENCE.md never words, each derived from the Voice and Tone line given: the Thumbnail strip's
+"Photo {n}" is the photo tray's remove control without its verb."""
 
 
 def _voice_and_tone() -> str:
@@ -34,6 +37,9 @@ def _component_patterns() -> str:
 def test_every_string_is_verbatim_from_voice_and_tone():
     source = _voice_and_tone()
     for key, value in _strings().items():
+        if key in UNWORDED:
+            assert UNWORDED[key] in source and UNWORDED[key].removeprefix("Remove p") == value.removeprefix("P"), key
+            continue
         if key in COMPONENT_PATTERNS_ONLY:
             assert value in _component_patterns(), f"strings.{key} {value!r} is not verbatim in Component Patterns"
             continue
@@ -98,3 +104,10 @@ def test_served_lines_are_never_in_the_client():
     for path, text in source_ts().items():
         for line in served:
             assert line not in text, f"{path} holds the served line {line!r}; render it as received"
+
+
+def test_the_scene_strings_are_the_experience_lines():
+    strings = _strings()
+    # EXPERIENCE.md words no Scene loading line; it reuses the scene stage's name from the Stage names row.
+    assert strings["sceneLoading"] == "Setting the scene" and '"Setting the scene" (scene)' in _voice_and_tone()
+    assert strings["photoThumbnail"].format(n=3) == "Photo 3"
