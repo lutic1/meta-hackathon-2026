@@ -3,11 +3,12 @@
 import ast
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import get_args
 
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import api_schema, create_app, room_summary
+from src.api.app import API_UNIONS, api_schema, create_app, room_summary
 from src.api.meta import (
     CUT1_LINE,
     RETENTION_LOCAL,
@@ -190,6 +191,14 @@ def test_schema_refs_point_into_its_own_defs(client: TestClient):
     assert refs and all(ref.startswith("#/$defs/") for ref in refs)
     assert {ref.removeprefix("#/$defs/") for ref in refs} <= set(schema["$defs"])
     assert "Puzzle" in schema["$defs"] and "oneOf" in schema["$defs"]["Puzzle"]["properties"]["solution"]
+
+
+def test_schema_serves_the_tagged_unions_by_name(client: TestClient):
+    defs = client.get("/api/schema").json()["$defs"]
+    for name, union in API_UNIONS.items():
+        members = [ref["$ref"].removeprefix("#/$defs/") for ref in defs[name]["oneOf"]]
+        assert defs[name]["title"] == name and defs[name]["discriminator"]["propertyName"] == "type"
+        assert members == [model.__name__ for model in get_args(get_args(union)[0])]
 
 
 def _walk(node):

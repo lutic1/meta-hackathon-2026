@@ -43,9 +43,10 @@ composes (AD-15); the per-Room line joins in 6.2.
 through `ArtifactStore.list_rooms()`, newest build first, with `job_id` read
 from the job record that names the Room (AD-9); `GET /meta` serves the
 `Meta` model, echoing any `?profile=` name the profile routes accept (AD-14),
-and `GET /schema` the JSON Schema of every AD-2 model under `$defs`, from
-which `web/types` are generated. The Trickster route and the build routes
-land with their stories.
+and `GET /schema` the JSON Schema of every AD-2 model and of the `Event`,
+`PostedEvent` and `LockInput` unions under `$defs`, from which `npm run types`
+generates `web/types`. The Trickster route and the build routes land with
+their stories.
 """
 
 from __future__ import annotations
@@ -93,6 +94,7 @@ from src.domain.schema import (
     Event,
     IdleTickEvent,
     JobId,
+    LockInput,
     Meta,
     Milliseconds,
     OpeningLineEvent,
@@ -232,10 +234,19 @@ def profile_routes(store: ArtifactStore) -> APIRouter:
 # --- Status and schema (AD-2, AD-15) ----------------------------------------
 
 
+API_UNIONS: dict[str, Any] = {"Event": Event, "PostedEvent": PostedEvent, "LockInput": LockInput}
+"""The tagged unions on `type` the API speaks, served by name so `web/types` declares them (AD-2)."""
+
+
 def api_schema() -> dict[str, Any]:
-    """The JSON Schema of every AD-2 model, each under `$defs` by its name, in one document."""
+    """The JSON Schema of every AD-2 model and tagged union, each under `$defs` by its name, in one document."""
     _, schema = models_json_schema([(model, "validation") for model in API_MODELS], ref_template="#/$defs/{model}")
-    return {"title": "Keyframe Schema v1", **schema}
+    defs = schema["$defs"]
+    for name, union in API_UNIONS.items():
+        union_schema = TypeAdapter(union).json_schema(ref_template="#/$defs/{model}")
+        union_schema.pop("$defs", None)  # every member is already under `$defs` through API_MODELS
+        defs[name] = {"title": name, **union_schema}
+    return {"title": "Keyframe Schema v1", "$defs": dict(sorted(defs.items()))}
 
 
 def status_routes(settings: Settings) -> APIRouter:
