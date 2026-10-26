@@ -280,7 +280,7 @@ def done_job(room: Room, **fields: Any) -> JobState:
             call(9, "riddler", FALLBACK, host="openai_compatible"),
             call(10, "dryrun", "muse-spark-1.3"),
         ],
-        "build_time_ms": 85_000,
+        "build_time_ms": 91_000,  # the runner's wall time, not the sum of the stage durations (85_000)
     }
     return JobState.model_validate({**data, **fields})
 
@@ -290,7 +290,7 @@ def test_build_view_holds_masks_graph_verdicts_regenerations_and_build_time(four
     view = to_build_view(room, job)
     assert isinstance(view, BuildView)
     assert (view.room_id, view.job_id, view.name, view.built_at) == (room.id, job.id, room.name, room.created)
-    assert view.build_time_ms == 85_000
+    assert view.build_time_ms == 91_000
     assert [photo.photo for photo in view.photos] == list(range(len(room.photos)))
     for photo in view.photos:
         expected = [ix for ix in room.interactables if ix.photo == photo.photo]
@@ -305,6 +305,21 @@ def test_build_view_holds_masks_graph_verdicts_regenerations_and_build_time(four
     assert (view.regeneration_count, view.regen_max) == (1, 2)
     assert view.sent_back == job.sent_back and view.sent_back[0].messages == [RULES[2].message]
     assert view.calls == job.calls
+
+
+def test_segmented_outlines_reach_the_view_exactly_as_recorded(four_lock_room: Room):
+    data = four_lock_room.model_dump()
+    x0, y0, x1, y1 = data["interactables"][0]["box"]
+    outlines = [[(x0, y1), ((x0 + x1) / 2, y0), (x1, y1)], [(x0 + 1, y0 + 1), (x0 + 5, y0 + 2), (x0 + 3, y0 + 6)]]
+    data["interactables"][0].update(polygons=outlines, instances=2)
+    room = Room.model_validate(data)
+    masks = {m.interactable_id: m for photo in to_build_view(room, done_job(room)).photos for m in photo.masks}
+    assert masks[room.interactables[0].id].polygons == outlines
+
+
+def test_build_time_falls_back_to_the_sum_of_the_stage_durations(four_lock_room: Room):
+    job = done_job(four_lock_room, build_time_ms=None)
+    assert to_build_view(four_lock_room, job).build_time_ms == sum(s.duration_ms for s in job.stages) == 85_000
 
 
 def test_a_box_fallback_reaches_the_view_as_a_polygon(four_lock_room: Room):
@@ -334,6 +349,12 @@ def test_model_rows_count_cached_and_billed_per_role_and_model_and_name_the_fall
 def test_a_single_count_reads_in_the_singular(four_lock_room: Room):
     job = done_job(four_lock_room, stages=[stage("architect", 10, 1, ARCHITECT)], calls=[call(1, "architect", ARCHITECT)])
     assert to_build_view(four_lock_room, job).models[0].summary == "found 1 object"
+
+
+def test_a_model_with_no_done_row_of_its_own_reads_no_count(four_lock_room: Room):
+    job = done_job(four_lock_room, stages=[stage("author", 30_000, 4, RIDDLER)],
+                   calls=[call(1, "riddler", RIDDLER), call(2, "riddler", FALLBACK, host="openai_compatible")])
+    assert [row.summary for row in to_build_view(four_lock_room, job).models] == ["wrote 4 puzzles", ""]
 
 
 def test_dry_run_off_projects_every_puzzle_skipped(four_lock_room: Room):

@@ -124,12 +124,14 @@ def _photo_masks(room: Room) -> list[PhotoMasks]:
 
 
 def _summary(role: Role, model: str, stages: list[StageRecord]) -> str:
-    """The provenance count behind a Model table row: the role's latest counted done row run by `model`, else its first."""
-    counted = [record for record in stages if record.stage in ROLE_STAGES.get(role, ()) and record.count is not None]
-    matched = [record for record in counted if record.model == model]
-    record = matched[-1] if matched else next(iter(counted), None)
-    if record is None:
+    """The provenance count behind a Model table row: the role's latest counted done row run by `model`, else ""."""
+    matched = [
+        record for record in stages
+        if record.stage in ROLE_STAGES.get(role, ()) and record.count is not None and record.model == model
+    ]
+    if not matched:
         return ""
+    record = matched[-1]
     return DONE_ROWS[record.stage].format(n=record.count, s="" if record.count == 1 else "s")
 
 
