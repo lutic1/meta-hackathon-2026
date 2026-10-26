@@ -1,23 +1,26 @@
-"""Stories 1.11, 1.12 and 3.2: wiring is the one module that builds an adapter; `GUIDE` alone selects the `HintPhraser`, and `GUIDE=ollama` refuses to start without its adapter (AD-5, AD-9, AD-14)."""
+"""Stories 1.11, 1.12, 3.2 and 3.7: wiring is the one module that builds an adapter; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter (AD-5, AD-9, AD-14)."""
 
 import ast
 from pathlib import Path
 
 import pytest
 
-from src.api.wiring import NO_OLLAMA_ADAPTER, SESSIONS_DIR, artifact_store, hint_phraser, session_clock, session_store
+import src.api.wiring as wiring
+from src.api.wiring import SESSIONS_DIR, artifact_store, hint_phraser, session_clock, session_store
 from src.config import Settings
+from src.domain.schema import GuideModel
 from src.infra.clocks import BuildClock, SessionClock
 from src.infra.local import ROOMS_ROOT, DiskArtifactStore, DiskCache, JsonlLedgerStore, JsonSessionStore
 from src.providers.base import HintPhraser
 from src.providers.meta_api import MetaModelProvider
 from src.providers.mock import MockProvider
+from src.providers.ollama import DEFAULT_HOST, OllamaPhraser
 from src.providers.verbatim import VerbatimPhraser
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 ADAPTERS = (
     DiskArtifactStore, JsonSessionStore, JsonlLedgerStore, DiskCache, SessionClock, BuildClock,
-    VerbatimPhraser, MockProvider, MetaModelProvider,
+    VerbatimPhraser, OllamaPhraser, MockProvider, MetaModelProvider,
 )
 """Every class under `src/infra` and `src/providers` that implements a port."""
 
@@ -42,13 +45,29 @@ def test_no_other_setting_selects_a_phraser(env):
     assert type(hint_phraser(Settings.from_env(env))) is VerbatimPhraser
 
 
-@pytest.mark.parametrize("env", [{}, {"GUIDE": "ollama"}, {"GUIDE": "ollama", "OLLAMA_HOST": "http://127.0.0.1:11434"}])
-def test_guide_ollama_fails_at_startup_naming_guide_verbatim(env):
+@pytest.mark.parametrize(("env", "host"), [
+    ({}, DEFAULT_HOST),
+    ({"GUIDE": "ollama"}, DEFAULT_HOST),
+    ({"GUIDE": "ollama", "OLLAMA_HOST": "http://127.0.0.1:11435"}, "http://127.0.0.1:11435"),
+])
+def test_guide_ollama_gives_the_ollama_adapter_at_ollama_host_over_the_verbatim_one(env, host):
     settings = Settings.from_env(env)
     assert settings.guide == "ollama"
-    with pytest.raises(ValueError, match="GUIDE=verbatim") as excinfo:
-        hint_phraser(settings)
-    assert str(excinfo.value) == NO_OLLAMA_ADAPTER
+    phraser = hint_phraser(settings)
+    assert type(phraser) is OllamaPhraser and isinstance(phraser, HintPhraser)
+    assert phraser.host == host and type(phraser.fallback) is VerbatimPhraser
+    assert (phraser.name, phraser.guide_model) == ("ollama", GuideModel(id="llama3.2:3b", host=host))
+
+
+def _never(*args, **kwargs):
+    raise AssertionError("the Ollama adapter was constructed under GUIDE=verbatim")
+
+
+@pytest.mark.parametrize("env", [{"GUIDE": "verbatim"}, {"GUIDE": "verbatim", "OLLAMA_HOST": "http://127.0.0.1:11434"}])
+def test_guide_verbatim_never_constructs_the_ollama_adapter(env, monkeypatch):
+    monkeypatch.setattr(wiring, "OllamaPhraser", _never)
+    phraser = hint_phraser(Settings.from_env(env))
+    assert type(phraser) is VerbatimPhraser and phraser.guide_model is None
 
 
 def test_the_offline_suite_sets_guide_verbatim_explicitly():
@@ -72,7 +91,7 @@ def _constructed(path: Path) -> set[str]:
 
 def test_wiring_is_the_only_module_that_constructs_an_adapter():
     constructors = {path.relative_to(SRC).as_posix(): _constructed(path) for path in SRC.rglob("*.py") if _constructed(path)}
-    assert constructors == {"api/wiring.py": {"DiskArtifactStore", "JsonSessionStore", "SessionClock", "VerbatimPhraser"}}
+    assert constructors == {"api/wiring.py": {"DiskArtifactStore", "JsonSessionStore", "SessionClock", "VerbatimPhraser", "OllamaPhraser"}}
 
 
 def test_artifact_store_is_the_disk_store_under_rooms(tmp_path):

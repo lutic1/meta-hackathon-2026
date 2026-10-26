@@ -1,9 +1,12 @@
 """`Settings` to adapters: the one place an adapter is chosen (AD-5, AD-9, AD-14).
 
 `hint_phraser` resolves the `HintPhraser` from `GUIDE` alone; no other
-setting selects a phraser. `artifact_store` builds the local disk store and
-`session_store` the JSON session log under it; `MODE` joins with the first
-hosted story, so only the local adapters exist and no setting selects them.
+setting selects a phraser, and the Ollama adapter is built only for
+`GUIDE=ollama`, at `OLLAMA_HOST`, over the verbatim adapter it falls back
+to (the hosted app never builds it: `Settings.mode` refuses `GUIDE=ollama`
+in 7.2). `artifact_store` builds the local disk store and `session_store`
+the JSON session log under it; `MODE` joins with the first hosted story,
+so only the local adapters exist and no setting selects them.
 `session_clock` is the one place `DEMO_TIMESCALE` reaches a clock (AD-10).
 The per-role `ModelProvider` resolution, the ledger store and the cache are
 wired by the stories that consume them.
@@ -18,22 +21,19 @@ from src.infra.clocks import SessionClock
 from src.infra.local import ROOMS_ROOT, DiskArtifactStore, JsonSessionStore
 from src.pipeline.ports import ArtifactStore, SessionStore
 from src.providers.base import HintPhraser
+from src.providers.ollama import OllamaPhraser
 from src.providers.verbatim import VerbatimPhraser
-
-NO_OLLAMA_ADAPTER = (
-    "GUIDE=ollama has no adapter in this build; run with GUIDE=verbatim "
-    "(Rungs and the Greeting are shown as written)."
-)
 
 SESSIONS_DIR = "sessions"
 """Session logs live under `rooms/sessions/` (AD-9)."""
 
 
 def hint_phraser(settings: Settings) -> HintPhraser:
-    """The Guide adapter `GUIDE` names; `GUIDE=ollama` fails at startup until the Ollama adapter exists."""
+    """The Guide adapter `GUIDE` names: the verbatim adapter, or the Ollama adapter at `OLLAMA_HOST` falling back to it."""
+    verbatim = VerbatimPhraser()
     if settings.guide == "verbatim":
-        return VerbatimPhraser()
-    raise ValueError(NO_OLLAMA_ADAPTER)
+        return verbatim
+    return OllamaPhraser(settings.ollama_host, fallback=verbatim)
 
 
 def artifact_store(root: Path = ROOMS_ROOT) -> ArtifactStore:

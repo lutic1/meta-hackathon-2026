@@ -20,7 +20,10 @@ from tests.providers.replay import Fixture, load
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts/sit.py"
 CASES = REPO / "tests/sit"
-SHIPPED_CASES = ["test_00_cap_refusal", "test_01_cache_hit", "test_02_architect", "test_03_segment", "test_04_image", "test_05_fallback_chat"]
+SHIPPED_CASES = [
+    "test_00_cap_refusal", "test_01_cache_hit", "test_02_architect", "test_03_segment", "test_04_image", "test_05_fallback_chat",
+    "test_06_ollama_guide",
+]
 CHAT = load("muse-spark-1.3/chat-three-objects")
 MESSAGES = [ChatMessage(role="user", content="Say ok.")]
 
@@ -279,7 +282,7 @@ def _riddler_reply() -> str:
 
 
 class Vendors:
-    """One handler for every host: Meta's chat, segment and image endpoints, and the Baseten chat endpoint."""
+    """One handler for every host: Meta's chat, segment and image endpoints, the Baseten chat endpoint and Ollama's generate."""
 
     def __init__(self) -> None:
         self.segments = 0
@@ -287,6 +290,11 @@ class Vendors:
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.paths.append(f"{request.url.host}{request.url.path}")
+        if request.url.path == "/api/generate":
+            if request.url.port == 1:  # the unreachable leg of the Ollama case
+                raise httpx.ConnectError("connection refused")
+            name = "generate-phrase-longest" if "\nLine:\n" in json.loads(request.content)["prompt"] else "generate-greet"
+            return httpx.Response(200, json=load(f"llama3.2-3b/{name}").body)
         if request.url.host == "inference.baseten.co":
             draft = load("muse-spark-open/chat-room-draft").body
             choice = {**draft["choices"][0], "message": {"role": "assistant", "content": _riddler_reply()}}
@@ -320,6 +328,8 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     assert statuses == [f"PASS {name}" for name in SHIPPED_CASES]
     recorded = sorted(str(p.relative_to(tmp_path / "tests/fixtures/providers")) for p in (tmp_path / "tests/fixtures/providers").rglob("*.json"))
     assert recorded == [
+        "llama3.2-3b/generate-greet.json",
+        "llama3.2-3b/generate-phrase-longest.json",
         "muse-image-1.0/image-sit-clue-card.json",
         "muse-spark-1.3/chat-architect-two-photos.json",
         "muse-spark-1.3/chat-sit-ok.json",
@@ -333,6 +343,8 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
         "api.meta.ai/v1/responses", "api.meta.ai/v1/responses",
         "api.meta.ai/v1/images/generations",
         "inference.baseten.co/v1/chat/completions",
+        "127.0.0.1/api/generate", "127.0.0.1/api/generate",  # phrase, greet
+        "127.0.0.1/api/generate",  # the unreachable leg, refused
     ]
     kinds = [(e.kind, e.status) for e in sit_script.JsonlLedgerStore(tmp_path / LEDGER_PATH).entries()]
     assert kinds == [(k, s) for k in ("vision", "vision", "sam", "sam", "image", "riddler") for s in ("reserved", "settled")]
@@ -342,13 +354,15 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     assert "'brass lamp': 2 polygon(s)" in out.out and "'a live penguin': none" in out.out
     assert "billed 0.01 USD, recorded" in out.out
     assert "meta-models/muse-spark-open: 4 puzzles" in out.out
+    assert "PASS test_06_ollama_guide: " in out.out and "21 tokens out in" in out.out and "decode 20 tok/s" in out.out
 
     # A second run on the same day: the image and the cache-hit calls are served from the cache, the rest run again.
     assert sit_script.main([], root=tmp_path, cases_root=CASES, transport=transport) == 0
     again = capsys.readouterr().out
     assert "served from the cache" in again and "first call already cached" in again
-    assert vendors.paths[6:] == [
+    assert vendors.paths[9:] == [
         "api.meta.ai/v1/chat/completions",
         "api.meta.ai/v1/responses", "api.meta.ai/v1/responses",
         "inference.baseten.co/v1/chat/completions",
+        "127.0.0.1/api/generate", "127.0.0.1/api/generate", "127.0.0.1/api/generate",
     ]

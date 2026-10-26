@@ -1,0 +1,17 @@
+{
+  "model": "llama3.2-3b",
+  "status": 200,
+  "body": {
+    "model": "llama3.2:3b",
+    "created_at": "2026-10-26T12:00:05.000000Z",
+    "response": "Welcome back. Twelve rooms in, and you still ask before the dust settles; let's see what this one makes of you.",
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 1498000000,
+    "load_duration": 19000000,
+    "prompt_eval_count": 229,
+    "prompt_eval_duration": 470000000,
+    "eval_count": 27,
+    "eval_duration": 1000000000
+  }
+}

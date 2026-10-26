@@ -98,7 +98,8 @@ def greet_callers(src_root: Path) -> list[str]:
 
 
 def test_the_greeting_composer_is_the_only_module_that_calls_greet():
-    assert greet_callers(REPO / "src") == ["src.council.greeting"]
+    # The Ollama adapter calls `greet` only on the verbatim adapter it falls back to (AD-5), with the same Derived block.
+    assert greet_callers(REPO / "src") == ["src.council.greeting", "src.providers.ollama"]
 
 
 def test_pipeline_imports_only_the_domain_the_council_and_ports():

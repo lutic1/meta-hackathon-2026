@@ -50,8 +50,10 @@ from src.domain.ledger import CallKind
 from src.infra.local import CACHE_ROOT, LEDGER_PATH, DiskCache, JsonlLedgerStore
 from src.providers.cache import GuardedCalls
 from src.providers.meta_api import MetaModelProvider
+from src.providers.ollama import OllamaPhraser
 from src.providers.openai_compatible import JsonMode, OpenAICompatibleProvider
 from src.providers.spend import SpendLedger
+from src.providers.verbatim import VerbatimPhraser
 
 CASES_ROOT = Path("tests/sit")
 FIXTURES_ROOT = Path("tests/fixtures/providers")
@@ -142,6 +144,10 @@ class Sit:
             json_mode=json_mode,
             transport=self.transport,
         )
+
+    def ollama(self, host: str | None = None) -> OllamaPhraser:
+        """The Guide adapter over the verbatim one, at `OLLAMA_HOST` unless `host` says otherwise; no cache or ledger, the model is free."""
+        return OllamaPhraser(host or self.settings.ollama_host, fallback=VerbatimPhraser(), transport=self.transport)
 
     def photos(self, count: int) -> list[bytes]:
         """The first `count` JPEGs under `photos/` in name order, downscaled to the 1280 px long edge."""
