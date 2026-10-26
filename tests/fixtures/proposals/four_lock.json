@@ -1,0 +1,23 @@
+{
+  "room_id": "room_00000000000000000000000001",
+  "proposals": [
+    {
+      "type": "decoy",
+      "puzzle": "pz_00000000000000000000000003",
+      "payload": {
+        "type": "decoy",
+        "interactable": "ix_00000000000000000000000008",
+        "visible_attribute": "faded red"
+      }
+    },
+    {
+      "type": "merge",
+      "puzzle": "pz_00000000000000000000000002",
+      "payload": {
+        "type": "merge",
+        "puzzle_a": "pz_00000000000000000000000003",
+        "puzzle_b": "pz_00000000000000000000000002"
+      }
+    }
+  ]
+}
