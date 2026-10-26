@@ -1,0 +1,15 @@
+:root {
+  color-scheme: dark;
+  background: #14100c;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+}
+
+#app canvas {
+  display: block;
+}

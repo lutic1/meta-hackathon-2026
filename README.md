@@ -50,6 +50,7 @@ src/config.py              settings from environment / .env
 src/providers/base.py      the ModelProvider interface. Depend on this only.
 src/providers/mock.py      deterministic fake, scriptable for tests and demos
 src/providers/meta_api.py  Meta Model API stub, wire up Oct 26
+web/                       Vite + TypeScript + three client; builds into web/dist
 tests/                     offline tests (conftest blocks every non-loopback socket)
 scripts/check.sh           pre-push check and the whole CI job (--predeploy before modal deploy)
 scripts/doctor.py          Mac and cloud environment check, stdlib only
@@ -75,10 +76,11 @@ uv sync --locked
 uv run python main.py chat "You are the Riddler. Greet the player."
 uv run python main.py image "portrait of a wizard game master"
 uv run pytest -q
+cd web && npm ci && npm run dev      # the dev server proxies /api/* to uvicorn on 127.0.0.1:8000
 ```
 
 Python 3.13 and uv 0.11.32 or newer (`.python-version`, `uv.lock`);
-Node 24 (`.nvmrc`) for the web client once it lands. `python3
+Node 24 (`.nvmrc`, `web/package-lock.json`) for the web client. `python3
 scripts/doctor.py` checks the machine.
 
 Configuration: copy `.env.example` to `.env`. `MODEL_PROVIDER=mock`
