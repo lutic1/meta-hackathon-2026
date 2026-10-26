@@ -42,6 +42,7 @@ class MemoryJobStore:
     def __init__(self) -> None:
         self.rows: dict[str, bytes] = {}
         self.writes: list[JobState] = []
+        self.reads = 0
 
     def put(self, state: JobState) -> None:
         self.rows[state.id] = state.model_dump_json().encode()
@@ -50,6 +51,7 @@ class MemoryJobStore:
     def read(self, job_id: JobId) -> JobState:
         if job_id not in self.rows:
             raise KeyError(job_id)
+        self.reads += 1
         return JobState.model_validate_json(self.rows[job_id])
 
     def list_ids(self) -> list[JobId]:
@@ -257,6 +259,18 @@ def test_the_runner_rereads_job_state_from_the_store_on_entry(jobs, artifacts, t
     done = build.run(queued.id)
     assert doubles.calls == ["validate", "dryrun", "scene"]
     assert [record.stage for record in done.stages] == list(STAGES) and done.stages[1:4] == [architect, segment, author]
+
+
+def test_every_stage_rereads_job_state_from_the_store_before_it_runs(jobs, artifacts, ticker, doubles, uploads):
+    build = _build(jobs, artifacts, ticker, doubles)
+    queued = build.submit(uploads)
+    jobs.reads = 0
+    for stage in AFTER_INGEST:
+        def check(state: JobState, stage: Stage = stage) -> None:
+            assert jobs.reads == STAGES.index(stage) and state == JobState.model_validate_json(jobs.rows[state.id])
+        doubles.hooks[stage] = check
+    build.run(queued.id)
+    assert jobs.reads == len(STAGES)  # one read before each stage after ingest, and one that finds scene finished
 
 
 @pytest.mark.parametrize("status", sorted(TERMINAL))

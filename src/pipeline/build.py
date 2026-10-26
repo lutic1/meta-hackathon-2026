@@ -2,11 +2,12 @@
 
 `Build.submit(uploads)` refuses a bad upload before any job exists, then
 mints the `job_` and `room_` ids, runs ingest and persists the job `queued`
-for `JobRunner.start(job_id)`. `Build.run(job_id)` rereads job state from
-`JobStore` on entry and runs the stages after the last persisted one, in
-order, persisting state after each stage with its duration from the build
+for `JobRunner.start(job_id)`. `Build.run(job_id)` runs the stages after
+the last persisted one, in order, rereading job state from `JobStore` before
+each and persisting it after each stage with its duration from the build
 clock, which never sees `DEMO_TIMESCALE` (AD-10); a terminal job is left as
-it is, so a restart after scene never rewrites anything. Each stage after
+it is, so a restart after scene never rewrites anything, and no job state
+lives in a process variable between stages. Each stage after
 ingest is a `StageFn` injected by wiring; what it returns (done-row count,
 model id, call rows, sent-back messages) goes into job state beside the
 timing (AD-16), and the build time is the sum of the finished stages. An
@@ -113,18 +114,17 @@ class Build:
         return self._put(state.model_copy(update={"status": "queued", "stage": None}))
 
     def run(self, job_id: JobId) -> JobState:
-        """Reread the job and run every stage after its last persisted one, in order; a terminal job is left as it is."""
-        state = self._jobs.read(job_id)
-        if state.status in TERMINAL:
-            return state
-        if not state.stages:
-            raise ValueError(f"{job_id} holds no ingest record to resume from")
-        for stage in STAGES[STAGES.index(state.stages[-1].stage) + 1:]:
+        """Run every stage after the last persisted one, in order, rereading the job from the store before each; a terminal job is left as it is."""
+        while (state := self._jobs.read(job_id)).status not in TERMINAL:
+            if not state.stages:
+                raise ValueError(f"{job_id} holds no ingest record to resume from")
+            finished = STAGES.index(state.stages[-1].stage) + 1
+            if finished == len(STAGES):
+                return self._put(state.model_copy(update={"status": "done", "stage": None}))
+            stage = STAGES[finished]
             state = self._put(state.model_copy(update={"status": "running", "stage": stage}))
-            state = self._put(self._finish(state, stage, self._stages[stage]))
-            if state.status == "failed":
-                return state
-        return self._put(state.model_copy(update={"status": "done", "stage": None}))
+            self._put(self._finish(state, stage, self._stages[stage]))
+        return state
 
     def _put(self, state: JobState) -> JobState:
         self._jobs.put(state)
