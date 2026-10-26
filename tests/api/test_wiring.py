@@ -1,4 +1,4 @@
-"""Stories 1.11, 1.12, 1.14, 2.12, 3.2 and 3.7: wiring is the one module that builds an adapter; one `ModelProvider` per council role, `PROVIDER_<ROLE>` replacing only its own; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter (AD-5, AD-7, AD-9, AD-14)."""
+"""Stories 1.11, 1.12, 1.14, 2.12, 2.22, 3.2 and 3.7: wiring is the one module that builds an adapter; one `ModelProvider` per council role, `PROVIDER_<ROLE>` replacing only its own; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter (AD-5, AD-7, AD-9, AD-14)."""
 
 import ast
 import json
@@ -28,7 +28,7 @@ from src.api.wiring import (
     spend_ledger,
 )
 from src.config import Settings
-from src.domain.schema import GuideModel, JobId, Role, Stage
+from src.domain.schema import GuideModel, JobId, JobState, Role, Stage
 from src.infra.clocks import BuildClock, SessionClock
 from src.infra.local import (
     CACHE_ROOT,
@@ -41,7 +41,8 @@ from src.infra.local import (
     JsonSessionStore,
     ThreadJobRunner,
 )
-from src.pipeline.build import STAGES, Build, StageFn
+from src.pipeline.build import STAGES, Build, StageFn, StageResult
+from src.pipeline.ports import room_key
 from src.providers.base import HintPhraser, ModelProvider
 from src.providers.meta_api import MetaModelProvider
 from src.providers.mock import ChatCall, MockProvider, MockScript, SegmentCall
@@ -50,6 +51,7 @@ from src.providers.openai_compatible import OpenAICompatibleProvider
 from src.providers.verbatim import VerbatimPhraser
 from tests.infra.test_clocks import Ticker
 from tests.pipeline.stages import labels
+from tests.pipeline.test_author_stage import reply, riddler, store_interactables
 from tests.pipeline.test_build import MemoryJobStore
 from tests.pipeline.test_segment_stage import INSIDE
 from tests.pipeline.uploads import make_uploads
@@ -248,9 +250,38 @@ def test_the_landed_stages_run_on_their_roles_and_a_stage_not_landed_raises_stag
     assert [type(call) for call in architect.calls] == [ChatCall] + [SegmentCall] * len(candidates)
     assert [type(call) for call in providers["riddler"].calls] == [ChatCall] * 3
     assert len(state.mask_preview) == len(candidates)
-    for stage in ("dryrun", "scene"):
-        with pytest.raises(StageNotBuilt):
-            stages[stage](state)
+    with pytest.raises(StageNotBuilt):
+        stages["dryrun"](state)
+
+
+def test_dry_run_off_builds_over_the_mocks_to_a_done_room_with_no_dry_run_call_and_a_restart_never_rewrites_it(
+    tmp_path, four_lock_room
+):
+    providers = {**_providers(tmp_path, {"MODEL_PROVIDER": "mock"}), "riddler": riddler(reply())}
+    artifacts = artifact_store(tmp_path / "rooms")
+    ledger = ledger_store(tmp_path / LEDGER_PATH)
+    stages = build_stages(providers, artifacts, ledger, dry_run=False)
+
+    def segment(state: JobState) -> StageResult:
+        store_interactables(artifacts, state, four_lock_room)
+        return StageResult()
+
+    stages["architect"] = lambda state: StageResult()
+    stages["segment"] = segment
+    jobs = MemoryJobStore()
+    build = Build(jobs=jobs, artifacts=artifacts, clock=BuildClock(monotonic_ns=Ticker()), stages=stages, regen_max=2)
+
+    done = build.run(build.submit(make_uploads(6)).id)
+
+    assert done.status == "done" and providers["dryrun"].calls == [] and ledger.entries() == []
+    assert {verdict.verdict for verdict in done.dry_run} == {"skipped"} and len(done.dry_run) == 5
+    written = artifacts.read(room_key(done.room_id))
+    assert [room.id for room in artifacts.list_rooms()] == [done.room_id]
+
+    finished = threading.Event()
+    job_runner(build, on_terminal=finished.set).start(done.id)
+    assert finished.wait(5)
+    assert artifacts.read(room_key(done.room_id)) == written and jobs.read(done.id) == done
 
 
 class RecordingRunner:

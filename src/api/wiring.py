@@ -26,10 +26,12 @@ reaches a clock and `build_clock` never sees it (AD-10).
 providers, the artifact store and the ledger store. Architect and segment
 (2.15) run on the `architect` role's provider, the one that finds the
 objects in the photos; author (2.20) runs on the `riddler` role's provider
-and validate reads the ledger for provenance. The other stages land with
-their stories (scene 2.22, dryrun 2.24); until one does, its slot raises
-`StageNotBuilt`, so a Build ends `failed` at that stage rather than
-pretending to run.
+and validate reads the ledger for provenance; scene (2.22) writes the Room
+with its provenance from the ledger. With `DRY_RUN=off` (cut 4) the dryrun
+slot records every Puzzle `skipped` and makes no call; with `DRY_RUN=on`
+it lands with its story (2.24), and until then the slot raises
+`StageNotBuilt`, so a Build ends `failed` there rather than pretending to
+run.
 """
 
 from __future__ import annotations
@@ -66,6 +68,7 @@ from src.pipeline.architect import architect_stage
 from src.pipeline.author import author_stage, validate_stage
 from src.pipeline.build import STAGES, TERMINAL, Build, StageFn, StageResult
 from src.pipeline.ports import ArtifactStore, Cache, JobRunner, JobStore, LedgerStore, SessionStore
+from src.pipeline.scene import scene_stage, skipped_dry_run_stage
 from src.pipeline.segment import segment_stage
 from src.providers.base import HintPhraser, ModelProvider
 from src.providers.cache import GuardedCalls
@@ -155,8 +158,13 @@ def model_providers(settings: Settings, cache: Cache, ledger: SpendLedger) -> di
     return {role: model_provider(settings, role, calls) for role in ROLES}
 
 
-def build_stages(providers: Mapping[Role, ModelProvider], artifacts: ArtifactStore, ledger: LedgerStore) -> dict[Stage, StageFn]:
-    """The function for each stage after ingest over the per-role providers; a stage whose story has not landed raises `StageNotBuilt`."""
+def build_stages(
+    providers: Mapping[Role, ModelProvider], artifacts: ArtifactStore, ledger: LedgerStore, *, dry_run: bool = True
+) -> dict[Stage, StageFn]:
+    """The function for each stage after ingest over the per-role providers; a stage whose story has not landed raises `StageNotBuilt`.
+
+    `dry_run` is `DRY_RUN=on`; off (cut 4), the dryrun slot records every Puzzle `skipped` and makes no call.
+    """
 
     def not_built(stage: Stage) -> StageFn:
         def run(state: JobState) -> StageResult:
@@ -169,6 +177,9 @@ def build_stages(providers: Mapping[Role, ModelProvider], artifacts: ArtifactSto
     stages["segment"] = segment_stage(providers["architect"], artifacts)
     stages["author"] = author_stage(providers["riddler"], artifacts)
     stages["validate"] = validate_stage(artifacts, ledger)
+    if not dry_run:
+        stages["dryrun"] = skipped_dry_run_stage(artifacts)
+    stages["scene"] = scene_stage(artifacts, ledger)
     return stages
 
 

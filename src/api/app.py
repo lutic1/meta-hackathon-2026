@@ -617,7 +617,8 @@ def create_app(
     export = ledger_export(settings, ledger, exports_root, today)
     store = artifact_store(rooms_root)
     if stages is None:
-        stages = build_stages(model_providers(settings, model_cache(cache_root), spend_ledger(settings, ledger)), store, ledger)
+        providers = model_providers(settings, model_cache(cache_root), spend_ledger(settings, ledger))
+        stages = build_stages(providers, store, ledger, dry_run=settings.dry_run == "on")
     jobs = job_store(rooms_root)
     build = Build(jobs=jobs, artifacts=store, clock=build_clock(), stages=stages, regen_max=settings.regen_max)
     runner = job_runner(build, on_terminal=export)
