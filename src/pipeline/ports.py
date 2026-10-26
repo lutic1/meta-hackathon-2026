@@ -2,8 +2,7 @@
 
 Each port is a Protocol over domain models only; `src/infra` implements it
 per mode (`MODE=local|hosted`) and wiring injects the adapter. `Clock` is
-declared in `src/domain/clock.py` and re-exported here; `JobStore` and
-`JobRunner` land with the stories that need them.
+declared in `src/domain/clock.py` and re-exported here.
 """
 
 from __future__ import annotations
@@ -12,9 +11,20 @@ from typing import Any, Protocol
 
 from src.domain.clock import Clock
 from src.domain.ledger import LedgerEntry
-from src.domain.schema import Event, Room, SessionId
+from src.domain.schema import Event, JobId, JobState, Room, SessionId
 
-__all__ = ["ROOM_FILE", "ArtifactStore", "Cache", "Clock", "LedgerStore", "SessionStore", "photo_key", "room_key"]
+__all__ = [
+    "ROOM_FILE",
+    "ArtifactStore",
+    "Cache",
+    "Clock",
+    "JobRunner",
+    "JobStore",
+    "LedgerStore",
+    "SessionStore",
+    "photo_key",
+    "room_key",
+]
 
 ROOM_FILE = "room.json"
 """A Room's key ends in this name, under its own `<room_id>/` folder, so `list_rooms` can find every Room."""
@@ -44,6 +54,33 @@ class ArtifactStore(Protocol):
     def read(self, key: str) -> bytes: ...
 
     def list_rooms(self) -> list[Room]: ...
+
+
+class JobStore(Protocol):
+    """Job state (AD-7): local, JSON under `rooms/`; hosted, the `keyframe-jobs` Dict.
+
+    The stage runner is the one writer: it `put`s the whole `JobState` after
+    every stage and `read`s it back on entry, so a restarted runner resumes
+    where the last one stopped. `read` raises `KeyError` for an unknown id;
+    `list_ids` returns every stored job id, so wiring can restart the jobs
+    left `queued` or `running`. No job state lives in a process variable.
+    """
+
+    def put(self, state: JobState) -> None: ...
+
+    def read(self, job_id: JobId) -> JobState: ...
+
+    def list_ids(self) -> list[JobId]: ...
+
+
+class JobRunner(Protocol):
+    """Runs a stored job's remaining stages (AD-7): local, an in-process thread; hosted, `run_build.spawn(job_id)`.
+
+    `start` returns before any stage completes, so no request blocks on a
+    stage; the job it names already holds its ingest record in `JobStore`.
+    """
+
+    def start(self, job_id: JobId) -> None: ...
 
 
 class SessionStore(Protocol):

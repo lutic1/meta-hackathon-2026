@@ -1,4 +1,4 @@
-"""Stories 1.10, 2.3 and 2.4: `src/pipeline/ports.py` declares `ArtifactStore`, `SessionStore`, `LedgerStore` and `Cache` over the domain only and re-exports `Clock` (AD-1, AD-9, AD-10)."""
+"""Stories 1.10, 2.3, 2.4 and 2.10: `src/pipeline/ports.py` declares `ArtifactStore`, `SessionStore`, `LedgerStore`, `Cache`, `JobStore` and `JobRunner` over the domain only and re-exports `Clock` (AD-1, AD-7, AD-9, AD-10)."""
 
 import inspect
 import sys
@@ -7,9 +7,20 @@ from pathlib import Path
 
 from src.domain import clock
 from src.domain.ledger import LedgerEntry
-from src.domain.schema import Event, Room, SessionId
+from src.domain.schema import Event, JobId, JobState, Room, SessionId
 from src.pipeline import ports
-from src.pipeline.ports import ROOM_FILE, ArtifactStore, Cache, Clock, LedgerStore, SessionStore, photo_key, room_key
+from src.pipeline.ports import (
+    ROOM_FILE,
+    ArtifactStore,
+    Cache,
+    Clock,
+    JobRunner,
+    JobStore,
+    LedgerStore,
+    SessionStore,
+    photo_key,
+    room_key,
+)
 from tests.test_boundaries import _imports
 
 REPO = Path(__file__).resolve().parents[2]
@@ -95,8 +106,58 @@ def test_session_store_declares_append_read_all_list_ids_and_delete():
     assert inspect.signature(SessionStore.delete, eval_str=True).return_annotation is None
 
 
+def test_job_store_declares_put_read_and_list_ids_over_job_state():
+    assert typing.is_protocol(JobStore)
+    put = inspect.signature(JobStore.put, eval_str=True)
+    assert _params(JobStore.put) == ["self", "state"]
+    assert put.parameters["state"].annotation is JobState and put.return_annotation is None
+    read = inspect.signature(JobStore.read, eval_str=True)
+    assert _params(JobStore.read) == ["self", "job_id"]
+    assert read.parameters["job_id"].annotation == JobId and read.return_annotation is JobState
+    assert _params(JobStore.list_ids) == ["self"]
+    assert inspect.signature(JobStore.list_ids, eval_str=True).return_annotation == list[JobId]
+
+
+def test_job_runner_declares_start_over_a_job_id():
+    assert typing.is_protocol(JobRunner)
+    start = inspect.signature(JobRunner.start, eval_str=True)
+    assert _params(JobRunner.start) == ["self", "job_id"]
+    assert start.parameters["job_id"].annotation == JobId and start.return_annotation is None
+
+
+def test_structural_job_doubles_satisfy_both_ports():
+    class Memory:
+        def __init__(self) -> None:
+            self.rows: dict[str, JobState] = {}
+
+        def put(self, state: JobState) -> None:
+            self.rows[state.id] = state
+
+        def read(self, job_id: JobId) -> JobState:
+            return self.rows[job_id]
+
+        def list_ids(self) -> list[JobId]:
+            return sorted(self.rows)
+
+    class Runner:
+        def __init__(self) -> None:
+            self.started: list[JobId] = []
+
+        def start(self, job_id: JobId) -> None:
+            self.started.append(job_id)
+
+    store: JobStore = Memory()
+    runner: JobRunner = Runner()
+    state = JobState(id="job_01ARZ3NDEKTSV4RRFFQ69G5FAV", status="queued", regen_max=2)
+    store.put(state)
+    assert store.read(state.id) == state and store.list_ids() == [state.id]
+    runner.start(state.id)
+    assert runner.started == [state.id]
+
+
 def test_clock_is_re_exported_from_the_domain():
     assert Clock is clock.Clock and "Clock" in ports.__all__
+    assert {"JobStore", "JobRunner"} <= set(ports.__all__)
 
 
 def test_ports_import_only_the_domain():

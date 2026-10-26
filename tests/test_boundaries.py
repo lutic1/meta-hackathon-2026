@@ -70,7 +70,7 @@ def violations(src_root: Path) -> list[str]:
                 elif not internal and top not in stdlib and top != "pydantic":
                     out.append(f"{module} imports {name}; src/domain allows only stdlib and pydantic")
             elif package in ("src.council", "src.pipeline") and internal:
-                allowed = _in(name, "src.domain") or name in PORTS
+                allowed = _in(name, "src.domain", package) or name in PORTS
                 if package == "src.pipeline":
                     allowed = allowed or _in(name, "src.council")
                 if not allowed:
@@ -99,6 +99,15 @@ def greet_callers(src_root: Path) -> list[str]:
 
 def test_the_greeting_composer_is_the_only_module_that_calls_greet():
     assert greet_callers(REPO / "src") == ["src.council.greeting"]
+
+
+def test_pipeline_imports_only_the_domain_the_council_and_ports():
+    src = REPO / "src"
+    modules = sorted(src.glob("pipeline/*.py"))
+    assert {path.name for path in modules} >= {"build.py", "ingest.py", "ports.py"}
+    for path in modules:
+        internal = {n for n in _imports(path, _module_name(path, src), src) if n.startswith("src.")}
+        assert all(_in(n, "src.domain", "src.council", "src.pipeline") or n in PORTS for n in internal), (path.name, internal)
 
 
 def test_schema_imports_only_stdlib_and_pydantic():
@@ -153,6 +162,11 @@ def test_pipeline_may_import_council_domain_and_ports(tmp_path):
         "pipeline/ports.py": "from src.domain.clock import Clock\n",
         "council/riddler.py": "", "domain/schema.py": "", "domain/clock.py": "", "providers/base.py": "",
     })
+    assert violations(src) == []
+
+
+def test_pipeline_may_import_its_own_modules(tmp_path):
+    src = _tree(tmp_path, {"pipeline/build.py": "from src.pipeline.ingest import validate_upload\n", "pipeline/ingest.py": ""})
     assert violations(src) == []
 
 
