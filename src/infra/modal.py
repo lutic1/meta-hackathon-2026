@@ -64,6 +64,24 @@ log adds each key to `rooms/judge/<room_id>/cache-keys.json`, committed,
 before the Build first reads or writes its entry, so no entry a runner
 stored is ever unlisted, even when the runner is killed, and the purge
 finds them all (AD-8).
+
+Retention (AD-8, AD-9) is two hosted-only functions that Local mode never
+calls. `delete_judge_room(handles, room_id, today=...)` deletes a Judge
+room together: its Sessions (`SessionStore.list_ids` and `read_all`, then
+`delete`), every Cache entry its `cache-keys.json` lists, its folder under
+`rooms/judge/` (Room, final record, photos and originals), committing the
+Volume, and its job keys in `keyframe-jobs`, and only then writes the
+ids-only `DeletionRecord` to `rooms/deleted/<room_id>.json`. It refuses a
+Demo room id, deleting nothing. Every step skips what an earlier, failed
+attempt already removed, and none removes what a later one reads, so an
+error part-way raises before any record is written and a rerun completes
+the deletion. A Session belongs to a Room when one of its events names one
+of the Room's interactables or puzzles; a Session holding only its opening
+line and idle ticks names none and is left to the sweep.
+`sweep_sessions(handles, now=...)` deletes every Session whose last event
+is more than `SESSION_TTL_MS` old, the last event's wall time being the
+Session's `sess_` ULID mint time plus that event's `t_ms` (unscaled
+milliseconds since the start, AD-10).
 """
 
 from __future__ import annotations
@@ -71,24 +89,35 @@ from __future__ import annotations
 import json
 import posixpath
 import re
+import shutil
 import threading
 import time
 from collections.abc import Callable, Iterable
+from contextlib import suppress
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol
 
-from pydantic import TypeAdapter
+from pydantic import ConfigDict, TypeAdapter
 
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import (
+    ClickEvent,
     ErrorDetail,
     Event,
+    HintRequestEvent,
     JobId,
     JobState,
     JobStatus,
+    LockInputEvent,
+    Model,
     Room,
+    RoomId,
+    RungChangeEvent,
     SessionId,
+    TricksterCardEvent,
+    UseOnInput,
 )
 from src.pipeline.ports import ROOM_FILE, ArtifactStore, BuildQuotaExceeded, Cache
 
@@ -104,6 +133,8 @@ DEMO_PARTITION = "demo"
 """Demo rooms live under `rooms/demo/`: `scripts/seed_rooms.py` writes them and `list_rooms()` lists them."""
 JUDGE_PARTITION = "judge"
 """Judge rooms live under `rooms/judge/`: every hosted Build writes there, and nothing lists them."""
+DELETED_PARTITION = "deleted"
+"""Ids-only deletion records live under `rooms/deleted/<room_id>.json` (AD-9); nothing else is written there."""
 CACHE_KEYS_FILE = "cache-keys.json"
 """Every Cache key a Judge build read or wrote, beside its originals at `rooms/judge/<room_id>/cache-keys.json` (AD-8)."""
 CACHE_DIR = "cache"
@@ -112,6 +143,7 @@ EPOCH_KEY = "epoch"
 """The reserved `keyframe-ledger` key holding the current epoch (AD-9); never a `call_` id."""
 EVENTS = TypeAdapter(list[Event])
 CACHE_KEYS = TypeAdapter(list[str])
+ROOM_ID = TypeAdapter(RoomId)
 
 JOB_FILE = "job.json"
 """The final job record, beside its Room at `rooms/<partition>/<room_id>/job.json` (AD-7)."""
@@ -124,6 +156,8 @@ IN_FLIGHT: frozenset[JobStatus] = frozenset({"queued", "running"})
 CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 BUILD_QUOTA = 20
 """AD-9: the judge builds the hosted app accepts; the 21st is refused with `BuildQuotaExceeded`."""
+SESSION_TTL_MS = 24 * 60 * 60 * 1000
+"""AD-8: a hosted Session is deleted once its last event is more than 24 h old."""
 
 type RunnerState = Literal["running", "finished", "timed_out", "crashed", "expired", "unknown"]
 """A spawned call as Modal reports it without waiting: still going, ended (four ways), or not known because the poll failed."""
@@ -216,6 +250,24 @@ class VolumeFiles:
                 except FileNotFoundError:
                     continue
             raise KeyError(rel)
+
+    def exists(self, rel: str) -> bool:
+        """Reload, then whether a file or folder is at `rel`."""
+        path = self._path(rel)
+        with VOLUME_LOCK:
+            self.volume.reload()
+            return path.exists()
+
+    def remove(self, *rels: str) -> None:
+        """Delete each file or folder (with everything under it) that is still there, then commit once; one already gone is skipped."""
+        paths = [self._path(rel) for rel in rels]
+        with VOLUME_LOCK:
+            for path in paths:
+                if path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink(missing_ok=True)
+            self.volume.commit()
 
     def read_glob(self, *patterns: str) -> list[bytes]:
         """Reload once, then read every file matching each pattern under the root fully, in path order per pattern, before the lock is released."""
@@ -350,6 +402,12 @@ class DictJobStore:
         keys = self.jobs.keys()  # `modal.Dict` offers `keys()`, not iteration
         ids = {key for key in keys if isinstance(key, str) and key.startswith("job_")}
         return sorted(ids | {state.id for state in self._final_records()})
+
+    def job_of(self, room_id: str) -> JobId | None:
+        """The id of the job that built `room_id`, from the Dict or a final record; `None` when neither names the Room."""
+        keys = self.jobs.keys()  # `modal.Dict` offers `keys()`, not iteration
+        in_flight = [JobState.model_validate(self.jobs.get(key)) for key in keys if isinstance(key, str) and key.startswith("job_")]
+        return next((state.id for state in [*in_flight, *self._final_records()] if state.room_id == room_id), None)
 
     def reserve_build(self, job_id: JobId) -> None:
         """Claim the first free slot for `job_id`, one conditional write per slot; with every slot taken raise `BuildQuotaExceeded`, having written nothing."""
@@ -607,3 +665,133 @@ def run_judge_build[T](run: Callable[[JobId], T], job_id: JobId, *, keys: CacheK
     """
     keys.write()
     return run(job_id)
+
+
+# --- Retention: the Judge room deletion and the Session sweep (AD-8, AD-9) ------
+
+
+class DeletionRecord(Model):
+    """What a deleted Judge room leaves at `rooms/deleted/<room_id>.json` (AD-9): ids and the date only, no label, Clue, name or photo.
+
+    `job_id` is `None` only when no job record names the Room any more.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    room_id: RoomId
+    job_id: JobId | None
+    deleted_on: date
+
+
+def deletion_record_path(room_id: str) -> str:
+    """Where the Volume keeps a deleted Judge room's ids-only record."""
+    return f"{ROOMS_DIR}/{DELETED_PARTITION}/{room_id}.json"
+
+
+def delete_judge_room(handles: ModalHandles, room_id: str, *, today: date) -> DeletionRecord:
+    """Delete a Judge room with its Sessions, listed Cache entries and job keys, commit, then write and return its ids-only record (AD-8, AD-9).
+
+    A Demo room id is refused with `ValueError` before anything is deleted.
+    An id that names no Judge folder and no job returns its record again,
+    rewritten and committed, when one exists, and raises `KeyError` when
+    none does. Each
+    step skips what an earlier attempt already removed, and each runs while
+    what the later ones read is still there: the Sessions and Cache entries
+    go while the Room and `cache-keys.json` remain, the folder while the
+    job keys still name the Room, and the record is written last. So a
+    failure part-way raises with no record written, and a rerun deletes
+    what is left. Cache entries not listed in `cache-keys.json`, every Demo
+    room's included, are never touched.
+    """
+    ROOM_ID.validate_python(room_id)
+    files = VolumeFiles(handles.volume, handles.root)
+    folder = f"{ROOMS_DIR}/{JUDGE_PARTITION}/{room_id}"
+    if files.exists(f"{ROOMS_DIR}/{DEMO_PARTITION}/{room_id}"):
+        raise ValueError(f"{room_id} is a Demo room; only Judge rooms are deleted")
+    jobs = DictJobStore(handles.jobs, files)
+    job_id = jobs.job_of(room_id)
+    if job_id is None and not files.exists(folder):
+        return _rewrite_record(files, room_id)
+    room = _judge_room(files, folder)
+    if room is not None:
+        _delete_room_sessions(DictSessionStore(handles.sessions), room)
+    files.remove(*(f"{CACHE_DIR}/{key}.json" for key in _listed_cache_keys(files, folder)))
+    files.remove(folder)
+    if job_id is not None:
+        for key in (job_id, call_key(job_id)):
+            if key in handles.jobs:
+                handles.jobs.pop(key)
+    record = DeletionRecord(room_id=room_id, job_id=job_id, deleted_on=today)
+    files.write(deletion_record_path(room_id), record.model_dump_json().encode())
+    return record
+
+
+def _rewrite_record(files: VolumeFiles, room_id: str) -> DeletionRecord:
+    """The record of a room already deleted, written and committed again in case its first commit failed; `KeyError` when there is none."""
+    path = deletion_record_path(room_id)
+    try:
+        record = DeletionRecord.model_validate_json(files.read(path))
+    except KeyError:
+        raise KeyError(room_id) from None
+    files.write(path, record.model_dump_json().encode())
+    return record
+
+
+def _judge_room(files: VolumeFiles, folder: str) -> Room | None:
+    """The stored Room; `None` for a Build that ended without one or a folder already deleted."""
+    try:
+        return Room.model_validate_json(files.read(f"{folder}/{ROOM_FILE}"))
+    except KeyError:
+        return None
+
+
+def _listed_cache_keys(files: VolumeFiles, folder: str) -> list[str]:
+    """The keys in the folder's `cache-keys.json`, none when it is absent; one that is not a plain file name is refused with `ValueError`."""
+    try:
+        keys = CACHE_KEYS.validate_json(files.read(f"{folder}/{CACHE_KEYS_FILE}"))
+    except KeyError:
+        return []
+    for key in keys:
+        if not key or PurePosixPath(key).name != key or key in (".", ".."):
+            raise ValueError(f"cache key {key!r} in {folder}/{CACHE_KEYS_FILE} is not a file name")
+    return keys
+
+
+def _named_ids(event: Event) -> set[str]:
+    """The Room ids an event names: the interactable clicked or paired, or the puzzle targeted."""
+    if isinstance(event, ClickEvent):
+        return {event.interactable_id}
+    if isinstance(event, LockInputEvent):
+        if isinstance(event.input, UseOnInput):
+            return {event.input.item, event.input.target}
+        return {event.input.puzzle_id}
+    if isinstance(event, HintRequestEvent | TricksterCardEvent | RungChangeEvent) and event.puzzle_id is not None:
+        return {event.puzzle_id}
+    return set()
+
+
+def _delete_room_sessions(sessions: DictSessionStore, room: Room) -> None:
+    """Delete every Session whose events name one of the Room's interactables or puzzles, whatever its age."""
+    ids = {ix.id for ix in room.interactables} | {pz.id for pz in room.puzzles}
+    for session_id in sessions.list_ids():
+        with suppress(KeyError):  # another sweep may have deleted it meanwhile
+            if any(_named_ids(event) & ids for event in sessions.read_all(session_id)):
+                sessions.delete(session_id)
+
+
+def last_event_ms(session_id: SessionId, events: list[Event]) -> int:
+    """Unix milliseconds of the Session's last event: its `sess_` ULID mint time plus the event's `t_ms` (AD-10, AD-18)."""
+    return minted_ms(session_id) + (events[-1].t_ms if events else 0)
+
+
+def sweep_sessions(handles: ModalHandles, *, now: datetime) -> list[SessionId]:
+    """Delete every Session whose last event is more than `SESSION_TTL_MS` before `now` and return their ids (AD-8, hourly)."""
+    sessions = DictSessionStore(handles.sessions)
+    now_ms = int(now.timestamp() * 1000)
+    swept: list[SessionId] = []
+    for session_id in sessions.list_ids():
+        with suppress(KeyError):  # deleted meanwhile, by a Judge room deletion or another sweep
+            if now_ms - last_event_ms(session_id, sessions.read_all(session_id)) > SESSION_TTL_MS:
+                sessions.delete(session_id)
+                swept.append(session_id)
+    return swept
