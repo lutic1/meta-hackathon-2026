@@ -158,7 +158,7 @@ development_status:
   # Record the result here. If it fails, the quota goes through bmad-correct-course.
   7-10-twenty-slot-judge-build-quota: done
   # 7.11 is gated on the 7.10 live atomicity check passing.
-  7-11-access-code-guard-and-the-quota-refusal: backlog
+  7-11-access-code-guard-and-the-quota-refusal: done
   7-12-post-access-check-before-photo-selection: backlog
   7-13-seed-the-demo-rooms-with-their-job-records: done
   7-14-hosted-room-partitions-demo-rooms-listed-judge-rooms-apart: backlog
