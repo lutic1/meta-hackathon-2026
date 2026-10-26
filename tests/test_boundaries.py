@@ -160,3 +160,14 @@ def test_api_may_import_adapters_and_config(tmp_path):
         "config.py": "", "providers/mock.py": "", "infra/local.py": "",
     })
     assert violations(src) == []
+
+
+def test_ledger_imports_only_stdlib_and_pydantic_and_no_clock():
+    src = REPO / "src"
+    path = src / "domain" / "ledger.py"
+    names = _imports(path, "src.domain.ledger", src)
+    tops = {name.split(".")[0] for name in names if not _in(name, "src.domain")}
+    assert tops and tops <= set(sys.stdlib_module_names) | {"pydantic"}, tops
+    assert all(_in(name, "src.domain") for name in names if name.startswith("src.")), names
+    assert not tops & {"datetime", "time", "zoneinfo", "calendar"}, tops
+    assert "src.domain.clock" not in names
