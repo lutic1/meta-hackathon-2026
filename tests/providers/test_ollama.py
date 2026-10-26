@@ -251,6 +251,7 @@ FAILURES: dict[str, tuple[str, Callable[[httpx.Request], httpx.Response]]] = {
     "server error": ("error", lambda r: httpx.Response(500, json={"error": "llama runner process has terminated"})),
     "model missing": ("error", lambda r: httpx.Response(404, json={"error": "model 'llama3.2:3b' not found"})),
     "not json": ("error", lambda r: httpx.Response(200, content=b"<html>not ollama</html>")),
+    "json but not an object": ("error", lambda r: httpx.Response(200, json=["not", "ollama"])),
     "empty line": ("error", lambda r: httpx.Response(200, json={"model": GUIDE_MODEL, "response": " \n", "done": True})),
     "protocol error": ("error", _raise(httpx.RemoteProtocolError("the server closed the connection"))),
 }
@@ -271,6 +272,7 @@ def test_phrase_falls_back_to_the_verbatim_rung_and_logs_phraser_fallback_with_i
     line = json.loads(caplog.records[0].getMessage())
     assert line["event"] == "phraser_fallback" and line["cause"] == cause and line["call"] == "phrase"
     assert isinstance(line["duration_ms"], int) and line["error"]
+    assert reply.latency_ms == line["duration_ms"]  # the failed call's time, not the verbatim adapter's
 
 
 @pytest.mark.parametrize("failure", FAILURES)
@@ -300,6 +302,14 @@ def test_the_fallback_is_the_injected_adapter_called_with_the_same_input():
     assert fallback.calls == [("phrase", (RUNG, derived), {}), ("greet", (derived,), {})]
 
 
+def test_a_fallback_reports_the_time_the_failed_call_took(monkeypatch):
+    ticks = iter([0, 5_000_000_000])  # started, then 5 s later when the timeout fired
+    monkeypatch.setattr("src.providers.ollama.perf_counter_ns", lambda: next(ticks))
+    transport, _ = recording(_raise(httpx.ReadTimeout("the reply took too long")))
+    reply = phraser(transport, fallback=RecordingPhraser()).phrase(RUNG, _derived(0.2))
+    assert reply == PhraserResponse(text="fallback phrase", phrased=False, latency_ms=5000)
+
+
 def test_a_working_model_logs_nothing_and_never_reaches_the_fallback(caplog):
     transport, _ = replying(PHRASE_FIXTURE)
     fallback = RecordingPhraser()
@@ -314,4 +324,5 @@ def test_fallback_causes():
     assert fallback_cause(ConnectionError("refused")) == "unreachable"
     assert fallback_cause(httpx.ConnectError("refused")) == "unreachable"
     assert fallback_cause(ValueError("bad body")) == "error"
+    assert fallback_cause(TypeError("argument after ** must be a mapping")) == "error"
     assert fallback_cause(httpx.RemoteProtocolError("closed")) == "error"

@@ -9,7 +9,8 @@ followed by exactly the Rung text and the Derived block (`greet`: the
 Derived block only); it stays under 400 tokens and the output is capped
 near 40. Past `TIMEOUT_S`, or at once when Ollama is unreachable or answers
 an error, the injected verbatim adapter answers instead, reported as not
-phrased, and one `phraser_fallback` JSON line is logged with its cause.
+phrased with the time the failed call took, and one `phraser_fallback` JSON
+line is logged with its cause.
 The adapter reads no environment: wiring passes `OLLAMA_HOST` (AD-14).
 """
 
@@ -108,10 +109,12 @@ class OllamaPhraser(HintPhraser):
             text = (reply.response or "").strip()
             if not text:
                 raise ollama.ResponseError("the model answered an empty line")
-        except (ConnectionError, httpx.HTTPError, ollama.RequestError, ollama.ResponseError, ValueError) as exc:
+        except (ConnectionError, httpx.HTTPError, ollama.RequestError, ollama.ResponseError, ValueError, TypeError) as exc:
+            # TypeError: a 200 body that is JSON but not an object (a wrong host or a proxy page)
             elapsed_ms = (perf_counter_ns() - started) // 1_000_000
             self._log_fallback(call, fallback_cause(exc), elapsed_ms, exc)
-            return fallback()
+            reply = fallback()
+            return PhraserResponse(text=reply.text, phrased=False, latency_ms=elapsed_ms)
         return PhraserResponse(text=text, phrased=True, latency_ms=(perf_counter_ns() - started) // 1_000_000)
 
     @staticmethod
