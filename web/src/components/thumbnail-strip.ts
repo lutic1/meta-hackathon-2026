@@ -27,6 +27,8 @@ export function thumbnailStrip(roomId: string, count: number, onSelect: (index: 
     image.height = 72
     thumbnail.append(image)
     thumbnail.addEventListener('click', () => onSelect(index))
+    // Browsers leave a partly visible button where it is on focus; scroll it, ring and all, fully into the row.
+    thumbnail.addEventListener('focus', () => thumbnail.scrollIntoView({ block: 'nearest', inline: 'nearest' }))
     return thumbnail
   })
   element.append(...thumbnails)

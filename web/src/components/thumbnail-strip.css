@@ -1,11 +1,12 @@
-/* The Thumbnail strip: a row of {components.thumbnail} 8 px apart that scrolls inside its own row; 4 px of padding
-   keeps the focus ring inside the scroller. Others sit at 80% opacity, hover borders lamp-strong, current lamp. */
+/* The Thumbnail strip: a row of {components.thumbnail} 8 px apart that scrolls inside its own row; 4 px of padding,
+   and as much scroll padding when a focused thumbnail scrolls into view, keep the focus ring inside the scroller. Others sit at 80% opacity, hover borders lamp-strong, current lamp. */
 .thumbnail-strip {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   min-width: 0;
   padding: 0 var(--spacing-1);
+  scroll-padding-inline: var(--spacing-1);
   overflow-x: auto;
   overflow-y: hidden;
 }
