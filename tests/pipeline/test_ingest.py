@@ -118,7 +118,7 @@ def test_each_refusal_fits_the_error_envelope_at_stage_ingest(uploads):
         with pytest.raises((IngestRefused, UnsupportedImage)) as info:
             validate_upload(bad)
         envelope = ErrorEnvelope(error=error_detail(info.value, "ingest"))
-        assert (envelope.error.code, envelope.error.stage, envelope.status) == (code, "ingest", None)
+        assert (envelope.error.code, envelope.error.stage, envelope.error.status) == (code, "ingest", None)
         assert envelope.error.message
 
 

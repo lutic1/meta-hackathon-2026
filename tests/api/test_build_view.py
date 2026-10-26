@@ -63,6 +63,11 @@ def view_client(tmp_path: Path, room: Room | None, *jobs: JobState, hosted: bool
     return TestClient(app)
 
 
+def compact(value: object) -> str:
+    """`value` as the response writes JSON: no spaces after separators, so a leaked list or object would match."""
+    return json.dumps(value, separators=(",", ":"))
+
+
 def not_done(status: JobStatus) -> JobState:
     """A known job in `status`; only `running` names a stage."""
     return JobState(
@@ -112,8 +117,9 @@ def test_the_view_route_takes_no_access_guard():
 # --- Unknown job: 404 ----------------------------------------------------------------
 
 
-def test_an_unknown_job_answers_404(tmp_path: Path):
-    client = view_client(tmp_path, None)
+@pytest.mark.parametrize("hosted", [False, True], ids=["local", "hosted"])
+def test_an_unknown_job_answers_404(tmp_path: Path, hosted: bool):
+    client = view_client(tmp_path, None, hosted=hosted)
     for job_id in (new_id("job"), "not-a-job"):
         response = client.get(f"/api/builds/{job_id}/view")
         assert response.status_code == 404
@@ -127,15 +133,25 @@ def test_a_done_job_whose_room_is_not_stored_answers_room_not_found(tmp_path: Pa
     assert response.json() == {"error": {"code": "room_not_found", "message": ANY, "stage": None}}
 
 
+def test_a_done_job_with_no_room_id_answers_room_not_found(tmp_path: Path, four_lock_room: Room):
+    job = done_job(four_lock_room).model_copy(update={"room_id": None})
+    response = view_client(tmp_path, four_lock_room, job).get(f"/api/builds/{job.id}/view")
+    assert response.status_code == 404
+    assert response.json() == {"error": {"code": "room_not_found", "message": f"no room {job.id}", "stage": None}}
+
+
 # --- Not done: 409 build_not_ready with the job status --------------------------------
 
 
+@pytest.mark.parametrize("hosted", [False, True], ids=["local", "hosted"])
 @pytest.mark.parametrize("status", NOT_DONE)
-def test_a_job_not_yet_done_answers_409_build_not_ready_with_its_status(tmp_path: Path, four_lock_room: Room, status: JobStatus):
+def test_a_job_not_yet_done_answers_409_build_not_ready_with_its_status(
+    tmp_path: Path, four_lock_room: Room, status: JobStatus, hosted: bool
+):
     job = not_done(status)
-    response = view_client(tmp_path, four_lock_room, job).get(f"/api/builds/{job.id}/view")
+    response = view_client(tmp_path, four_lock_room, job, hosted=hosted).get(f"/api/builds/{job.id}/view")
     assert response.status_code == 409
-    assert response.json() == {"error": {"code": "build_not_ready", "message": ANY, "stage": None}, "status": status}
+    assert response.json() == {"error": {"code": "build_not_ready", "message": ANY, "stage": None, "status": status}}
 
 
 def test_status_appears_on_build_not_ready_only(tmp_path: Path, four_lock_room: Room):
@@ -147,9 +163,9 @@ def test_status_appears_on_build_not_ready_only(tmp_path: Path, four_lock_room: 
         client.post("/api/sessions", json={}),  # invalid_request
     ]
     assert [r.json()["error"]["code"] for r in others] == ["job_not_found", "room_not_found", "access_denied", "invalid_request"]
-    assert all(set(r.json()) == {"error"} for r in others)
+    assert all(r.json().keys() == {"error"} and r.json()["error"].keys() == {"code", "message", "stage"} for r in others)
     errors: list[ApiError] = [JobNotFound("job_x"), RoomNotFound("room_x"), BuildNotReady("job_x", "running")]
-    assert [envelope(e).model_dump(mode="json", exclude_unset=True).get("status") for e in errors] == [None, None, "running"]
+    assert [envelope(e).model_dump(mode="json")["error"].get("status") for e in errors] == [None, None, "running"]
 
 
 # --- API sentinel test: no solution, pairing or Dry run answer --------------------------
@@ -168,9 +184,9 @@ def test_the_view_holds_no_solution_sentinel_pairing_or_dry_run_answer(tmp_path:
     assert "solution" not in json_keys(data) and b"solution" not in response.content
     assert json_keys(data).isdisjoint(("answer", "answers", "clue", "evidence", "code", "item", "target"))
     assert SENTINEL_CODE not in text and all(ix not in text for ix in SENTINEL_IX)
-    assert json.dumps(SENTINEL_ORDER)[1:-1] not in text and json.dumps(list(SENTINEL_PAIR))[1:-1] not in text
+    assert compact(SENTINEL_ORDER)[1:-1] not in text and compact(list(SENTINEL_PAIR))[1:-1] not in text
     for answer in answers.answers:
-        assert json.dumps(answer.answer.model_dump(mode="json")) not in text
+        assert compact(answer.answer.model_dump(mode="json")) not in text
     for puzzle in room.puzzles:
         assert puzzle.clue not in text and puzzle.evidence.visible_attribute not in text
 

@@ -1,9 +1,9 @@
 """Typed route errors and the error envelope `{error: {code, message, stage}}` (AD-13).
 
 A route raises one of these classes and `handle_api_error` answers with
-the envelope; `stage` is null outside the pipeline and `status`, the job
-status, appears only on `BuildNotReady`'s `build_not_ready` and is left
-unset on every other code. A refusal that sets `headers` answers with them,
+the envelope; `stage` is null outside the pipeline and `error.status`, the
+job status, appears only on `BuildNotReady`'s `build_not_ready` and is left
+out on every other code. A refusal that sets `headers` answers with them,
 as `TooManyAttempts` does with `Retry-After`. A body, path or query
 that fails validation is answered by `handle_validation_error` with the
 same envelope under `invalid_request`.
@@ -152,15 +152,13 @@ class InvalidRequest(ApiError):
 
 
 def envelope(error: ApiError) -> ErrorEnvelope:
-    detail = ErrorDetail(code=error.code, message=error.message, stage=error.stage)
-    if isinstance(error, BuildNotReady):
-        return ErrorEnvelope(error=detail, status=error.job_status)
-    return ErrorEnvelope(error=detail)
+    status = error.job_status if isinstance(error, BuildNotReady) else None
+    return ErrorEnvelope(error=ErrorDetail(code=error.code, message=error.message, stage=error.stage, status=status))
 
 
 def _answer(error: ApiError) -> JSONResponse:
-    """The envelope; `status` is set only on `build_not_ready`, so every other code leaves it out."""
-    content = envelope(error).model_dump(mode="json", exclude_unset=True)
+    """The envelope; `error.status` is set only on `build_not_ready`, so every other code leaves it out."""
+    content = envelope(error).model_dump(mode="json")
     return JSONResponse(status_code=error.status, content=content, headers=error.headers)
 
 

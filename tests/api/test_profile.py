@@ -80,7 +80,7 @@ def test_get_with_no_file_answers_404_and_creates_nothing(client: TestClient, tm
     response = client.get("/api/profile/demo")
     assert response.status_code == 404
     assert response.json() == {"error": {"code": "profile_not_found", "message": ANY, "stage": None}}
-    assert ErrorEnvelope.model_validate(response.json()).status is None
+    assert ErrorEnvelope.model_validate(response.json()).error.status is None
     assert not (tmp_path / "rooms").exists()
 
 
@@ -116,7 +116,7 @@ def test_an_out_of_bounds_or_unparseable_body_answers_422_and_leaves_the_file_un
     response = client.put("/api/profile/demo", json=body)
     assert response.status_code == 422
     assert response.json() == {"error": {"code": "invalid_profile", "message": ANY, "stage": None}}
-    assert ErrorEnvelope.model_validate(response.json()).status is None
+    assert ErrorEnvelope.model_validate(response.json()).error.status is None
     assert profile_file(tmp_path, "demo").read_bytes() == before
     assert client.get("/api/profile/demo").json() == FRESH
 

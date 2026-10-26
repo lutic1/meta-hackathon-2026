@@ -622,21 +622,6 @@
             }
           ],
           "title": "Stage"
-        }
-      },
-      "required": [
-        "code",
-        "message",
-        "stage"
-      ],
-      "title": "ErrorDetail",
-      "type": "object"
-    },
-    "ErrorEnvelope": {
-      "additionalProperties": false,
-      "properties": {
-        "error": {
-          "$ref": "#/$defs/ErrorDetail"
         },
         "status": {
           "anyOf": [
@@ -657,6 +642,21 @@
           ],
           "default": null,
           "title": "Status"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "stage"
+      ],
+      "title": "ErrorDetail",
+      "type": "object"
+    },
+    "ErrorEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ErrorDetail"
         }
       },
       "required": [

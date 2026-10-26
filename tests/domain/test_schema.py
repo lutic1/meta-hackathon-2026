@@ -456,13 +456,17 @@ def test_room_summary_access_check_session_start_and_error_envelope():
     assert start.derived == Derived.fresh()
     with pytest.raises(ValidationError):
         SessionStart.model_validate({"room_id": ROOM, "derived": {**Derived.fresh().model_dump(), "persistence": 1.5}})
-    assert set(ErrorEnvelope.model_fields) == {"error", "status"}
-    assert set(schema.ErrorDetail.model_fields) == {"code", "message", "stage"}
-    not_ready = ErrorEnvelope.model_validate({"error": {"code": "build_not_ready", "message": "m", "stage": None}, "status": "running"})
-    assert not_ready.status == "running"
-    assert ErrorEnvelope.model_validate({"error": {"code": "photo_count", "message": "m", "stage": "ingest"}}).status is None
+    assert set(ErrorEnvelope.model_fields) == {"error"}
+    assert set(schema.ErrorDetail.model_fields) == {"code", "message", "stage", "status"}
+    not_ready = ErrorEnvelope.model_validate({"error": {"code": "build_not_ready", "message": "m", "stage": None, "status": "running"}})
+    assert not_ready.error.status == "running"
+    assert not_ready.model_dump(mode="json") == {"error": {"code": "build_not_ready", "message": "m", "stage": None, "status": "running"}}
+    other = ErrorEnvelope.model_validate({"error": {"code": "photo_count", "message": "m", "stage": "ingest"}})
+    assert other.error.status is None and other.model_dump(mode="json") == {"error": {"code": "photo_count", "message": "m", "stage": "ingest"}}
     with pytest.raises(ValidationError):
-        ErrorEnvelope.model_validate({"error": {"code": "photo_count", "message": "m", "stage": "ingest"}, "status": "failed"})
+        ErrorEnvelope.model_validate({"error": {"code": "photo_count", "message": "m", "stage": "ingest", "status": "failed"}})
+    with pytest.raises(ValidationError):
+        ErrorEnvelope.model_validate({"error": {"code": "build_not_ready", "message": "m", "stage": None}, "status": "running"})
 
 
 def test_build_view_fields_carry_no_solution():

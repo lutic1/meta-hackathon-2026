@@ -563,6 +563,14 @@ class ErrorDetail(Model):
     code: str
     message: str
     stage: Stage | None
+    status: JobStatus | None = Field(default=None, exclude_if=lambda status: status is None)
+    """The job status, set only when `code` is `build_not_ready` (AD-13) and left out of every other answer."""
+
+    @model_validator(mode="after")
+    def _status_only_when_not_ready(self) -> ErrorDetail:
+        if self.status is not None and self.code != "build_not_ready":
+            raise ValueError("status is set only on build_not_ready")
+        return self
 
 
 class JobState(Model):
@@ -815,14 +823,6 @@ class AccessCheck(Model):
 
 class ErrorEnvelope(Model):
     error: ErrorDetail
-    status: JobStatus | None = None
-    """The job status, set only when `code` is `build_not_ready` (AD-13)."""
-
-    @model_validator(mode="after")
-    def _status_only_when_not_ready(self) -> ErrorEnvelope:
-        if self.status is not None and self.error.code != "build_not_ready":
-            raise ValueError("status is set only on build_not_ready")
-        return self
 
 
 API_MODELS: tuple[type[Model], ...] = (

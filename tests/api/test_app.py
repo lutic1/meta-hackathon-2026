@@ -119,7 +119,7 @@ def test_an_unknown_room_answers_404_with_the_envelope(client: TestClient, path:
     response = client.get(path.format(room_id=UNKNOWN))
     assert response.status_code == 404
     assert response.json() == ROOM_NOT_FOUND
-    assert ErrorEnvelope.model_validate(response.json()).status is None
+    assert ErrorEnvelope.model_validate(response.json()).error.status is None
 
 
 @pytest.mark.parametrize("room_id", [UNKNOWN, "..", "nope", "sessions"])
@@ -135,8 +135,8 @@ def test_load_room_raises_room_not_found(tmp_path: Path, four_lock_room: Room, r
 def test_the_envelope_carries_a_null_stage_and_no_status():
     for error in (RoomNotFound(UNKNOWN), PhotoNotFound(UNKNOWN, 9)):
         model = envelope(error)
-        assert model.error.stage is None and model.status is None
-        assert model.model_dump(mode="json", exclude_unset=True) == {
+        assert model.error.stage is None and model.error.status is None
+        assert model.model_dump(mode="json") == {
             "error": {"code": error.code, "message": error.message, "stage": None},
         }
 
