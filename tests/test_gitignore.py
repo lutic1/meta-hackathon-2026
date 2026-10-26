@@ -8,8 +8,8 @@ import pytest
 from src.config import ENV_KEYS, SECRET_KEYS
 
 REPO = Path(__file__).resolve().parents[1]
-IGNORED = ("rooms/a.jpg", "photos/a.jpg", "captures/a.jpg", "uploads/a.jpg", "a.heic", "a.HEIC",
-           ".cache/a", ".env", ".env.local", "keyframe-hosted.env", "spend/ledger.jsonl")
+IGNORED = ("rooms/a.jpg", "rooms/profiles/demo.json", "photos/a.jpg", "captures/a.jpg", "uploads/a.jpg",
+           "a.heic", "a.HEIC", ".cache/a", ".env", ".env.local", "keyframe-hosted.env", "spend/ledger.jsonl")
 
 
 def _ignored(path: str) -> bool:

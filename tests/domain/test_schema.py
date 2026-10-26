@@ -24,6 +24,7 @@ from src.domain.schema import (
     Meta,
     PlayView,
     PostedEvent,
+    Profile,
     Puzzle,
     Room,
     RoomDraft,
@@ -256,7 +257,7 @@ def test_api_models_cover_every_ad_2_model():
     assert {
         "Room", "RoomDraft", "PlayView", "BuildView", "RoomView", "RoomSummary", "AccessCheck", "Derived", "RoomResult",
         "Meta", "TricksterCard", "JobState", "SessionState", "SessionStart", "ErrorEnvelope", "ClickEvent", "LockInputEvent",
-        "HintRequestEvent", "IdleTickEvent", "OpeningLineEvent", "TricksterCardEvent", "RungChangeEvent",
+        "HintRequestEvent", "IdleTickEvent", "OpeningLineEvent", "TricksterCardEvent", "RungChangeEvent", "Profile",
     } <= names
     assert not hasattr(schema, "Mask3D")
 
@@ -356,6 +357,23 @@ def test_room_result_fields():
         "puzzle_id", "lock_type", "attempts", "wrong_attempts", "rungs_used", "time_to_first_hint", "solved",
         "time_spent_ms", "nudge_fired", "hint_requested", "early_ask",
     }
+
+
+def test_profile_keys_each_room_result_by_its_room_id():
+    room_id = "room_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    result = {"room_id": room_id, "demo": False, "elapsed_ms": 1, "rungs_used": 0, "wrong_attempts": 0, "puzzles": []}
+    profile = Profile.model_validate({"results": {room_id: result}, "derived": Derived.fresh().model_dump()})
+    assert set(Profile.model_fields) == {"results", "derived"} and Profile in API_MODELS
+    assert isinstance(profile.results[room_id], RoomResult) and profile.derived == Derived.fresh()
+    other = "room_01BX5ZZKBKACTAV9WEVGEMMVRZ"
+    for bad in (
+        {"results": {other: result}, "derived": Derived.fresh().model_dump()},
+        {"results": {room_id: result}, "derived": {**Derived.fresh().model_dump(), "persistence": 1.5}},
+        {"results": {room_id: {"room_id": room_id}}, "derived": Derived.fresh().model_dump()},
+        {"results": {room_id: result}},
+    ):
+        with pytest.raises(ValidationError):
+            Profile.model_validate(bad)
 
 
 def test_meta_has_exactly_its_fields():

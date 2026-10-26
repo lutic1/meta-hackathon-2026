@@ -732,6 +732,24 @@ class RoomResult(Model):
     puzzles: list[PuzzleResult]
 
 
+class Profile(Model):
+    """The player profile as a whole: every `RoomResult` keyed by its `room_id`, plus the `Derived` block.
+
+    The browser owns it (AD-8); under cut 2 only, `GET|PUT /profile/<name>`
+    reads and writes it as `rooms/profiles/<name>.json` in Local mode.
+    """
+
+    results: dict[RoomId, RoomResult]
+    derived: Derived
+
+    @model_validator(mode="after")
+    def _results_keyed_by_room_id(self) -> Profile:
+        for room_id, result in self.results.items():
+            if result.room_id != room_id:
+                raise ValueError(f"results[{room_id!r}] is the result of {result.room_id!r}")
+        return self
+
+
 class SessionStart(Model):
     """`POST /sessions`; hosted clients always send `Derived.fresh()`."""
 
@@ -810,6 +828,7 @@ API_MODELS: tuple[type[Model], ...] = (
     SessionStart,
     RoomResult,
     Derived,
+    Profile,
     RoomSummary,
     AccessCheckRequest,
     AccessCheck,
