@@ -47,7 +47,7 @@ development_status:
   1-9-order-sequences-armed-by-start-the-sequence-and-use_on-resol: done
   1-10-local-stores-and-the-two-clocks: done
   1-11-room-api-wiring-the-playview-and-photo-routes-and-the-static: done
-  1-12-session-api-start-events-replayed-state-idle-ticks-and-the-r: backlog
+  1-12-session-api-start-events-replayed-state-idle-ticks-and-the-r: done
   1-13-opening-line-on-session-start-the-first-room-welcome: backlog
   1-14-status-schema-and-room-list-endpoints-get-meta-get-schema-an: backlog
   1-15-generated-client-types-with-a-staleness-test: backlog
