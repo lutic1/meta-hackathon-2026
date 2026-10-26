@@ -1,6 +1,7 @@
 """Story 1.12: the session routes start a play-through, append events under one lock per session, replay the state with idle ticks and compute the result (AD-4, AD-13, AR-22).
 
-Since 1.13 every session start appends the First-room welcome at `t_ms` 0, so each log here opens with one `opening_line`.
+Since 1.13 every session start appends the First-room welcome at `t_ms` 0, so each log here opens with one `opening_line`;
+since 5.6 the state also reports the `Derived.fresh()` thresholds these starts carry.
 """
 
 import json
@@ -25,6 +26,7 @@ from src.domain.schema import (
     RoomResult,
     SessionStart,
     SessionState,
+    Thresholds,
 )
 from src.domain.session import SessionStateMachine
 from tests.api.test_app import ROOM_NOT_FOUND, UNKNOWN, make_app
@@ -106,6 +108,15 @@ def stored(tmp_path: Path, session_id: str) -> list[Event]:
 
 WELCOME = OpeningLineEvent(type="opening_line", kind="welcome", text=FIRST_ROOM_WELCOME, t_ms=0)
 """The event every session start appends first (1.13)."""
+FRESH_THRESHOLDS = Thresholds(
+    nudge_threshold_ms=90_000, nudge_threshold_base_ms=90_000, rung_spacing_ms=90_000, rung_spacing_base_ms=90_000, source="fresh"
+)
+"""What a `Derived.fresh()` start reports at `DEMO_TIMESCALE=1` (5.6)."""
+
+
+def welcomed(room: Room) -> SessionStateMachine:
+    """The machine a fresh start opens: the welcome, and the `Derived.fresh()` thresholds."""
+    return SessionStateMachine(room, opening="welcome", thresholds=FRESH_THRESHOLDS)
 
 
 # --- POST /sessions ------------------------------------------------------------
@@ -116,10 +127,10 @@ def test_a_session_starts_fresh_with_a_sess_id_and_the_initial_state(client: Tes
     assert response.status_code == 200
     state = response.json()
     assert re.fullmatch(f"sess_{ULID}", state["id"])
-    assert state == SessionStateMachine(code_and_find_room).replay(state["id"], [WELCOME]).model_dump(mode="json")
+    assert state == welcomed(code_and_find_room).replay(state["id"], [WELCOME]).model_dump(mode="json")
     assert state["room_id"] == code_and_find_room.id and state["active_puzzle_id"] == PZ["find_key"]
     assert (state["locks_open"], state["inventory"], state["cards"], state["disclosure"]) == ([], [], [], [])
-    assert "thresholds" in state and state["thresholds"] is None
+    assert state["thresholds"] == FRESH_THRESHOLDS.model_dump()
 
 
 def test_derived_fresh_and_an_explicit_block_start_the_same_state(client: TestClient, code_and_find_room: Room):
@@ -175,7 +186,7 @@ def test_a_click_and_a_lock_input_are_stamped_appended_and_applied(client: TestC
     assert state["wrong_attempts"][PZ["clock_code"]] == 1
     log = stored(tmp_path, session_id)
     assert [(event.type, event.t_ms) for event in log] == [("opening_line", 0), ("click", 2_500), ("lock_input", 3_200)]
-    assert state == SessionStateMachine(code_and_find_room).replay(session_id, log).model_dump(mode="json")
+    assert state == welcomed(code_and_find_room).replay(session_id, log).model_dump(mode="json")
 
 
 @pytest.mark.parametrize("body", [
@@ -235,7 +246,7 @@ def test_twenty_concurrent_events_all_land_in_append_order_with_strictly_increas
     assert sorted(reply["wrong_attempts"][PZ["clock_code"]] for reply in replies) == list(range(1, 21))
     final = TestClient(app).get(f"/api/sessions/{session_id}").json()
     assert final["wrong_attempts"][PZ["clock_code"]] == 20
-    assert final == SessionStateMachine(code_and_find_room).replay(session_id, log).model_dump(mode="json")
+    assert final == welcomed(code_and_find_room).replay(session_id, log).model_dump(mode="json")
 
 
 def test_a_different_session_id_never_waits_on_this_sessions_lock(code_and_find_room: Room):
@@ -282,7 +293,7 @@ def test_the_state_is_replayed_from_the_log_with_the_fields_this_story_declares(
     state = response.json()
     assert state["room_id"] == code_and_find_room.id
     assert state["locks_open"] == [PZ["find_key"], PZ["clock_code"]] and state["active_puzzle_id"] == PZ["find_lantern"]
-    assert (state["cards"], state["disclosure"], state["thresholds"]) == ([], [], None)
+    assert (state["cards"], state["disclosure"], state["thresholds"]) == ([], [], FRESH_THRESHOLDS.model_dump())
     assert not {"events", "log", "edit", "edits", "solution"} & json_keys(state)
 
 

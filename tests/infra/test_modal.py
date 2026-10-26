@@ -24,6 +24,7 @@ from src.domain.ledger import LedgerEntry, running_total_usd
 from src.domain.schema import Derived, Event, OpeningLineEvent, Profile, Room
 from src.domain.session import SessionStateMachine
 from src.infra import modal as modal_module
+from src.infra.clocks import SessionClock
 from src.infra.modal import (
     CACHE_DIR,
     EPOCH_KEY,
@@ -54,6 +55,7 @@ from src.pipeline.ports import (
     room_key,
 )
 from src.providers.spend import SpendLedger
+from src.providers.verbatim import VerbatimPhraser
 from tests.api.test_app import store_room
 from tests.api.test_sessions import Ticker, click, code
 from tests.infra.test_local import (
@@ -425,6 +427,10 @@ def _keys(value: Any) -> set[str]:
     return set()
 
 
+def _never_spawned(task: Any) -> None:
+    raise AssertionError("a hosted session start is never greeted")
+
+
 def test_a_hosted_session_writes_no_derived_value_or_profile_field_to_any_dict_or_volume_file(handles, stores, code_and_find_room):
     store_room(stores.artifacts, code_and_find_room)
     app = FastAPI()
@@ -432,7 +438,19 @@ def test_a_hosted_session_writes_no_derived_value_or_profile_field_to_any_dict_o
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     ticker = Ticker()
     app.include_router(room_routes(stores.artifacts, stores.jobs))
-    app.include_router(session_routes(stores.artifacts, stores.sessions, ticker, demo=False, disclosure=[]))
+    app.include_router(
+        session_routes(
+            stores.artifacts,
+            stores.sessions,
+            ticker,
+            SessionClock(1),
+            VerbatimPhraser(),
+            _never_spawned,
+            demo=False,
+            hosted=True,
+            disclosure=[],
+        )
+    )
     client = TestClient(app)
 
     started = client.post("/api/sessions", json={"room_id": code_and_find_room.id, "derived": SENTINEL_DERIVED.model_dump(mode="json")})

@@ -39,13 +39,21 @@ def store_room(store: ArtifactStore, room: Room) -> None:
 
 
 def make_app(
-    tmp_path: Path, *rooms: Room, web_dist: Path | None = None, settings: Settings | None = None, clock: Clock | None = None
+    tmp_path: Path,
+    *rooms: Room,
+    web_dist: Path | None = None,
+    settings: Settings | None = None,
+    clock: Clock | None = None,
+    **options: Any,
 ) -> FastAPI:
+    """`options` are the further `create_app` keywords: the Guide adapter, the `Spawn` and `hosted` (5.6)."""
     root = tmp_path / "rooms"
     store = artifact_store(root)
     for room in rooms:
         store_room(store, room)
-    return create_app(settings or Settings.from_env(), rooms_root=root, web_dist=web_dist or tmp_path / "no-dist", clock=clock)
+    return create_app(
+        settings or Settings.from_env(), rooms_root=root, web_dist=web_dist or tmp_path / "no-dist", clock=clock, **options
+    )
 
 
 @pytest.fixture

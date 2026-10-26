@@ -1,4 +1,8 @@
-"""Story 1.13: every session start appends the fixed First-room welcome once, worded in one place on the server (FR-21, AD-4, AD-5)."""
+"""Story 1.13: every session start appends the fixed First-room welcome once, worded in one place on the server (FR-21, AD-4, AD-5).
+
+Since 5.6 a Local start with `sessions` >= 1 is greeted instead (tests/api/test_greeting_path.py), so the
+welcome cases here carry `sessions` 0.
+"""
 
 from pathlib import Path
 from typing import Any
@@ -47,10 +51,10 @@ def test_a_session_start_appends_the_welcome_at_once_and_returns_it_unphrased(
 
 @pytest.mark.parametrize("derived", [
     Derived.fresh().model_dump(),
-    {"sessions": 1, "persistence": 0.5, "time_to_first_hint_s": 42.0, "mean_rung_per_lock_type": {"code": 1.5}},
-    {"sessions": 7, "persistence": -1, "time_to_first_hint_s": None, "mean_rung_per_lock_type": {}},
+    {"sessions": 0, "persistence": 0.5, "time_to_first_hint_s": 42.0, "mean_rung_per_lock_type": {"code": 1.5}},
+    {"sessions": 0, "persistence": -1, "time_to_first_hint_s": None, "mean_rung_per_lock_type": {}},
 ])
-def test_every_session_start_gets_the_welcome_whatever_derived_block_it_carries(
+def test_every_first_room_start_gets_the_welcome_whatever_else_its_derived_block_carries(
     client: TestClient, code_and_find_room: Room, derived: dict[str, Any]
 ):
     response = client.post("/api/sessions", json={"room_id": code_and_find_room.id, "derived": derived})

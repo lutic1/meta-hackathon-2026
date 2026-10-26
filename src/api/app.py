@@ -11,25 +11,33 @@ sees only the posted `derived`, and the hosted app never registers them
 (gated on `Settings.mode` when it lands, 7.2).
 
 Session routes are the one server-authoritative play surface (AD-4):
-`POST /sessions` starts a session and appends its opening line at once,
+`POST /sessions` starts a session and opens it with its opening line,
 `POST /sessions/<id>/events` appends a client event and `GET /sessions/<id>`
 replays the state, appending an `idle_tick` when `IDLE_TICK_MS` have passed
 since the last event, and `GET /sessions/<id>/result` computes the
-`RoomResult` from the log. The opening line is the First-room welcome
+`RoomResult` from the log. In Local mode a Derived block with `sessions` >= 1
+is greeted: the start reply carries `opening_line {kind: greeting, text: null}`
+with `phrasing` true, and the Greeting composer (`compose_greeting`) runs off
+the request, its phrased line or, on a fallback, the template appended as the
+one `opening_line` when it returns, with `phraser_fallback` logged against the
+session when the Guide model fell back. Every other start, and every hosted
+start whatever block it carries, appends the First-room welcome
 (`FIRST_ROOM_WELCOME`, the only copy of the text; the client renders what it
-receives) for every session start, whatever Derived block it carries, until
-the Greeting path (5.6) and the Demo room variant (7.15) land; a welcome is
-never phrased, so the start reply already carries it with `phrasing` false,
-and a reload replays the one event rather than appending another. Every
-append runs under one lock per session id held in this process
-(`OpenSessions`), so events land one after another with strictly increasing
-`t_ms` and each reply carries the state that includes its own event; the
-lock and the clock reading at the session's start are transient request
-state, never replayed state. `t_ms` is stamped from the session clock at
-append, so a body carrying one is refused. Each appended event is logged as
-one JSON line with `session_id`, the event type and `duration_ms` (AR-22).
-Every session state served carries the global Disclosure lines
-`src/api/meta.py` composes (AD-15); the per-Room line joins in 6.2.
+receives) at once, so its reply already carries the line with `phrasing`
+false; the Demo room variant lands with 7.15. A reload replays the one event
+rather than appending another. The session's `Thresholds` are fixed at the
+start from the greeted block, else `Derived.fresh()`: the 1x values from
+`src/domain/rungs.py`, divided by `DEMO_TIMESCALE` on the session clock
+(AD-10). Nothing from the Derived block is stored. Every append runs under one
+lock per session id held in this process (`OpenSessions`), so events land one
+after another with strictly increasing `t_ms` and each reply carries the state
+that includes its own event; the lock and the clock reading at the session's
+start are transient request state, never replayed state. `t_ms` is stamped
+from the session clock at append, so a body carrying one is refused. Each
+appended event is logged as one JSON line with `session_id`, the event type
+and `duration_ms` (AR-22). Every session state served carries the global
+Disclosure lines `src/api/meta.py` composes (AD-15); the per-Room line joins
+in 6.2.
 
 `GET /rooms` lists one `RoomSummary` per stored Room with a job record
 through `ArtifactStore.list_rooms()`, newest build first, with `job_id` read
@@ -68,11 +76,20 @@ from src.api.errors import (
     handle_validation_error,
 )
 from src.api.meta import disclosure_lines, meta
-from src.api.wiring import artifact_store, job_store, session_clock, session_store
+from src.api.wiring import artifact_store, hint_phraser, job_store, session_clock, session_store
 from src.config import Settings
+from src.council.greeting import compose_greeting
 from src.domain.redact import to_play_view
+from src.domain.rungs import (
+    RUNG_SPACING_MS,
+    TRICKSTER_WINDOW_MS,
+    is_returning,
+    nudge_threshold_ms,
+    threshold_source,
+)
 from src.domain.schema import (
     API_MODELS,
+    Derived,
     Event,
     IdleTickEvent,
     JobId,
@@ -89,8 +106,10 @@ from src.domain.schema import (
     SessionId,
     SessionStart,
     SessionState,
+    Thresholds,
 )
 from src.domain.session import SessionStateMachine
+from src.infra.clocks import SessionClock
 from src.infra.local import ROOMS_ROOT
 from src.pipeline.ports import (
     ArtifactStore,
@@ -100,6 +119,7 @@ from src.pipeline.ports import (
     photo_key,
     room_key,
 )
+from src.providers.base import HintPhraser
 from src.providers.spend import new_ulid
 
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
@@ -111,9 +131,12 @@ IDLE_TICK_MS = 5000
 """A `GET /sessions/<id>` read appends an `idle_tick` once this long has passed since the last event (AD-4)."""
 
 FIRST_ROOM_WELCOME = "Welcome to your own room. Find what doesn't belong."
-"""The fixed First-room welcome (A-13, FR-21): the `opening_line` every session start appends, worded here alone."""
+"""The fixed First-room welcome (A-13, FR-21): the `opening_line` of every session start not greeted, worded here alone."""
 
 EVENT = TypeAdapter(Event)
+
+Spawn = Callable[[Callable[[], None]], None]
+"""Runs a task off the request; the Greeting composer runs through it so the start reply never waits on the Guide model."""
 
 log = logging.getLogger("keyframe.sessions")
 
@@ -233,6 +256,26 @@ def status_routes(settings: Settings) -> APIRouter:
 # --- Sessions (AD-4) --------------------------------------------------------
 
 
+def spawn_thread(task: Callable[[], None]) -> None:
+    """The default `Spawn`: a daemon thread in this process."""
+    threading.Thread(target=task, name="greeting", daemon=True).start()
+
+
+def session_thresholds(derived: Derived, scale: SessionClock) -> Thresholds:
+    """The session's thresholds: the 1x values `rungs` computes from `derived`, divided by the session clock (AD-10)."""
+    nudge_ms = nudge_threshold_ms(derived)
+    scaled = scale.thresholds(
+        nudge_threshold_ms=nudge_ms, rung_spacing_ms=RUNG_SPACING_MS, trickster_window_ms=TRICKSTER_WINDOW_MS
+    )
+    return Thresholds(
+        nudge_threshold_ms=scaled.nudge_threshold_ms,
+        nudge_threshold_base_ms=nudge_ms,
+        rung_spacing_ms=scaled.rung_spacing_ms,
+        rung_spacing_base_ms=RUNG_SPACING_MS,
+        source=threshold_source(derived),
+    )
+
+
 def new_session_id() -> SessionId:
     """A fresh `sess_` ULID (AD-18)."""
     return f"sess_{new_ulid()}"
@@ -269,7 +312,16 @@ class OpenSessions:
 
 
 def session_routes(
-    store: ArtifactStore, sessions: SessionStore, clock: Clock, *, demo: bool, disclosure: list[str]
+    store: ArtifactStore,
+    sessions: SessionStore,
+    clock: Clock,
+    scale: SessionClock,
+    phraser: HintPhraser,
+    spawn: Spawn,
+    *,
+    demo: bool,
+    hosted: bool,
+    disclosure: list[str],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     open_sessions = OpenSessions()
@@ -304,12 +356,36 @@ def session_routes(
     def welcome(t_ms: Milliseconds) -> Event:
         return OpeningLineEvent(type="opening_line", kind="welcome", text=FIRST_ROOM_WELCOME, t_ms=t_ms)
 
+    def greet(session_id: SessionId, session: OpenSession, derived: Derived) -> None:
+        """Off the request: one composer call, then its line appended under the session lock as the one opening line."""
+        greeting = compose_greeting(phraser, derived)
+        if greeting.reason == "phraser_fallback":
+            log.warning(
+                json.dumps({"session_id": session_id, "event": "phraser_fallback", "duration_ms": greeting.latency_ms})
+            )
+        with session.lock:
+            append(
+                session_id,
+                session,
+                events(session_id),
+                lambda t_ms: OpeningLineEvent(type="opening_line", kind="greeting", text=greeting.text, t_ms=t_ms),
+            )
+
     @router.post("")
     def start_session(body: SessionStart) -> SessionState:
-        """A fresh session over the stored Room, opened with the welcome; `derived` is validated here and read by the Rung thresholds (3.3)."""
-        machine = SessionStateMachine(load_room(store, body.room_id))
+        """A fresh session over the stored Room: greeted from a returning Local block, else opened with the welcome."""
+        room = load_room(store, body.room_id)
+        greeted = not hosted and is_returning(body.derived)
+        derived = body.derived if greeted else Derived.fresh()
+        machine = SessionStateMachine(
+            room, opening="greeting" if greeted else "welcome", thresholds=session_thresholds(derived, scale)
+        )
         session_id = new_session_id()
         session = open_sessions.open(session_id, machine, clock.now_ms())
+        if greeted:
+            state = machine.initial(session_id)
+            spawn(lambda: greet(session_id, session, derived))
+            return state
         with session.lock:
             return append(session_id, session, [], welcome)
 
@@ -344,8 +420,17 @@ def create_app(
     rooms_root: Path = ROOMS_ROOT,
     web_dist: Path = WEB_DIST,
     clock: Clock | None = None,
+    phraser: HintPhraser | None = None,
+    spawn: Spawn = spawn_thread,
+    hosted: bool = False,
 ) -> FastAPI:
-    """The app over the adapters wiring builds; routes are registered before the static mount so `/api/` wins."""
+    """The app over the adapters wiring builds; routes are registered before the static mount so `/api/` wins.
+
+    Tests pass the session clock, the Guide adapter and the `Spawn` the
+    greeting runs through. `hosted` stands in for `Settings.mode == "hosted"`
+    until 7.2 adds `mode`: every hosted session opens with the welcome and
+    `Derived.fresh()` thresholds, and `greet` is never called.
+    """
     app = FastAPI(
         title="Keyframe",
         openapi_url="/api/openapi.json",
@@ -359,12 +444,17 @@ def create_app(
     app.include_router(status_routes(settings))
     app.include_router(room_routes(store, job_store(rooms_root)))
     app.include_router(profile_routes(store))
+    scale = session_clock(settings)
     app.include_router(
         session_routes(
             store,
             session_store(rooms_root),
-            clock or session_clock(settings),
+            clock or scale,
+            scale,
+            phraser or hint_phraser(settings),
+            spawn,
             demo=settings.demo_timescale > 1,
+            hosted=hosted,
             disclosure=disclosure_lines(settings),
         )
     )

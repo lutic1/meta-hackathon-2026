@@ -18,6 +18,7 @@ from src.domain.schema import (
     Room,
     RungChangeEvent,
     SessionState,
+    Thresholds,
     UseOnInput,
 )
 from src.domain.session import SessionStateMachine
@@ -433,6 +434,29 @@ def test_phrasing_is_true_until_the_opening_line_event_is_applied(code_and_find_
     assert state.phrasing is False
     assert state.opening_line is not None and state.opening_line.model_dump() == {
         "kind": "welcome", "text": "Welcome. The room is listening."}
+
+
+
+def test_a_greeted_start_carries_its_kind_with_no_text_until_the_greeting_lands(code_and_find_room):
+    machine = SessionStateMachine(code_and_find_room, opening="greeting")
+    fresh = machine.initial(SESSION)
+    assert fresh.phrasing is True and fresh.opening_line is not None
+    assert fresh.opening_line.model_dump() == {"kind": "greeting", "text": None}
+    line = OpeningLineEvent(type="opening_line", kind="greeting", text="Welcome back.", t_ms=1600)
+    state = machine.replay(SESSION, [line])
+    assert state.phrasing is False and state.opening_line is not None
+    assert state.opening_line.model_dump() == {"kind": "greeting", "text": "Welcome back."}
+
+
+def test_the_session_thresholds_are_reported_by_every_replayed_state(code_and_find_room):
+    thresholds = Thresholds(
+        nudge_threshold_ms=22_500, nudge_threshold_base_ms=135_000, rung_spacing_ms=15_000,
+        rung_spacing_base_ms=90_000, source="derived",
+    )
+    machine = SessionStateMachine(code_and_find_room, thresholds=thresholds)
+    assert machine.initial(SESSION).thresholds == thresholds
+    assert machine.replay(SESSION, [opening(100), click("key", 900), idle(6000)]).thresholds == thresholds
+    assert SessionStateMachine(code_and_find_room).initial(SESSION).thresholds is None
 
 
 # --- Replay, purity and the clock ------------------------------------------------

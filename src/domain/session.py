@@ -35,11 +35,16 @@ once none is available. A target is set only by a lock input or by a
 `SessionState` carries no target of its own, so `active_puzzle_id` stands for
 it: a new target replaces it, and otherwise it is kept while it stays
 available and unsolved.
+
+The session start fixes two things the log does not hold: the opening line's
+kind, which the empty state carries with no text while `phrasing` is true,
+and the session's `Thresholds`, which every replayed state reports (AR-31).
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Literal
 
 from .schema import (
     ClickEvent,
@@ -62,6 +67,7 @@ from .schema import (
     RungChangeEvent,
     SessionId,
     SessionState,
+    Thresholds,
     TricksterWindow,
     UseOnInput,
     UseOnSolution,
@@ -76,8 +82,16 @@ def _normalize_code(code: str) -> str:
 class SessionStateMachine:
     """Folds a session's event log over its Effective room; every method returns new values."""
 
-    def __init__(self, room: Room) -> None:
+    def __init__(
+        self,
+        room: Room,
+        *,
+        opening: Literal["greeting", "welcome"] | None = None,
+        thresholds: Thresholds | None = None,
+    ) -> None:
         self.room = room
+        self.opening = opening
+        self.thresholds = thresholds
         self._puzzles = {puzzle.id: puzzle for puzzle in room.puzzles}
 
     # --- Reads ---------------------------------------------------------------
@@ -94,7 +108,10 @@ class SessionStateMachine:
     # --- Writes --------------------------------------------------------------
 
     def initial(self, session_id: SessionId) -> SessionState:
-        """The empty state: nothing open, `phrasing` until the opening line lands, the earliest Puzzle active."""
+        """The empty state: nothing open, `phrasing` until the opening line lands, the earliest Puzzle active.
+
+        The opening line's kind is known from the start, with no text until its event lands.
+        """
         ids = [puzzle.id for puzzle in self.room.puzzles]
         state = SessionState(
             id=session_id,
@@ -106,7 +123,7 @@ class SessionStateMachine:
             rungs_used=0,
             order_buffer=OrderBuffer(),
             active_puzzle_id=None,
-            opening_line=None,
+            opening_line=None if self.opening is None else OpeningLine(kind=self.opening, text=None),
             phrasing=True,
             rung_changes=[],
             trickster_window=TricksterWindow(state="closed"),
@@ -114,6 +131,7 @@ class SessionStateMachine:
             cards=[],
             room_revision=0,
             disclosure=[],
+            thresholds=self.thresholds,
         )
         state.active_puzzle_id = self._active(state, None)
         return state
