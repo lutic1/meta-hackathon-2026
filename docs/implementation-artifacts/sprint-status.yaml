@@ -45,7 +45,7 @@ development_status:
   1-7-redaction-views-keep-solutions-on-the-server: done
   1-8-session-state-machine-code-and-find-locks-the-active-puzzle: done
   1-9-order-sequences-armed-by-start-the-sequence-and-use_on-resol: done
-  1-10-local-stores-and-the-two-clocks: backlog
+  1-10-local-stores-and-the-two-clocks: done
   1-11-room-api-wiring-the-playview-and-photo-routes-and-the-static: backlog
   1-12-session-api-start-events-replayed-state-idle-ticks-and-the-r: backlog
   1-13-opening-line-on-session-start-the-first-room-welcome: backlog
