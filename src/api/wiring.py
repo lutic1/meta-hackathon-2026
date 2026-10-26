@@ -397,8 +397,10 @@ def wire(
     milliseconds, times the hosted access attempts.
     """
     if settings.mode == "hosted":
-        if handles is None or handles.spawn is None:
-            raise ValueError("MODE=hosted runs on Modal: deploy src/api/modal_app.py, which passes the handles and run_build.spawn")
+        if handles is None or handles.spawn is None or handles.poll is None:
+            raise ValueError(
+                "MODE=hosted runs on Modal: deploy src/api/modal_app.py, which passes the handles, run_build.spawn and the watchdog poll"
+            )
         hosted = hosted_stores(handles, poll=handles.poll)
         build = _build(settings, hosted.artifacts, hosted.jobs, hosted.cache, hosted.ledger, stages)
         return Wiring(

@@ -83,4 +83,5 @@ def test_a_second_run_on_the_same_day_replaces_that_days_snapshot_and_leaves_ear
     store.append(second)
     export_hosted_ledger(handles, DAY)
     assert _snapshot(handles, date(2026, 10, 26)) == [first]
-    assert _snapshot(handles) == [first, second]
+    assert _snapshot(handles) == store.entries()  # ids minted in one millisecond sort in either order
+    assert {entry.call_id for entry in _snapshot(handles)} == {first.call_id, second.call_id}

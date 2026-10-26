@@ -230,9 +230,9 @@ class ModalHandles:
     root: Path = MOUNT
     """The Volume's mount path; tests pass a temporary directory."""
     spawn: Spawn | None = None
-    """`run_build.spawn`, which the hosted `JobRunner` starts each Build with; `None` where nothing spawns (the runner, the Cron functions)."""
+    """`run_build.spawn`, which the hosted `JobRunner` starts each Build with; the runner and the Cron functions never read it."""
     poll: Poll | None = None
-    """The web side's watchdog poll of a spawned call; `None` where no job read runs the watchdog."""
+    """The web side's watchdog poll of a spawned call; the runner ignores it, since `run_hosted_build` builds its stores without `poll`."""
 
 
 # --- The Volume: one adapter, one lock ---------------------------------------

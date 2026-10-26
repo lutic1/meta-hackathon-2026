@@ -11,6 +11,7 @@ build clock.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ from fastapi.testclient import TestClient
 
 from src.api import wiring
 from src.api.wiring import ACCESS_HEADER
+from src.domain.redact import to_play_view
 from src.domain.schema import JobId, JobState, Room, Stage
 from src.infra.clocks import BuildClock
 from src.infra.modal import ModalHandles, call_key, hosted_stores, slot_key
@@ -53,16 +55,26 @@ class LoggedDict(RecordingDict):
 
 
 class LoggedSpawn:
-    """`run_build.spawn`: logs `spawn <job_id>` and returns a call at once, running nothing."""
+    """`run_build.spawn`: logs `spawn <job_id>`, notes whether it ran on the event loop, and returns a call at once, running nothing."""
 
     def __init__(self, log: list[str]) -> None:
         self.log = log
         self.job_ids: list[JobId] = []
+        self.on_loop: list[bool] = []
 
     def __call__(self, job_id: JobId) -> SpawnedCall:
         self.log.append(f"spawn {job_id}")
         self.job_ids.append(job_id)
+        self.on_loop.append(_on_event_loop())
         return SpawnedCall(f"fc-{len(self.job_ids)}")
+
+
+def _on_event_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
 
 
 class Hosted:
@@ -110,6 +122,7 @@ def test_post_builds_commits_the_photos_writes_the_queued_record_then_spawns_and
     steps = [line for line in hosted.log if not line.startswith("set attempts:")]
     assert steps == [f"set {slot_key(1)}", *["commit"] * len(photos), f"set {job_id}", f"spawn {job_id}", f"set {call_key(job_id)}"]
     assert hosted.spawn.job_ids == [job_id] and hosted.handles.jobs[call_key(job_id)] == "fc-1"
+    assert hosted.spawn.on_loop == [False]  # the spawn and its Dict write ran in the thread pool, off the shared event loop
     assert queued.status == "queued" and queued.stage is None and [record.stage for record in queued.stages] == ["ingest"]
     assert hosted.web_stages.calls == []  # the web function ran no stage after ingest
     assert hosted.poll(job_id) == (202, "queued", None)
@@ -136,6 +149,7 @@ def test_a_260_s_build_with_two_regenerations_is_polled_over_persisted_state_to_
     hosted = Hosted(tmp_path, monkeypatch)
     job_id = hosted.post()
     room_id = str(hosted_stores(hosted.handles).jobs.read(job_id).room_id)
+    room = four_lock_room.model_copy(update={"id": room_id})
     polls = [hosted.poll(job_id)]
     doubles = Doubles(hosted.ticker, advance_ms=0)
 
@@ -146,7 +160,6 @@ def test_a_260_s_build_with_two_regenerations_is_polled_over_persisted_state_to_
             if stage == "dryrun" and state.regeneration_count < 2:
                 raise DryRunRefused([DRY_MESSAGE], StageResult(count=3))
             if stage == "scene":
-                room = four_lock_room.model_copy(update={"id": room_id})
                 hosted_stores(hosted.handles).artifacts.put(room_key(room_id), room.model_dump_json().encode())
 
         doubles.hooks[stage] = hook
@@ -168,6 +181,5 @@ def test_a_260_s_build_with_two_regenerations_is_polled_over_persisted_state_to_
     final = hosted.client.get(f"/api/builds/{job_id}")
     assert final.status_code == 200 and final.json()["status"] == "done" and final.json()["build_time_ms"] == 260_000
     play = hosted.client.get(f"/api/rooms/{room_id}")
-    assert play.status_code == 200 and play.json()["id"] == room_id
-    assert [puzzle["id"] for puzzle in play.json()["puzzles"]] == [puzzle.id for puzzle in four_lock_room.puzzles]
+    assert play.status_code == 200 and play.json() == to_play_view(room).model_dump(mode="json")
     assert hosted.web_stages.calls == []

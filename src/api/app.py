@@ -433,7 +433,8 @@ def build_routes(
         """The guard runs before the body is read; ingest refuses a bad upload before any slot is claimed or job exists.
 
         An accepted upload claims a slot, is queued and started, never awaited.
-        The guard's attempt store I/O, the multipart parse and ingest run in the thread pool, so none of them holds the event loop.
+        The guard's attempt store I/O, the multipart parse, ingest and the runner's start (a spawn and a Dict write in Hosted mode)
+        run in the thread pool, so none of them holds the event loop.
         """
         await run_in_threadpool(guard, request.headers.get(ACCESS_HEADER), client_ip(request))
         content_type, body = request.headers.get("content-type", ""), await request.body()
@@ -446,7 +447,7 @@ def build_routes(
         if state.status in TERMINAL:
             on_terminal()
         else:
-            runner.start(state.id)
+            await run_in_threadpool(runner.start, state.id)
         response.status_code = job_status_code(state)
         return state
 

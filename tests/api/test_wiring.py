@@ -448,11 +448,13 @@ def test_the_hosted_runner_spawns_run_build_with_the_job_id_only_and_the_web_rea
     assert wired.jobs.read(queued.id).status == "queued"  # the stage doubles raise if called: none ran here
 
 
-def test_hosted_mode_without_the_modal_handles_or_the_spawn_is_refused(tmp_path):
+def test_hosted_mode_without_the_modal_handles_the_spawn_or_the_poll_is_refused(tmp_path):
     with pytest.raises(ValueError, match="modal_app"):
         _wire(tmp_path, hosted_settings())
     with pytest.raises(ValueError, match="run_build.spawn"):
         _wire(tmp_path, hosted_settings(), handles=replace(hosted_handles(tmp_path), spawn=None))
+    with pytest.raises(ValueError, match="watchdog poll"):
+        _wire(tmp_path, hosted_settings(), handles=replace(hosted_handles(tmp_path), poll=None))
 
 
 def _no_watchdog(call_id: str) -> RunnerState:
