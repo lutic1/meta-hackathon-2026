@@ -75,7 +75,7 @@ development_status:
   2-7-meta-model-api-adapter-for-chat-segment-and-image: done
   2-8-openai-compatible-adapter-for-the-riddler-fallback: done
   2-9-lean-sit-the-checklist-and-scripts-sit-py-over-the-live-seam: done
-  2-10-persisted-build-job-and-the-ingest-stage: backlog
+  2-10-persisted-build-job-and-the-ingest-stage: done
   2-11-local-jobstore-and-in-process-jobrunner: backlog
   2-12-build-routes-per-role-provider-wiring-and-the-ledger-hooks: backlog
   2-13-mask-selection-and-box-conversion-as-pure-domain-functions: done
