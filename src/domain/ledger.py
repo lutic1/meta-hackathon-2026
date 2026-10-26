@@ -120,3 +120,12 @@ def would_exceed(entries: Iterable[LedgerEntry], estimate: float, cap: float) ->
 def settle(entry: LedgerEntry, usd: float) -> LedgerEntry:
     """The settled entry for a reserved one: same `call_` id, the observed cost."""
     return LedgerEntry.model_validate({**entry.model_dump(), "status": "settled", "usd": usd})
+
+
+class SpendCapExceeded(Exception):
+    """A call whose estimate would pass the cap (AD-13); raised by the guard before the call is made."""
+
+    def __init__(self, cap_usd: float, running_total_usd: float) -> None:
+        super().__init__(f"spend cap {cap_usd:.2f} USD would be passed: running total {running_total_usd:.2f} USD")
+        self.cap_usd = cap_usd
+        self.running_total_usd = running_total_usd
