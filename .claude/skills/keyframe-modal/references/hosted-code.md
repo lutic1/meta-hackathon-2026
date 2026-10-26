@@ -267,6 +267,7 @@ Handles: `modal.Volume.from_name("keyframe-data", environment_name=ENV)` and `mo
 AD-8 deletes a judge room's originals, sessions and the cache entries listed in its `cache-keys.json` together with the room. The build leaves a way to find each:
 - `ArtifactStore` writes every artifact of a hosted judge build, downscaled photos and originals included, under the build's `rooms/judge/<room_id>/` prefix.
 - Cache files are keyed by content hash with no room index, so the runner (the one writer per job) writes `cache-keys.json` beside the final record, listing every cache key the build read or wrote. A key shared with another build is deleted too; that only costs a cache miss later.
+- In code (`src/infra/modal.py`), `run_build` (Story 7.8) runs `Build.run` through `run_judge_build(run, job_id, keys=CacheKeyLog(stores.cache, stores.artifacts, room_id))` and hands that `CacheKeyLog` to the providers as their Cache. The log adds each key to `cache-keys.json`, committed, before the entry is first read or written, so a runner killed mid-stage leaves no unlisted entry; calling `Build.run` directly would leave no `cache-keys.json` at all.
 - Session values carry `room_id` (see Sessions above).
 
 ```python

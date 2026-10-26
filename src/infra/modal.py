@@ -55,10 +55,12 @@ store writes every key of the port (`<room_id>/room.json`,
 `rooms/judge/`, reads a key from `rooms/demo/` first and then
 `rooms/judge/`, so a Judge room plays by its id, and `list_rooms()` lists
 `rooms/demo/` alone, so no Judge room is ever listed. Cache entries live at
-`/data/cache/<key>.json`; the stage runner reads and writes them through a
-`CacheKeyLog`, and `run_judge_build` writes the keys it saw to
-`rooms/judge/<room_id>/cache-keys.json` when the Build ends, whatever its
-status, so the purge can find them (AD-8).
+`/data/cache/<key>.json`. `run_build` (Story 7.8) must run a Judge build
+through `run_judge_build`, with a `CacheKeyLog` as the providers' Cache: the
+log adds each key to `rooms/judge/<room_id>/cache-keys.json`, committed,
+before the Build first reads or writes its entry, so no entry a runner
+stored is ever unlisted, even when the runner is killed, and the purge
+finds them all (AD-8).
 """
 
 from __future__ import annotations
@@ -76,8 +78,16 @@ from typing import Any, Literal, Protocol
 from pydantic import TypeAdapter
 
 from src.domain.ledger import LedgerEntry
-from src.domain.schema import ErrorDetail, Event, JobId, JobState, JobStatus, Room, SessionId
-from src.pipeline.ports import ROOM_FILE, BuildQuotaExceeded, Cache
+from src.domain.schema import (
+    ErrorDetail,
+    Event,
+    JobId,
+    JobState,
+    JobStatus,
+    Room,
+    SessionId,
+)
+from src.pipeline.ports import ROOM_FILE, ArtifactStore, BuildQuotaExceeded, Cache
 
 JOBS_DICT = "keyframe-jobs"
 SESSIONS_DICT = "keyframe-sessions"
@@ -98,6 +108,7 @@ CACHE_DIR = "cache"
 EPOCH_KEY = "epoch"
 """The reserved `keyframe-ledger` key holding the current epoch (AD-9); never a `call_` id."""
 EVENTS = TypeAdapter(list[Event])
+CACHE_KEYS = TypeAdapter(list[str])
 
 JOB_FILE = "job.json"
 """The final job record, beside its Room at `rooms/<partition>/<room_id>/job.json` (AD-7)."""
@@ -506,21 +517,42 @@ def hosted_stores(handles: ModalHandles, *, poll: Poll | None = None) -> HostedS
 
 
 class CacheKeyLog:
-    """`Cache` over another that records every key read or written, in first-use order, for a Judge build's `cache-keys.json` (AD-8).
+    """`Cache` over another that lists every key read or written, in first-use order, in a Judge build's `cache-keys.json` (AD-8).
 
-    The stage runner builds one per Build over the Volume cache and hands it
-    to the providers; the segment stage's threads share it, so the record is
-    kept under its own lock.
+    The record is write-ahead: a key's first `get` or `put` adds it to
+    `rooms/judge/<room_id>/cache-keys.json` through the artifact store,
+    which commits, before the call reaches the Cache, so a runner killed
+    at any point leaves no Cache entry unlisted. The keys an earlier runner
+    of the same Build listed are kept. The segment stage's threads share
+    one log, so the record is kept under its own lock.
     """
 
-    def __init__(self, cache: Cache) -> None:
+    def __init__(self, cache: Cache, artifacts: ArtifactStore, room_id: str) -> None:
         self.cache = cache
-        self._seen: dict[str, None] = {}
+        self.artifacts = artifacts
+        self.key = cache_keys_key(room_id)
+        self._listed: dict[str, None] | None = None
         self._lock = threading.Lock()
+
+    def _load(self) -> dict[str, None]:
+        """The keys already listed, read once; a missing or unreadable file lists none."""
+        if self._listed is None:
+            try:
+                earlier = CACHE_KEYS.validate_json(self.artifacts.read(self.key))
+            except (KeyError, ValueError):
+                earlier = []
+            self._listed = dict.fromkeys(earlier)
+        return self._listed
 
     def _note(self, key: str) -> None:
         with self._lock:
-            self._seen.setdefault(key, None)
+            listed = self._load()
+            if key not in listed:
+                listed[key] = None
+                self._write(listed)
+
+    def _write(self, listed: dict[str, None]) -> None:
+        self.artifacts.put(self.key, json.dumps(list(listed)).encode())
 
     def get(self, key: str) -> dict[str, Any] | None:
         self._note(key)
@@ -530,10 +562,15 @@ class CacheKeyLog:
         self._note(key)
         self.cache.put(key, value)
 
-    def keys(self) -> list[str]:
-        """Every key read or written so far, each once."""
+    def write(self) -> None:
+        """Write the listing whole, so the file exists even for a Build that makes no Cache call."""
         with self._lock:
-            return list(self._seen)
+            self._write(self._load())
+
+    def keys(self) -> list[str]:
+        """Every key listed so far, an earlier runner's included, each once."""
+        with self._lock:
+            return list(self._load())
 
 
 def cache_keys_key(room_id: str) -> str:
@@ -541,22 +578,14 @@ def cache_keys_key(room_id: str) -> str:
     return f"{room_id}/{CACHE_KEYS_FILE}"
 
 
-def run_judge_build[T](run: Callable[[JobId], T], job_id: JobId, *, stores: HostedStores, keys: CacheKeyLog) -> T:
-    """Run a Judge build's remaining stages, then write its `cache-keys.json`, whatever its end status (AD-8).
+def run_judge_build[T](run: Callable[[JobId], T], job_id: JobId, *, keys: CacheKeyLog) -> T:
+    """Run a Judge build's remaining stages through `keys`, leaving its `cache-keys.json` whatever its end status (AD-8).
 
-    `run` is the stage runner's `Build.run` over `stores`, its providers
-    reading the Cache through `keys`. When `run` returns or raises, the keys
-    it saw join any a restarted runner already listed, and the file is
-    written beside the Build's originals and committed.
+    `run` is the stage runner's `Build.run` over the hosted stores, its
+    providers reading the Cache through `keys`, which lists each key before
+    its entry is touched. The listing is written first, so the file exists,
+    committed, before any stage runs, even for a Build that makes no Cache
+    call or whose runner is killed.
     """
-    room_id = stores.jobs.stored(job_id).room_id
-    try:
-        return run(job_id)
-    finally:
-        if room_id is not None:
-            try:
-                earlier: list[str] = json.loads(stores.artifacts.read(cache_keys_key(room_id)))
-            except KeyError:
-                earlier = []
-            listed = list(dict.fromkeys([*earlier, *keys.keys()]))
-            stores.artifacts.put(cache_keys_key(room_id), json.dumps(listed).encode())
+    keys.write()
+    return run(job_id)

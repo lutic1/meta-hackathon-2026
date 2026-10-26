@@ -24,8 +24,8 @@ from src.api.errors import ApiError, handle_api_error
 from src.api.wiring import artifact_store, job_store
 from src.domain.redact import to_play_view
 from src.domain.schema import JobState, Room, RoomSummary
-from src.infra.clocks import BuildClock
 from src.infra import modal as hosted
+from src.infra.clocks import BuildClock
 from src.infra.local import DiskArtifactStore
 from src.infra.modal import (
     CACHE_DIR,
@@ -114,29 +114,41 @@ class JudgeBuild:
     def _build(self, doubles: Doubles) -> Build:
         return Build(jobs=self.stores.jobs, artifacts=self.stores.artifacts, clock=BuildClock(monotonic_ns=self.ticker), stages=doubles.stages(), regen_max=2)
 
-    def run(self, *, chats: dict[str, list[str]] | None = None, raises: dict[str, BaseException] | None = None) -> JobState:
-        """One runner over the job: the stages named in `chats` make those guarded calls; scene stores the Room."""
+    def run(
+        self,
+        *,
+        chats: dict[str, list[str]] | None = None,
+        raises: dict[str, BaseException] | None = None,
+        after: dict[str, Callable[[], None]] | None = None,
+    ) -> JobState:
+        """One runner over the job: the stages named in `chats` make those guarded calls, then run their `after` hook; scene stores the Room."""
         doubles = Doubles(self.ticker)
-        keys = CacheKeyLog(self.stores.cache)
+        keys = CacheKeyLog(self.stores.cache, self.stores.artifacts, self.room_id)
         calls = GuardedCalls(keys, SpendLedger(self.stores.ledger, cap_usd=10), host="api.meta.ai")
         for stage, stage_keys in (chats or {}).items():
-            doubles.hooks[stage] = _calling(calls, stage_keys)
+            doubles.hooks[stage] = _calling(calls, stage_keys, (after or {}).get(stage))
         doubles.hooks["scene"] = lambda state: self.stores.artifacts.put(room_key(self.room_id), self.stored_room.model_dump_json().encode())
         doubles.raises.update(raises or {})
-        return run_judge_build(self._build(doubles).run, self.queued.id, stores=self.stores, keys=keys)
+        return run_judge_build(self._build(doubles).run, self.queued.id, keys=keys)
 
     @property
     def stored_room(self) -> Room:
         return self.room.model_copy(update={"id": self.room_id})
 
+    @property
+    def keys_file(self) -> Path:
+        return self.handles.root / "rooms" / "judge" / self.room_id / CACHE_KEYS_FILE
+
     def listed_keys(self) -> list[str]:
-        return json.loads((self.handles.root / "rooms" / "judge" / self.room_id / CACHE_KEYS_FILE).read_bytes())
+        return json.loads(self.keys_file.read_bytes())
 
 
-def _calling(calls: GuardedCalls, keys: list[str]) -> Callable[[JobState], None]:
+def _calling(calls: GuardedCalls, keys: list[str], after: Callable[[], None] | None = None) -> Callable[[JobState], None]:
     def hook(_: JobState) -> None:
         for key in keys:
             _chat(calls, key)
+        if after is not None:
+            after()
 
     return hook
 
@@ -286,12 +298,62 @@ def test_a_restarted_runner_adds_its_keys_to_those_the_first_one_listed(handles,
 
 
 def test_the_key_log_records_reads_and_writes_once_each_in_first_use_order(handles, stores):
-    keys = CacheKeyLog(stores.cache)
+    keys = CacheKeyLog(stores.cache, stores.artifacts, "room_x")
     assert keys.get("a") is None
     keys.put("b", {"v": 1})
     keys.put("a", {"v": 2})
     assert keys.get("b") == {"v": 1} and stores.cache.get("a") == {"v": 2}
     assert keys.keys() == ["a", "b"]
+    assert json.loads((handles.root / "rooms" / "judge" / "room_x" / CACHE_KEYS_FILE).read_bytes()) == ["a", "b"]
+
+
+class ListingVolume(StubVolume):
+    """A stub Volume that, at every commit, checks each Cache entry on the directory is listed in some `cache-keys.json`."""
+
+    def __init__(self, log: list[str], root: Path) -> None:
+        super().__init__(log)
+        self.root = root
+
+    def commit(self) -> None:
+        entries = {path.stem for path in (self.root / CACHE_DIR).glob("*.json")}
+        listed = {key for path in (self.root / "rooms" / "judge").glob(f"*/{CACHE_KEYS_FILE}") for key in json.loads(path.read_bytes())}
+        assert entries <= listed, f"committed unlisted Cache entries {sorted(entries - listed)}"
+        super().commit()
+
+
+def test_a_key_is_listed_before_its_cache_entry_is_written_so_a_killed_runner_leaves_none_unlisted(tmp_path, log, ticker, four_lock_room):
+    root = tmp_path / "data"
+    handles = ModalHandles(jobs=RecordingDict(), sessions=RecordingDict(), ledger=RecordingDict(), volume=ListingVolume(log, root), root=root)
+    judge = JudgeBuild(handles, ticker, four_lock_room)
+    killed: dict[str, bytes] = {}
+
+    def kill() -> None:  # the Volume as a hard kill right after the architect's Cache writes would leave it, with nothing unwound
+        killed.update(_snapshot(root))
+        raise RunnerDied()
+
+    with pytest.raises(RunnerDied):
+        judge.run(chats={"architect": ["k-arch", "k-arch-2"]}, after={"architect": kill})
+    assert {f"{CACHE_DIR}/k-arch.json", f"{CACHE_DIR}/k-arch-2.json"} <= killed.keys()
+    assert json.loads(killed[f"rooms/judge/{judge.room_id}/{CACHE_KEYS_FILE}"]) == ["k-arch", "k-arch-2"]
+    assert judge.run(chats={"segment": ["k-seg"]}).status == "done"
+    assert judge.listed_keys() == ["k-arch", "k-arch-2", "k-seg"]
+
+
+def test_the_listing_exists_before_any_stage_runs(handles, ticker, four_lock_room):
+    judge = JudgeBuild(handles, ticker, four_lock_room)
+    seen: list[list[str]] = []
+    with pytest.raises(RunnerDied):
+        judge.run(chats={"architect": []}, after={"architect": lambda: seen.append(judge.listed_keys())}, raises={"architect": RunnerDied()})
+    assert seen == [[]]
+
+
+@pytest.mark.parametrize("earlier", [b'["k-ar', b'{"k": 1}', b"[1, 2]"])
+def test_an_unreadable_earlier_listing_counts_as_none_and_never_stops_the_build(handles, ticker, four_lock_room, earlier):
+    judge = JudgeBuild(handles, ticker, four_lock_room)
+    judge.keys_file.parent.mkdir(parents=True, exist_ok=True)
+    judge.keys_file.write_bytes(earlier)
+    assert judge.run(chats={"author": ["k-author"]}).status == "done"
+    assert judge.listed_keys() == ["k-author"]
 
 
 # --- A Judge room plays by its id, although it is never listed ---------------------------
