@@ -2,7 +2,9 @@
 
 A route raises one of these classes and `handle_api_error` answers with
 the envelope; `stage` is null outside the pipeline and `status` appears
-only on `build_not_ready`, so it is left unset here. A body, path or query
+only on `build_not_ready`, so it is left unset here. A refusal that sets
+`headers` answers with them, as `TooManyAttempts` does with `Retry-After`.
+A body, path or query
 that fails validation is answered by `handle_validation_error` with the
 same envelope under `invalid_request`.
 """
@@ -22,6 +24,7 @@ class ApiError(Exception):
     status: int
     code: str
     stage: Stage | None = None
+    headers: dict[str, str] | None = None
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
@@ -81,6 +84,17 @@ class AccessDenied(ApiError):
         super().__init__("this route needs the access code")
 
 
+class TooManyAttempts(ApiError):
+    """Hosted mode: an access attempt past the per-IP limit (AD-9, AD-13); refused before the code is compared."""
+
+    status = 429
+    code = "too_many_attempts"
+
+    def __init__(self, retry_after_s: int) -> None:
+        super().__init__(f"too many access attempts; try again in {retry_after_s} s")
+        self.headers = {"Retry-After": str(retry_after_s)}
+
+
 class BuildQuotaRefused(ApiError):
     """The `BuildQuotaExceeded` refusal of `POST /builds` (AD-9, AD-13): every judge build is used, so no photo is stored."""
 
@@ -132,7 +146,8 @@ def envelope(error: ApiError) -> ErrorEnvelope:
 
 def _answer(error: ApiError) -> JSONResponse:
     """The envelope with `status` left out, since no route here answers `build_not_ready`."""
-    return JSONResponse(status_code=error.status, content=envelope(error).model_dump(mode="json", exclude_unset=True))
+    content = envelope(error).model_dump(mode="json", exclude_unset=True)
+    return JSONResponse(status_code=error.status, content=content, headers=error.headers)
 
 
 async def handle_api_error(request: Request, error: ApiError) -> JSONResponse:

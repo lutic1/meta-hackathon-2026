@@ -1,4 +1,4 @@
-"""Hosted-mode adapters over Modal Dicts and the `keyframe-data` Volume (AD-7, AD-9): the Dict `JobStore` and its watchdog, the spawn `JobRunner`, the Dict `SessionStore` and `LedgerStore`, and the Volume `ArtifactStore` and `Cache`.
+"""Hosted-mode adapters over Modal Dicts and the `keyframe-data` Volume (AD-7, AD-9): the Dict `JobStore` and its watchdog, the spawn `JobRunner`, the Dict `AttemptStore`, `SessionStore` and `LedgerStore`, and the Volume `ArtifactStore` and `Cache`.
 
 `hosted_stores(handles)` builds all five over injected handles
 (`ModalHandles`): the Dicts `keyframe-jobs`, `keyframe-sessions` and
@@ -34,7 +34,10 @@ raises `BuildQuotaExceeded` and writes nothing. No slot is ever released,
 so every accepted Build counts whatever its end status (A-25), and
 `builds_left` counts the free slots in the Dict, so a restart keeps the
 count; a slot key can still expire after 7 idle days, which only frees a
-build. `DictSessionStore` keeps one key per session id holding its
+build. `DictAttemptStore` keeps the access attempts of each client (AD-9)
+in the same Dict, one key per client holding the Unix milliseconds of its
+recent attempts, so the per-IP limit survives a restart and no count lives
+in process memory. `DictSessionStore` keeps one key per session id holding its
 events in append order; `DictLedgerStore` keeps one key per `call_` ULID, so
 settling a call replaces its reserved entry under the same key (the only
 rewrite), returns every current-epoch entry so the total is summed on read,
@@ -425,6 +428,19 @@ class ModalJobRunner:
         self.store.jobs[call_key(job_id)] = call.object_id
 
 
+class DictAttemptStore:
+    """`AttemptStore` over `keyframe-jobs`: the API's per-client key (`attempts:<ip>`) holds that client's recent attempt times."""
+
+    def __init__(self, jobs: DictLike) -> None:
+        self.jobs = jobs
+
+    def read(self, key: str) -> list[int]:
+        return list(self.jobs.get(key) or [])
+
+    def write(self, key: str, times: list[int]) -> None:
+        self.jobs[key] = list(times)
+
+
 class DictSessionStore:
     """`SessionStore` over `keyframe-sessions`: one key per session id holding its events in append order."""
 
@@ -488,9 +504,10 @@ class DictLedgerStore:
 
 @dataclass(frozen=True)
 class HostedStores:
-    """The five hosted adapters; `artifacts` and `cache` share one `VolumeFiles`."""
+    """The six hosted adapters; `jobs` and `attempts` share the `keyframe-jobs` Dict, `artifacts` and `cache` one `VolumeFiles`."""
 
     jobs: DictJobStore
+    attempts: DictAttemptStore
     sessions: DictSessionStore
     ledger: DictLedgerStore
     artifacts: VolumeArtifactStore
@@ -506,6 +523,7 @@ def hosted_stores(handles: ModalHandles, *, poll: Poll | None = None) -> HostedS
     files = VolumeFiles(handles.volume, handles.root)
     return HostedStores(
         jobs=DictJobStore(handles.jobs, files, poll=poll),
+        attempts=DictAttemptStore(handles.jobs),
         sessions=DictSessionStore(handles.sessions),
         ledger=DictLedgerStore(handles.ledger),
         artifacts=VolumeArtifactStore(files),

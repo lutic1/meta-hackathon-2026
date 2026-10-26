@@ -81,10 +81,12 @@ def _routes(app: FastAPI) -> set[tuple[str, str]]:
 # --- The route table and the static client ------------------------------------------------
 
 
-def test_the_hosted_route_table_is_the_local_one_without_the_profile_routes(tmp_path: Path, handles: ModalHandles):
+def test_the_hosted_route_table_is_the_local_one_without_the_profile_routes_and_with_the_access_check(
+    tmp_path: Path, handles: ModalHandles
+):
     local, hosted = _routes(make_app(tmp_path)), _routes(make_hosted_app(tmp_path, handles))
     assert PROFILE_ROUTES <= local
-    assert hosted == local - PROFILE_ROUTES
+    assert hosted == (local - PROFILE_ROUTES) | {("POST", "/api/access/check")}
     assert {("POST", "/api/builds"), ("GET", "/api/builds/{job_id}"), ("GET", "/api/builds/{job_id}/room")} <= hosted
 
 
@@ -136,7 +138,7 @@ def test_post_builds_without_the_code_is_refused_with_403_and_no_photo_is_stored
     response = post_build(client, make_uploads())
     assert response.status_code == 403 and response.json() == ACCESS_DENIED
     assert sorted(handles.root.rglob("*")) == before
-    assert handles.jobs == {} and not (tmp_path / "local-rooms").exists()
+    assert all(key.startswith("attempts:") for key in handles.jobs) and not (tmp_path / "local-rooms").exists()
 
 
 @pytest.mark.parametrize("job_id", [JOB, UNKNOWN_JOB])

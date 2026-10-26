@@ -82,9 +82,16 @@ the guard refuses a missing or wrong `X-Access-Code` with 403
 job state, 202 while `queued` or `running` and 200 when terminal, and never a
 Room; `GET /builds/<job_id>/room` is the one route a full Room leaves by
 (AD-3), behind the same guard (open in Local mode), `room_not_found` until
-the job is `done`. Every other route is open in both modes. At startup the
-local app exports the ledger and restarts every job left `queued` or
-`running`; the runner exports again after each Build ends (AD-9). The
+the job is `done`. Hosted only, `POST /access/check {code}` answers the
+`AccessCheck` before any photo is chosen: `{ok: true, builds_left}` read
+from the `JobStore` for the right code, 200 `{ok: false, builds_left: null}`
+for a wrong one, starting no Build and claiming no slot; `POST /builds`
+still checks the code and claims the slot itself. Every attempt on the
+guarded routes and the check counts against the per-IP limit first, and
+one past it answers 429 `too_many_attempts` with `Retry-After` before the
+code is compared (AD-9). Every other route is open in both modes. At
+startup the local app exports the ledger and restarts every job left
+`queued` or `running`; the runner exports again after each Build ends (AD-9). The
 Trickster route and `GET /builds/<job_id>/view` land with their stories.
 """
 
@@ -138,6 +145,8 @@ from src.domain.rungs import (
 )
 from src.domain.schema import (
     API_MODELS,
+    AccessCheck,
+    AccessCheckRequest,
     Derived,
     Event,
     HintReply,
@@ -166,7 +175,7 @@ from src.domain.schema import (
 from src.domain.session import SessionStateMachine
 from src.infra.clocks import SessionClock
 from src.infra.local import CACHE_ROOT, EXPORTS_ROOT, LEDGER_PATH, ROOMS_ROOT
-from src.infra.modal import ModalHandles
+from src.infra.modal import ModalHandles, wall_ms
 from src.pipeline.build import TERMINAL, Build, StageFn, error_code
 from src.pipeline.ingest import IngestRefused, UnsupportedImage, Upload
 from src.pipeline.ports import (
@@ -332,6 +341,28 @@ def status_routes(settings: Settings) -> APIRouter:
     return router
 
 
+# --- Access (AD-9) ----------------------------------------------------------
+
+
+def client_ip(request: Request) -> str:
+    """The address the request came from: the key the access attempts are counted under."""
+    return request.client.host if request.client else ""
+
+
+def access_routes(guard: AccessGuard, jobs: JobStore) -> APIRouter:
+    """Hosted only: the code check before photo selection, which starts no Build and claims no slot."""
+    router = APIRouter(prefix="/api/access", tags=["access"])
+
+    @router.post("/check")
+    def check_access(body: AccessCheckRequest, request: Request) -> AccessCheck:
+        """The right code answers the builds left; a wrong one 200 `ok: false`, never the error envelope."""
+        if not guard.check(body.code, client_ip(request)):
+            return AccessCheck(ok=False, builds_left=None)
+        return AccessCheck(ok=True, builds_left=jobs.builds_left())
+
+    return router
+
+
 # --- Builds (AD-7) ----------------------------------------------------------
 
 DOWNSCALE, ORIGINAL = "downscale", "original"
@@ -392,7 +423,7 @@ def build_routes(
         An accepted upload claims a slot, is queued and started, never awaited.
         The multipart parse and ingest run in the thread pool, so a large body never holds the event loop.
         """
-        guard(request.headers.get(ACCESS_HEADER))
+        guard(request.headers.get(ACCESS_HEADER), client_ip(request))
         content_type, body = request.headers.get("content-type", ""), await request.body()
         try:
             state = await run_in_threadpool(lambda: build.submit(read_uploads(content_type, body)))
@@ -417,7 +448,7 @@ def build_routes(
     @router.get("/{job_id}/room")
     def get_build_room(job_id: str, request: Request) -> Room:
         """The full Room, solutions included: the one route a Room leaves the server by (AD-3), behind the access guard."""
-        guard(request.headers.get(ACCESS_HEADER))
+        guard(request.headers.get(ACCESS_HEADER), client_ip(request))
         state = read_job(jobs, job_id)
         if state.status != "done" or state.room_id is None:
             raise RoomNotFound(state.room_id or job_id)
@@ -651,6 +682,7 @@ def create_app(
     phraser: HintPhraser | None = None,
     spawn: Spawn = spawn_thread,
     stages: Mapping[Stage, StageFn] | None = None,
+    access_clock: Callable[[], int] = wall_ms,
     ledger_path: Path = LEDGER_PATH,
     exports_root: Path = EXPORTS_ROOT,
     cache_root: Path = CACHE_ROOT,
@@ -662,7 +694,8 @@ def create_app(
     `MODE=hosted`. Tests pass the session clock, the Guide adapter and the
     `Spawn` the greeting runs through; `stages` replaces the stage
     functions wiring builds over the per-role providers (tests pass
-    doubles); the paths and `today` let tests keep the ledger, its exports
+    doubles); `access_clock`, Unix milliseconds, times the hosted access
+    attempts; the paths and `today` let tests keep the ledger, its exports
     and the cache out of the repo.
     """
     wired = wire(
@@ -674,6 +707,7 @@ def create_app(
         exports_root=exports_root,
         cache_root=cache_root,
         today=today,
+        access_clock=access_clock,
     )
 
     @asynccontextmanager
@@ -693,6 +727,8 @@ def create_app(
     app.add_exception_handler(ApiError, handle_api_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.include_router(status_routes(settings))
+    if wired.access_check:
+        app.include_router(access_routes(wired.guard, wired.jobs))
     app.include_router(
         build_routes(wired.build, wired.jobs, wired.artifacts, wired.runner, on_terminal=wired.on_terminal, guard=wired.guard)
     )

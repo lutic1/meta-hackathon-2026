@@ -406,9 +406,9 @@ def test_hosted_mode_without_the_modal_handles_is_refused(tmp_path):
 
 def test_wire_injects_the_access_guard_of_the_running_mode(tmp_path):
     local = _wire(tmp_path, Settings.from_env({"ACCESS_CODE": "lantern-42"}))
-    local.guard(None)
+    local.guard(None, "203.0.113.7")
     hosted = _wire(tmp_path, hosted_settings(ACCESS_CODE="lantern-42"), handles=hosted_handles(tmp_path))
-    hosted.guard("lantern-42")
+    hosted.guard("lantern-42", "203.0.113.7")
     with pytest.raises(AccessDenied) as excinfo:
-        hosted.guard(None)
+        hosted.guard(None, "203.0.113.7")
     assert (excinfo.value.status, excinfo.value.code, excinfo.value.stage) == (403, "access_denied", None)

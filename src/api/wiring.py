@@ -17,9 +17,10 @@ mode branch in `src/api`: under `MODE=local` the disk adapters below; under
 handles `src/api/modal_app.py` passes. It also returns what else differs
 between the modes, so `create_app` holds no mode branch of its own: the
 hosted app serves no profile route, greets no returning player, runs no
-local ledger export and resumes no job in process, and its `guard` is the
-hosted `access_guard`. The hosted `JobRunner` is wired with `run_build` in
-7.8; until then `NoRunner` leaves an accepted job `queued`, no stage run.
+local ledger export and resumes no job in process, it serves
+`POST /access/check`, and its `guard` is the hosted `access_guard`. The
+hosted `JobRunner` is wired with `run_build` in 7.8; until then `NoRunner`
+leaves an accepted job `queued`, no stage run.
 
 `artifact_store`, `job_store`, `session_store`, `ledger_store` and
 `model_cache` build the local disk adapters.
@@ -30,14 +31,20 @@ starts every job a stopped process left `queued` or `running`; and
 terminal Build (AD-9). `session_clock` is the one place `DEMO_TIMESCALE`
 reaches a clock and `build_clock` never sees it (AD-10).
 
-`access_guard` is the hosted access check on `POST /builds` and
-`GET /builds/<job_id>/room` (AD-9): in hosted mode it refuses a missing or
-wrong `X-Access-Code` with `AccessDenied` (403 `access_denied`), comparing
-against `ACCESS_CODE` from `Settings` in constant time and refusing every
-code when none is set; in Local mode it lets every request through. The
+`access_guard` is the hosted access check on `POST /builds`,
+`GET /builds/<job_id>/room` and `POST /access/check` (AD-9): in hosted mode
+it first counts the attempt against `ACCESS_ATTEMPTS`, refusing one past the
+limit with `TooManyAttempts` (429 `too_many_attempts` with `Retry-After`)
+before the code is compared, then compares against `ACCESS_CODE` from
+`Settings` in constant time, refusing every code when none is set; a guarded
+route refuses a missing or wrong `X-Access-Code` with `AccessDenied` (403
+`access_denied`), while the check route answers `ok: false`. The attempts
+live in the hosted `AttemptStore`, never in process memory. In Local mode
+it counts nothing and lets every request through. The
 build quota is the `JobStore`'s own: the hosted store refuses the 21st
 slot claim with `BuildQuotaExceeded` and the local store never refuses, so
-no route handler reads the mode; `wire` passes `hosted` per mode.
+no route handler reads the mode; `wire` passes `hosted` per mode, and the
+hosted `AttemptStore` with it.
 
 `build_stages` maps each stage after ingest to its function over the
 providers, the artifact store and the ledger store. Architect and segment
@@ -55,6 +62,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import secrets
 import threading
 from collections.abc import Callable, Mapping
@@ -66,7 +74,7 @@ from typing import get_args
 import httpx
 from pydantic import ValidationError
 
-from src.api.errors import AccessDenied
+from src.api.errors import AccessDenied, TooManyAttempts
 from src.config import Settings
 from src.domain.ledger import CallKind
 from src.domain.schema import JobId, JobState, Role, Stage
@@ -85,11 +93,11 @@ from src.infra.local import (
     ThreadJobRunner,
     export_ledger,
 )
-from src.infra.modal import ModalHandles, hosted_stores
+from src.infra.modal import ModalHandles, hosted_stores, wall_ms
 from src.pipeline.architect import architect_stage
 from src.pipeline.author import author_stage, validate_stage
 from src.pipeline.build import STAGES, TERMINAL, Build, StageFn, StageResult
-from src.pipeline.ports import ArtifactStore, Cache, JobRunner, JobStore, LedgerStore, SessionStore
+from src.pipeline.ports import ArtifactStore, AttemptStore, Cache, JobRunner, JobStore, LedgerStore, SessionStore
 from src.pipeline.scene import scene_stage, skipped_dry_run_stage
 from src.pipeline.segment import segment_stage
 from src.providers.base import HintPhraser, ModelProvider
@@ -125,8 +133,18 @@ call, so it carries the portrait budget of the Meta adapter.
 ACCESS_HEADER = "X-Access-Code"
 """The header carrying the hosted access code on the guarded routes (AD-9)."""
 
-type AccessGuard = Callable[[str | None], None]
-"""Given a request's `X-Access-Code` (`None` when absent), returns, or raises `AccessDenied`."""
+
+@dataclass(frozen=True)
+class AttemptLimit:
+    """At most `attempts` access attempts per client in any `window_ms`; `key` is a client's store key, formatted with its IP."""
+
+    attempts: int
+    window_ms: int
+    key: str
+
+
+ACCESS_ATTEMPTS = AttemptLimit(attempts=10, window_ms=10 * 60 * 1000, key="attempts:{ip}")
+"""AD-9: more than 10 access attempts from one client IP in 10 minutes, right code or wrong, answer 429 `too_many_attempts`."""
 
 log = logging.getLogger("keyframe.builds")
 
@@ -138,17 +156,54 @@ class StageNotBuilt(Exception):
         super().__init__(f"the {stage} stage is not built yet")
 
 
-def access_guard(settings: Settings, *, hosted: bool) -> AccessGuard:
-    """The access check on the guarded routes: hosted, the `ACCESS_CODE` comparison; local, none (AD-9)."""
-    if not hosted:
-        return lambda code: None
-    expected = (settings.access_code or "").encode()
+class AccessGuard:
+    """One app's access check (AD-9): `check` counts the attempt, then compares the code; calling the guard refuses a wrong one.
 
-    def guard(code: str | None) -> None:
-        if not expected or code is None or not secrets.compare_digest(code.encode(), expected):
+    `expected` is `None` in Local mode, which counts nothing and accepts
+    every code; hosted, it is `ACCESS_CODE`, empty when none is set, which
+    refuses every code. Without an attempt store nothing is counted. The
+    lock keeps one process's read and write of a client's attempts together.
+    """
+
+    def __init__(self, expected: bytes | None, attempts: AttemptStore | None, now_ms: Callable[[], int]) -> None:
+        self.expected = expected
+        self.attempts = attempts
+        self.now_ms = now_ms
+        self._lock = threading.Lock()
+
+    def check(self, code: str | None, client: str) -> bool:
+        """Whether `code` is the access code, once the attempt from `client` is counted; past the limit, `TooManyAttempts` and no comparison."""
+        if self.expected is None:
+            return True
+        self._count(client)
+        return bool(self.expected) and code is not None and secrets.compare_digest(code.encode(), self.expected)
+
+    def __call__(self, code: str | None, client: str) -> None:
+        """A guarded route's check of its `X-Access-Code` (`None` when absent): returns, or raises `AccessDenied`."""
+        if not self.check(code, client):
             raise AccessDenied()
 
-    return guard
+    def _count(self, client: str) -> None:
+        """Store this attempt beside the client's others in the window; a refused attempt is not stored, so the wait ends."""
+        if self.attempts is None:
+            return
+        key = ACCESS_ATTEMPTS.key.format(ip=client)
+        with self._lock:
+            now = self.now_ms()
+            recent = [t for t in self.attempts.read(key) if now - t < ACCESS_ATTEMPTS.window_ms]
+            if len(recent) >= ACCESS_ATTEMPTS.attempts:
+                wait_ms = min(recent) + ACCESS_ATTEMPTS.window_ms - now
+                raise TooManyAttempts(max(1, math.ceil(wait_ms / 1000)))
+            self.attempts.write(key, [*recent, now])
+
+
+def access_guard(
+    settings: Settings, *, hosted: bool, attempts: AttemptStore | None = None, now_ms: Callable[[], int] = wall_ms
+) -> AccessGuard:
+    """The access check: hosted, the attempt limit then the `ACCESS_CODE` comparison; local, none (AD-9)."""
+    if not hosted:
+        return AccessGuard(None, None, now_ms)
+    return AccessGuard((settings.access_code or "").encode(), attempts, now_ms)
 
 
 def hint_phraser(settings: Settings) -> HintPhraser:
@@ -332,7 +387,9 @@ class Wiring:
     startup: Callable[[], object]
     """When the app starts: locally the export, then `resume_jobs`; hosted nothing, the spawned runner owns its job (AD-7)."""
     guard: AccessGuard
-    """The `access_guard` of the running mode: open locally, the `ACCESS_CODE` check hosted."""
+    """The `access_guard` of the running mode: open locally, the attempt limit and the `ACCESS_CODE` check hosted."""
+    access_check: bool
+    """Whether `POST /access/check` is served: Hosted mode only."""
     profiles: bool
     """Whether `GET|PUT /profile/<name>` are served: Local mode, cut 2 only (AD-8)."""
     greets: bool
@@ -349,11 +406,13 @@ def wire(
     exports_root: Path = EXPORTS_ROOT,
     cache_root: Path = CACHE_ROOT,
     today: Callable[[], date] = date.today,
+    access_clock: Callable[[], int] = wall_ms,
 ) -> Wiring:
     """The app's adapters for `settings.mode`; `stages` replaces the stage functions built over the per-role providers.
 
     `MODE=hosted` needs the Modal `handles`; the paths and `today` are the
-    local adapters' and are not read in Hosted mode.
+    local adapters' and are not read in Hosted mode. `access_clock`, Unix
+    milliseconds, times the hosted access attempts.
     """
     if settings.mode == "hosted":
         if handles is None:
@@ -362,7 +421,9 @@ def wire(
         build = _build(settings, hosted.artifacts, hosted.jobs, hosted.cache, hosted.ledger, stages)
         return Wiring(
             hosted.artifacts, hosted.jobs, hosted.sessions, build, NoRunner(),
-            on_terminal=do_nothing, startup=do_nothing, guard=access_guard(settings, hosted=True), profiles=False, greets=False,
+            on_terminal=do_nothing, startup=do_nothing,
+            guard=access_guard(settings, hosted=True, attempts=hosted.attempts, now_ms=access_clock),
+            access_check=True, profiles=False, greets=False,
         )
     ledger = ledger_store(ledger_path)
     export = ledger_export(settings, ledger, exports_root, today)
@@ -377,7 +438,7 @@ def wire(
 
     return Wiring(
         artifacts, jobs, session_store(rooms_root), build, runner,
-        on_terminal=export, startup=startup, guard=access_guard(settings, hosted=False), profiles=True, greets=True,
+        on_terminal=export, startup=startup, guard=access_guard(settings, hosted=False), access_check=False, profiles=True, greets=True,
     )
 
 

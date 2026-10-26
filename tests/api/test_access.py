@@ -1,7 +1,9 @@
 """Story 7.11: the hosted access guard on `POST /builds` and `GET /builds/<job_id>/room`, and the quota refusal (AD-3, AD-9, AD-13).
 
 The hosted app is `MODE=hosted` over plain dicts and a temporary Volume
-directory, so the 7.10 slot claims run offline.
+directory, so the 7.10 slot claims run offline. The access attempts (7.12)
+share the jobs dict with the job store, as on Modal, so `job_writes`
+leaves their keys out.
 """
 
 from __future__ import annotations
@@ -29,22 +31,53 @@ from tests.pipeline.uploads import make_uploads
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 CODE = "lantern-42"
+CLIENT = "203.0.113.7"
+"""A client address for the guard's unit tests."""
+START_MS = 1_793_000_000_000
+"""The access clock's first reading, a Unix millisecond in Oct 2026."""
 ACCESS_DENIED = {"error": {"code": "access_denied", "message": ANY, "stage": None}}
 QUOTA_EXCEEDED = {"error": {"code": "build_quota_exceeded", "message": ANY, "stage": None}}
 WRONG = {"no header": {}, "a wrong code": {ACCESS_HEADER: "lantern-41"}, "an empty code": {ACCESS_HEADER: ""}}
 
 
+class WallClock:
+    """The access clock, Unix milliseconds the tests advance by hand."""
+
+    def __init__(self) -> None:
+        self.ms = START_MS
+
+    def now_ms(self) -> int:
+        return self.ms
+
+    def advance_s(self, seconds: float) -> None:
+        self.ms += int(seconds * 1000)
+
+
 class Hosted:
-    """The `MODE=hosted` app over `tmp_path`: the Dict job store, the stage doubles, and every Room it was given seeded as a Demo room."""
+    """The `MODE=hosted` app over `tmp_path`: the Dict job and attempt stores, the stage doubles, and every Room it was given seeded as a Demo room."""
 
     def __init__(self, tmp_path: Path, *rooms: Room, access_code: str | None = CODE) -> None:
-        handles = hosted_handles(tmp_path)
-        self.dict = handles.jobs
-        self.jobs = hosted_stores(handles).jobs
+        self.handles = hosted_handles(tmp_path)
+        self.dict = self.handles.jobs
+        stores = hosted_stores(self.handles)
+        self.jobs, self.attempts = stores.jobs, stores.attempts
+        self.clock = WallClock()
         self.stages = Stages()
-        self.rooms = handles.root / ROOMS_DIR
+        self.rooms = self.handles.root / ROOMS_DIR
+        self.tmp_path = tmp_path
+        self.client = self.start(*rooms, access_code=access_code)
+
+    def start(self, *rooms: Room, access_code: str | None = CODE) -> TestClient:
+        """An app over these same handles and clock, as a restarted process or a changed `ACCESS_CODE` sees them."""
         settings = hosted_settings(**({"ACCESS_CODE": access_code} if access_code else {}))
-        self.client = TestClient(make_hosted_app(tmp_path, handles, *rooms, settings=settings, stages=self.stages.functions()))
+        app = make_hosted_app(
+            self.tmp_path, self.handles, *rooms, settings=settings, stages=self.stages.functions(), access_clock=self.clock.now_ms
+        )
+        return TestClient(app)
+
+    def job_writes(self) -> list[tuple[object, object]]:
+        """The jobs dict's writes, the access attempts' own keys left out."""
+        return [(key, value) for key, value in self.dict.writes if not str(key).startswith("attempts:")]
 
     def stored(self) -> set[Path]:
         """Every file the Volume holds under `rooms/`."""
@@ -73,7 +106,7 @@ def test_a_build_without_the_right_code_is_refused_before_any_photo_job_or_slot(
     hosted = Hosted(tmp_path)
     response = post(hosted.client, headers)
     assert response.status_code == 403 and response.json() == ACCESS_DENIED
-    assert hosted.jobs.list_ids() == [] and hosted.jobs.builds_left() == BUILD_QUOTA and hosted.dict.writes == []
+    assert hosted.jobs.list_ids() == [] and hosted.jobs.builds_left() == BUILD_QUOTA and hosted.job_writes() == []
     assert hosted.stored() == set() and hosted.stages.calls == []
 
 
@@ -81,7 +114,7 @@ def test_without_an_access_code_configured_every_code_is_refused(tmp_path: Path)
     hosted = Hosted(tmp_path, access_code=None)
     for headers in ({}, {ACCESS_HEADER: ""}, {ACCESS_HEADER: CODE}):
         assert post(hosted.client, headers).json() == ACCESS_DENIED
-    assert hosted.dict.writes == [] and hosted.stored() == set()
+    assert hosted.job_writes() == [] and hosted.stored() == set()
 
 
 def test_a_build_with_the_right_code_claims_one_slot_and_is_queued(tmp_path: Path):
@@ -165,12 +198,12 @@ def test_the_21st_build_with_the_right_code_is_refused_with_the_quota_and_stores
     hosted = Hosted(tmp_path, four_lock_room)
     hosted.done(four_lock_room)
     hosted.claim_all()
-    before, writes = hosted.stored(), list(hosted.dict.writes)
+    before, writes = hosted.stored(), list(hosted.job_writes())
 
     response = post(hosted.client, {ACCESS_HEADER: CODE})
 
     assert response.status_code == 403 and response.json() == QUOTA_EXCEEDED
-    assert hosted.stored() == before and hosted.dict.writes == writes and hosted.stages.calls == []
+    assert hosted.stored() == before and hosted.job_writes() == writes and hosted.stages.calls == []
     assert len(hosted.jobs.list_ids()) == 1 and hosted.jobs.builds_left() == 0
     assert [summary["room_id"] for summary in hosted.client.get("/api/rooms").json()] == [four_lock_room.id]
     started = hosted.client.post("/api/sessions", json={"room_id": four_lock_room.id})
@@ -191,7 +224,7 @@ def test_an_upload_ingest_refuses_claims_no_slot_and_stores_nothing(tmp_path: Pa
     hosted = Hosted(tmp_path)
     response = post(hosted.client, {ACCESS_HEADER: CODE}, count)
     assert response.status_code == 422 and response.json()["error"]["code"] == "photo_count"
-    assert hosted.dict.writes == [] and not SLOT_KEYS & set(hosted.dict) and hosted.stored() == set()
+    assert hosted.job_writes() == [] and not SLOT_KEYS & set(hosted.dict) and hosted.stored() == set()
 
 
 def test_an_ingest_refusal_with_every_slot_taken_is_still_the_ingest_refusal(tmp_path: Path):
@@ -229,22 +262,22 @@ def test_the_local_job_store_never_refuses_a_build(tmp_path: Path):
 def test_the_local_guard_lets_every_code_through():
     guard = access_guard(Settings.from_env({"ACCESS_CODE": CODE}), hosted=False)
     for code in (None, "", "wrong", CODE):
-        guard(code)
+        guard(code, CLIENT)
 
 
 def test_the_hosted_guard_accepts_only_the_configured_code():
     guard = access_guard(Settings.from_env({"ACCESS_CODE": CODE}), hosted=True)
-    guard(CODE)
+    guard(CODE, CLIENT)
     for code in (None, "", "wrong", CODE.upper(), f"{CODE} ", CODE[:-1]):
         with pytest.raises(AccessDenied):
-            guard(code)
+            guard(code, CLIENT)
 
 
 def test_the_hosted_guard_without_a_configured_code_refuses_every_code():
     guard = access_guard(Settings.from_env({}), hosted=True)
     for code in (None, "", "anything"):
         with pytest.raises(AccessDenied):
-            guard(code)
+            guard(code, CLIENT)
 
 
 def _reads(attr: str) -> set[str]:

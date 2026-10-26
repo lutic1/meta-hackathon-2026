@@ -16,6 +16,7 @@ from src.domain.schema import Event, JobId, JobState, Room, SessionId
 __all__ = [
     "ROOM_FILE",
     "ArtifactStore",
+    "AttemptStore",
     "BuildQuotaExceeded",
     "Cache",
     "Clock",
@@ -92,6 +93,20 @@ class JobStore(Protocol):
     def reserve_build(self, job_id: JobId) -> None: ...
 
     def builds_left(self) -> int | None: ...
+
+
+class AttemptStore(Protocol):
+    """Recent access attempts per client (AD-9): hosted, keys in the `keyframe-jobs` Dict; Local mode counts none.
+
+    `read` returns the Unix milliseconds of the attempts stored under `key`,
+    oldest first, and `[]` for a key never written; `write` replaces them
+    whole. The limit itself is the API's: the store only keeps the times,
+    so a restart keeps the count.
+    """
+
+    def read(self, key: str) -> list[int]: ...
+
+    def write(self, key: str, times: list[int]) -> None: ...
 
 
 class JobRunner(Protocol):
