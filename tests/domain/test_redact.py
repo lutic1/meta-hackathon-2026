@@ -1,12 +1,22 @@
-"""Stories 1.5 and 1.7: the public card, prompt and play projections (AD-3)."""
+"""Stories 1.5, 1.7 and 2.27: the public card, prompt, play and Build view projections (AD-3)."""
 
+import ast
 import json
+import sys
+from pathlib import Path
 from typing import Any
 
-from src.domain.redact import to_card_view, to_play_view, to_prompt_view
+import pytest
+
+from src.domain import redact
+from src.domain.redact import to_build_view, to_card_view, to_play_view, to_prompt_view
 from src.domain.schema import (
+    BuildView,
     Derived,
+    DryRunAnswer,
+    DryRunAnswers,
     InteractableView,
+    JobState,
     PlayView,
     PuzzleView,
     Room,
@@ -231,3 +241,163 @@ def test_play_view_merges_decoys_into_unflagged_evidence_cards_in_a_stable_order
     assert to_play_view(room) == view
     text = json.dumps(view.model_dump(mode="json"))
     assert "te_" not in text and '"decoys"' not in text
+
+
+# --- Story 2.27: `to_build_view` --------------------------------------------
+
+JOB_ID = f"job_{ULID}"
+ARCHITECT, SAM, RIDDLER, FALLBACK = "muse-spark-1.3", "sam-3.1", "muse-spark-1.3", "muse-spark-open"
+DISCLOSURE = ["Demo mode: the clock runs faster.", "Cached calls were served from earlier builds."]
+
+
+def call(n: int, role: str, model: str, *, host: str = "meta", cached: bool = False) -> dict[str, Any]:
+    return {"id": f"call_{n:026d}", "role": role, "model": model, "host": host, "cached": cached,
+            "spend_usd": 0.0 if cached else 0.01}
+
+
+def stage(name: str, duration_ms: int, count: int | None = None, model: str | None = None) -> dict[str, Any]:
+    return {"stage": name, "duration_ms": duration_ms, "count": count, "model": model}
+
+
+def done_job(room: Room, **fields: Any) -> JobState:
+    """The final job record of `room`: one Regeneration after a validate send-back, the Riddler's retry on a fallback."""
+    puzzles = [puzzle.id for puzzle in room.puzzles]
+    data: dict[str, Any] = {
+        "id": JOB_ID, "status": "done", "room_id": room.id, "regen_max": 2, "regeneration_count": 1,
+        "stages": [
+            stage("ingest", 900, len(room.photos)), stage("architect", 8_000, 8, ARCHITECT),
+            stage("segment", 12_000, 8, SAM), stage("author", 30_000, 4, RIDDLER), stage("validate", 10),
+            stage("author", 25_000, 5, FALLBACK), stage("validate", 10), stage("dryrun", 9_000, 5, "muse-spark-1.3"),
+            stage("scene", 80, len(room.photos)),
+        ],
+        "validator": [{"rule": n, "name": rule.name, "passed": True} for n, rule in RULES.items()],
+        "dry_run": [{"puzzle_id": pz, "verdict": "fail" if n == 2 else "pass"} for n, pz in enumerate(puzzles)],
+        "sent_back": [{"attempt": 0, "stage": "validate", "messages": [RULES[2].message]}],
+        "calls": [
+            call(1, "architect", ARCHITECT, cached=True),
+            *(call(n, "architect", SAM, cached=n < 4) for n in range(2, 8)),
+            call(8, "riddler", RIDDLER),
+            call(9, "riddler", FALLBACK, host="openai_compatible"),
+            call(10, "dryrun", "muse-spark-1.3"),
+        ],
+        "build_time_ms": 85_000,
+    }
+    return JobState.model_validate({**data, **fields})
+
+
+def test_build_view_holds_masks_graph_verdicts_regenerations_and_build_time(four_lock_room: Room):
+    room, job = four_lock_room, done_job(four_lock_room)
+    view = to_build_view(room, job)
+    assert isinstance(view, BuildView)
+    assert (view.room_id, view.job_id, view.name, view.built_at) == (room.id, job.id, room.name, room.created)
+    assert view.build_time_ms == 85_000
+    assert [photo.photo for photo in view.photos] == list(range(len(room.photos)))
+    for photo in view.photos:
+        expected = [ix for ix in room.interactables if ix.photo == photo.photo]
+        assert [(m.interactable_id, m.label, m.polygons) for m in photo.masks] == [
+            (ix.id, ix.label, ix.polygons) for ix in expected]
+    assert len(view.photos[3].masks) == 3
+    assert [node.model_dump() for node in view.puzzles] == [
+        {"id": p.id, "lock_type": p.lock_type, "requires": p.requires, "is_exit": p.is_exit} for p in room.puzzles]
+    assert [(v.rule, v.name) for v in view.validator] == [(n, rule.name) for n, rule in RULES.items()]
+    assert all(v.passed for v in view.validator)
+    assert view.dry_run == job.dry_run and {v.verdict for v in view.dry_run} == {"pass", "fail"}
+    assert (view.regeneration_count, view.regen_max) == (1, 2)
+    assert view.sent_back == job.sent_back and view.sent_back[0].messages == [RULES[2].message]
+    assert view.calls == job.calls
+
+
+def test_a_box_fallback_reaches_the_view_as_a_polygon(four_lock_room: Room):
+    data = four_lock_room.model_dump()
+    data["interactables"][0]["polygons"] = None
+    room = Room.model_validate(data)
+    ix = room.interactables[0]
+    x0, y0, x1, y1 = ix.box
+    masks = {m.interactable_id: m for photo in to_build_view(room, done_job(room)).photos for m in photo.masks}
+    assert masks[ix.id].polygons == [[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]]
+    assert masks[room.interactables[1].id].polygons == room.interactables[1].polygons
+
+
+def test_model_rows_count_cached_and_billed_per_role_and_model_and_name_the_fallback_that_ran(four_lock_room: Room):
+    rows = [row.model_dump() for row in to_build_view(four_lock_room, done_job(four_lock_room)).models]
+    assert rows == [
+        {"role": "architect", "model": ARCHITECT, "host": "meta", "cached": 1, "billed": 0, "summary": "found 8 objects"},
+        {"role": "architect", "model": SAM, "host": "meta", "cached": 2, "billed": 4, "summary": "outlined 8 objects"},
+        {"role": "riddler", "model": RIDDLER, "host": "meta", "cached": 0, "billed": 1, "summary": "wrote 4 puzzles"},
+        {"role": "riddler", "model": FALLBACK, "host": "openai_compatible", "cached": 0, "billed": 1,
+         "summary": "wrote 5 puzzles"},
+        {"role": "dryrun", "model": "muse-spark-1.3", "host": "meta", "cached": 0, "billed": 1,
+         "summary": "tried 5 puzzles blind"},
+    ]
+
+
+def test_a_single_count_reads_in_the_singular(four_lock_room: Room):
+    job = done_job(four_lock_room, stages=[stage("architect", 10, 1, ARCHITECT)], calls=[call(1, "architect", ARCHITECT)])
+    assert to_build_view(four_lock_room, job).models[0].summary == "found 1 object"
+
+
+def test_dry_run_off_projects_every_puzzle_skipped(four_lock_room: Room):
+    skipped = [{"puzzle_id": puzzle.id, "verdict": "skipped"} for puzzle in four_lock_room.puzzles]
+    job = done_job(four_lock_room, dry_run=skipped, calls=[call(1, "architect", ARCHITECT)])
+    view = to_build_view(four_lock_room, job)
+    assert [v.puzzle_id for v in view.dry_run] == [puzzle.id for puzzle in four_lock_room.puzzles]
+    assert all(v.verdict == "skipped" for v in view.dry_run)
+
+
+def test_regen_max_1_reads_1_with_the_recorded_dry_run_verdicts(four_lock_room: Room):
+    job = done_job(four_lock_room, regen_max=1)
+    view = to_build_view(four_lock_room, job)
+    assert view.regen_max == 1
+    assert [(v.puzzle_id, v.verdict) for v in view.dry_run] == [(v.puzzle_id, v.verdict) for v in job.dry_run]
+
+
+def test_disclosure_holds_exactly_the_given_lines(four_lock_room: Room):
+    job = done_job(four_lock_room)
+    assert to_build_view(four_lock_room, job, disclosure=DISCLOSURE).disclosure == DISCLOSURE
+    assert to_build_view(four_lock_room, job).disclosure == []
+
+
+def test_a_job_of_another_room_is_refused(four_lock_room: Room, code_and_find_room: Room):
+    with pytest.raises(ValueError):
+        to_build_view(code_and_find_room, done_job(four_lock_room))
+
+
+def test_serialized_build_view_leaks_no_solution_answer_pairing_or_clue(four_lock_room: Room):
+    room = with_sentinel_solutions(four_lock_room)
+    answers = DryRunAnswers(answers=[DryRunAnswer(puzzle_id=p.id, answer=p.solution) for p in room.puzzles])
+    assert SENTINEL_CODE in json.dumps(room.model_dump(mode="json"))  # the sentinels are in the room
+    assert {ix.id for ix in room.interactables}.isdisjoint(SENTINEL_IX)  # and nowhere else in it
+    view = to_build_view(room, done_job(room), disclosure=DISCLOSURE)
+    data = view.model_dump(mode="json")
+    text = json.dumps(data)
+    assert "solution" not in json_keys(data) and "solution" not in schema_keys(BuildView)
+    assert json_keys(data).isdisjoint(("answer", "answers", "evidence", "clue", "lore", "rungs", "code", "item", "target"))
+    assert SENTINEL_CODE not in text and all(ix not in text for ix in SENTINEL_IX)
+    assert json.dumps(SENTINEL_ORDER)[1:-1] not in text
+    for answer in answers.answers:
+        assert json.dumps(answer.answer.model_dump(mode="json")) not in text
+    for puzzle in room.puzzles:
+        assert puzzle.clue not in text and puzzle.lore not in text
+        assert puzzle.evidence.visible_attribute not in text
+
+
+def test_build_view_leaves_its_inputs_unchanged(four_lock_room: Room):
+    room, job = with_sentinel_solutions(four_lock_room), done_job(four_lock_room)
+    room_before, job_before = room.model_copy(deep=True), job.model_copy(deep=True)
+    view = to_build_view(room, job, disclosure=DISCLOSURE)
+    view.photos[0].masks[0].polygons[0].append((0.0, 0.0))
+    view.calls[0].cached = False
+    view.validator.clear()
+    assert room == room_before and job == job_before
+
+
+def test_redact_imports_only_the_standard_library_pydantic_and_the_domain():
+    tree = ast.parse(Path(redact.__file__).read_text())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            assert all(alias.name.split(".")[0] in sys.stdlib_module_names for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                assert node.level == 1 and node.module in ("schema", "masks")
+            else:
+                assert (node.module or "").split(".")[0] in {*sys.stdlib_module_names, "pydantic"}
