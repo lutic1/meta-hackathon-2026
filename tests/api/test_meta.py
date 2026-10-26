@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 from src.api.app import api_schema, create_app, room_summary
 from src.api.meta import (
     CUT1_LINE,
-    DEFAULT_OLLAMA_HOST,
     RETENTION_LOCAL,
     SCRIPTED_LINE,
     TIMESCALE_LINE,
@@ -20,6 +19,7 @@ from src.api.meta import (
 from src.api.wiring import MODE, artifact_store, job_store
 from src.config import Settings
 from src.domain.schema import API_MODELS, JobState, Meta, Room, RoomSummary
+from src.providers.ollama import DEFAULT_HOST
 from tests.api.test_app import make_app, store_room
 from tests.domain.test_redact import json_keys
 from tests.fixtures.rooms import IX
@@ -66,7 +66,7 @@ def test_guide_ollama_reports_llama_at_the_ollama_host():
     assert meta(Settings.from_env({"GUIDE": "ollama", "OLLAMA_HOST": "http://mac.local:11434"})).guide_model.model_dump() == {
         "id": "llama3.2:3b", "host": "http://mac.local:11434",
     }
-    assert meta(Settings.from_env({"GUIDE": "ollama"})).guide_model.host == DEFAULT_OLLAMA_HOST
+    assert meta(Settings.from_env({"GUIDE": "ollama"})).guide_model.host == DEFAULT_HOST
     assert meta(settings()).guide_model is None
 
 

@@ -22,10 +22,7 @@ from typing import Literal
 from src.api.wiring import MODE
 from src.config import Settings
 from src.domain.schema import GuideModel, Meta
-
-GUIDE_MODEL_ID = "llama3.2:3b"
-DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434"
-"""Where the Ollama server listens when `OLLAMA_HOST` is unset."""
+from src.providers.ollama import DEFAULT_HOST, GUIDE_MODEL
 
 Trickster = Literal["live", "scripted", "cut1"]
 
@@ -56,7 +53,7 @@ def guide_model(settings: Settings) -> GuideModel | None:
     """The Guide model `GUIDE=ollama` runs; null when Rungs are shown as written."""
     if settings.guide != "ollama":
         return None
-    return GuideModel(id=GUIDE_MODEL_ID, host=settings.ollama_host or DEFAULT_OLLAMA_HOST)
+    return GuideModel(id=GUIDE_MODEL, host=settings.ollama_host or DEFAULT_HOST)
 
 
 def disclosure_lines(settings: Settings) -> list[str]:
