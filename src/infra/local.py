@@ -11,10 +11,13 @@ only deletion here is `SessionStore.delete`, which Local mode never calls.
 under an exclusive file lock, outside `.cache/`, so the running total
 survives a restart and clearing the cache never touches the record of
 spend. The file holds two kinds of line: an entry, and the epoch marker
-`{"epoch": "<date>"}` that the reset writes (`scripts/ledger.py`, 2.6);
+`{"epoch": "<date>"}` that `start_epoch` writes (`scripts/ledger.py reset`);
 `append` stamps each entry with the current epoch (`None` before the first
 marker) and `entries` returns the current epoch's entries in append order,
-so `SpendLedger` counts exactly what the store returns. `DiskCache` keeps
+so `SpendLedger` counts exactly what the store returns. `export_ledger`
+writes the current epoch's entries and totals to `spend/exports/ledger-<date>.json`,
+the committed daily record of spend; `scripts/ledger.py export` wraps it and
+API wiring calls it at startup and after every build. `DiskCache` keeps
 one JSON file per key under `.cache/`, written whole and renamed into
 place. The JSON `JobStore` and the in-process `JobRunner` land with their
 stories.
@@ -28,17 +31,20 @@ import os
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 from typing import Any, TextIO
 
-from pydantic import TypeAdapter
+from pydantic import ConfigDict, Field, TypeAdapter
 
-from src.domain.ledger import LedgerEntry
-from src.domain.schema import Event, Room, SessionId
+from src.domain.ledger import LedgerEntry, running_total_usd
+from src.domain.schema import Event, Model, Room, SessionId
 from src.pipeline.ports import ROOM_FILE
 
 LEDGER_PATH = Path("spend/ledger.jsonl")
 """The live ledger, git-ignored; `spend/exports/` beside it holds the committed daily exports."""
+EXPORTS_ROOT = Path("spend/exports")
+"""The dated exports, committed with each day's work; an earlier export is never rewritten."""
 CACHE_ROOT = Path(".cache")
 """The model-call cache, git-ignored; deleting it never touches `spend/`."""
 EVENTS = TypeAdapter(list[Event])
@@ -156,6 +162,55 @@ class JsonlLedgerStore:
         with self._locked() as file:
             rows, epoch = _read_ledger(file)
         return [row for row in rows if row.epoch == epoch]
+
+    def epoch(self) -> str | None:
+        """The date of the last reset; `None` before the first."""
+        with self._locked() as file:
+            return _read_ledger(file)[1]
+
+    def start_epoch(self, epoch: str) -> None:
+        """Write the epoch marker: every entry appended after it carries `epoch` and the earlier ones stop counting."""
+        with self._locked() as file:
+            file.seek(0, os.SEEK_END)
+            file.write(json.dumps({"epoch": epoch}) + "\n")
+
+
+class LedgerExport(Model):
+    """One day's record of spend: the current epoch's entries and the totals read against the combined ceiling."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    date: str
+    epoch: str | None
+    entries: list[LedgerEntry]
+    local_total_usd: float = Field(ge=0)
+    hosted_total_usd: float = Field(ge=0)
+    """0 until the hosted snapshot merge lands (7.9)."""
+    total_usd: float = Field(ge=0)
+    ceiling_usd: float = Field(ge=0)
+
+
+def export_path(exports_root: Path, today: date) -> Path:
+    """`spend/exports/ledger-<date>.json` for `today`."""
+    return exports_root / f"ledger-{today.isoformat()}.json"
+
+
+def export_ledger(store: JsonlLedgerStore, exports_root: Path, today: date, ceiling_usd: float) -> LedgerExport:
+    """Write today's export from the store's current epoch and return it; an empty ledger exports a total of 0."""
+    entries = store.entries()
+    local_total = running_total_usd(entries)
+    export = LedgerExport(
+        date=today.isoformat(),
+        epoch=store.epoch(),
+        entries=entries,
+        local_total_usd=local_total,
+        hosted_total_usd=0.0,
+        total_usd=local_total,
+        ceiling_usd=ceiling_usd,
+    )
+    exports_root.mkdir(parents=True, exist_ok=True)
+    export_path(exports_root, today).write_text(export.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    return export
 
 
 class DiskCache:

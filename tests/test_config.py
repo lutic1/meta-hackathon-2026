@@ -27,6 +27,7 @@ def test_defaults_when_nothing_is_set():
     s = Settings.from_env({})
     assert (s.cache, s.spend_cap_usd, s.demo_timescale, s.demo_trickster) == ("on", 60, 1, "live")
     assert (s.dry_run, s.regen_max, s.guide) == ("on", 2, "ollama")
+    assert s.hosted_spend_cap_usd == 20 and s.spend_cap_usd + s.hosted_spend_cap_usd == 80
     assert s.model_provider == "meta"
     assert all(getattr(s, f"provider_{role}") == "meta" for role in ROLES)
     assert all(getattr(s, f"model_{role}") == "muse-spark-1.3" for role in ROLES if role != "image")
@@ -57,6 +58,7 @@ def test_values_are_read_and_blank_means_unset():
         "FAL_KEY": "", "ACCESS_CODE": "secret", "OLLAMA_HOST": "http://127.0.0.1:11434",
     })
     assert (s.cache, s.spend_cap_usd, s.demo_timescale, s.demo_trickster) == ("off", 20.0, 6, "scripted")
+    assert Settings.from_env({"SPEND_CAP_USD": "5"}).spend_cap_usd + s.hosted_spend_cap_usd == 25  # the Thu Nov 5 configuration
     assert (s.dry_run, s.regen_max, s.guide) == ("off", 1, "verbatim")
     assert s.meta_model_api_key == "k" and s.fal_key is None and s.access_code == "secret"
     assert s.ollama_host == "http://127.0.0.1:11434"

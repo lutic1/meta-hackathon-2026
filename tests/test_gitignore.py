@@ -25,6 +25,11 @@ def test_env_example_is_not_ignored():
     assert not _ignored(".env.example")
 
 
+def test_the_daily_ledger_exports_are_not_ignored():
+    assert not _ignored("spend/exports/ledger-2026-10-26.json")
+    assert _ignored("spend/ledger.jsonl")
+
+
 def test_gitignore_keeps_the_env_lines():
     lines = (REPO / ".gitignore").read_text().splitlines()
     assert {".env.*", "!.env.example", "*.env"} <= set(lines)

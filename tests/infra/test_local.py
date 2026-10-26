@@ -5,6 +5,7 @@ import inspect
 import json
 import shutil
 import threading
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -21,11 +22,15 @@ from src.domain.schema import (
 from src.infra import local as local_module
 from src.infra.local import (
     CACHE_ROOT,
+    EXPORTS_ROOT,
     LEDGER_PATH,
     DiskArtifactStore,
     DiskCache,
     JsonlLedgerStore,
     JsonSessionStore,
+    LedgerExport,
+    export_ledger,
+    export_path,
 )
 from src.pipeline.ports import ROOM_FILE, ArtifactStore, SessionStore
 from src.providers.base import ChatMessage, ChatResponse
@@ -245,6 +250,64 @@ def test_append_stores_under_the_current_epoch_and_entries_returns_only_that_epo
     assert lines(root)[-1] == stamped.model_dump() and lines(root)[0]["epoch"] is None
     assert store.entries() == [stamped]
     assert SpendLedger(store, cap_usd=60).running_total_usd() == pytest.approx(0.5)
+
+
+def test_start_epoch_writes_the_marker_so_the_total_and_the_guard_count_only_the_new_epoch(root):
+    store = ledger_store(root)
+    store.append(settled(59.0))
+    assert store.epoch() is None
+
+    store.start_epoch("2026-11-05")
+
+    assert lines(root)[-1] == {"epoch": "2026-11-05"} and store.epoch() == "2026-11-05"
+    assert store.entries() == []
+    guard = SpendLedger(store, cap_usd=5)
+    assert guard.running_total_usd() == 0
+    guard.settle(guard.guard("vision"), 0.5)  # 59 before the reset would have refused it
+    assert [e.epoch for e in store.entries()] == ["2026-11-05", "2026-11-05"] and guard.running_total_usd() == pytest.approx(0.5)
+
+
+# --- The dated export -------------------------------------------------------------
+
+
+def test_export_ledger_writes_the_current_epoch_entries_and_the_totals_to_the_dated_file(root):
+    store = ledger_store(root)
+    first, second = settled(0.5), settled(0.25, "sam")
+    store.append(first)
+    store.append(second)
+
+    export = export_ledger(store, root / EXPORTS_ROOT, date(2026, 10, 26), ceiling_usd=80)
+
+    path = root / "spend" / "exports" / "ledger-2026-10-26.json"
+    assert export_path(EXPORTS_ROOT, date(2026, 10, 26)) == Path("spend/exports/ledger-2026-10-26.json")
+    assert path.is_file() and not path.is_relative_to(root / CACHE_ROOT)
+    assert LedgerExport.model_validate_json(path.read_text()) == export
+    assert export.entries == [first, second] and export.epoch is None and export.date == "2026-10-26"
+    assert (export.local_total_usd, export.hosted_total_usd, export.total_usd, export.ceiling_usd) == (0.75, 0.0, 0.75, 80.0)
+    assert export.total_usd == pytest.approx(running_total_usd(store.entries()))
+
+
+def test_an_empty_ledger_exports_a_valid_file_with_a_total_of_0(root):
+    export = export_ledger(ledger_store(root), root / EXPORTS_ROOT, date(2026, 10, 26), ceiling_usd=80)
+    written = json.loads((root / EXPORTS_ROOT / "ledger-2026-10-26.json").read_text())
+    assert written["entries"] == [] and written["total_usd"] == 0.0 and written["local_total_usd"] == 0.0
+    assert export.total_usd == 0 and not (root / LEDGER_PATH).read_text()
+
+
+def test_the_export_after_a_reset_holds_only_the_new_epoch_and_the_earlier_export_is_untouched(root):
+    store = ledger_store(root)
+    store.append(settled(30.0))
+    earlier = export_ledger(store, root / EXPORTS_ROOT, date(2026, 11, 4), ceiling_usd=80)
+    earlier_bytes = (root / EXPORTS_ROOT / "ledger-2026-11-04.json").read_bytes()
+    store.start_epoch("2026-11-05")
+    store.append(settled(0.5))
+
+    later = export_ledger(store, root / EXPORTS_ROOT, date(2026, 11, 5), ceiling_usd=25)
+
+    assert [e.epoch for e in later.entries] == ["2026-11-05"] and later.epoch == "2026-11-05"
+    assert (later.total_usd, later.ceiling_usd) == (0.5, 25.0)
+    assert earlier.total_usd == 30.0 and [e.epoch for e in earlier.entries] == [None]
+    assert (root / EXPORTS_ROOT / "ledger-2026-11-04.json").read_bytes() == earlier_bytes
 
 
 # --- The total survives a restart ---------------------------------------------

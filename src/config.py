@@ -50,6 +50,13 @@ class Settings(BaseModel, frozen=True):
     # Product flags (AD-14). `MODE` and `MIN_CONTAINERS` land with the first hosted story.
     cache: Literal["on", "off"] = "on"
     spend_cap_usd: float = Field(default=60, ge=0)  # the Local-mode allocation (AD-6)
+    hosted_spend_cap_usd: float = Field(default=20, ge=0)
+    """The Hosted-mode allocation (AD-6); the two allocations sum to the combined ceiling the export reads against.
+
+    Read per mode from `SPEND_CAP_USD` once `Settings.mode` lands (7.2); until
+    then the default holds, and the ceiling moves only when `SPEND_CAP_USD`
+    is set at the reset, with no date logic here.
+    """
     demo_timescale: int = Field(default=1, ge=1)
     demo_trickster: Literal["live", "record", "scripted", "authored"] = "live"
     dry_run: Literal["on", "off"] = "on"
