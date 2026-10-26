@@ -1,88 +1,99 @@
-# Monday, Oct 26: plug-in checklist
+# Monday, Oct 26: kickoff checklist
 
-Goal: go from mock to live Meta models in under an hour, then spend
-the hackathon on the project instead of the plumbing.
+Goal: start the build behind the spend cap. The baseline is tagged,
+the dependency foundation is in, and every live call goes through the
+guarded SIT path. The day's build items are the Mon Oct 26 line of
+`docs/specs/spec-keyframe/delivery-plan.md`.
 
-## 0. Before Monday (do this week, verified Oct 20)
+## 0. Before Monday (Oct 21 to 25, verified Oct 20)
 
 The Meta Model API is already public (paid since July 9, 2026), so
-Monday does not have to be your first touch of it. Do this now:
+Monday is not the first touch of it. This week:
 
 - [ ] Create a Meta Model API account at dev.meta.ai, configure
       billing, and generate an API key. New accounts start with $20
       in free credits.
-- [ ] Copy the key into `.env` as `META_MODEL_API_KEY` and wire
-      `src/providers/meta_api.py` against `muse-spark-1.3` this week.
-      Prove the whole path against the mock-free API now; Monday's
-      hackathon grant then only has to unlock the newest models
-      (SAM 3.1, Muse Image), not your plumbing.
+- [ ] Copy the key into `.env` as `META_MODEL_API_KEY`. Pre-kickoff
+      verifications (the Architect vision call, `sam-3.1` masks, one
+      Riddler call) run as scratch scripts against the live API, up to
+      about $5 cash (`docs/specs/spec-keyframe/budgets.md`); the
+      scaffold itself is not expanded before Mon Oct 26 (story 1.2
+      wires `src/providers/meta_api.py` then).
 - [ ] Use the standard `muse-spark-1.3` tier, NOT
       `muse-spark-1.3-contributor`. The contributor tier is far
-      cheaper (~$0.10/$0.20 per 1M tokens vs $1.25/$4.25) because Meta
-      may use the data to improve its products. Your room photos go
+      cheaper (about $0.10/$0.20 per 1M tokens vs $1.25/$4.25) because
+      Meta may use the data to improve its products. Room photos go
       in, so pay the standard tier.
-- [ ] Know the two SAM models by their real jobs:
-      SAM 3.1 (via API) does segmentation and tracking only, text
-      prompt ("sofa") to bounding boxes and masks, up to 16 objects
-      per frame, 15,000 input frames max on video. It does NOT do 3D.
-      SAM 3D Objects (open weights) is the actual 3D reconstruction
-      model: single 2D image to 3D object, shape, texture, and
-      spatial layout, built for object and scene reconstruction in
-      everyday environments. That is the Architect's engine.
+- [ ] Know the two SAM models by their real jobs. `sam-3.1` (via the
+      API) does segmentation and tracking only: a text prompt
+      ("sofa") to boxes and masks (the 16-object cap applies only to
+      box and point prompts; a text prompt returns every match). It
+      does NOT do 3D. SAM 3D Objects is the single-image 3D
+      reconstruction model, Keyframe's Tier 2 engine.
 - [ ] SAM 3D Objects is NOT on the hackathon's API list (the page
       names the Muse Spark series, Muse Image, and SAM 3.1 via the
-      API), so plan a GPU deployment for it: the open weights from
-      Hugging Face, served via Modal or Baseten. The partner credits
-      exist for exactly this (Modal $100, Baseten $100).
-- [ ] Test SAM 3D Objects on a real room photo this week if you have
-      any GPU path. The result decides the Day 7 go/no-go call on
-      full 3D. Do not let Nov 2 be the first time you see whether a
-      phone photo becomes a usable room mesh.
-- [ ] Read your approval email (Cerebral Valley Events, Oct 20,
+      API). Keyframe runs it cloud-only on fal.ai
+      (`fal-ai/sam-3/3d-objects`, $0.02 per call), Tier 2 only and
+      gated Mon Nov 2; no GPU deployment of the open weights.
+- [ ] Run the pre-Oct 26 fal spike (five objects from a real room
+      photo) so the Mon Nov 2 go/no-go on full 3D is not the first
+      time a phone photo becomes a mesh.
+- [ ] Read the approval email (Cerebral Valley Events, Oct 20,
       5:43 AM EDT). That is where the Discord invite and the
       hackathon-specific credit claim path live. Join Discord now;
       workshops run Oct 27 to Nov 4 and office hours live there.
 
-## 1. Get access (kickoff, 1:00 PM ET)
+## 1. Rules and access (kickoff, 1:00 PM ET)
 
-- [ ] Watch the kickoff livestream, note the API docs URL and anything
-      about rate limits or model ids that differs from the placeholders
-      in `src/providers/meta_api.py`.
-- [ ] Accept the official rules (published at kickoff).
-- [ ] Copy your Meta Model API key into `.env` as `META_MODEL_API_KEY`.
+- [ ] Read the Official Rules (published before today) and record the
+      answers, dated, in the day's CHANGELOG entry: video length, repo
+      visibility (ours is public throughout), whether a live link is
+      required, the pre-existing-code policy, and whether changes to
+      the hosted deployment are allowed after the Wed Nov 4 deadline.
+      That last answer gates the Nov 5 to 9 hosted work: no means the
+      Nov 4 deployment is the final hosted state, FR-32 and FR-33 are
+      dropped and the README says so. Accept the Rules.
+- [ ] Watch the kickoff livestream; note anything about rate limits or
+      model ids that differs from `docs/specs/spec-keyframe/stack.md`.
+- [ ] Claim the credits (Meta Model API; Baseten, Modal and Fireworks
+      if used) and confirm the payment methods on dev.meta.ai, fal.ai
+      and Modal.
+- [ ] Keys go into `.env` only, never committed; `.env.example` lists
+      the names (`META_MODEL_API_KEY`, `FAL_KEY` and the rest) with
+      blank values.
 - [ ] Join the event Discord. Office hours and announcements live there.
-- [ ] Claim partner credits if you will use open weights:
-      Baseten $100, Modal $100, Fireworks $25.
 
-## 2. Wire the Meta provider (the only code change)
+## 2. Baseline and foundation (stories 1.1, 1.2, then 1.3)
 
-In `src/providers/meta_api.py`, from the official docs:
+- [ ] Story 1.1: the `pre-hackathon-baseline` tag is pushed and the
+      CHANGELOG baseline entry exists (planned for Sun Oct 25 night;
+      run it first if it has not landed).
+- [ ] Story 1.2, the deps foundation: uv with `uv.lock` and
+      `.python-version`, `scripts/doctor.py`, the cloud hook and the
+      scaffold fixes to `src/providers/meta_api.py` and
+      `src/config.py`.
+- [ ] Then story 1.3, `scripts/check.sh` and the one CI job.
+- [ ] `uv run pytest` stays offline against the mock provider. Never
+      edit the stub tests into live tests; live behavior is proven by
+      SIT fixtures, not by the suite.
 
-- [ ] Confirm the base URL (set `META_MODEL_API_BASE_URL` if non-default).
-- [ ] Confirm the auth header format in `_post()`.
-- [ ] Fill in `chat()`: real endpoint path, request payload, and the
-      response fields that map to `ChatResponse`.
-- [ ] Fill in `generate_image()`: real endpoint path (Muse Image) and
-      the response mapping to `ImageResponse`.
-- [ ] Set the real default model ids (`CHAT_MODEL` / `IMAGE_MODEL` in
-      `.env`, or the placeholders in the provider).
+## 3. The ledger lands first; no live call today
 
-## 3. Smoke test before building anything else
-
-```bash
-MODEL_PROVIDER=meta .venv/bin/python main.py chat "Say hello in one sentence"
-MODEL_PROVIDER=meta .venv/bin/python main.py image "a red convertible on a coastal road"
-```
-
-- [ ] Both commands return real model output.
-- [ ] Update the two stub tests in `tests/test_providers.py`
-      (`test_meta_provider_is_a_stub_until_oct_26`) to assert live
-      behavior instead, or delete them now that the stub is wired.
-- [ ] Run the full suite: `.venv/bin/python -m pytest`.
+- [ ] Stories 2.3 (spend ledger and cap), 2.4 (model-call cache), 2.5
+      (local ledger file and disk cache) and 2.6 (ledger export and
+      reset script) land before any real call. The cap is per mode:
+      local 60 and hosted 20 through Wed Nov 4.
+- [ ] No live call is made today. Stories 2.3, 2.4, 2.5 and 2.6 land
+      first; the first live calls run Tue Oct 27 through
+      `scripts/sit.py` (story 2.9), SIT-07 and SIT-06 first, per the
+      SIT checklist; today's export is mock-only with a total of 0.
+- [ ] `spend/exports/ledger-2026-10-26.json` is committed with the
+      day's work.
 
 ## 4. Then build
 
-- [ ] Lock scope: working MVP by Nov 1.
-- [ ] Nov 3 and 4 reserved for demo and submission polish.
-- [ ] Submissions due Nov 4, 9:00 PM ET. Do not leave the upload to
-      the last hour.
+- [ ] Schema v1 frozen; validator and state machine on the mock
+      provider; the verified calls go into `src/providers/meta_api.py`
+      only if the pre-kickoff verifications passed, else API wiring
+      moves to Oct 27 and everything after slips a day.
+- [ ] Submissions due Wed Nov 4, 9:00 PM ET; submit before 9:00 AM.

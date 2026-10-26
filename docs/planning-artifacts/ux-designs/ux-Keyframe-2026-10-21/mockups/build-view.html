@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Keyframe build view</title>
+<style>
+/*
+  Keyframe key-screen mock: Build view. Luis Ticas, 2026-10-21.
+  The spines are the contract; this mock only illustrates them. Where they disagree, the spine wins.
+
+  Governing spine sections
+  DESIGN.md
+    - Frontmatter tokens: colors (study, paper, text on dark, lamplight, focus, state, disclosure,
+      Build view group: graph-node, graph-node-exit, graph-edge, graph-pass, graph-skipped,
+      mask-overlay-fill, mask-overlay-stroke), typography, rounded, spacing, elevation, components
+      (build-view-header, build-view-mask, hotspot-label-chip, graph-node, graph-edge, verdict-table,
+      model-table, in-play-block, build-view-json, wizard-portrait, disclosure-banner, mode-indicator,
+      button-secondary, focus-ring)
+    - Brand & Style (two registers; wizard introductions by role line; portrait placeholder art)
+    - Colors > Build view; Contrast (graph-node-ink on graph-node, graph-edge on chrome,
+      text-muted on chrome, disclosure-text on disclosure-surface)
+    - Typography (display-md title; mono-sm ids, verdict numbers and model ids; body-sm table cells)
+    - Layout & Spacing > The frame, 1440 x 900; Build view
+    - Shapes (rounded.md graph nodes and buttons, rounded.sm photos and chips, rounded.none Disclosure)
+    - Components > Shared controls (Secondary button, Focus ring, Mode indicator)
+    - Components > Completion, Greeting, Build view (Build view: header, mask overlays, puzzle graph,
+      Validator verdict table, Dry run row, Model table, In play block, BuildView JSON)
+    - Components > Modes, disclosure, platform (Disclosure banner)
+    - Do's and Don'ts (ink forms of state colors on parchment; state colors always paired with a word)
+  EXPERIENCE.md
+    - Information Architecture > Surface map (Build view, reached from the Completion screen)
+    - Voice and Tone > Wizard introductions (role lines); Cards (fixed reason messages: rule check
+      names and fixed messages); Build view captions; Disclosure copy
+    - Component Patterns > Completion, Greeting, Build view (all Build view rows);
+      Shared controls (Mode indicator); Modes, disclosure, platform (Disclosure banner)
+    - State Patterns > Build view (Cold load, Focus); cut 4 Dry run rows
+    - Accessibility Floor > Build view keyboard (real tables with header cells)
+    - Demo Mode and Disclosure (Build view carries the banner; Main demo beats 0:15 and 1:35)
+    - Key Flows > UJ-6 step 3 (Build view opened from the Completion screen); UJ-5 step 2
+*/
+:root {
+  --canvas: #14100C;
+  --chrome: #1E1812;
+  --chrome-raised: #2A2119;
+  --hairline: #4A3C2C;
+  --gilt: #B08A4E;
+  --parchment: #E8DBBE;
+  --ink: #2A1D11;
+  --ink-muted: #5A4630;
+  --text: #F0E6D2;
+  --text-muted: #B8A98E;
+  --lamp: #E9A94B;
+  --lamp-ink: #6E400C;
+  --focus-ring: #FFD27A;
+  --focus-ring-inner: #14100C;
+  --success: #8CC48A;
+  --success-ink: #275A2C;
+  --disclosure-surface: #23272C;
+  --disclosure-text: #E4E8EC;
+  --disclosure-edge: #3A4048;
+  --graph-node: #E8DBBE;
+  --graph-node-ink: #2A1D11;
+  --graph-node-exit: #E9A94B;
+  --graph-edge: #9C8766;
+  --graph-pass: #8CC48A;
+  --graph-skipped: #B8A98E;
+  --mask-fill: #E9A94B40;
+  --mask-stroke: #E9A94B;
+  --hotspot-halo: #14100C;
+  --paper-shadow: 0 1px 0 #00000040, 0 6px 16px #00000059;
+
+  --serif: "EB Garamond", Georgia, serif;
+  --sans: "Source Sans 3", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --r-sm: 4px; --r-md: 8px; --r-lg: 12px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  width: 1440px;
+  background: #2E2924;
+  color: var(--text);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Mock annotations (outside the product frame) */
+.note { padding: 28px 24px 16px; font: 400 14px/1.45 var(--sans); color: #D9CFBE; }
+.note h2 { margin: 0 0 4px; font: 500 22px/1.3 var(--serif); color: #F0E6D2; }
+.note p { margin: 0; max-width: 1200px; }
+.note code { font: 400 13px/1.4 var(--mono); }
+
+/* Browser frame: 36 px window chrome above a 1440 x 900 app viewport */
+.browser { width: 1440px; background: #3A3631; }
+.browser-bar {
+  height: 36px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  background: #3A3631; border-bottom: 1px solid #1A1714;
+}
+.dots { display: flex; gap: 8px; }
+.dots i { width: 12px; height: 12px; border-radius: 50%; background: #6B655E; display: block; }
+.address {
+  flex: 0 0 560px; margin-left: 160px; height: 24px; border-radius: 6px; background: #24211D;
+  font: 400 12px/24px var(--mono); color: #C9C1B5; padding: 0 12px;
+}
+.viewport { width: 1440px; height: 900px; overflow: hidden; position: relative; background: var(--canvas); }
+/* Continuation: the same page scrolled so the content below the 900 px fold sits under the pinned
+   Disclosure banner and top bar, which never scroll away (DESIGN.md Layout & Spacing) */
+.continued { width: 1440px; overflow: hidden; background: var(--canvas); border-top: 2px dashed #8C8478; }
+.continued .scroller { overflow: hidden; }
+.continued .scroller > .page { margin-top: -900px; }
+
+/* Disclosure banner: full width, one 32 px line per Disclosure, rounded.none, no icon, no close */
+.disclosure { background: var(--disclosure-surface); border-bottom: 1px solid var(--disclosure-edge); }
+.disclosure p {
+  margin: 0; min-height: 32px; padding: 6px 24px;
+  font: 400 14px/20px var(--sans); color: var(--disclosure-text);
+}
+
+/* Top bar: wordmark and mode indicator; no Timer and no play controls on the Build view */
+.topbar { height: 48px; background: var(--chrome); padding: 0 24px; display: flex; align-items: center; gap: 16px; }
+.wordmark { font: 500 22px/1.3 var(--serif); color: var(--text); }
+.mode { font: 400 14px/1.45 var(--sans); color: var(--text-muted); }
+
+/* Page body */
+.bv { padding: 24px; }
+
+/* Build view header row */
+.bv-header {
+  background: var(--chrome); border-radius: var(--r-md); padding: 16px 24px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
+}
+.bv-title { margin: 0; display: inline-block; font: 500 30px/1.2 var(--serif); color: var(--text); padding: 0 4px; border-radius: 2px; }
+.bv-meta { margin: 8px 0 0; font: 400 14px/1.45 var(--sans); color: var(--text-muted); }
+.bv-meta .n { font: 400 13px/1.4 var(--mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.bv-sent { margin: 2px 0 0; font: 400 14px/1.45 var(--sans); color: var(--text); }
+.focused { outline: 2px solid var(--focus-ring-inner); outline-offset: 2px; box-shadow: 0 0 0 4px var(--chrome), 0 0 0 6px var(--focus-ring); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-md);
+  font: 600 13px/1.3 var(--sans); letter-spacing: 0.02em; padding: 0 24px; white-space: nowrap;
+}
+.btn-secondary { height: 40px; background: transparent; color: var(--lamp); border: 1px solid var(--lamp); }
+
+/* Two columns: left two-thirds, right third */
+.cols { margin-top: 24px; display: grid; grid-template-columns: 2fr 1fr; column-gap: 24px; align-items: start; }
+.leftcol, .rightcol { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.panel { background: var(--chrome); border-radius: var(--r-md); padding: 16px; }
+
+/* Puzzle graph */
+.graph { padding: 24px; }
+.graph-stage { position: relative; width: 864px; height: 152px; }
+.graph-stage svg { position: absolute; inset: 0; }
+.node {
+  position: absolute; width: 168px; height: 64px; border-radius: var(--r-md);
+  background: var(--graph-node); color: var(--graph-node-ink); box-shadow: var(--paper-shadow);
+  padding: 10px 12px;
+}
+.node .pn { font: 500 13px/1.4 var(--mono); font-variant-numeric: tabular-nums; }
+.node .lt { font: 400 13px/1.4 var(--mono); color: var(--ink-muted); }
+.node .exit { margin-left: 8px; font: 600 13px/1.3 var(--sans); letter-spacing: 0.02em; color: var(--lamp-ink); }
+.node.is-exit { outline: 3px double var(--graph-node-exit); outline-offset: 3px; }
+.dr { position: absolute; top: 10px; right: 12px; display: flex; align-items: center; gap: 6px;
+  font: 600 13px/1.3 var(--sans); letter-spacing: 0.02em; }
+.dr i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.dr.pass { color: var(--success-ink); }
+.dr.pass i { background: var(--success-ink); }
+.dr.skipped { color: var(--ink-muted); }
+.dr.skipped i { border: 1.5px solid var(--ink-muted); }
+
+/* Mask overlays: three across, 4:3 */
+.masks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.tile { position: relative; aspect-ratio: 4 / 3; border-radius: var(--r-sm); overflow: hidden; }
+.tile svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.chip {
+  position: absolute; background: var(--parchment); color: var(--ink);
+  font: 600 13px/1.3 var(--sans); letter-spacing: 0.02em;
+  padding: 2px 8px; border-radius: var(--r-sm); white-space: nowrap;
+}
+
+/* Abstract photo placeholders: colour fields only, never a real room or person */
+.ph1 { background: radial-gradient(40% 35% at 32% 66%, #8A6A44, transparent 70%), linear-gradient(160deg, #5C4A38, #2F261D 70%); }
+.ph2 { background: radial-gradient(35% 45% at 66% 45%, #C9A46A, transparent 70%), linear-gradient(200deg, #6B5A45, #2B241C 75%); }
+.ph3 { background: linear-gradient(90deg, #4E3B2A 0 22%, #6E5236 22% 48%, #3E3024 48% 70%, #5E4A33 70%), #3A2E22; }
+.ph4 { background: radial-gradient(45% 30% at 50% 80%, #7C6650, transparent 70%), linear-gradient(180deg, #44505A, #2A2723 80%); }
+.ph5 { background: radial-gradient(30% 45% at 48% 58%, #9C7B52, transparent 70%), linear-gradient(140deg, #3D3328, #5A4836); }
+.ph6 { background: radial-gradient(50% 40% at 60% 60%, #6A5A48, transparent 70%), linear-gradient(220deg, #2E2A26, #4D4135); }
+.ph7 { background: linear-gradient(0deg, #3A2F25 0 35%, #5B4B3A 35% 38%, #4A3D30 38%), #3A2F25; }
+.ph8 { background: radial-gradient(35% 35% at 40% 40%, #B49268, transparent 70%), linear-gradient(170deg, #50443A, #2C251E 80%); }
+
+/* BuildView JSON pane, collapsed */
+.json { display: flex; align-items: center; }
+
+/* Wizard portrait: placeholder art (chrome-raised circle, gilt initial, gilt ring) */
+.portrait {
+  flex: 0 0 auto; border-radius: 9999px; border: 2px solid var(--gilt); background: var(--chrome-raised);
+  display: inline-flex; align-items: center; justify-content: center; color: var(--gilt); font-family: var(--serif);
+}
+.p24 { width: 24px; height: 24px; font-size: 13px; font-weight: 500; }
+.p32 { width: 32px; height: 32px; font-size: 16px; font-weight: 500; }
+
+/* Tables (real tables with header cells) */
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; vertical-align: bottom; padding: 0 6px 8px;
+  font: 600 13px/1.3 var(--sans); letter-spacing: 0.02em; color: var(--text-muted);
+  border-bottom: 1px solid var(--hairline);
+}
+td { vertical-align: top; padding: 8px 6px; font: 400 14px/1.45 var(--sans); color: var(--text); }
+th:first-child, td:first-child { padding-left: 0; }
+th:last-child, td:last-child { padding-right: 0; }
+.mono { font: 400 13px/1.4 var(--mono); font-variant-numeric: tabular-nums; }
+td.mono { padding-top: 9px; }
+.muted { color: var(--text-muted); }
+.caption { margin: 0; font: 400 14px/1.45 var(--sans); color: var(--text-muted); }
+
+/* Model table */
+.mtable tr.grp td { border-top: 1px solid var(--hairline); }
+.mtable tbody tr:first-child td { border-top: 0; }
+.mtable .who { display: flex; align-items: center; gap: 8px; white-space: nowrap; font: 600 13px/1.3 var(--sans); letter-spacing: 0.02em; color: var(--text); }
+.mtable .fixed { font: 600 13px/1.3 var(--sans); letter-spacing: 0.02em; color: var(--text); white-space: nowrap; }
+.mtable td.mono, .mtable td.bill { white-space: nowrap; }
+.mtable th, .mtable td { padding-left: 5px; padding-right: 5px; }
+.mtable th:first-child, .mtable td:first-child { padding-left: 0; }
+.mtable th:last-child, .mtable td:last-child { padding-right: 0; }
+.mtable td.roleline { padding: 0 0 10px 32px; color: var(--text-muted); }
+.mtable td.tight { padding-top: 2px; }
+.model .caption { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+
+/* In play block */
+.inplay { display: flex; flex-direction: column; gap: 0; }
+.ip-row { display: grid; grid-template-columns: 32px 1fr; column-gap: 12px; padding: 12px 0; }
+.ip-row + .ip-row { border-top: 1px solid var(--hairline); }
+.ip-row:first-child { padding-top: 0; }
+.ip-row:last-child { padding-bottom: 0; }
+.ip-name { font: 600 13px/1.3 var(--sans); letter-spacing: 0.02em; color: var(--text); padding-top: 6px; }
+.ip-role { margin-top: 2px; font: 400 14px/1.45 var(--sans); color: var(--text-muted); }
+.ip-model { margin-top: 6px; font: 400 14px/1.45 var(--sans); color: var(--text); }
+
+/* Verdict table and Dry run rows */
+.verdict .caption, .dryrun .caption { margin-bottom: 12px; }
+.vtable tbody tr + tr td { border-top: 1px solid var(--hairline); }
+.vtable td.num { width: 44px; }
+.vtable td.word, .vtable th.word { width: 88px; white-space: nowrap; }
+.vword { display: inline-flex; align-items: center; gap: 8px; }
+.vword i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.vword.pass { color: var(--graph-pass); }
+.vword.pass i { background: var(--graph-pass); }
+.vword.skipped { color: var(--graph-skipped); }
+.vword.skipped i { border: 1.5px solid var(--graph-skipped); }
+
+/* Cut 4 excerpt */
+.excerpt { background: var(--canvas); padding: 24px; }
+.excerpt .cols { margin-top: 0; }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="note">
+  <h2>Build view, Local mode, opened from the Completion screen</h2>
+  <p>A finished Build (<code>GET /builds/&lt;job_id&gt;/view</code>) for a Room with no name, so the title is its build time. One Regeneration (attempt 1 sent back by rule 5), then rules 1 to 8 all pass and the Dry run passes every Puzzle. The Room was just played on <code>?profile=demo</code> at Demo timescale 6 with the Scripted Trickster (UJ-6, Main demo beats 0:15 and 1:35), so the Room's own Disclosure list carries two lines. Initial focus on the header title. Above the fold at 1440 x 900: the Model table first in the right column, the puzzle graph and the first mask overlays on the left.</p>
+</div>
+
+<div class="browser">
+  <div class="browser-bar"><div class="dots"><i></i><i></i><i></i></div><div class="address">#/build/&lt;job_id&gt;/view?profile=demo</div></div>
+  <div class="viewport">
+<div class="page">
+  <div class="disclosure">
+    <p>Hint and Trickster timings run at 6× speed; the build timer is real time.</p>
+    <p>Trickster proposals replayed from a recording; the Validator ran live.</p>
+  </div>
+  <header class="topbar">
+    <span class="wordmark">Keyframe</span>
+    <span class="mode">Local mode · Cache off · profile demo · 2 rooms played</span>
+  </header>
+  <main class="bv">
+    <section class="bv-header">
+      <div>
+        <h1 class="bv-title focused" tabindex="-1">Tue Nov 3, 10:42</h1>
+        <p class="bv-meta">Regenerations: <span class="n">1</span> of <span class="n">2</span></p>
+        <p class="bv-sent">Attempt 1 sent back: A hint gives part of an answer away.</p>
+      </div>
+      <span class="btn btn-secondary">Back</span>
+    </section>
+    <div class="cols">
+      <div class="leftcol">
+        <div class="panel graph"><div class="graph-stage"><svg width="864" height="152" viewBox="0 0 864 152" aria-hidden="true"><defs><marker id="arrow-pass" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9C8766"/></marker></defs><line x1="168" y1="76" x2="229" y2="32" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/><line x1="168" y1="76" x2="229" y2="120" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/><line x1="400" y1="32" x2="461" y2="32" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/><line x1="632" y1="32" x2="693" y2="76" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/><line x1="400" y1="120" x2="693" y2="76" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/></svg><div class="node" style="left:0px;top:44px" tabindex="0" aria-label="Puzzle 1, code, requires none, Dry run pass"><div class="pn">Puzzle 1</div><div class="lt">code</div><span class="dr pass"><i></i>pass</span></div><div class="node" style="left:232px;top:0px" tabindex="0" aria-label="Puzzle 2, find, requires Puzzle 1, Dry run pass"><div class="pn">Puzzle 2</div><div class="lt">find</div><span class="dr pass"><i></i>pass</span></div><div class="node" style="left:232px;top:88px" tabindex="0" aria-label="Puzzle 3, order, requires Puzzle 1, Dry run pass"><div class="pn">Puzzle 3</div><div class="lt">order</div><span class="dr pass"><i></i>pass</span></div><div class="node" style="left:464px;top:0px" tabindex="0" aria-label="Puzzle 4, use_on, requires Puzzle 2, Dry run pass"><div class="pn">Puzzle 4</div><div class="lt">use_on</div><span class="dr pass"><i></i>pass</span></div><div class="node is-exit" style="left:696px;top:44px" tabindex="0" aria-label="Puzzle 5, code, requires Puzzle 3 and Puzzle 4, Dry run pass, Exit"><div class="pn">Puzzle 5</div><div class="lt">code<span class="exit">Exit</span></div><span class="dr pass"><i></i>pass</span></div></div></div>
+        <div class="masks" aria-label="Mask overlays"><div class="tile ph1" role="img" aria-label="Photo 1"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="90,160 160,150 175,240 95,250" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="90,160 160,150 175,240 95,250" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/><polygon points="210,215 385,205 392,262 205,272" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="210,215 385,205 392,262 205,272" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:22.5%;top:38.0%">mug</span><span class="chip" tabindex="0" style="left:51.2%;top:56.3%">table</span></div><div class="tile ph2" role="img" aria-label="Photo 2"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="230,90 290,90 320,170 270,230 215,170" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="230,90 290,90 320,170 270,230 215,170" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:53.8%;top:18.0%">lamp</span></div><div class="tile ph3" role="img" aria-label="Photo 3"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="50,120 250,110 255,192 45,200" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="50,120 250,110 255,192 45,200" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/><polygon points="30,248 370,240 372,270 28,278" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="30,248 370,240 372,270 28,278" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:11.2%;top:24.7%">books</span><span class="chip" tabindex="0" style="left:7.0%;top:68.0%">shelf</span></div><div class="tile ph4" role="img" aria-label="Photo 4"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="140,64 260,60 264,170 136,174" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="140,64 260,60 264,170 136,174" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:34.0%;top:8.0%">frame</span></div><div class="tile ph5" role="img" aria-label="Photo 5"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="150,130 250,124 262,200 230,240 160,240 140,195" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="150,130 250,124 262,200 230,240 160,240 140,195" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:35.0%;top:29.3%">kettle</span></div><div class="tile ph6" role="img" aria-label="Photo 6"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="150,74 250,74 250,292 150,292" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="150,74 250,74 250,292 150,292" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:37.5%;top:12.7%">door</span></div><div class="tile ph7" role="img" aria-label="Photo 7"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="40,170 360,160 375,250 30,262" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="40,170 360,160 375,250 30,262" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:7.5%;top:41.3%">desk</span></div><div class="tile ph8" role="img" aria-label="Photo 8"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="110,84 220,80 224,180 106,184" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="110,84 220,80 224,180 106,184" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/><polygon points="270,180 320,176 328,240 274,244" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="270,180 320,176 328,240 274,244" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:26.5%;top:14.7%">frame</span><span class="chip" tabindex="0" style="left:67.5%;top:46.7%">mug</span></div></div>
+        <div class="panel json"><span class="btn btn-secondary" role="button" aria-expanded="false">Show the build JSON</span></div>
+      </div>
+      <aside class="rightcol">
+        
+<div class="panel model">
+<table class="mtable">
+<thead><tr><th>Role</th><th>Model</th><th>Where it ran</th><th>What it did</th><th>Cached or billed</th></tr></thead>
+<tbody>
+<tr class="grp"><td><span class="who"><span class="portrait p24" aria-hidden="true">A</span>The Architect</span></td><td class="mono">muse-spark-1.3</td><td>Meta Model API</td><td>found 9 objects</td><td class="bill">1 billed</td></tr>
+<tr><td class="tight"></td><td class="mono tight">sam-3.1</td><td class="tight">Meta Model API</td><td class="tight">outlined 9 objects</td><td class="bill tight">9 billed</td></tr>
+<tr><td class="roleline" colspan="5">Reads your photos with muse-spark-1.3, names the objects, and draws their outlines with sam-3.1.</td></tr>
+<tr class="grp"><td><span class="who"><span class="portrait p24" aria-hidden="true">R</span>The Riddler</span></td><td class="mono">muse-spark-1.3</td><td>Meta Model API</td><td>wrote 5 puzzles</td><td class="bill">2 billed</td></tr>
+<tr><td class="roleline" colspan="5">Reads the objects; writes the puzzles with muse-spark-1.3, then a test run that never sees the answers checks each one can be solved.</td></tr>
+<tr class="grp"><td><span class="fixed">Validator</span></td><td>code, no model</td><td>this Mac</td><td>checked 8 rules</td><td></td></tr>
+<tr class="grp"><td><span class="fixed">Dry run</span></td><td class="mono">muse-spark-1.3</td><td>Meta Model API</td><td>tried 5 puzzles blind</td><td class="bill">1 billed</td></tr>
+<tr class="grp"><td><span class="fixed">Muse Image</span></td><td class="mono">muse-image-1.0</td><td>Meta Model API</td><td>painted the four portraits, once</td><td class="bill">1 billed</td></tr>
+</tbody>
+</table>
+<p class="caption">Cached means an identical earlier call was served from the cache, unbilled; billed means it ran live and was paid for.</p>
+</div>
+        
+<div class="panel inplay">
+  <div class="ip-row">
+    <span class="portrait p32" aria-hidden="true">G</span>
+    <div><div class="ip-name">The Guide</div><div class="ip-role">Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac.</div>
+    <div class="ip-model"><span class="mono">Llama 3.2 3B</span> · Ollama on the Mac</div></div>
+  </div>
+  <div class="ip-row">
+    <span class="portrait p32" aria-hidden="true">T</span>
+    <div><div class="ip-name">The Trickster</div><div class="ip-role">Reads the game state; proposes changes between puzzles with muse-spark-1.3, and the Validator checks each one.</div>
+    <div class="ip-model">Source: scripted</div></div>
+  </div>
+</div>
+        <div class="panel verdict"><p class="caption">The Validator is code, not a model. It checks these 8 rules on every draft; a failed rule sends the draft back to the Riddler.</p><table class="vtable"><thead><tr><th>Rule</th><th>Check</th><th class="word">Verdict</th></tr></thead><tbody><tr><td class="num mono">1</td><td>No two locks wait on each other</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">2</td><td>Every lock can be reached</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">3</td><td>Every puzzle names something in this room</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">4</td><td>Every puzzle cites something the Architect saw</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">5</td><td>No hint, clue or evidence gives an answer away</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">6</td><td>Lore and hints keep to the length rules</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">7</td><td>Every lock has a valid shape</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">8</td><td>Every needed item can be picked up first</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr></tbody></table></div>
+        <div class="panel dryrun"><p class="caption">A separate muse-spark-1.3 call saw only the clues, hints and object names, never the answers, and tried every puzzle.</p><table class="vtable"><thead><tr><th>Puzzle</th><th>Lock type</th><th class="word">Verdict</th></tr></thead><tbody><tr><td class="num mono">1</td><td class="mono">code</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">2</td><td class="mono">find</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">3</td><td class="mono">order</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">4</td><td class="mono">use_on</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">5</td><td class="mono">code</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr></tbody></table></div>
+      </aside>
+    </div>
+  </main>
+</div></div>
+</div>
+
+<div class="note">
+  <h2>The same page below the fold</h2>
+  <p>Reached by scrolling. The Disclosure banner and the top bar stay pinned at the top of the viewport and only the body scrolls, so the banner never leaves the screen. Right column: the In play block (from <code>GET /meta</code>), the Validator verdict table and the Dry run rows, each under its plain caption. Left column: the rest of the mask overlays, then the collapsed BuildView JSON pane.</p>
+</div>
+
+<div class="continued">
+<div class="pinned">
+  <div class="disclosure">
+    <p>Hint and Trickster timings run at 6× speed; the build timer is real time.</p>
+    <p>Trickster proposals replayed from a recording; the Validator ran live.</p>
+  </div>
+  <header class="topbar">
+    <span class="wordmark">Keyframe</span>
+    <span class="mode">Local mode · Cache off · profile demo · 2 rooms played</span>
+  </header>
+</div>
+<div class="scroller">
+<div class="page">
+  <div class="disclosure">
+    <p>Hint and Trickster timings run at 6× speed; the build timer is real time.</p>
+    <p>Trickster proposals replayed from a recording; the Validator ran live.</p>
+  </div>
+  <header class="topbar">
+    <span class="wordmark">Keyframe</span>
+    <span class="mode">Local mode · Cache off · profile demo · 2 rooms played</span>
+  </header>
+  <main class="bv">
+    <section class="bv-header">
+      <div>
+        <h1 class="bv-title focused" tabindex="-1">Tue Nov 3, 10:42</h1>
+        <p class="bv-meta">Regenerations: <span class="n">1</span> of <span class="n">2</span></p>
+        <p class="bv-sent">Attempt 1 sent back: A hint gives part of an answer away.</p>
+      </div>
+      <span class="btn btn-secondary">Back</span>
+    </section>
+    <div class="cols">
+      <div class="leftcol">
+        <div class="panel graph"><div class="graph-stage"><svg width="864" height="152" viewBox="0 0 864 152" aria-hidden="true"><defs><marker id="arrow-pass" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9C8766"/></marker></defs><line x1="168" y1="76" x2="229" y2="32" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/><line x1="168" y1="76" x2="229" y2="120" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/><line x1="400" y1="32" x2="461" y2="32" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/><line x1="632" y1="32" x2="693" y2="76" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/><line x1="400" y1="120" x2="693" y2="76" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-pass)"/></svg><div class="node" style="left:0px;top:44px" tabindex="0" aria-label="Puzzle 1, code, requires none, Dry run pass"><div class="pn">Puzzle 1</div><div class="lt">code</div><span class="dr pass"><i></i>pass</span></div><div class="node" style="left:232px;top:0px" tabindex="0" aria-label="Puzzle 2, find, requires Puzzle 1, Dry run pass"><div class="pn">Puzzle 2</div><div class="lt">find</div><span class="dr pass"><i></i>pass</span></div><div class="node" style="left:232px;top:88px" tabindex="0" aria-label="Puzzle 3, order, requires Puzzle 1, Dry run pass"><div class="pn">Puzzle 3</div><div class="lt">order</div><span class="dr pass"><i></i>pass</span></div><div class="node" style="left:464px;top:0px" tabindex="0" aria-label="Puzzle 4, use_on, requires Puzzle 2, Dry run pass"><div class="pn">Puzzle 4</div><div class="lt">use_on</div><span class="dr pass"><i></i>pass</span></div><div class="node is-exit" style="left:696px;top:44px" tabindex="0" aria-label="Puzzle 5, code, requires Puzzle 3 and Puzzle 4, Dry run pass, Exit"><div class="pn">Puzzle 5</div><div class="lt">code<span class="exit">Exit</span></div><span class="dr pass"><i></i>pass</span></div></div></div>
+        <div class="masks" aria-label="Mask overlays"><div class="tile ph1" role="img" aria-label="Photo 1"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="90,160 160,150 175,240 95,250" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="90,160 160,150 175,240 95,250" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/><polygon points="210,215 385,205 392,262 205,272" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="210,215 385,205 392,262 205,272" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:22.5%;top:38.0%">mug</span><span class="chip" tabindex="0" style="left:51.2%;top:56.3%">table</span></div><div class="tile ph2" role="img" aria-label="Photo 2"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="230,90 290,90 320,170 270,230 215,170" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="230,90 290,90 320,170 270,230 215,170" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:53.8%;top:18.0%">lamp</span></div><div class="tile ph3" role="img" aria-label="Photo 3"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="50,120 250,110 255,192 45,200" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="50,120 250,110 255,192 45,200" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/><polygon points="30,248 370,240 372,270 28,278" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="30,248 370,240 372,270 28,278" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:11.2%;top:24.7%">books</span><span class="chip" tabindex="0" style="left:7.0%;top:68.0%">shelf</span></div><div class="tile ph4" role="img" aria-label="Photo 4"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="140,64 260,60 264,170 136,174" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="140,64 260,60 264,170 136,174" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:34.0%;top:8.0%">frame</span></div><div class="tile ph5" role="img" aria-label="Photo 5"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="150,130 250,124 262,200 230,240 160,240 140,195" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="150,130 250,124 262,200 230,240 160,240 140,195" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:35.0%;top:29.3%">kettle</span></div><div class="tile ph6" role="img" aria-label="Photo 6"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="150,74 250,74 250,292 150,292" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="150,74 250,74 250,292 150,292" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:37.5%;top:12.7%">door</span></div><div class="tile ph7" role="img" aria-label="Photo 7"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="40,170 360,160 375,250 30,262" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="40,170 360,160 375,250 30,262" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:7.5%;top:41.3%">desk</span></div><div class="tile ph8" role="img" aria-label="Photo 8"><svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true"><polygon points="110,84 220,80 224,180 106,184" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="110,84 220,80 224,180 106,184" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/><polygon points="270,180 320,176 328,240 274,244" fill="none" stroke="#14100C" stroke-width="4" vector-effect="non-scaling-stroke"/><polygon points="270,180 320,176 328,240 274,244" fill="#E9A94B40" stroke="#E9A94B" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><span class="chip" tabindex="0" style="left:26.5%;top:14.7%">frame</span><span class="chip" tabindex="0" style="left:67.5%;top:46.7%">mug</span></div></div>
+        <div class="panel json"><span class="btn btn-secondary" role="button" aria-expanded="false">Show the build JSON</span></div>
+      </div>
+      <aside class="rightcol">
+        
+<div class="panel model">
+<table class="mtable">
+<thead><tr><th>Role</th><th>Model</th><th>Where it ran</th><th>What it did</th><th>Cached or billed</th></tr></thead>
+<tbody>
+<tr class="grp"><td><span class="who"><span class="portrait p24" aria-hidden="true">A</span>The Architect</span></td><td class="mono">muse-spark-1.3</td><td>Meta Model API</td><td>found 9 objects</td><td class="bill">1 billed</td></tr>
+<tr><td class="tight"></td><td class="mono tight">sam-3.1</td><td class="tight">Meta Model API</td><td class="tight">outlined 9 objects</td><td class="bill tight">9 billed</td></tr>
+<tr><td class="roleline" colspan="5">Reads your photos with muse-spark-1.3, names the objects, and draws their outlines with sam-3.1.</td></tr>
+<tr class="grp"><td><span class="who"><span class="portrait p24" aria-hidden="true">R</span>The Riddler</span></td><td class="mono">muse-spark-1.3</td><td>Meta Model API</td><td>wrote 5 puzzles</td><td class="bill">2 billed</td></tr>
+<tr><td class="roleline" colspan="5">Reads the objects; writes the puzzles with muse-spark-1.3, then a test run that never sees the answers checks each one can be solved.</td></tr>
+<tr class="grp"><td><span class="fixed">Validator</span></td><td>code, no model</td><td>this Mac</td><td>checked 8 rules</td><td></td></tr>
+<tr class="grp"><td><span class="fixed">Dry run</span></td><td class="mono">muse-spark-1.3</td><td>Meta Model API</td><td>tried 5 puzzles blind</td><td class="bill">1 billed</td></tr>
+<tr class="grp"><td><span class="fixed">Muse Image</span></td><td class="mono">muse-image-1.0</td><td>Meta Model API</td><td>painted the four portraits, once</td><td class="bill">1 billed</td></tr>
+</tbody>
+</table>
+<p class="caption">Cached means an identical earlier call was served from the cache, unbilled; billed means it ran live and was paid for.</p>
+</div>
+        
+<div class="panel inplay">
+  <div class="ip-row">
+    <span class="portrait p32" aria-hidden="true">G</span>
+    <div><div class="ip-name">The Guide</div><div class="ip-role">Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac.</div>
+    <div class="ip-model"><span class="mono">Llama 3.2 3B</span> · Ollama on the Mac</div></div>
+  </div>
+  <div class="ip-row">
+    <span class="portrait p32" aria-hidden="true">T</span>
+    <div><div class="ip-name">The Trickster</div><div class="ip-role">Reads the game state; proposes changes between puzzles with muse-spark-1.3, and the Validator checks each one.</div>
+    <div class="ip-model">Source: scripted</div></div>
+  </div>
+</div>
+        <div class="panel verdict"><p class="caption">The Validator is code, not a model. It checks these 8 rules on every draft; a failed rule sends the draft back to the Riddler.</p><table class="vtable"><thead><tr><th>Rule</th><th>Check</th><th class="word">Verdict</th></tr></thead><tbody><tr><td class="num mono">1</td><td>No two locks wait on each other</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">2</td><td>Every lock can be reached</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">3</td><td>Every puzzle names something in this room</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">4</td><td>Every puzzle cites something the Architect saw</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">5</td><td>No hint, clue or evidence gives an answer away</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">6</td><td>Lore and hints keep to the length rules</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">7</td><td>Every lock has a valid shape</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">8</td><td>Every needed item can be picked up first</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr></tbody></table></div>
+        <div class="panel dryrun"><p class="caption">A separate muse-spark-1.3 call saw only the clues, hints and object names, never the answers, and tried every puzzle.</p><table class="vtable"><thead><tr><th>Puzzle</th><th>Lock type</th><th class="word">Verdict</th></tr></thead><tbody><tr><td class="num mono">1</td><td class="mono">code</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">2</td><td class="mono">find</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">3</td><td class="mono">order</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">4</td><td class="mono">use_on</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr><tr><td class="num mono">5</td><td class="mono">code</td><td class="word"><span class="vword pass"><i></i>pass</span></td></tr></tbody></table></div>
+      </aside>
+    </div>
+  </main>
+</div></div></div>
+
+<div class="note">
+  <h2>Cut 4: Dry run off</h2>
+  <p>Same Room built with <code>DRY_RUN=off</code>. Every Dry run row reads "skipped" in <code>graph-skipped</code>, and each graph node's corner marker reads "skipped" (FR-38, AD-3). Excerpt at 1:1 in the same column positions; everything else on the page is as above, except that the Dry run caption says the test run was switched off and the Model table keeps its fixed Dry run row, reading "skipped" with no model or host.</p>
+</div>
+
+<div class="excerpt">
+  <div class="cols">
+    <div class="leftcol"><div class="panel graph"><div class="graph-stage"><svg width="864" height="152" viewBox="0 0 864 152" aria-hidden="true"><defs><marker id="arrow-skipped" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9C8766"/></marker></defs><line x1="168" y1="76" x2="229" y2="32" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-skipped)"/><line x1="168" y1="76" x2="229" y2="120" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-skipped)"/><line x1="400" y1="32" x2="461" y2="32" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-skipped)"/><line x1="632" y1="32" x2="693" y2="76" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-skipped)"/><line x1="400" y1="120" x2="693" y2="76" stroke="#9C8766" stroke-width="1.5" marker-end="url(#arrow-skipped)"/></svg><div class="node" style="left:0px;top:44px" tabindex="0" aria-label="Puzzle 1, code, requires none, Dry run skipped"><div class="pn">Puzzle 1</div><div class="lt">code</div><span class="dr skipped"><i></i>skipped</span></div><div class="node" style="left:232px;top:0px" tabindex="0" aria-label="Puzzle 2, find, requires Puzzle 1, Dry run skipped"><div class="pn">Puzzle 2</div><div class="lt">find</div><span class="dr skipped"><i></i>skipped</span></div><div class="node" style="left:232px;top:88px" tabindex="0" aria-label="Puzzle 3, order, requires Puzzle 1, Dry run skipped"><div class="pn">Puzzle 3</div><div class="lt">order</div><span class="dr skipped"><i></i>skipped</span></div><div class="node" style="left:464px;top:0px" tabindex="0" aria-label="Puzzle 4, use_on, requires Puzzle 2, Dry run skipped"><div class="pn">Puzzle 4</div><div class="lt">use_on</div><span class="dr skipped"><i></i>skipped</span></div><div class="node is-exit" style="left:696px;top:44px" tabindex="0" aria-label="Puzzle 5, code, requires Puzzle 3 and Puzzle 4, Dry run skipped, Exit"><div class="pn">Puzzle 5</div><div class="lt">code<span class="exit">Exit</span></div><span class="dr skipped"><i></i>skipped</span></div></div></div></div>
+    <aside class="rightcol"><div class="panel dryrun"><p class="caption">The test run was switched off for this build, so no puzzle was tried blind.</p><table class="vtable"><thead><tr><th>Puzzle</th><th>Lock type</th><th class="word">Verdict</th></tr></thead><tbody><tr><td class="num mono">1</td><td class="mono">code</td><td class="word"><span class="vword skipped"><i></i>skipped</span></td></tr><tr><td class="num mono">2</td><td class="mono">find</td><td class="word"><span class="vword skipped"><i></i>skipped</span></td></tr><tr><td class="num mono">3</td><td class="mono">order</td><td class="word"><span class="vword skipped"><i></i>skipped</span></td></tr><tr><td class="num mono">4</td><td class="mono">use_on</td><td class="word"><span class="vword skipped"><i></i>skipped</span></td></tr><tr><td class="num mono">5</td><td class="mono">code</td><td class="word"><span class="vword skipped"><i></i>skipped</span></td></tr></tbody></table></div></aside>
+  </div>
+</div>
+
+</body>
+</html>

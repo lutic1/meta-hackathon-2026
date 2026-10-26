@@ -1,0 +1,180 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 10-21-2026 15:37
+last_updated: 10-22-2026 10:00
+project: Keyframe
+project_key: NOKEY
+tracking_system: file-system
+story_location: docs/implementation-artifacts
+development_status:
+  epic-1: backlog
+  1-1-tag-the-pre-hackathon-baseline-and-photograph-both-rooms-bef: backlog
+  1-2-ratify-the-scaffold-as-the-first-providers-story-pins-settin: backlog
+  1-3-one-ci-job-offline-pytest-plus-the-web-build-and-type-check: backlog
+  1-4-create-the-web-client-from-the-vite-8-vanilla-ts-template: backlog
+  1-5-schema-v1-and-every-ad-2-api-model-as-one-set-of-pydantic-mo: backlog
+  1-6-validator-rules-1-to-8-with-fixed-messages-the-dry-run-check: backlog
+  1-7-redaction-views-keep-solutions-on-the-server: backlog
+  1-8-session-state-machine-code-and-find-locks-the-active-puzzle: backlog
+  1-9-order-sequences-armed-by-start-the-sequence-and-use_on-resol: backlog
+  1-10-local-stores-and-the-two-clocks: backlog
+  1-11-room-api-wiring-the-playview-and-photo-routes-and-the-static: backlog
+  1-12-session-api-start-events-replayed-state-idle-ticks-and-the-r: backlog
+  1-13-opening-line-on-session-start-the-first-room-welcome: backlog
+  1-14-status-schema-and-room-list-endpoints-get-meta-get-schema-an: backlog
+  1-15-generated-client-types-with-a-staleness-test: backlog
+  1-16-design-tokens-and-base-components: backlog
+  1-17-app-shell-disclosure-banner-top-bar-mode-indicator-routes-er: backlog
+  1-18-stored-rooms-list-choose-a-room-to-play: backlog
+  1-19-photo-scenes-with-mask-hotspots-and-the-thumbnail-strip: backlog
+  1-20-inventory-wizard-notes-with-evidence-cards-and-the-wizard-po: backlog
+  1-21-code-and-find-locks-with-checking-not-this-and-open-feedback: backlog
+  1-22-first-room-welcome-card-before-the-first-scene: backlog
+  1-23-completion-screen-with-stats-and-build-another-room: backlog
+  1-24-reload-resume-reconnecting-and-missing-rooms-on-the-play-scr: backlog
+  1-25-accessibility-floor-on-scenes-and-locks: backlog
+  1-26-order-and-use_on-interactions-by-drag-or-select-then-click: backlog
+  1-27-narrow-screen-message-and-leave-room-confirmation: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-model-ports-with-a-scripted-mock: backlog
+  2-2-spend-arithmetic-as-pure-domain-functions: backlog
+  2-3-spend-ledger-and-cap-guard-every-paid-call: backlog
+  2-4-model-call-cache-in-front-of-the-ledger: backlog
+  2-5-local-ledger-file-and-disk-cache: backlog
+  2-6-ledger-export-and-reset-script: backlog
+  2-7-meta-model-api-adapter-for-chat-segment-and-image: backlog
+  2-8-openai-compatible-adapter-for-the-riddler-fallback: backlog
+  2-9-lean-sit-the-checklist-and-scripts-sit-py-over-the-live-seam: backlog
+  2-10-persisted-build-job-and-the-ingest-stage: backlog
+  2-11-local-jobstore-and-in-process-jobrunner: backlog
+  2-12-build-routes-per-role-provider-wiring-and-the-ledger-hooks: backlog
+  2-13-mask-selection-and-box-conversion-as-pure-domain-functions: backlog
+  2-14-architect-prompt-builder: backlog
+  2-15-architect-and-segment-stages-with-the-mask-preview: backlog
+  2-16-capture-screen-choose-and-upload-photos-with-the-retention-s: backlog
+  2-17-capture-timer-from-upload-to-the-first-hotspot-response: backlog
+  2-18-capture-progress-stage-list-regeneration-rows-mask-preview-a: backlog
+  2-19-riddler-prompt-builder-with-the-generated-line-voice-rules: backlog
+  2-20-riddler-authoring-stage-behind-the-validator: backlog
+  2-21-regeneration-loop-ending-in-needs_recapture: backlog
+  2-22-scene-stage-writes-the-immutable-room-and-the-final-job-reco: backlog
+  2-23-dry-run-prompt-builder-over-what-a-player-sees: backlog
+  2-24-dry-run-stage-proves-every-puzzle-solvable-before-the-room-s: backlog
+  2-25-capture-screen-end-states-failed-too-few-objects-re-capture: backlog
+  2-26-capture-measured-p50-per-stage-over-five-live-builds: backlog
+  2-27-buildview-projection-never-carrying-a-solution: backlog
+  2-28-build-view-route: backlog
+  2-29-build-view-header-model-table-and-in-play-block: backlog
+  2-30-build-view-puzzle-graph-and-mask-overlays: backlog
+  2-31-build-view-verdict-table-dry-run-rows-json-pane-and-the-entr: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-rung-selection-in-code-from-the-event-log: backlog
+  3-2-hintphraser-port-with-the-verbatim-adapter: backlog
+  3-3-hint-requests-return-the-current-rung-or-the-no-hint-line: backlog
+  3-4-hint-area-ask-the-guide-and-read-the-rung-line: backlog
+  3-5-triggers-panel-shows-why-each-rung-arrived: backlog
+  3-6-the-four-wizard-portraits-painted-once: backlog
+  3-7-hints-phrased-on-the-mac-by-llama-3-2-3b: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-trickster-edits-land-only-when-the-validator-passes-with-rul: backlog
+  4-2-trickster-windows-and-the-six-call-budget-in-the-session: backlog
+  4-3-recorded-proposals-artifact-and-the-scripted-trickster-sourc: backlog
+  4-4-trickster-route-and-the-effective-room-route: backlog
+  4-5-trickster-cards-in-the-hint-area: backlog
+  4-6-accepted-edits-reshape-the-room-in-play: backlog
+  4-7-card-log-as-a-modal-dialog: backlog
+  4-8-live-trickster-proposals-from-the-game-state-summary: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-player-profile-module-room-results-the-derived-block-and-the: backlog
+  5-2-indexeddb-backend-for-the-player-profile: backlog
+  5-3-local-profile-file-route-cut-2: backlog
+  5-4-profile-file-backend-and-its-controls-cut-2: backlog
+  5-5-greeting-composer-over-the-derived-block: backlog
+  5-6-greeting-path-on-session-start: backlog
+  5-7-greeting-card-and-adaptive-thresholds-in-play: backlog
+  5-8-room-2-built-and-greeted-from-a-real-room-1-record: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-backup-video-v0-once-the-room-is-playable: backlog
+  6-2-per-room-disclosure-lines-composed-on-the-server: backlog
+  6-3-room-bound-surfaces-show-their-room-s-disclosures: backlog
+  6-4-backup-video-v1-and-the-sun-nov-1-2-00-pm-backup: backlog
+  6-5-playtest-by-a-non-builder-on-a-fresh-profile-or-a-disclosed: backlog
+  6-6-final-videos-unedited-capture-proof-and-captioned-main-demo: backlog
+  6-7-readme-and-changelog-tell-the-full-honest-picture: backlog
+  6-8-repo-hygiene-over-the-delivery-plan-path-list-before-submiss: backlog
+  6-9-submit-on-the-portal-before-9-00-am-et-wed-nov-4: backlog
+  epic-6-retrospective: optional
+
+  epic-7: backlog
+  7-1-hosted-stores-on-modal-dict-and-volume: backlog
+  7-2-modal-app-entry-settings-mode-and-the-hosted-texts: backlog
+  7-3-first-manual-modal-deploy-as-a-smoke-test: backlog
+  7-4-clue-cards-generated-once-per-demo-room: backlog
+  7-5-clue-card-read-route: backlog
+  7-6-clue-card-slot-beside-each-clue: backlog
+  7-7-hosted-build-runner-with-a-queued-state-and-a-watchdog: backlog
+  7-8-modal-functions-run_build-spawned-per-job-and-the-daily-ledg: backlog
+  7-9-hosted-ledger-snapshot-merged-into-the-committed-export: backlog
+  7-10-twenty-slot-judge-build-quota: backlog
+  7-11-access-code-guard-and-the-quota-refusal: backlog
+  7-12-post-access-check-before-photo-selection: backlog
+  7-13-seed-the-demo-rooms-with-their-job-records: backlog
+  7-14-hosted-room-partitions-demo-rooms-listed-judge-rooms-apart: backlog
+  7-15-demo-room-welcome-on-session-start: backlog
+  7-16-hosted-landing-with-demo-room-cards: backlog
+  7-17-access-code-build-panel-and-the-hosted-capture-differences: backlog
+  7-18-judge-room-deletion-records-and-the-session-sweep: backlog
+  7-19-judge-data-purge-script: backlog
+  7-20-deleted-rooms-answer-410-and-the-hourly-session-sweep-runs: backlog
+  7-21-deleted-judge-room-notice-and-the-deleted-tue-nov-10-strip: backlog
+  7-22-judge-ready-deployment-and-the-finals-plan: backlog
+  7-23-hosted-parity-check-in-the-browser: backlog
+  epic-7-retrospective: optional
+
+  epic-8: backlog
+  8-1-tier-2-spike-and-the-mon-nov-2-gate-record: backlog
+  epic-8-retrospective: optional
+
+  epic-9: backlog
+  9-1-voice-transport-decision-and-the-muse-voice-transcribe-adapt: backlog
+  9-2-voice-hint-route-and-the-retention-voice-line: backlog
+  9-3-ask-the-guide-by-voice: backlog
+  epic-9-retrospective: optional
