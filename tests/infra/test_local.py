@@ -1,10 +1,11 @@
-"""Stories 1.10 and 2.5: the disk `ArtifactStore` under `rooms/`, the JSON `SessionStore` under `rooms/sessions/`, the jsonl `LedgerStore` under a file lock outside `.cache/`, and the disk `Cache` under `.cache/` (AD-7, AD-9)."""
+"""Stories 1.10, 2.5 and 2.11: the disk `ArtifactStore` under `rooms/`, the JSON `JobStore` under `rooms/jobs/` with the in-process `JobRunner`, the JSON `SessionStore` under `rooms/sessions/`, the jsonl `LedgerStore` under a file lock outside `.cache/`, and the disk `Cache` under `.cache/` (AD-7, AD-9)."""
 
 import fcntl
 import inspect
 import json
 import shutil
 import threading
+import time
 from datetime import date
 from pathlib import Path
 
@@ -16,27 +17,48 @@ from src.domain.schema import (
     CodeInput,
     Event,
     IdleTickEvent,
+    JobState,
     LockInputEvent,
     Room,
+    StageRecord,
 )
 from src.infra import local as local_module
+from src.infra.clocks import BuildClock
 from src.infra.local import (
     CACHE_ROOT,
     EXPORTS_ROOT,
     LEDGER_PATH,
     DiskArtifactStore,
     DiskCache,
+    JsonJobStore,
     JsonlLedgerStore,
     JsonSessionStore,
     LedgerExport,
+    ThreadJobRunner,
     export_ledger,
     export_path,
 )
-from src.pipeline.ports import ROOM_FILE, ArtifactStore, SessionStore
+from src.pipeline.build import STAGES, TERMINAL, Build
+from src.pipeline.ports import (
+    ROOM_FILE,
+    ArtifactStore,
+    JobRunner,
+    JobStore,
+    SessionStore,
+)
 from src.providers.base import ChatMessage, ChatResponse
 from src.providers.cache import GuardedCalls, cache_key
 from src.providers.spend import SpendLedger
 from tests.fixtures.rooms import IX, PZ
+from tests.infra.test_clocks import Ticker
+from tests.pipeline.test_build import (
+    ARCHITECT_ROW,
+    SENT_BACK,
+    Doubles,
+    RunnerDied,
+    StageResult,
+)
+from tests.pipeline.uploads import make_uploads
 from tests.providers.test_cache import Provider
 from tests.providers.test_spend import JOB, settled
 
@@ -154,6 +176,141 @@ def test_a_session_id_that_is_not_a_file_name_is_refused(tmp_path):
     with pytest.raises(ValueError, match="not a file name"):
         store.append("../x", _events()[0])
     assert not (tmp_path / "rooms" / "x.json").exists()
+
+
+# --- The JSON job store under rooms/jobs/ and the in-process runner ---------------
+
+
+JOB_A = "job_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+JOB_B = "job_01BX5ZZKBKACTAV9WEVGEMMVRZ"
+
+
+def _job_state(job_id: str = JOB_A) -> JobState:
+    """A job left running at segment with everything the state can carry after architect."""
+    return JobState(
+        id=job_id,
+        status="running",
+        stage="segment",
+        room_id="room_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        stages=[StageRecord(stage="ingest", duration_ms=0, count=6), StageRecord(stage="architect", duration_ms=4_000, count=9, model="muse-spark-1.3")],
+        regen_max=2,
+        sent_back=[SENT_BACK],
+        calls=[ARCHITECT_ROW],
+        build_time_ms=4_000,
+    )
+
+
+def _build(jobs: JobStore, root: Path, doubles: Doubles, ticker: Ticker) -> Build:
+    return Build(jobs=jobs, artifacts=DiskArtifactStore(root), clock=BuildClock(monotonic_ns=ticker), stages=doubles.stages(), regen_max=2)
+
+
+def _wait_terminal(jobs: JobStore, job_id: str, timeout_s: float = 5.0) -> JobState:
+    """The job's state once the store holds it terminal: the only way a test learns that a background stage finished."""
+    deadline = time.monotonic() + timeout_s
+    while (state := jobs.read(job_id)).status not in TERMINAL:
+        assert time.monotonic() < deadline, f"{job_id} still {state.status} at {state.stage}"
+        time.sleep(0.01)
+    return state
+
+
+def test_job_state_written_by_one_store_is_read_back_identically_by_a_second(tmp_path):
+    directory = tmp_path / "rooms" / "jobs"
+    first: JobStore = JsonJobStore(directory)
+    assert first.list_ids() == []
+    state = _job_state()
+    first.put(state)
+
+    second: JobStore = JsonJobStore(directory)
+    assert second.read(JOB_A) == state and second.list_ids() == [JOB_A]
+    assert [p.name for p in directory.iterdir()] == [f"{JOB_A}.json"]
+    assert json.loads((directory / f"{JOB_A}.json").read_text()) == state.model_dump(mode="json")
+    assert not [v for v in vars(first).values() if isinstance(v, (list, dict, JobState))]
+    assert not [v for v in vars(second).values() if isinstance(v, (list, dict, JobState))]
+
+
+def test_put_replaces_the_stored_state_and_list_ids_returns_every_job(tmp_path):
+    directory = tmp_path / "rooms" / "jobs"
+    store = JsonJobStore(directory)
+    store.put(_job_state(JOB_A))
+    store.put(_job_state(JOB_B))
+    done = _job_state(JOB_A).model_copy(update={"status": "done", "stage": None})
+    store.put(done)
+    assert store.read(JOB_A) == done and store.read(JOB_B) == _job_state(JOB_B)
+    assert store.list_ids() == [JOB_A, JOB_B] == JsonJobStore(directory).list_ids()
+    assert sorted(p.name for p in directory.iterdir()) == [f"{JOB_A}.json", f"{JOB_B}.json"]
+
+
+def test_reading_an_unknown_job_raises_key_error_and_a_bad_id_is_refused(tmp_path):
+    store = JsonJobStore(tmp_path / "rooms" / "jobs")
+    with pytest.raises(KeyError):
+        store.read(JOB_A)
+    with pytest.raises(ValueError, match="not a file name"):
+        store.read("../x")
+    assert not (tmp_path / "rooms").exists()
+
+
+def test_start_returns_before_a_held_stage_completes_and_the_stage_runs_in_the_background(tmp_path):
+    jobs = JsonJobStore(tmp_path / "rooms" / "jobs")
+    doubles = Doubles(Ticker())
+    entered, release = threading.Event(), threading.Event()
+    doubles.hooks["architect"] = lambda _state: (entered.set(), release.wait(5))
+    build = _build(jobs, tmp_path / "rooms", doubles, doubles.ticker)
+    runner: JobRunner = ThreadJobRunner(build.run)
+    queued = build.submit(make_uploads(6))
+
+    runner.start(queued.id)
+
+    assert entered.wait(5) and doubles.calls == ["architect"]
+    held = jobs.read(queued.id)
+    assert (held.status, held.stage) == ("running", "architect")
+    thread = next(t for t in threading.enumerate() if t.name == f"build-{queued.id}")
+    assert thread.is_alive() and thread.daemon and thread is not threading.current_thread()
+    release.set()
+    done = _wait_terminal(jobs, queued.id)
+    assert done.status == "done" and doubles.calls == list(STAGES[1:])
+    thread.join(5)
+    assert not thread.is_alive()
+
+
+def test_a_restarted_process_resumes_at_segment_and_never_runs_architect_again(tmp_path):
+    directory = tmp_path / "rooms" / "jobs"
+    first_doubles = Doubles(Ticker())
+    first_doubles.results["architect"] = StageResult(count=9, model="muse-spark-1.3", calls=[ARCHITECT_ROW])
+    first_doubles.raises["segment"] = RunnerDied()
+    first = _build(JsonJobStore(directory), tmp_path / "rooms", first_doubles, first_doubles.ticker)
+    queued = first.submit(make_uploads(6))
+    with pytest.raises(RunnerDied):
+        first.run(queued.id)
+    persisted = (directory / f"{queued.id}.json").read_bytes()
+    assert first_doubles.calls == ["architect", "segment"]
+
+    jobs = JsonJobStore(directory)
+    before = jobs.read(queued.id)
+    assert before == JobState.model_validate_json(persisted)
+    assert (before.status, before.stage) == ("running", "segment")
+    assert [record.stage for record in before.stages] == ["ingest", "architect"] and before.calls == [ARCHITECT_ROW]
+    second_doubles = Doubles(Ticker())
+    second = _build(jobs, tmp_path / "rooms", second_doubles, second_doubles.ticker)
+    ThreadJobRunner(second.run).start(queued.id)
+
+    done = _wait_terminal(jobs, queued.id)
+    assert second_doubles.calls == ["segment", "author", "validate", "dryrun", "scene"]
+    assert "architect" not in second_doubles.calls and done.calls == [ARCHITECT_ROW]
+    assert second_doubles.seen["segment"] == before
+    assert [record.stage for record in done.stages] == list(STAGES) and done.status == "done"
+    assert JsonJobStore(directory).read(queued.id) == done
+
+
+def test_the_runner_keeps_no_job_state_and_runs_each_start_on_its_own_thread(tmp_path):
+    started: list[tuple[str, str]] = []
+    runner = ThreadJobRunner(lambda job_id: started.append((job_id, threading.current_thread().name)))
+    runner.start(JOB_A)
+    runner.start(JOB_B)
+    for thread in [t for t in threading.enumerate() if t.name.startswith("build-job_")]:
+        thread.join(5)
+    assert sorted(started) == [(JOB_A, f"build-{JOB_A}"), (JOB_B, f"build-{JOB_B}")]
+    assert not [v for v in vars(runner).values() if isinstance(v, (list, dict, set, JobState))]
+    assert "threading.Thread" in inspect.getsource(ThreadJobRunner)
 
 
 # --- The ledger file and the disk cache --------------------------------------------

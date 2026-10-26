@@ -1,11 +1,17 @@
-"""Local-mode disk adapters (AD-7, AD-9): the `ArtifactStore` under `rooms/`, the JSON `SessionStore`, the jsonl `LedgerStore` and the disk `Cache`.
+"""Local-mode disk adapters (AD-7, AD-9): the `ArtifactStore` under `rooms/`, the JSON `JobStore` and `SessionStore`, the in-process `JobRunner`, the jsonl `LedgerStore` and the disk `Cache`.
 
 `DiskArtifactStore` maps a key to a file under its root (`rooms/`) and
-refuses any key that resolves outside it. `JsonSessionStore` keeps one
-JSON file per session under `rooms/sessions/` and holds no session state
-in a process variable, so every instance over the same directory reads the
-same log. Neither adapter deletes a Room, a photo or a cache entry: the
-only deletion here is `SessionStore.delete`, which Local mode never calls.
+refuses any key that resolves outside it. `JsonJobStore` keeps one JSON
+file per job under `rooms/jobs/` and `JsonSessionStore` one per session
+under `rooms/sessions/`; neither holds job or session state in a process
+variable, so every instance over the same directory reads the same state,
+and a restarted process reads exactly what the stopped one last wrote.
+`ThreadJobRunner.start(job_id)` runs the stage runner wiring hands it on a
+daemon thread and returns at once, so no request blocks on a stage; the
+runner it calls rereads the job from the store and resumes after the last
+persisted stage (AD-7). No adapter here deletes a Room, a photo, a job or
+a cache entry: the only deletion is `SessionStore.delete`, which Local mode
+never calls.
 
 `JsonlLedgerStore` appends one JSON line per entry to `spend/ledger.jsonl`
 under an exclusive file lock, outside `.cache/`, so the running total
@@ -19,8 +25,7 @@ writes the current epoch's entries and totals to `spend/exports/ledger-<date>.js
 the committed daily record of spend; `scripts/ledger.py export` wraps it and
 API wiring calls it at startup and after every build. `DiskCache` keeps
 one JSON file per key under `.cache/`, written whole and renamed into
-place. The JSON `JobStore` and the in-process `JobRunner` land with their
-stories.
+place.
 """
 
 from __future__ import annotations
@@ -29,7 +34,8 @@ import fcntl
 import json
 import os
 import tempfile
-from collections.abc import Iterator
+import threading
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
@@ -38,7 +44,7 @@ from typing import Any, TextIO
 from pydantic import ConfigDict, Field, TypeAdapter
 
 from src.domain.ledger import LedgerEntry, running_total_usd
-from src.domain.schema import Event, Model, Room, SessionId
+from src.domain.schema import Event, JobId, JobState, Model, Room, SessionId
 from src.pipeline.ports import ROOM_FILE
 
 ROOMS_ROOT = Path("rooms")
@@ -84,14 +90,54 @@ class DiskArtifactStore:
         return sorted(rooms, key=lambda room: room.created, reverse=True)
 
 
+def _json_name(kind: str, id_: str) -> str:
+    """`<id>.json` for a store keyed one file per id; an id that is not a plain file name is refused."""
+    if not id_ or Path(id_).name != id_:
+        raise ValueError(f"{kind} id {id_!r} is not a file name")
+    return f"{id_}.json"
+
+
+class JsonJobStore:
+    """`JobStore` over one JSON file per job under `rooms/jobs/`; `put` writes the whole state and replaces the file."""
+
+    def __init__(self, directory: Path) -> None:
+        self.directory = directory
+
+    def _path(self, job_id: str) -> Path:
+        return self.directory / _json_name("job", job_id)
+
+    def put(self, state: JobState) -> None:
+        _replace(self._path(state.id), state.model_dump_json().encode())
+
+    def read(self, job_id: JobId) -> JobState:
+        try:
+            return JobState.model_validate_json(self._path(job_id).read_bytes())
+        except FileNotFoundError:
+            raise KeyError(job_id) from None
+
+    def list_ids(self) -> list[JobId]:
+        if not self.directory.is_dir():
+            return []
+        return sorted(path.stem for path in self.directory.glob("*.json"))
+
+
+class ThreadJobRunner:
+    """`JobRunner` over a daemon thread per `start`: `run` is the stage runner's `run(job_id)`, injected by wiring."""
+
+    def __init__(self, run: Callable[[JobId], object]) -> None:
+        self._run = run
+
+    def start(self, job_id: JobId) -> None:
+        """Run the job's remaining stages in the background and return before any of them completes."""
+        threading.Thread(target=self._run, args=(job_id,), name=f"build-{job_id}", daemon=True).start()
+
+
 class JsonSessionStore:
     def __init__(self, directory: Path) -> None:
         self.directory = directory
 
     def _path(self, session_id: str) -> Path:
-        if not session_id or Path(session_id).name != session_id:
-            raise ValueError(f"session id {session_id!r} is not a file name")
-        return self.directory / f"{session_id}.json"
+        return self.directory / _json_name("session", session_id)
 
     def append(self, session_id: SessionId, event: Event) -> None:
         path = self._path(session_id)
