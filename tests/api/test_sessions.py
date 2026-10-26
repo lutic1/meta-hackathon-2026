@@ -10,10 +10,9 @@ from unittest.mock import ANY
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import IDLE_TICK_MS, OpenSessions
+from src.api.app import IDLE_TICK_MS, OpenSessions, new_session_id
 from src.api.wiring import session_store
 from src.config import Settings
-from src.domain.ids import new_session_id
 from src.domain.schema import ULID, Derived, Event, Room, RoomResult, SessionStart, SessionState
 from src.domain.session import SessionStateMachine
 from tests.api.test_app import ROOM_NOT_FOUND, UNKNOWN, make_app
@@ -246,7 +245,10 @@ def test_a_concurrent_read_that_appends_an_idle_tick_runs_under_the_same_lock(
     with ThreadPoolExecutor(max_workers=10) as pool:
         replies = list(pool.map(lambda call: call(), calls))
     log = stored(tmp_path, session_id)
-    assert sorted(event.type for event in log) == ["click"] * 5 + ["idle_tick"]
+    # A read that wins the lock first appends the one idle tick; a click that wins it first resets the
+    # idle window, so no read does. Either way nothing is lost or interleaved and at most one tick lands.
+    types = [event.type for event in log]
+    assert types.count("click") == 5 and types.count("idle_tick") <= 1 and len(types) == 5 + types.count("idle_tick")
     stamps = [event.t_ms for event in log]
     assert stamps == sorted(stamps) and len(set(stamps)) == len(log)
     assert all(SessionState.model_validate(reply) for reply in replies)

@@ -53,7 +53,6 @@ from src.api.errors import (
 )
 from src.api.wiring import artifact_store, session_clock, session_store
 from src.config import Settings
-from src.domain.ids import new_session_id
 from src.domain.redact import to_play_view
 from src.domain.schema import (
     Event,
@@ -71,6 +70,7 @@ from src.domain.schema import (
 from src.domain.session import SessionStateMachine
 from src.infra.local import ROOMS_ROOT
 from src.pipeline.ports import ArtifactStore, Clock, SessionStore, photo_key, room_key
+from src.providers.spend import new_ulid
 
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 """The Vite build; `vite.config.ts` proxies `/api/*` to uvicorn in development instead."""
@@ -150,6 +150,11 @@ def profile_routes(store: ArtifactStore) -> APIRouter:
 
 
 # --- Sessions (AD-4) --------------------------------------------------------
+
+
+def new_session_id() -> SessionId:
+    """A fresh `sess_` ULID (AD-18)."""
+    return f"sess_{new_ulid()}"
 
 
 @dataclass(slots=True)
