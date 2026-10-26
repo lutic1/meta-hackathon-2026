@@ -23,13 +23,14 @@ from src.api.app import room_routes, session_routes
 from src.api.errors import ApiError, handle_api_error, handle_validation_error
 from src.config import Settings
 from src.domain.ledger import LedgerEntry, running_total_usd
-from src.domain.schema import Derived, Event, OpeningLineEvent, Profile, Room
+from src.domain.schema import Derived, Event, JobState, OpeningLineEvent, Profile, Room
 from src.domain.session import SessionStateMachine
 from src.infra import modal as modal_module
 from src.infra.clocks import SessionClock
 from src.infra.modal import (
     CACHE_DIR,
     EPOCH_KEY,
+    JOB_FILE,
     JOBS_DICT,
     LEDGER_DICT,
     MOUNT,
@@ -222,26 +223,30 @@ def test_constructing_the_stores_touches_no_dict_and_no_volume_and_the_module_ne
 
 def test_every_write_ends_with_commit_and_every_read_begins_with_reload(stores, opened, log, four_lock_room):
     room = four_lock_room.model_dump_json().encode()
+    judge, demo = f"rooms/judge/{four_lock_room.id}/{ROOM_FILE}", f"rooms/demo/{four_lock_room.id}/{ROOM_FILE}"
     stores.artifacts.put(room_key(four_lock_room.id), room)
     stores.cache.put("abc", {"text": "hi"})
-    assert stores.artifacts.read(room_key(four_lock_room.id)) == room
+    assert stores.artifacts.read(room_key(four_lock_room.id)) == room  # Judge partition only, after one reload
+    stores.artifacts.files.write(demo, room)  # as the seed script lands a Demo room
+    assert stores.artifacts.read(room_key(four_lock_room.id)) == room  # Demo partition first
     assert stores.cache.get("abc") == {"text": "hi"}
     assert stores.cache.get("missing") is None
     assert stores.artifacts.list_rooms() == [four_lock_room]
-    rel = f"rooms/demo/{four_lock_room.id}/{ROOM_FILE}"
     assert log == [
-        f"open {rel}", f"close {rel}", "commit",
+        f"open {judge}", f"close {judge}", "commit",
         f"open {CACHE_DIR}/abc.json", f"close {CACHE_DIR}/abc.json", "commit",
-        "reload", f"open {rel}", f"close {rel}",
+        "reload", f"open {judge}", f"close {judge}",
+        f"open {demo}", f"close {demo}", "commit",
+        "reload", f"open {demo}", f"close {demo}",
         "reload", f"open {CACHE_DIR}/abc.json", f"close {CACHE_DIR}/abc.json",
         "reload",
-        "reload", f"open {rel}", f"close {rel}",
+        "reload", f"open {demo}", f"close {demo}",
     ]
     assert opened.closed_without_lock == [] and not opened.open
 
 
 def test_concurrent_reads_and_writes_never_reload_while_a_file_is_open(stores, opened, log, four_lock_room):
-    stores.artifacts.put(room_key(four_lock_room.id), four_lock_room.model_dump_json().encode())
+    stores.artifacts.files.write(f"rooms/demo/{room_key(four_lock_room.id)}", four_lock_room.model_dump_json().encode())
 
     def work(n: int) -> None:
         for i in range(15):
@@ -275,15 +280,26 @@ def test_every_volume_files_instance_in_the_process_shares_the_one_lock(tmp_path
     assert not [v for v in (*vars(first).values(), *vars(second).values()) if isinstance(v, type(VOLUME_LOCK))]
 
 
-# --- Rooms under /data/rooms/demo/<room_id>/ ------------------------------------
+# --- Rooms under /data/rooms/demo/ and /data/rooms/judge/ ------------------------
 
 
-def test_rooms_and_photos_live_under_rooms_demo_and_round_trip_through_a_new_store(handles, stores, four_lock_room):
+def seed_demo(handles: ModalHandles, room: Room, job: JobState | None = None) -> None:
+    """Land a Demo room as `scripts/seed_rooms.py` does: the Room, its photos and its job record under `rooms/demo/<room_id>/`."""
+    folder = handles.root / "rooms" / "demo" / room.id
+    (folder / "photos").mkdir(parents=True)
+    (folder / ROOM_FILE).write_bytes(room.model_dump_json().encode())
+    for index, photo in enumerate(room.photos):
+        (folder / "photos" / f"{index}.jpg").write_bytes(Path(photo.downscaled_path).read_bytes())
+    if job is not None:
+        (folder / JOB_FILE).write_bytes(job.model_dump_json().encode())
+
+
+def test_rooms_and_photos_put_through_the_store_live_under_rooms_judge_and_round_trip_through_a_new_store(handles, stores, four_lock_room):
     store_room(stores.artifacts, four_lock_room)
-    folder = handles.root / "rooms" / "demo" / four_lock_room.id
+    folder = handles.root / "rooms" / "judge" / four_lock_room.id
     assert Room.model_validate_json((folder / ROOM_FILE).read_bytes()) == four_lock_room
     assert sorted(p.name for p in (folder / "photos").iterdir()) == [f"{i}.jpg" for i in range(len(four_lock_room.photos))]
-    assert all(p.is_relative_to(handles.root / "rooms" / "demo") for p in handles.root.rglob("*") if p.is_file())
+    assert all(p.is_relative_to(handles.root / "rooms" / "judge") for p in handles.root.rglob("*") if p.is_file())
     again = hosted_stores(handles).artifacts
     assert Room.model_validate_json(again.read(room_key(four_lock_room.id))) == four_lock_room
     assert again.read(photo_key(four_lock_room.id, 2)) == Path(four_lock_room.photos[2].downscaled_path).read_bytes()
@@ -292,20 +308,18 @@ def test_rooms_and_photos_live_under_rooms_demo_and_round_trip_through_a_new_sto
 def test_list_rooms_returns_every_demo_room_newest_first_and_nothing_outside_the_demo_partition(handles, stores, four_lock_room, code_and_find_room):
     assert stores.artifacts.list_rooms() == []
     older = four_lock_room.model_copy(update={"created": four_lock_room.created.replace(year=2025)})
-    store_room(stores.artifacts, older)
-    store_room(stores.artifacts, code_and_find_room)
-    elsewhere = handles.root / "rooms" / "judge" / "room_x" / ROOM_FILE
-    elsewhere.parent.mkdir(parents=True)
-    elsewhere.write_bytes(four_lock_room.model_copy(update={"id": "room_" + "9" * 26}).model_dump_json().encode())
+    seed_demo(handles, older)
+    seed_demo(handles, code_and_find_room)
+    store_room(stores.artifacts, four_lock_room.model_copy(update={"id": "room_" + "9" * 26}))  # a Judge room
     stores.cache.put("k", {"v": 1})
     assert stores.artifacts.list_rooms() == [code_and_find_room, older]
 
 
-@pytest.mark.parametrize("key", ["../x", "../judge/room_x/room.json", "a/../../x", "/etc/passwd", "", "."])
-def test_a_key_outside_rooms_demo_is_refused_and_nothing_is_written_or_committed(handles, stores, log, key):
-    with pytest.raises(ValueError, match="outside rooms/demo/"):
+@pytest.mark.parametrize("key", ["../x", "../demo/room_x/room.json", "../judge/room_x/room.json", "a/../../x", "/etc/passwd", "", "."])
+def test_a_key_outside_its_partition_is_refused_and_nothing_is_written_or_committed(handles, stores, log, key):
+    with pytest.raises(ValueError, match="outside its partition under rooms/"):
         stores.artifacts.put(key, b"x")
-    with pytest.raises(ValueError, match="outside rooms/demo/"):
+    with pytest.raises(ValueError, match="outside its partition under rooms/"):
         stores.artifacts.read(key)
     assert log == [] and not handles.root.exists()
 

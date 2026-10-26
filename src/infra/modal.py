@@ -14,8 +14,9 @@ in process memory: every value is read from its Dict or file on each call.
 Dict values are plain JSON (`model_dump(mode="json")`), written whole on
 every change. `DictJobStore` keeps one key per job id and holds in-flight
 job state only; the `done` record is also written beside its Room on the
-Volume (`rooms/demo/<room_id>/job.json`) and committed, and a read falls
-through Dict then Volume, so a finished job outlives its Dict entry.
+Volume (`rooms/judge/<room_id>/job.json`) and committed, and a read falls
+through Dict then the final records of both partitions, so a finished job,
+a seeded Demo room's included, outlives its Dict entry.
 `ModalJobRunner.start(job_id)` spawns the stage runner with the job id only
 and stores the `FunctionCall` id under its own key `call:<job_id>`; the
 runner then owns the job's record. A job store given a `poll` (the web
@@ -46,11 +47,18 @@ share: every write ends with `Volume.commit()`, every read begins with
 `Volume.reload()`, all Volume I/O in the process goes through the one
 `VOLUME_LOCK`, and each file is read fully and closed before the lock is
 released, so no file is open when `reload()` runs (a `reload()` fails with
-"volume busy" while one is). Rooms live at `/data/rooms/demo/<room_id>/`:
-the artifact store maps the port's keys (`<room_id>/room.json`,
-`<room_id>/photos/<i>.jpg`) under `rooms/demo/`, and `list_rooms()` lists
-that partition (7.14 adds `rooms/judge/`). Cache entries live at
-`/data/cache/<key>.json`.
+"volume busy" while one is). Rooms live in two partitions (AD-9): Demo
+rooms at `/data/rooms/demo/<room_id>/`, which only `scripts/seed_rooms.py`
+writes, and Judge rooms at `/data/rooms/judge/<room_id>/`. The artifact
+store writes every key of the port (`<room_id>/room.json`,
+`<room_id>/photos/<i>.jpg`, `<room_id>/originals/<i>.jpg`, ...) under
+`rooms/judge/`, reads a key from `rooms/demo/` first and then
+`rooms/judge/`, so a Judge room plays by its id, and `list_rooms()` lists
+`rooms/demo/` alone, so no Judge room is ever listed. Cache entries live at
+`/data/cache/<key>.json`; the stage runner reads and writes them through a
+`CacheKeyLog`, and `run_judge_build` writes the keys it saw to
+`rooms/judge/<room_id>/cache-keys.json` when the Build ends, whatever its
+status, so the purge can find them (AD-8).
 """
 
 from __future__ import annotations
@@ -69,7 +77,7 @@ from pydantic import TypeAdapter
 
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import ErrorDetail, Event, JobId, JobState, JobStatus, Room, SessionId
-from src.pipeline.ports import ROOM_FILE, BuildQuotaExceeded
+from src.pipeline.ports import ROOM_FILE, BuildQuotaExceeded, Cache
 
 JOBS_DICT = "keyframe-jobs"
 SESSIONS_DICT = "keyframe-sessions"
@@ -80,7 +88,11 @@ MOUNT = Path("/data")
 
 ROOMS_DIR = "rooms"
 DEMO_PARTITION = "demo"
-"""Demo rooms live under `rooms/demo/`, the only partition this story stores and lists."""
+"""Demo rooms live under `rooms/demo/`: `scripts/seed_rooms.py` writes them and `list_rooms()` lists them."""
+JUDGE_PARTITION = "judge"
+"""Judge rooms live under `rooms/judge/`: every hosted Build writes there, and nothing lists them."""
+CACHE_KEYS_FILE = "cache-keys.json"
+"""Every Cache key a Judge build read or wrote, beside its originals at `rooms/judge/<room_id>/cache-keys.json` (AD-8)."""
 CACHE_DIR = "cache"
 """Cache entries live under `/data/cache/`, one JSON file per key."""
 EPOCH_KEY = "epoch"
@@ -88,7 +100,7 @@ EPOCH_KEY = "epoch"
 EVENTS = TypeAdapter(list[Event])
 
 JOB_FILE = "job.json"
-"""The final job record, beside its Room at `rooms/demo/<room_id>/job.json` (AD-7)."""
+"""The final job record, beside its Room at `rooms/<partition>/<room_id>/job.json` (AD-7)."""
 ORPHAN_S = 60
 """AD-7: a `queued` job with no `call:<job_id>` key this long after it was minted was never spawned."""
 DEADLINE_S = 900 + 300
@@ -176,48 +188,64 @@ class VolumeFiles:
             path.write_bytes(data)
             self.volume.commit()
 
-    def read(self, rel: str) -> bytes:
-        """Reload, then read the file fully and close it before the lock is released; a missing file raises `KeyError`."""
-        path = self._path(rel)
-        with VOLUME_LOCK:
-            self.volume.reload()
-            try:
-                return path.read_bytes()
-            except FileNotFoundError:
-                raise KeyError(rel) from None
+    def read(self, rel: str, *fallbacks: str) -> bytes:
+        """Reload once, then read the first of `rel` and `fallbacks` that exists fully and close it before the lock is released.
 
-    def read_glob(self, pattern: str) -> list[bytes]:
-        """Reload, then read every file matching `pattern` under the root fully, in path order, before the lock is released."""
+        When none exists, `KeyError(rel)` is raised.
+        """
+        paths = [self._path(name) for name in (rel, *fallbacks)]
         with VOLUME_LOCK:
             self.volume.reload()
-            return [path.read_bytes() for path in sorted(self.root.glob(pattern)) if path.is_file()]
+            for path in paths:
+                try:
+                    return path.read_bytes()
+                except FileNotFoundError:
+                    continue
+            raise KeyError(rel)
+
+    def read_glob(self, *patterns: str) -> list[bytes]:
+        """Reload once, then read every file matching each pattern under the root fully, in path order per pattern, before the lock is released."""
+        with VOLUME_LOCK:
+            self.volume.reload()
+            return [path.read_bytes() for pattern in patterns for path in sorted(self.root.glob(pattern)) if path.is_file()]
 
 
 class VolumeArtifactStore:
-    """`ArtifactStore` over `/data/rooms/demo/`; a key that resolves outside that partition is refused with `ValueError`."""
+    """`ArtifactStore` over the two room partitions (AD-9): writes go to `rooms/judge/`, reads try `rooms/demo/` then `rooms/judge/`, and only `rooms/demo/` is listed.
+
+    A key that resolves outside its partition (absolute, empty, or climbing
+    out with `..`) is refused with `ValueError`, so no key reaches
+    `rooms/demo/` through `put` and no read crosses into another directory.
+    """
 
     def __init__(self, files: VolumeFiles) -> None:
         self.files = files
-        self.prefix = f"{ROOMS_DIR}/{DEMO_PARTITION}"
+        self.demo = f"{ROOMS_DIR}/{DEMO_PARTITION}"
+        self.judge = f"{ROOMS_DIR}/{JUDGE_PARTITION}"
 
-    def _rel(self, key: str) -> str:
-        rel = posixpath.normpath(f"{self.prefix}/{key}")
-        if PurePosixPath(key).is_absolute() or not rel.startswith(f"{self.prefix}/"):
-            raise ValueError(f"artifact key {key!r} resolves outside {self.prefix}/")
+    @staticmethod
+    def _clean(key: str) -> str:
+        """The key normalized; one that does not stay inside the partition it is joined to is refused."""
+        rel = posixpath.normpath(key)
+        if PurePosixPath(key).is_absolute() or rel in (".", "..") or rel.startswith("../"):
+            raise ValueError(f"artifact key {key!r} resolves outside its partition under {ROOMS_DIR}/")
         return rel
 
     def put(self, key: str, data: bytes) -> None:
-        self.files.write(self._rel(key), data)
+        """Write under `rooms/judge/`: every hosted Build is a Judge build, and only the seed script writes Demo rooms."""
+        self.files.write(f"{self.judge}/{self._clean(key)}", data)
 
     def read(self, key: str) -> bytes:
+        """The key's bytes from the Demo partition, else the Judge partition, after one reload; a key in neither raises `KeyError`."""
+        rel = self._clean(key)
         try:
-            return self.files.read(self._rel(key))
+            return self.files.read(f"{self.demo}/{rel}", f"{self.judge}/{rel}")
         except KeyError:
             raise KeyError(key) from None
 
     def list_rooms(self) -> list[Room]:
-        """Every Room under `rooms/demo/<room_id>/`, newest `created` first; the route maps each to its `RoomSummary`."""
-        rooms = [Room.model_validate_json(data) for data in self.files.read_glob(f"{self.prefix}/*/{ROOM_FILE}")]
+        """Every Room under `rooms/demo/<room_id>/`, newest `created` first, and none under `rooms/judge/`; the route maps each to its `RoomSummary`."""
+        rooms = [Room.model_validate_json(data) for data in self.files.read_glob(f"{self.demo}/*/{ROOM_FILE}")]
         return sorted(rooms, key=lambda room: room.created, reverse=True)
 
 
@@ -281,7 +309,7 @@ class DictJobStore:
         self.now_ms = now_ms
 
     def put(self, state: JobState) -> None:
-        """Write the whole state to the Dict; a `done` record goes to the Volume first and is committed."""
+        """Write the whole state to the Dict; a `done` record goes to the Volume first, under `rooms/judge/`, and is committed."""
         if state.status == "done" and state.room_id is not None:
             self.files.write(_final_record(state.room_id), state.model_dump_json().encode())
         self.jobs[state.id] = state.model_dump(mode="json")
@@ -322,7 +350,9 @@ class DictJobStore:
         return BUILD_QUOTA - sum(1 for key in keys if key in SLOT_KEYS)
 
     def _final_records(self) -> list[JobState]:
-        return [JobState.model_validate_json(data) for data in self.files.read_glob(_final_record("*"))]
+        """The final records of both partitions: the seeded Demo rooms' and the Judge builds'."""
+        patterns = [f"{ROOMS_DIR}/{partition}/*/{JOB_FILE}" for partition in (DEMO_PARTITION, JUDGE_PARTITION)]
+        return [JobState.model_validate_json(data) for data in self.files.read_glob(*patterns)]
 
     def _watch(self, state: JobState, poll: Poll) -> JobState:
         """Leave a live job as it is; mark one whose runner has ended, or that a backstop has caught, `failed` at the stage it reached."""
@@ -345,7 +375,8 @@ class DictJobStore:
 
 
 def _final_record(room_id: str) -> str:
-    return f"{ROOMS_DIR}/{DEMO_PARTITION}/{room_id}/{JOB_FILE}"
+    """Where a hosted Build's `done` record goes: beside its Room in the Judge partition."""
+    return f"{ROOMS_DIR}/{JUDGE_PARTITION}/{room_id}/{JOB_FILE}"
 
 
 class SpawnedCall(Protocol):
@@ -469,3 +500,63 @@ def hosted_stores(handles: ModalHandles, *, poll: Poll | None = None) -> HostedS
         artifacts=VolumeArtifactStore(files),
         cache=VolumeCache(files),
     )
+
+
+# --- The Judge build's cache keys (AD-8) ----------------------------------------
+
+
+class CacheKeyLog:
+    """`Cache` over another that records every key read or written, in first-use order, for a Judge build's `cache-keys.json` (AD-8).
+
+    The stage runner builds one per Build over the Volume cache and hands it
+    to the providers; the segment stage's threads share it, so the record is
+    kept under its own lock.
+    """
+
+    def __init__(self, cache: Cache) -> None:
+        self.cache = cache
+        self._seen: dict[str, None] = {}
+        self._lock = threading.Lock()
+
+    def _note(self, key: str) -> None:
+        with self._lock:
+            self._seen.setdefault(key, None)
+
+    def get(self, key: str) -> dict[str, Any] | None:
+        self._note(key)
+        return self.cache.get(key)
+
+    def put(self, key: str, value: dict[str, Any]) -> None:
+        self._note(key)
+        self.cache.put(key, value)
+
+    def keys(self) -> list[str]:
+        """Every key read or written so far, each once."""
+        with self._lock:
+            return list(self._seen)
+
+
+def cache_keys_key(room_id: str) -> str:
+    """The artifact key of a Build's `cache-keys.json`, which the artifact store writes at `rooms/judge/<room_id>/cache-keys.json`."""
+    return f"{room_id}/{CACHE_KEYS_FILE}"
+
+
+def run_judge_build[T](run: Callable[[JobId], T], job_id: JobId, *, stores: HostedStores, keys: CacheKeyLog) -> T:
+    """Run a Judge build's remaining stages, then write its `cache-keys.json`, whatever its end status (AD-8).
+
+    `run` is the stage runner's `Build.run` over `stores`, its providers
+    reading the Cache through `keys`. When `run` returns or raises, the keys
+    it saw join any a restarted runner already listed, and the file is
+    written beside the Build's originals and committed.
+    """
+    room_id = stores.jobs.stored(job_id).room_id
+    try:
+        return run(job_id)
+    finally:
+        if room_id is not None:
+            try:
+                earlier: list[str] = json.loads(stores.artifacts.read(cache_keys_key(room_id)))
+            except KeyError:
+                earlier = []
+            listed = list(dict.fromkeys([*earlier, *keys.keys()]))
+            stores.artifacts.put(cache_keys_key(room_id), json.dumps(listed).encode())

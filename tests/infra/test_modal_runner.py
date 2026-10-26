@@ -219,7 +219,7 @@ def test_the_runner_is_the_only_writer_of_the_record_and_a_web_read_never_writes
     assert web.read(queued.id) == done and len(_job_writes(handles, queued.id)) == 1 + 2 * 6 + 1  # queued, then the runner's
     # the build slot is claimed before the queued record (7.11); it is its own key, never the record
     assert [key for key, _ in handles.jobs.writes] == [slot_key(1), queued.id, call_key(queued.id), *[queued.id] * 13]
-    artifacts = handles.root / "rooms" / "demo" / queued.room_id
+    artifacts = handles.root / "rooms" / "judge" / queued.room_id
     assert sorted(p.relative_to(artifacts).as_posix() for p in artifacts.rglob("*") if p.is_file()) == sorted(
         [*(f"photos/{i}.jpg" for i in range(6)), *(f"originals/{i}.jpg" for i in range(6)), "photos.json", JOB_FILE]
     )
@@ -245,7 +245,7 @@ def test_the_watchdogs_failed_mark_on_an_ended_runner_is_the_only_other_write(ha
 def test_the_done_record_is_written_beside_the_room_committed_and_read_once_the_dict_entry_is_gone(handles, web, ticker, doubles, log):
     queued = _submit(handles, web, ticker)
     ModalJobRunner(web, Spawn()).start(queued.id)
-    final = handles.root / "rooms" / "demo" / queued.room_id / JOB_FILE
+    final = handles.root / "rooms" / "judge" / queued.room_id / JOB_FILE
     doubles.hooks["scene"] = lambda _: log.append(f"before scene: {final.exists()}")
     doubles.results["architect"] = StageResult(count=9, model="muse-spark-1.3", calls=[ARCHITECT_ROW])
     done = _runner_build(handles, ticker, doubles).run(queued.id)
@@ -398,4 +398,4 @@ def test_a_runner_restarted_after_author_resumes_at_validate_with_no_repeated_mo
     assert second_doubles.seen["validate"] == left
     assert (len(architect.calls), len(segmenter.calls), len(riddler.calls)) == calls
     assert done.status == "done" and done.stages[:4] == left.stages
-    assert JobState.model_validate_json((handles.root / "rooms" / "demo" / queued.room_id / JOB_FILE).read_bytes()) == done
+    assert JobState.model_validate_json((handles.root / "rooms" / "judge" / queued.room_id / JOB_FILE).read_bytes()) == done
