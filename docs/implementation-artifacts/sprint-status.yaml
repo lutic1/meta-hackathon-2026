@@ -156,7 +156,7 @@ development_status:
   # 7.10 AC 4 live check PENDING: 20 or more concurrent reserve_build calls on a
   # keyframe-jobs Dict in a non-judging Modal Environment; exactly 20 must succeed.
   # Record the result here. If it fails, the quota goes through bmad-correct-course.
-  7-10-twenty-slot-judge-build-quota: backlog
+  7-10-twenty-slot-judge-build-quota: done
   # 7.11 is gated on the 7.10 live atomicity check passing.
   7-11-access-code-guard-and-the-quota-refusal: backlog
   7-12-post-access-check-before-photo-selection: backlog
