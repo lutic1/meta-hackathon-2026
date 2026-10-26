@@ -32,9 +32,15 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))  # so `src` imports from any working directory
 
-from src.config import Settings  # noqa: E402
-from src.domain.ledger import SpendCapExceeded, running_total_usd  # noqa: E402
-from src.infra.local import EXPORTS_ROOT, LEDGER_PATH, JsonlLedgerStore, export_ledger, export_path  # noqa: E402
+from src.config import Settings
+from src.domain.ledger import SpendCapExceeded, running_total_usd
+from src.infra.local import (
+    EXPORTS_ROOT,
+    LEDGER_PATH,
+    JsonlLedgerStore,
+    export_ledger,
+    export_path,
+)
 
 
 @contextmanager

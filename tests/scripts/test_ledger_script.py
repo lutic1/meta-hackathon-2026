@@ -164,9 +164,8 @@ def test_the_export_after_the_nov_5_reset_reports_only_the_new_epoch_and_the_ear
 
 def test_a_guarded_call_past_the_cap_exits_non_zero_printing_the_cap_and_the_running_total(capsys):
     guard = SpendLedger(MemoryLedgerStore(settled(59.99)), cap_usd=60)
-    with pytest.raises(SystemExit) as info:
-        with ledger.exit_on_spend_cap():
-            guard.guard("vision")
+    with pytest.raises(SystemExit) as info, ledger.exit_on_spend_cap():
+        guard.guard("vision")
     assert info.value.code != 0
     assert "60.00 USD" in str(info.value.code) and "59.99 USD" in str(info.value.code)
     assert str(info.value.code).startswith(str(SpendCapExceeded(60, 59.99)))
