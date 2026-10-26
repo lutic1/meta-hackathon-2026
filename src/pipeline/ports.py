@@ -16,6 +16,7 @@ from src.domain.schema import Event, JobId, JobState, Room, SessionId
 __all__ = [
     "ROOM_FILE",
     "ArtifactStore",
+    "BuildQuotaExceeded",
     "Cache",
     "Clock",
     "JobRunner",
@@ -56,6 +57,14 @@ class ArtifactStore(Protocol):
     def list_rooms(self) -> list[Room]: ...
 
 
+class BuildQuotaExceeded(Exception):
+    """Every judge build slot is taken (AD-9, AD-13): `JobStore.reserve_build` refuses the Build and writes nothing."""
+
+    def __init__(self, quota: int) -> None:
+        super().__init__(f"all {quota} judge builds are used")
+        self.quota = quota
+
+
 class JobStore(Protocol):
     """Job state (AD-7): local, JSON under `rooms/`; hosted, the `keyframe-jobs` Dict.
 
@@ -64,6 +73,13 @@ class JobStore(Protocol):
     where the last one stopped. `read` raises `KeyError` for an unknown id;
     `list_ids` returns every stored job id, so wiring can restart the jobs
     left `queued` or `running`. No job state lives in a process variable.
+
+    The store also keeps the judge build quota (AD-9, FR-32):
+    `reserve_build` claims one build slot for a job, or raises
+    `BuildQuotaExceeded` when none is left; a claimed slot stays claimed
+    whatever status the job ends in (A-25). `builds_left` reads the slots
+    still free without claiming one, `None` for a store with no quota. The
+    local store has none and never refuses a Build.
     """
 
     def put(self, state: JobState) -> None: ...
@@ -71,6 +87,10 @@ class JobStore(Protocol):
     def read(self, job_id: JobId) -> JobState: ...
 
     def list_ids(self) -> list[JobId]: ...
+
+    def reserve_build(self, job_id: JobId) -> None: ...
+
+    def builds_left(self) -> int | None: ...
 
 
 class JobRunner(Protocol):

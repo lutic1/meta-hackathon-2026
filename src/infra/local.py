@@ -2,7 +2,8 @@
 
 `DiskArtifactStore` maps a key to a file under its root (`rooms/`) and
 refuses any key that resolves outside it. `JsonJobStore` keeps one JSON
-file per job under `rooms/jobs/` and `JsonSessionStore` one per session
+file per job under `rooms/jobs/`, has no build quota and never refuses a
+Build; `JsonSessionStore` keeps one per session
 under `rooms/sessions/`; neither holds job or session state in a process
 variable, so every instance over the same directory reads the same state,
 and a restarted process reads exactly what the stopped one last wrote.
@@ -119,6 +120,13 @@ class JsonJobStore:
         if not self.directory.is_dir():
             return []
         return sorted(path.stem for path in self.directory.glob("*.json"))
+
+    def reserve_build(self, job_id: JobId) -> None:
+        """Local mode has no build quota: every Build is accepted and nothing is written."""
+
+    def builds_left(self) -> int | None:
+        """No quota, so no count."""
+        return None
 
 
 class ThreadJobRunner:

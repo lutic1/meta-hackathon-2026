@@ -249,6 +249,15 @@ def test_reading_an_unknown_job_raises_key_error_and_a_bad_id_is_refused(tmp_pat
     assert not (tmp_path / "rooms").exists()
 
 
+def test_the_local_store_never_refuses_a_build_and_writes_nothing_for_a_claim(tmp_path):
+    directory = tmp_path / "rooms" / "jobs"
+    store: JobStore = JsonJobStore(directory)
+    for n in range(25):
+        store.reserve_build(f"job_01ARZ3NDEKTSV4RRFFQ69G5F{n:02d}")
+    assert store.builds_left() is None
+    assert not directory.exists() and store.list_ids() == []
+
+
 def test_start_returns_before_a_held_stage_completes_and_the_stage_runs_in_the_background(tmp_path):
     jobs = JsonJobStore(tmp_path / "rooms" / "jobs")
     doubles = Doubles(Ticker())

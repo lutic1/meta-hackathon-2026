@@ -8,6 +8,7 @@ and a stub Volume that records `commit` and `reload`, and refuses a
 import ast
 import io
 import json
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Self
@@ -72,15 +73,28 @@ from tests.infra.test_local import (
 
 
 class RecordingDict(dict):
-    """A plain dict standing in for a `modal.Dict` that logs every item write."""
+    """A plain dict standing in for a `modal.Dict` that logs every item write.
+
+    `put` is `modal.Dict.put`: with `skip_if_exists` it returns `False` and
+    writes nothing when the key exists. The check and the write happen under
+    one lock, the atomicity the build quota assumes of Modal's Dict.
+    """
 
     def __init__(self) -> None:
         super().__init__()
         self.writes: list[tuple[Any, Any]] = []
+        self.lock = threading.Lock()
 
     def __setitem__(self, key: Any, value: Any) -> None:
         self.writes.append((key, value))
         super().__setitem__(key, value)
+
+    def put(self, key: Any, value: Any, /, *, skip_if_exists: bool = False) -> bool:
+        with self.lock:
+            if skip_if_exists and key in self:
+                return False
+            self[key] = value
+            return True
 
 
 class OpenFiles:

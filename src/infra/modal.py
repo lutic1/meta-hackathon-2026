@@ -5,10 +5,11 @@
 `keyframe-ledger` and the Volume `keyframe-data` mounted at `/data`. The
 module never imports `modal`, so constructing an adapter contacts no Modal
 service. Each adapter uses only the surface a plain `dict` shares with
-`modal.Dict` (`get`, item assignment, `in`, `pop`, `keys`, `items`) and the
-two Volume calls `commit` and `reload`, so the offline tests pass plain
-dicts, a temporary directory and a stub Volume. Nothing is kept in process
-memory: every value is read from its Dict or file on each call.
+`modal.Dict` (`get`, item assignment, `in`, `pop`, `keys`, `items`), the
+conditional `put(key, value, skip_if_exists=True)` the build quota claims
+slots with, and the two Volume calls `commit` and `reload`, so the offline
+tests pass dicts, a temporary directory and a stub Volume. Nothing is kept
+in process memory: every value is read from its Dict or file on each call.
 
 Dict values are plain JSON (`model_dump(mode="json")`), written whole on
 every change. `DictJobStore` keeps one key per job id and holds in-flight
@@ -23,7 +24,15 @@ marks the job `failed`, keeping the stage it reached, once its call has
 ended, once a `queued` job has no call key after `ORPHAN_S`, or once a call
 state that stays unknown passes `DEADLINE_S`; that mark is the only write
 besides the runner's. The runner's own store has no `poll`, so a restarted
-runner never fails the job it resumes. `DictSessionStore` keeps one key per session id holding its
+runner never fails the job it resumes. The judge build quota (AD-9) is
+`BUILD_QUOTA` slot keys `build:1` to `build:20` in the same Dict:
+`reserve_build` claims the first free one with
+`put(key, job_id, skip_if_exists=True)`, so two claimers never share a
+slot and no count is read, changed and written back; with all 20 taken it
+raises `BuildQuotaExceeded` and writes nothing. No slot is ever released,
+so every accepted Build counts whatever its end status (A-25), and
+`builds_left` counts the free slots in the Dict, so a restart keeps the
+count. `DictSessionStore` keeps one key per session id holding its
 events in append order; `DictLedgerStore` keeps one key per `call_` ULID, so
 settling a call replaces its reserved entry under the same key (the only
 rewrite), returns every current-epoch entry so the total is summed on read,
@@ -59,7 +68,7 @@ from pydantic import TypeAdapter
 
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import ErrorDetail, Event, JobId, JobState, JobStatus, Room, SessionId
-from src.pipeline.ports import ROOM_FILE
+from src.pipeline.ports import ROOM_FILE, BuildQuotaExceeded
 
 JOBS_DICT = "keyframe-jobs"
 SESSIONS_DICT = "keyframe-sessions"
@@ -86,6 +95,8 @@ DEADLINE_S = 900 + 300
 IN_FLIGHT: frozenset[JobStatus] = frozenset({"queued", "running"})
 """The statuses the watchdog checks; every other status is terminal."""
 CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+BUILD_QUOTA = 20
+"""AD-9: the judge builds the hosted app accepts; the 21st is refused with `BuildQuotaExceeded`."""
 
 type RunnerState = Literal["running", "finished", "timed_out", "crashed", "expired", "unknown"]
 """A spawned call as Modal reports it without waiting: still going, ended (four ways), or not known because the poll failed."""
@@ -99,7 +110,7 @@ VOLUME_LOCK = threading.Lock()
 
 
 class DictLike(Protocol):
-    """The `modal.Dict` surface the adapters use; a plain `dict` satisfies it."""
+    """The `modal.Dict` surface the adapters use; a plain `dict` with a `put` satisfies it."""
 
     def get(self, key: Any, default: Any = None, /) -> Any: ...
 
@@ -108,6 +119,8 @@ class DictLike(Protocol):
     def __contains__(self, key: Any, /) -> bool: ...
 
     def pop(self, key: Any, /) -> Any: ...
+
+    def put(self, key: Any, value: Any, /, *, skip_if_exists: bool = False) -> bool: ...
 
     def keys(self) -> Iterable[Any]: ...
 
@@ -231,6 +244,14 @@ def call_key(job_id: JobId) -> str:
     return f"call:{job_id}"
 
 
+def slot_key(n: int) -> str:
+    """The `keyframe-jobs` key of build quota slot `n`, 1 to `BUILD_QUOTA`; its value is the job that claimed it."""
+    return f"build:{n}"
+
+
+SLOT_KEYS = frozenset(slot_key(n) for n in range(1, BUILD_QUOTA + 1))
+
+
 def minted_ms(prefixed_id: str) -> int:
     """The Unix milliseconds in a prefixed ULID's first ten characters: when the server minted the id (AD-18)."""
     value = 0
@@ -286,6 +307,18 @@ class DictJobStore:
         keys = self.jobs.keys()  # `modal.Dict` offers `keys()`, not iteration
         ids = {key for key in keys if isinstance(key, str) and key.startswith("job_")}
         return sorted(ids | {state.id for state in self._final_records()})
+
+    def reserve_build(self, job_id: JobId) -> None:
+        """Claim the first free slot for `job_id`, one conditional write per slot; with every slot taken raise `BuildQuotaExceeded`, having written nothing."""
+        for n in range(1, BUILD_QUOTA + 1):
+            if self.jobs.put(slot_key(n), job_id, skip_if_exists=True):
+                return
+        raise BuildQuotaExceeded(BUILD_QUOTA)
+
+    def builds_left(self) -> int:
+        """`BUILD_QUOTA` minus the slots present in the Dict; reads only, so it claims nothing."""
+        keys = self.jobs.keys()  # `modal.Dict` offers `keys()`, not iteration
+        return BUILD_QUOTA - sum(1 for key in keys if key in SLOT_KEYS)
 
     def _final_records(self) -> list[JobState]:
         return [JobState.model_validate_json(data) for data in self.files.read_glob(_final_record("*"))]

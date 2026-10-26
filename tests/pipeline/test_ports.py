@@ -1,4 +1,4 @@
-"""Stories 1.10, 2.3, 2.4 and 2.10: `src/pipeline/ports.py` declares `ArtifactStore`, `SessionStore`, `LedgerStore`, `Cache`, `JobStore` and `JobRunner` over the domain only and re-exports `Clock` (AD-1, AD-7, AD-9, AD-10)."""
+"""Stories 1.10, 2.3, 2.4, 2.10 and 7.10: `src/pipeline/ports.py` declares `ArtifactStore`, `SessionStore`, `LedgerStore`, `Cache`, `JobStore` and `JobRunner` over the domain only and re-exports `Clock` (AD-1, AD-7, AD-9, AD-10)."""
 
 import inspect
 import sys
@@ -12,6 +12,7 @@ from src.pipeline import ports
 from src.pipeline.ports import (
     ROOM_FILE,
     ArtifactStore,
+    BuildQuotaExceeded,
     Cache,
     Clock,
     JobRunner,
@@ -118,6 +119,18 @@ def test_job_store_declares_put_read_and_list_ids_over_job_state():
     assert inspect.signature(JobStore.list_ids, eval_str=True).return_annotation == list[JobId]
 
 
+def test_job_store_declares_a_slot_claim_and_a_builds_left_read():
+    reserve = inspect.signature(JobStore.reserve_build, eval_str=True)
+    assert _params(JobStore.reserve_build) == ["self", "job_id"]
+    assert reserve.parameters["job_id"].annotation == JobId and reserve.return_annotation is None
+    assert _params(JobStore.builds_left) == ["self"]
+    assert inspect.signature(JobStore.builds_left, eval_str=True).return_annotation == int | None
+    assert "BuildQuotaExceeded" in ports.__all__ and issubclass(BuildQuotaExceeded, Exception)
+    assert "BuildQuotaExceeded" in (JobStore.__doc__ or "")
+    refused = BuildQuotaExceeded(20)
+    assert refused.quota == 20 and str(refused) == "all 20 judge builds are used"
+
+
 def test_job_runner_declares_start_over_a_job_id():
     assert typing.is_protocol(JobRunner)
     start = inspect.signature(JobRunner.start, eval_str=True)
@@ -129,6 +142,7 @@ def test_structural_job_doubles_satisfy_both_ports():
     class Memory:
         def __init__(self) -> None:
             self.rows: dict[str, JobState] = {}
+            self.claimed: list[JobId] = []
 
         def put(self, state: JobState) -> None:
             self.rows[state.id] = state
@@ -138,6 +152,14 @@ def test_structural_job_doubles_satisfy_both_ports():
 
         def list_ids(self) -> list[JobId]:
             return sorted(self.rows)
+
+        def reserve_build(self, job_id: JobId) -> None:
+            if self.builds_left() == 0:
+                raise BuildQuotaExceeded(1)
+            self.claimed.append(job_id)
+
+        def builds_left(self) -> int | None:
+            return 1 - len(self.claimed)
 
     class Runner:
         def __init__(self) -> None:
@@ -153,6 +175,8 @@ def test_structural_job_doubles_satisfy_both_ports():
     assert store.read(state.id) == state and store.list_ids() == [state.id]
     runner.start(state.id)
     assert runner.started == [state.id]
+    store.reserve_build(state.id)
+    assert store.builds_left() == 0
 
 
 def test_clock_is_re_exported_from_the_domain():

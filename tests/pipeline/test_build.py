@@ -57,6 +57,12 @@ class MemoryJobStore:
     def list_ids(self) -> list[JobId]:
         return sorted(self.rows)
 
+    def reserve_build(self, job_id: JobId) -> None:
+        """No quota here: the stage runner never claims a slot."""
+
+    def builds_left(self) -> int | None:
+        return None
+
 
 class RunnerDied(BaseException):
     """Not an `Exception`: the process stopped mid-stage, and no stage handler saw it."""
