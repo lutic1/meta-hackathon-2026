@@ -424,6 +424,8 @@ def _calls(path: Path) -> list[tuple[str, str]]:
 REMOVERS = {"unlink", "rmtree", "rmdir", "remove", "removedirs"}
 HOSTED_ONLY = {"src/infra/modal.py", "src/api/modal_app.py", "scripts/purge_judge_rooms.py"}
 """The hosted entry point and the purge script are the only other places allowed to run the retention functions."""
+IN_MEMORY = {"src/domain/edits.py": {"remove"}}
+"""Calls named like a remover that only edit a list in memory: a Shortcut takes one Puzzle off a `requires` list."""
 
 
 def test_no_local_adapter_deletes_and_nothing_outside_the_hosted_modules_runs_a_deletion():
@@ -434,7 +436,7 @@ def test_no_local_adapter_deletes_and_nothing_outside_the_hosted_modules_runs_a_
         rel = path.relative_to(REPO).as_posix()
         if rel in HOSTED_ONLY or rel == "src/infra/local.py":
             continue
-        calls = {name for name, _ in _calls(path)}
+        calls = {name for name, _ in _calls(path)} - IN_MEMORY.get(rel, set())
         assert not calls & (REMOVERS | {"delete", "delete_judge_room", "sweep_sessions"}), rel
         assert "delete_judge_room" not in path.read_text() and "sweep_sessions" not in path.read_text(), rel
 
