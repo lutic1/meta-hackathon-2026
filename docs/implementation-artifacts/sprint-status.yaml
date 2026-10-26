@@ -143,8 +143,8 @@ development_status:
   6-9-submit-on-the-portal-before-9-00-am-et-wed-nov-4: backlog
   epic-6-retrospective: optional
 
-  epic-7: backlog
-  7-1-hosted-stores-on-modal-dict-and-volume: backlog
+  epic-7: in-progress
+  7-1-hosted-stores-on-modal-dict-and-volume: done
   7-2-modal-app-entry-settings-mode-and-the-hosted-texts: backlog
   7-3-first-manual-modal-deploy-as-a-smoke-test: backlog
   7-4-clue-cards-generated-once-per-demo-room: backlog
