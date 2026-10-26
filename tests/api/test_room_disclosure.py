@@ -10,7 +10,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.api.app import create_app
 from src.api.meta import (
     CUT1_LINE,
     EARLIER_BUILD_LINE,
@@ -22,7 +21,7 @@ from src.api.wiring import artifact_store, job_store, session_store
 from src.config import Settings
 from src.domain.schema import CallRow, Derived, JobState, Room
 from src.infra.clocks import NS_PER_MS, SessionClock
-from tests.api.test_app import store_room
+from tests.api.test_app import make_app, store_room
 from tests.domain.test_redact import json_keys
 from tests.fixtures.rooms import (
     IX,
@@ -58,11 +57,10 @@ def job(room: Room, *calls: CallRow) -> JobState:
 
 def app_over(tmp_path: Path, room: Room, job_state: JobState | None, env: dict[str, str], clock: Any = None) -> FastAPI:
     """The app over one stored Room; a greeting composes inline so the log's order is fixed."""
-    root = tmp_path / "rooms"
-    store_room(artifact_store(root), room)
+    app = make_app(tmp_path, room, settings=settings(**env), clock=clock, spawn=lambda task: task())
     if job_state is not None:
-        job_store(root).put(job_state)
-    return create_app(settings(**env), rooms_root=root, web_dist=tmp_path / "no-dist", clock=clock, spawn=lambda task: task())
+        job_store(tmp_path / "rooms").put(job_state)
+    return app
 
 
 def start(client: TestClient, room: Room, **body: Any) -> dict[str, Any]:
@@ -190,7 +188,7 @@ def _callers(name: str) -> set[str]:
 def test_until_the_build_view_ships_no_build_view_route_exists_and_the_function_has_no_build_view_caller(tmp_path: Path, built_room: Room):
     """2.27 and 2.28 replace this with `BuildView.disclosure` equal to the list `disclosure_lines` composes for the Room."""
     app = app_over(tmp_path, built_room, None, {})
-    assert not [path for path in routes(app) if path.startswith("/api/builds")]
+    assert "/api/builds/{job_id}/view" not in routes(app)
     assert _callers("disclosure_lines") == {"api/meta.py", "api/app.py"}
     assert _callers("to_build_view") == set()
 
@@ -304,5 +302,6 @@ def test_no_route_or_settings_flag_injects_play_or_build_output(tmp_path: Path, 
         "/api/meta": ["get"], "/api/schema": ["get"], "/api/rooms": ["get"], "/api/rooms/{room_id}": ["get"],
         "/api/rooms/{room_id}/photos/{index}": ["get"], "/api/profile/{name}": ["get", "put"], "/api/sessions": ["post"],
         "/api/sessions/{session_id}": ["get"], "/api/sessions/{session_id}/events": ["post"], "/api/sessions/{session_id}/result": ["get"],
+        "/api/builds": ["post"], "/api/builds/{job_id}": ["get"], "/api/builds/{job_id}/room": ["get"],
     }
     assert [name for name in Settings.model_fields if "demo" in name] == ["demo_timescale", "demo_trickster"]

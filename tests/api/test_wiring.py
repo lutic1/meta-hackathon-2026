@@ -1,41 +1,63 @@
-"""Stories 1.11, 1.12, 1.14, 3.2 and 3.7: wiring is the one module that builds an adapter; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter (AD-5, AD-9, AD-14)."""
+"""Stories 1.11, 1.12, 1.14, 2.12, 3.2 and 3.7: wiring is the one module that builds an adapter; one `ModelProvider` per council role, `PROVIDER_<ROLE>` replacing only its own; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter (AD-5, AD-7, AD-9, AD-14)."""
 
 import ast
+import json
+import threading
 from pathlib import Path
 
 import pytest
 
-import src.api.wiring as wiring
+from src.api import wiring
 from src.api.wiring import (
     JOBS_DIR,
+    ROLE_CALLS,
     SESSIONS_DIR,
+    StageNotBuilt,
     artifact_store,
+    build_clock,
+    build_stages,
     hint_phraser,
+    job_runner,
     job_store,
+    ledger_store,
+    model_cache,
+    model_providers,
+    resume_jobs,
     session_clock,
     session_store,
+    spend_ledger,
 )
 from src.config import Settings
-from src.domain.schema import GuideModel
+from src.domain.schema import GuideModel, JobId, Role, Stage
 from src.infra.clocks import BuildClock, SessionClock
 from src.infra.local import (
+    CACHE_ROOT,
+    LEDGER_PATH,
     ROOMS_ROOT,
     DiskArtifactStore,
     DiskCache,
     JsonJobStore,
     JsonlLedgerStore,
     JsonSessionStore,
+    ThreadJobRunner,
 )
-from src.providers.base import HintPhraser
+from src.pipeline.build import STAGES, Build, StageFn
+from src.providers.base import HintPhraser, ModelProvider
 from src.providers.meta_api import MetaModelProvider
-from src.providers.mock import MockProvider
+from src.providers.mock import ChatCall, MockProvider, MockScript, SegmentCall
 from src.providers.ollama import DEFAULT_HOST, OllamaPhraser
+from src.providers.openai_compatible import OpenAICompatibleProvider
 from src.providers.verbatim import VerbatimPhraser
+from tests.infra.test_clocks import Ticker
+from tests.pipeline.stages import labels
+from tests.pipeline.test_build import MemoryJobStore
+from tests.pipeline.test_segment_stage import INSIDE
+from tests.pipeline.uploads import make_uploads
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 ADAPTERS = (
-    DiskArtifactStore, JsonJobStore, JsonSessionStore, JsonlLedgerStore, DiskCache, SessionClock, BuildClock,
-    VerbatimPhraser, OllamaPhraser, MockProvider, MetaModelProvider,
+    DiskArtifactStore, JsonJobStore, ThreadJobRunner, JsonSessionStore, JsonlLedgerStore, DiskCache, SessionClock, BuildClock,
+    VerbatimPhraser, OllamaPhraser, MockProvider, MetaModelProvider, OpenAICompatibleProvider,
 )
 """Every class under `src/infra` and `src/providers` that implements a port."""
 
@@ -106,7 +128,11 @@ def _constructed(path: Path) -> set[str]:
 
 def test_wiring_is_the_only_module_that_constructs_an_adapter():
     constructors = {path.relative_to(SRC).as_posix(): _constructed(path) for path in SRC.rglob("*.py") if _constructed(path)}
-    assert constructors == {"api/wiring.py": {"DiskArtifactStore", "JsonJobStore", "JsonSessionStore", "SessionClock", "VerbatimPhraser", "OllamaPhraser"}}
+    assert constructors == {"api/wiring.py": {
+        "DiskArtifactStore", "JsonJobStore", "ThreadJobRunner", "JsonSessionStore", "JsonlLedgerStore", "DiskCache",
+        "SessionClock", "BuildClock", "VerbatimPhraser", "OllamaPhraser", "MockProvider", "MetaModelProvider",
+        "OpenAICompatibleProvider",
+    }}
 
 
 def test_artifact_store_is_the_disk_store_under_rooms(tmp_path):
@@ -131,3 +157,130 @@ def test_session_store_is_the_json_log_under_rooms_sessions(tmp_path):
 def test_session_clock_takes_the_timescale_from_settings(env, timescale):
     clock = session_clock(Settings.from_env(env))
     assert type(clock) is SessionClock and clock.timescale == timescale
+
+
+# --- One ModelProvider per council role (Story 2.12) ------------------------
+
+ROLES: tuple[Role, ...] = ("architect", "riddler", "dryrun", "trickster", "image")
+FALLBACK = {"OPENAI_COMPATIBLE_BASE_URL": "https://inference.baseten.co/v1", "OPENAI_COMPATIBLE_API_KEY": "test-fallback-key"}
+
+
+def _providers(tmp_path: Path, env: dict[str, str]) -> dict[Role, ModelProvider]:
+    settings = Settings.from_env(env)
+    return model_providers(settings, model_cache(tmp_path / CACHE_ROOT), spend_ledger(settings, ledger_store(tmp_path / LEDGER_PATH)))
+
+
+def test_model_provider_mock_gives_each_role_its_own_mock(tmp_path):
+    providers = _providers(tmp_path, {"MODEL_PROVIDER": "mock"})
+    assert list(providers) == list(ROLES)
+    assert all(type(p) is MockProvider and p.role == role for role, p in providers.items())
+    assert len({id(p) for p in providers.values()}) == len(ROLES)
+
+
+def test_provider_riddler_switches_only_the_riddler_role(tmp_path):
+    providers = _providers(tmp_path, {"MODEL_PROVIDER": "mock", "PROVIDER_RIDDLER": "openai_compatible", **FALLBACK})
+    riddler = providers["riddler"]
+    assert type(riddler) is OpenAICompatibleProvider
+    assert (riddler.base_url, riddler.kind, riddler.budget_s) == ("https://inference.baseten.co/v1", "riddler", 45.0)
+    assert riddler._calls.host == "inference.baseten.co"
+    assert {role: type(p) for role, p in providers.items() if role != "riddler"} == dict.fromkeys(set(ROLES) - {"riddler"}, MockProvider)
+
+
+def test_model_provider_meta_gives_each_role_a_meta_adapter_priced_as_its_kind(tmp_path):
+    providers = _providers(tmp_path, {"MODEL_PROVIDER": "meta", "META_MODEL_API_KEY": "test-key", "PROVIDER_RIDDLER": "openai_compatible", **FALLBACK})
+    meta = {role: p for role, p in providers.items() if role != "riddler"}
+    assert all(type(p) is MetaModelProvider for p in meta.values())
+    assert {role: (p.chat_kind, p.budget_s) for role, p in meta.items()} == {role: ROLE_CALLS[role] for role in meta}
+    assert ROLE_CALLS["architect"] == ("vision", 15.0) and ROLE_CALLS["dryrun"] == ("dryrun", 30.0)
+    assert {p._calls.host for p in meta.values()} == {"api.meta.ai"}
+    assert type(providers["riddler"]) is OpenAICompatibleProvider
+    ledgers = {id(p._calls._ledger) for p in providers.values()}
+    caches = {id(p._calls._cache) for p in providers.values()}
+    assert len(ledgers) == 1 and len(caches) == 1, "one SpendLedger and one cache per process (AD-6)"
+    assert all(p._calls.enabled for p in providers.values())
+
+
+def test_cache_off_bypasses_the_cache_for_every_hosted_role(tmp_path):
+    providers = _providers(tmp_path, {"MODEL_PROVIDER": "meta", "META_MODEL_API_KEY": "test-key", "CACHE": "off"})
+    assert not any(p._calls.enabled for p in providers.values())
+
+
+def test_an_unknown_provider_is_refused_naming_its_role(tmp_path):
+    with pytest.raises(ValueError, match="PROVIDER_TRICKSTER 'fal'"):
+        _providers(tmp_path, {"MODEL_PROVIDER": "mock", "PROVIDER_TRICKSTER": "fal"})
+
+
+def test_the_offline_suite_resolves_five_mocks():
+    settings = Settings.from_env()
+    assert {getattr(settings, f"provider_{role}") for role in ROLES} == {"mock"}
+
+
+# --- Job adapters, the stage slots and the restart (Story 2.12) --------------
+
+
+def test_ledger_cache_and_build_clock_are_the_local_adapters():
+    assert type(ledger_store()) is JsonlLedgerStore and ledger_store().path == LEDGER_PATH
+    assert type(model_cache()) is DiskCache and model_cache().root == CACHE_ROOT
+    assert type(build_clock()) is BuildClock
+
+
+def _mock_stages(tmp_path: Path, providers: dict[Role, ModelProvider] | None = None) -> dict[Stage, StageFn]:
+    """The wired stage functions over the offline mocks, the rooms and the ledger under `tmp_path`."""
+    providers = providers or _providers(tmp_path, {"MODEL_PROVIDER": "mock"})
+    return build_stages(providers, artifact_store(tmp_path / "rooms"), ledger_store(tmp_path / LEDGER_PATH))
+
+
+def test_the_landed_stages_run_on_their_roles_and_a_stage_not_landed_raises_stage_not_built(tmp_path):
+    jobs = MemoryJobStore()
+    candidates = labels(6)
+    architect = MockProvider("architect", MockScript(chat=[json.dumps({"candidates": candidates})], segment=[[INSIDE]] * 6))
+    providers = {**_providers(tmp_path, {"MODEL_PROVIDER": "mock"}), "architect": architect}
+    stages = _mock_stages(tmp_path, providers)
+    assert list(stages) == list(STAGES[1:])
+    build = Build(jobs=jobs, artifacts=artifact_store(tmp_path / "rooms"), clock=BuildClock(monotonic_ns=Ticker()), stages=stages, regen_max=2)
+
+    state = build.run(build.submit(make_uploads(6)).id)
+
+    # The unscripted Riddler mock answers with no draft, so author sends it back and the job ends needs_recapture there.
+    assert (state.status, state.stage) == ("needs_recapture", "author")
+    assert [record.stage for record in state.stages][1:3] == ["architect", "segment"]
+    assert [type(call) for call in architect.calls] == [ChatCall] + [SegmentCall] * len(candidates)
+    assert [type(call) for call in providers["riddler"].calls] == [ChatCall]
+    assert len(state.mask_preview) == len(candidates)
+    for stage in ("dryrun", "scene"):
+        with pytest.raises(StageNotBuilt):
+            stages[stage](state)
+
+
+class RecordingRunner:
+    def __init__(self) -> None:
+        self.started: list[JobId] = []
+
+    def start(self, job_id: JobId) -> None:
+        self.started.append(job_id)
+
+
+def test_resume_jobs_starts_exactly_the_jobs_left_queued_or_running(tmp_path):
+    jobs = MemoryJobStore()
+    build = Build(jobs=jobs, artifacts=artifact_store(tmp_path / "rooms"), clock=BuildClock(monotonic_ns=Ticker()),
+                  stages=_mock_stages(tmp_path), regen_max=2)
+    queued = build.submit(make_uploads(6))
+    running = jobs.read(build.submit(make_uploads(6)).id).model_copy(update={"status": "running", "stage": "architect"})
+    jobs.put(running)
+    failed = build.run(build.submit(make_uploads(6)).id)
+    runner = RecordingRunner()
+
+    assert resume_jobs(jobs, runner) == sorted([queued.id, running.id]) == sorted(runner.started)
+    assert failed.id not in runner.started
+
+
+def test_job_runner_runs_the_job_in_the_background_then_calls_the_terminal_hook(tmp_path):
+    jobs = MemoryJobStore()
+    build = Build(jobs=jobs, artifacts=artifact_store(tmp_path / "rooms"), clock=BuildClock(monotonic_ns=Ticker()),
+                  stages=_mock_stages(tmp_path), regen_max=2)
+    exported = threading.Event()
+    runner = job_runner(build, on_terminal=exported.set)
+    assert type(runner) is ThreadJobRunner
+    queued = build.submit(make_uploads(6))
+    runner.start(queued.id)
+    assert exported.wait(5) and jobs.read(queued.id).status == "failed"

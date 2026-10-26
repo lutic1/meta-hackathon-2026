@@ -52,6 +52,25 @@ class SessionNotFound(ApiError):
         super().__init__(f"no session {session_id}")
 
 
+class JobNotFound(ApiError):
+    status = 404
+    code = "job_not_found"
+
+    def __init__(self, job_id: str) -> None:
+        super().__init__(f"no job {job_id}")
+
+
+class UploadRefused(ApiError):
+    """An upload ingest refuses before any job exists (AD-7, AD-13): 422 `photo_count`, `unsupported_image` or `bad_downscale`."""
+
+    status = 422
+    stage = "ingest"
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
 class ProfileNotFound(ApiError):
     status = 404
     code = "profile_not_found"

@@ -1,6 +1,7 @@
 """Story 1.11: the room routes serve `PlayView` and the stored photo bytes under `/api/`, the envelope answers an unknown room, and `web/dist` is mounted at `/` only when it exists (AD-3, AD-9, AD-13)."""
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from unittest.mock import ANY
@@ -15,7 +16,9 @@ from src.api.errors import ApiError, PhotoNotFound, RoomNotFound, envelope
 from src.api.wiring import artifact_store
 from src.config import Settings
 from src.domain.redact import to_play_view
-from src.domain.schema import ErrorEnvelope, Room
+from src.domain.schema import ErrorEnvelope, Room, Stage
+from src.infra.local import CACHE_ROOT, EXPORTS_ROOT, LEDGER_PATH
+from src.pipeline.build import STAGES, StageFn, StageResult
 from src.pipeline.ports import ArtifactStore, Clock, photo_key, room_key
 from tests.domain.test_redact import json_keys
 from tests.fixtures.rooms import (
@@ -38,21 +41,38 @@ def store_room(store: ArtifactStore, room: Room) -> None:
         store.put(photo_key(room.id, index), Path(photo.downscaled_path).read_bytes())
 
 
+def idle_stages() -> dict[Stage, StageFn]:
+    """Stage doubles that do nothing, so a play test never resolves a model provider."""
+    return {stage: lambda state: StageResult() for stage in STAGES[1:]}
+
+
 def make_app(
     tmp_path: Path,
     *rooms: Room,
     web_dist: Path | None = None,
     settings: Settings | None = None,
     clock: Clock | None = None,
+    stages: Mapping[Stage, StageFn] | None = None,
     **options: Any,
 ) -> FastAPI:
-    """`options` are the further `create_app` keywords: the Guide adapter, the `Spawn` and `hosted` (5.6)."""
+    """The app over `tmp_path`: rooms, the ledger, its exports and the cache all stay out of the repo.
+
+    `options` are the further `create_app` keywords: the Guide adapter, the `Spawn` and `hosted` (5.6).
+    """
     root = tmp_path / "rooms"
     store = artifact_store(root)
     for room in rooms:
         store_room(store, room)
     return create_app(
-        settings or Settings.from_env(), rooms_root=root, web_dist=web_dist or tmp_path / "no-dist", clock=clock, **options
+        settings or Settings.from_env(),
+        rooms_root=root,
+        web_dist=web_dist or tmp_path / "no-dist",
+        clock=clock,
+        stages=idle_stages() if stages is None else stages,
+        ledger_path=tmp_path / LEDGER_PATH,
+        exports_root=tmp_path / EXPORTS_ROOT,
+        cache_root=tmp_path / CACHE_ROOT,
+        **options,
     )
 
 

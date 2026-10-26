@@ -49,8 +49,20 @@ from the job record that names the Room (AD-9); `GET /meta` serves the
 `Meta` model, echoing any `?profile=` name the profile routes accept (AD-14),
 and `GET /schema` the JSON Schema of every AD-2 model and of the `Event`,
 `PostedEvent` and `LockInput` unions under `$defs`, from which `npm run types`
-generates `web/types`. The Trickster route and the build routes land with
-their stories.
+generates `web/types`.
+
+Build routes run the persisted job (AD-7): `POST /builds` reads the
+multipart body (the i-th `downscale` part with the i-th `original` part),
+lets ingest refuse it before any job exists (422 at stage `ingest` with
+`photo_count`, `unsupported_image` or `bad_downscale`), then persists the job
+`queued`, hands it to the `JobRunner` and answers 202 with the job state
+without waiting on a stage. `GET /builds/<job_id>` reads only the persisted
+job state, 202 while `queued` or `running` and 200 when terminal, and never a
+Room; `GET /builds/<job_id>/room` is the one route a full Room leaves by
+(AD-3), open in Local mode, `room_not_found` until the job is `done`. At
+startup the app exports the ledger and restarts every job left `queued` or
+`running`; the runner exports again after each Build ends (AD-9). The
+Trickster route and `GET /builds/<job_id>/view` land with their stories.
 """
 
 from __future__ import annotations
@@ -58,8 +70,12 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import date
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
 from typing import Any
 
@@ -68,20 +84,38 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import TypeAdapter, ValidationError
 from pydantic.json_schema import models_json_schema
+from starlette.concurrency import run_in_threadpool
 
 from src.api.errors import (
     ApiError,
     InvalidProfile,
     InvalidProfileName,
+    JobNotFound,
     PhotoNotFound,
     ProfileNotFound,
     RoomNotFound,
     SessionNotFound,
+    UploadRefused,
     handle_api_error,
     handle_validation_error,
 )
 from src.api.meta import disclosure_lines, meta
-from src.api.wiring import artifact_store, hint_phraser, job_store, session_clock, session_store
+from src.api.wiring import (
+    artifact_store,
+    build_clock,
+    build_stages,
+    hint_phraser,
+    job_runner,
+    job_store,
+    ledger_export,
+    ledger_store,
+    model_cache,
+    model_providers,
+    resume_jobs,
+    session_clock,
+    session_store,
+    spend_ledger,
+)
 from src.config import Settings
 from src.council.greeting import Greeting, compose_greeting
 from src.domain.redact import to_play_view
@@ -113,14 +147,18 @@ from src.domain.schema import (
     SessionId,
     SessionStart,
     SessionState,
+    Stage,
     Thresholds,
 )
 from src.domain.session import SessionStateMachine
 from src.infra.clocks import SessionClock
-from src.infra.local import ROOMS_ROOT
+from src.infra.local import CACHE_ROOT, EXPORTS_ROOT, LEDGER_PATH, ROOMS_ROOT
+from src.pipeline.build import TERMINAL, Build, StageFn, error_code
+from src.pipeline.ingest import IngestRefused, UnsupportedImage, Upload
 from src.pipeline.ports import (
     ArtifactStore,
     Clock,
+    JobRunner,
     JobStore,
     SessionStore,
     photo_key,
@@ -272,6 +310,82 @@ def status_routes(settings: Settings) -> APIRouter:
     @router.get("/schema")
     def get_schema() -> dict[str, Any]:
         return api_schema()
+
+    return router
+
+
+# --- Builds (AD-7) ----------------------------------------------------------
+
+DOWNSCALE, ORIGINAL = "downscale", "original"
+"""The multipart field names of `POST /builds`: one of each per photo, paired in upload order."""
+
+
+def read_uploads(content_type: str, body: bytes) -> list[Upload]:
+    """The photos of a multipart body, the i-th `downscale` with the i-th `original`, byte for byte.
+
+    A body that is not multipart holds no photos; a body whose downscale and
+    original counts differ is refused as `photo_count`.
+    """
+    message = BytesParser(policy=policy.HTTP).parsebytes(b"Content-Type: " + content_type.encode() + b"\r\n\r\n" + body)
+    parts: dict[str, list[bytes]] = {DOWNSCALE: [], ORIGINAL: []}
+    if message.is_multipart():
+        for part in message.get_payload():
+            name = part.get_param("name", header="content-disposition")
+            if name in parts:
+                parts[name].append(part.get_payload(decode=True) or b"")
+    downscales, originals = parts[DOWNSCALE], parts[ORIGINAL]
+    if len(downscales) != len(originals):
+        raise IngestRefused("photo_count", f"each photo needs a downscale and an original, got {len(downscales)} and {len(originals)}")
+    return [Upload(downscale, original) for downscale, original in zip(downscales, originals, strict=True)]
+
+
+def read_job(jobs: JobStore, job_id: str) -> JobState:
+    """The persisted job state, or `JobNotFound`; an id the store refuses is as unknown as a missing one."""
+    try:
+        return jobs.read(job_id)
+    except (KeyError, ValueError):
+        raise JobNotFound(job_id) from None
+
+
+def job_status_code(state: JobState) -> int:
+    """202 while the job is `queued` or `running`, 200 once it is terminal (AD-7)."""
+    return 200 if state.status in TERMINAL else 202
+
+
+def build_routes(
+    build: Build, jobs: JobStore, store: ArtifactStore, runner: JobRunner, on_terminal: Callable[[], object]
+) -> APIRouter:
+    router = APIRouter(prefix="/api/builds", tags=["builds"])
+
+    @router.post("", status_code=202)
+    async def post_build(request: Request, response: Response) -> JobState:
+        """Ingest refuses a bad upload before any job exists; an accepted one is queued and started, never awaited."""
+        try:
+            uploads = read_uploads(request.headers.get("content-type", ""), await request.body())
+            state = await run_in_threadpool(build.submit, uploads)
+        except (IngestRefused, UnsupportedImage) as exc:
+            raise UploadRefused(error_code(exc), str(exc)) from None
+        if state.status in TERMINAL:
+            on_terminal()
+        else:
+            runner.start(state.id)
+        response.status_code = job_status_code(state)
+        return state
+
+    @router.get("/{job_id}")
+    def get_build(job_id: str, response: Response) -> JobState:
+        """The persisted job state alone: status, stage, timings, the Mask preview once segment completed, never a Room."""
+        state = read_job(jobs, job_id)
+        response.status_code = job_status_code(state)
+        return state
+
+    @router.get("/{job_id}/room")
+    def get_build_room(job_id: str) -> Room:
+        """The full Room, solutions included: the one route a Room leaves the server by (AD-3); no access code in Local mode."""
+        state = read_job(jobs, job_id)
+        if state.status != "done" or state.room_id is None:
+            raise RoomNotFound(state.room_id or job_id)
+        return load_room(store, state.room_id)
 
     return router
 
@@ -463,6 +577,11 @@ def create_app(
     phraser: HintPhraser | None = None,
     spawn: Spawn = spawn_thread,
     hosted: bool = False,
+    stages: Mapping[Stage, StageFn] | None = None,
+    ledger_path: Path = LEDGER_PATH,
+    exports_root: Path = EXPORTS_ROOT,
+    cache_root: Path = CACHE_ROOT,
+    today: Callable[[], date] = date.today,
 ) -> FastAPI:
     """The app over the adapters wiring builds; routes are registered before the static mount so `/api/` wins.
 
@@ -470,18 +589,39 @@ def create_app(
     greeting runs through. `hosted` stands in for `Settings.mode == "hosted"`
     until 7.2 adds `mode`: every hosted session opens with the welcome and
     `Derived.fresh()` thresholds, and `greet` is never called.
+
+    `stages` replaces the stage functions wiring builds over the per-role
+    providers (tests pass doubles); the paths and `today` let tests keep the
+    ledger, its exports and the cache out of the repo.
     """
+    ledger = ledger_store(ledger_path)
+    export = ledger_export(settings, ledger, exports_root, today)
+    store = artifact_store(rooms_root)
+    if stages is None:
+        stages = build_stages(model_providers(settings, model_cache(cache_root), spend_ledger(settings, ledger)), store, ledger)
+    jobs = job_store(rooms_root)
+    build = Build(jobs=jobs, artifacts=store, clock=build_clock(), stages=stages, regen_max=settings.regen_max)
+    runner = job_runner(build, on_terminal=export)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """At startup: export the ledger, then restart every job a stopped process left `queued` or `running`."""
+        export()
+        resume_jobs(jobs, runner)
+        yield
+
     app = FastAPI(
         title="Keyframe",
         openapi_url="/api/openapi.json",
         docs_url="/api/docs",
         redoc_url=None,
         swagger_ui_oauth2_redirect_url=None,
+        lifespan=lifespan,
     )
     app.add_exception_handler(ApiError, handle_api_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
-    store, jobs = artifact_store(rooms_root), job_store(rooms_root)
     app.include_router(status_routes(settings))
+    app.include_router(build_routes(build, jobs, store, runner, on_terminal=export))
     app.include_router(room_routes(store, jobs))
     app.include_router(profile_routes(store))
     scale = session_clock(settings)

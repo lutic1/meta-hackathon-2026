@@ -8,7 +8,7 @@ from typing import get_args
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import API_UNIONS, api_schema, create_app, room_summary
+from src.api.app import API_UNIONS, api_schema, room_summary
 from src.api.meta import (
     CUT1_LINE,
     RETENTION_LOCAL,
@@ -17,11 +17,11 @@ from src.api.meta import (
     disclosure_lines,
     meta,
 )
-from src.api.wiring import MODE, artifact_store, job_store
+from src.api.wiring import MODE, job_store
 from src.config import Settings
 from src.domain.schema import API_MODELS, JobState, Meta, Room, RoomSummary
 from src.providers.ollama import DEFAULT_HOST
-from tests.api.test_app import make_app, store_room
+from tests.api.test_app import make_app
 from tests.domain.test_redact import json_keys
 from tests.fixtures.rooms import IX
 
@@ -230,14 +230,12 @@ def test_room_summary_fields(four_lock_room: Room):
 def test_rooms_lists_one_summary_per_stored_room_newest_first(tmp_path: Path, four_lock_room: Room, code_and_find_room: Room):
     older = four_lock_room.model_copy(update={"created": datetime(2026, 10, 25, 9, 0, tzinfo=UTC), "name": "Room 1"})
     newer = code_and_find_room
-    root = tmp_path / "rooms"
-    store, jobs = artifact_store(root), job_store(root)
-    store_room(store, older)
-    store_room(store, newer)
+    app = make_app(tmp_path, older, newer, settings=settings())
+    jobs = job_store(tmp_path / "rooms")
     jobs.put(JobState(id=JOB_A, status="done", room_id=older.id, regen_max=2))
     jobs.put(JobState(id=JOB_B, status="done", room_id=newer.id, regen_max=2))
     jobs.put(JobState(id="job_01ARZ3NDEKTSV4RRFFQ69G5FAC", status="queued", regen_max=2))
-    client = TestClient(create_app(settings(), rooms_root=root, web_dist=tmp_path / "no-dist"))
+    client = TestClient(app)
     response = client.get("/api/rooms")
     assert response.status_code == 200
     assert response.json() == [
@@ -249,10 +247,7 @@ def test_rooms_lists_one_summary_per_stored_room_newest_first(tmp_path: Path, fo
 
 def test_a_stored_room_without_a_job_record_is_not_listed(tmp_path: Path, four_lock_room: Room, code_and_find_room: Room):
     """`RoomSummary.job_id` is required, so a Room no job record names has no row to list."""
-    root = tmp_path / "rooms"
-    store, jobs = artifact_store(root), job_store(root)
-    store_room(store, four_lock_room)
-    store_room(store, code_and_find_room)
-    jobs.put(JobState(id=JOB_A, status="done", room_id=four_lock_room.id, regen_max=2))
-    client = TestClient(create_app(settings(), rooms_root=root, web_dist=tmp_path / "no-dist"))
+    app = make_app(tmp_path, four_lock_room, code_and_find_room, settings=settings())
+    job_store(tmp_path / "rooms").put(JobState(id=JOB_A, status="done", room_id=four_lock_room.id, regen_max=2))
+    client = TestClient(app)
     assert [row["room_id"] for row in client.get("/api/rooms").json()] == [four_lock_room.id]
