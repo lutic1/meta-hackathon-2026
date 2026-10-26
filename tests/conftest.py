@@ -17,6 +17,7 @@ PROXY_KEYS = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_pro
 
 # Runs before any test module imports src.config, so .env cannot reach module-level Settings.
 os.environ["MODEL_PROVIDER"] = "mock"
+os.environ["GUIDE"] = "verbatim"  # the offline suite never resolves a Guide model (AD-5)
 for _role in ROLES:
     os.environ[f"PROVIDER_{_role}"] = "mock"
 for _key in SECRET_KEYS:
@@ -49,6 +50,7 @@ def _guard(real):
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
     monkeypatch.setenv("MODEL_PROVIDER", "mock")
+    monkeypatch.setenv("GUIDE", "verbatim")
     for role in ROLES:
         monkeypatch.setenv(f"PROVIDER_{role}", "mock")
     for key in SECRET_KEYS:

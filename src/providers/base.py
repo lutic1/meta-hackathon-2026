@@ -1,10 +1,12 @@
-"""The `ModelProvider` port: the only way to reach a model (AD-5).
+"""The `ModelProvider` and `HintPhraser` ports: the only ways to reach a model (AD-5).
 
 Ports are synchronous; the stage runner fans out through a bounded thread
 pool, so adapters and the mock stay trivial. Council and pipeline code
 receives a provider by injection and never imports an adapter. `HintPhraser`
-and `transcribe` join with their own stories; `reconstruct3d` only if the
-Tier 2 gate passes.
+is a separate port, selected by `GUIDE` alone and implemented only by the
+verbatim and the Ollama adapters; its input is exactly the Rung text and the
+Derived block (AD-3). `transcribe` joins with its own story; `reconstruct3d`
+only if the Tier 2 gate passes.
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from src.domain.schema import Polygon
+from src.domain.schema import Derived, GuideModel, Polygon
 
 ReasoningEffort = Literal["minimal", "low", "medium", "high", "xhigh"]
 REASONING_EFFORTS: tuple[ReasoningEffort, ...] = ("minimal", "low", "medium", "high", "xhigh")
@@ -83,4 +85,32 @@ class ModelProvider(ABC):
     @abstractmethod
     def generate_image(self, prompt: str) -> ImageResponse:
         """Generate an image from a text prompt."""
+        raise NotImplementedError
+
+
+@dataclass
+class PhraserResponse:
+    """A Rung or Greeting line, with what the caller records about how it was worded."""
+
+    text: str
+    phrased: bool
+    """False when the line is shown as written (the verbatim adapter, or a fallback to it)."""
+    latency_ms: int
+
+
+class HintPhraser(ABC):
+    """The Guide port: rewords a Rung or greets from the Derived block, and sees nothing else (AD-3, AD-5)."""
+
+    name: str = "base"
+    guide_model: GuideModel | None = None
+    """What `GET /meta` reports as `guide_model`; null when no Guide model runs."""
+
+    @abstractmethod
+    def phrase(self, rung_text: str, derived: Derived) -> PhraserResponse:
+        """Reword `rung_text` in the Guide's voice without adding content; the input is exactly these two."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def greet(self, derived: Derived) -> PhraserResponse:
+        """The returning player's Greeting from the Derived block alone, naming no object or solution."""
         raise NotImplementedError

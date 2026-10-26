@@ -1,16 +1,18 @@
-"""Story 2.1: the `ModelProvider` port declares exactly the Tier 1 signatures (AD-5)."""
+"""Stories 2.1 and 3.2: `ModelProvider` declares exactly the Tier 1 signatures and `HintPhraser` is its own port (AD-5)."""
 
 import inspect
 
 import pytest
 
-from src.domain.schema import Polygon
+from src.domain.schema import Derived, GuideModel, Polygon
 from src.providers import base
 from src.providers.base import (
     REASONING_EFFORTS,
     ChatResponse,
+    HintPhraser,
     ImageResponse,
     ModelProvider,
+    PhraserResponse,
     check_reasoning_effort,
 )
 
@@ -55,7 +57,33 @@ def test_exactly_the_tier_1_methods_are_abstract():
 def test_later_ports_are_not_declared_yet():
     assert not hasattr(ModelProvider, "reconstruct3d")
     assert not hasattr(ModelProvider, "transcribe")
-    assert not hasattr(base, "HintPhraser")
+    assert not hasattr(base, "transcribe")
+
+
+def test_hint_phraser_is_a_separate_port():
+    assert not issubclass(HintPhraser, ModelProvider) and not issubclass(ModelProvider, HintPhraser)
+    assert HintPhraser.__abstractmethods__ == {"phrase", "greet"}
+    assert not hasattr(ModelProvider, "phrase") and not hasattr(ModelProvider, "greet")
+    assert not hasattr(HintPhraser, "chat")
+
+
+def test_phrase_signature_is_exactly_rung_text_and_derived():
+    params, returns = _params(HintPhraser.phrase)
+    assert [(p.name, p.annotation) for p in params] == [("rung_text", str), ("derived", Derived)]
+    assert all(p.default is inspect.Parameter.empty for p in params)
+    assert returns is PhraserResponse
+
+
+def test_greet_signature_is_exactly_derived():
+    params, returns = _params(HintPhraser.greet)
+    assert [(p.name, p.annotation) for p in params] == [("derived", Derived)]
+    assert returns is PhraserResponse
+
+
+def test_phraser_response_carries_the_text_the_flag_and_the_latency():
+    assert list(PhraserResponse.__dataclass_fields__) == ["text", "phrased", "latency_ms"]
+    assert inspect.get_annotations(HintPhraser, eval_str=True)["guide_model"] == GuideModel | None
+    assert HintPhraser.guide_model is None
 
 
 @pytest.mark.parametrize("effort", REASONING_EFFORTS)

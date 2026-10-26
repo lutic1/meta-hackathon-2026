@@ -83,6 +83,7 @@ def test_model_provider_is_the_default_for_each_role():
 def test_conftest_forces_mock_and_blank_secrets():
     s = Settings.from_env()
     assert s.model_provider == "mock"
+    assert s.guide == "verbatim"
     assert all(getattr(s, f"provider_{role}") == "mock" for role in ROLES)
     assert s.meta_model_api_key is None and s.fal_key is None
     assert s.openai_compatible_api_key is None and s.access_code is None
