@@ -52,7 +52,7 @@ development_status:
   1-14-status-schema-and-room-list-endpoints-get-meta-get-schema-an: done
   1-15-generated-client-types-with-a-staleness-test: done
   1-16-design-tokens-and-base-components: done
-  1-17-app-shell-disclosure-banner-top-bar-mode-indicator-routes-er: backlog
+  1-17-app-shell-disclosure-banner-top-bar-mode-indicator-routes-er: done
   1-18-stored-rooms-list-choose-a-room-to-play: backlog
   1-19-photo-scenes-with-mask-hotspots-and-the-thumbnail-strip: backlog
   1-20-inventory-wizard-notes-with-evidence-cards-and-the-wizard-po: backlog
