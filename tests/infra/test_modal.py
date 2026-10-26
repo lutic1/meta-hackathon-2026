@@ -20,6 +20,7 @@ from pydantic import TypeAdapter
 
 from src.api.app import room_routes, session_routes
 from src.api.errors import ApiError, handle_api_error, handle_validation_error
+from src.config import Settings
 from src.domain.ledger import LedgerEntry, running_total_usd
 from src.domain.schema import Derived, Event, OpeningLineEvent, Profile, Room
 from src.domain.session import SessionStateMachine
@@ -441,14 +442,15 @@ def test_a_hosted_session_writes_no_derived_value_or_profile_field_to_any_dict_o
     app.include_router(
         session_routes(
             stores.artifacts,
+            stores.jobs,
             stores.sessions,
             ticker,
             SessionClock(1),
             VerbatimPhraser(),
             _never_spawned,
+            Settings.from_env({"GUIDE": "verbatim"}),
             demo=False,
             hosted=True,
-            disclosure=[],
         )
     )
     client = TestClient(app)

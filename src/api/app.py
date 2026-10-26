@@ -36,8 +36,12 @@ start are transient request state, never replayed state. `t_ms` is stamped
 from the session clock at append, so a body carrying one is refused. Each
 appended event is logged as one JSON line with `session_id`, the event type
 and `duration_ms` (AR-22). Every session state served, the greeted start
-reply included, carries the global Disclosure lines `src/api/meta.py`
-composes (AD-15); the per-Room line joins in 6.2.
+reply included, carries its Room's Disclosure list, composed once at the
+session's start by `disclosure_lines` in `src/api/meta.py` (AD-15): the
+global lines, plus the earlier-builds line for a Demo room, a Room with a
+session already started in this process, or a Room whose job record holds
+any call served from the Cache; a later session on the same Room never
+changes an earlier session's list.
 
 `GET /rooms` lists one `RoomSummary` per stored Room with a job record
 through `ArtifactStore.list_rooms()`, newest build first, with `job_id` read
@@ -94,6 +98,7 @@ from src.domain.schema import (
     Event,
     IdleTickEvent,
     JobId,
+    JobState,
     LockInput,
     Meta,
     Milliseconds,
@@ -168,6 +173,12 @@ def room_summary(room: Room, job_id: JobId) -> RoomSummary:
 def jobs_by_room(jobs: JobStore) -> dict[RoomId, JobId]:
     """The job record that names each Room; a job that has no Room yet names none."""
     return {job.room_id: job.id for job in map(jobs.read, jobs.list_ids()) if job.room_id is not None}
+
+
+def room_job(jobs: JobStore, room_id: RoomId) -> JobState | None:
+    """The job record that names the Room; a Room stored without one has none."""
+    job_id = jobs_by_room(jobs).get(room_id)
+    return None if job_id is None else jobs.read(job_id)
 
 
 def room_routes(store: ArtifactStore, jobs: JobStore) -> APIRouter:
@@ -295,12 +306,14 @@ def new_session_id() -> SessionId:
 
 @dataclass(slots=True)
 class OpenSession:
-    """One session's transient request state: its machine over the Effective room, its lock and its start."""
+    """One session's transient request state: its machine over the Effective room, its lock, its start and its Disclosure list."""
 
     machine: SessionStateMachine
     lock: threading.Lock
     started_ms: int
     """The session clock's reading when the session started; `t_ms` counts from it."""
+    disclosure: list[str]
+    """The Room's Disclosure list, composed when the session started (AD-15)."""
 
 
 class OpenSessions:
@@ -310,10 +323,15 @@ class OpenSessions:
         self._guard = threading.Lock()
         self._open: dict[SessionId, OpenSession] = {}
 
-    def open(self, session_id: SessionId, machine: SessionStateMachine, started_ms: int) -> OpenSession:
+    def open(self, session_id: SessionId, machine: SessionStateMachine, started_ms: int, disclosure: list[str]) -> OpenSession:
         with self._guard:
-            session = self._open[session_id] = OpenSession(machine, threading.Lock(), started_ms)
+            session = self._open[session_id] = OpenSession(machine, threading.Lock(), started_ms, disclosure)
         return session
+
+    def any_on(self, room_id: RoomId) -> bool:
+        """Whether a session on this Room has started in this process."""
+        with self._guard:
+            return any(session.machine.room.id == room_id for session in self._open.values())
 
     def get(self, session_id: SessionId) -> OpenSession:
         with self._guard:
@@ -325,22 +343,23 @@ class OpenSessions:
 
 def session_routes(
     store: ArtifactStore,
+    jobs: JobStore,
     sessions: SessionStore,
     clock: Clock,
     scale: SessionClock,
     phraser: HintPhraser,
     spawn: Spawn,
+    settings: Settings,
     *,
     demo: bool,
     hosted: bool,
-    disclosure: list[str],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     open_sessions = OpenSessions()
 
-    def served(state: SessionState) -> SessionState:
-        """The state as the client sees it: with the global Disclosure lines (AD-15)."""
-        return state.model_copy(update={"disclosure": list(disclosure)})
+    def served(session: OpenSession, state: SessionState) -> SessionState:
+        """The state as the client sees it: with the Room's Disclosure list (AD-15)."""
+        return state.model_copy(update={"disclosure": list(session.disclosure)})
 
     def events(session_id: SessionId) -> list[Event]:
         """The session's log; a session that has appended nothing yet has none."""
@@ -361,7 +380,7 @@ def session_routes(
         started = clock.now_ms()
         event = build(stamp(session, log_))
         sessions.append(session_id, event)
-        state = served(session.machine.replay(session_id, [*log_, event]))
+        state = served(session, session.machine.replay(session_id, [*log_, event]))
         log.info(json.dumps({"session_id": session_id, "event": event.type, "duration_ms": clock.now_ms() - started}))
         return state
 
@@ -400,10 +419,11 @@ def session_routes(
         machine = SessionStateMachine(
             room, opening="greeting" if greeted else "welcome", thresholds=session_thresholds(derived, scale)
         )
+        disclosure = disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=open_sessions.any_on(room.id))
         session_id = new_session_id()
-        session = open_sessions.open(session_id, machine, clock.now_ms())
+        session = open_sessions.open(session_id, machine, clock.now_ms(), disclosure)
         if greeted:
-            state = served(machine.initial(session_id))
+            state = served(session, machine.initial(session_id))
             spawn(lambda: greet(session_id, session, derived))
             return state
         with session.lock:
@@ -417,7 +437,7 @@ def session_routes(
             last_ms = log_[-1].t_ms if log_ else 0
             if clock.now_ms() - session.started_ms - last_ms >= IDLE_TICK_MS:
                 return append(session_id, session, log_, lambda t_ms: IdleTickEvent(type="idle_tick", t_ms=t_ms))
-            return served(session.machine.replay(session_id, log_))
+            return served(session, session.machine.replay(session_id, log_))
 
     @router.post("/{session_id}/events")
     def post_event(session_id: str, body: PostedEvent) -> SessionState:
@@ -460,22 +480,23 @@ def create_app(
     )
     app.add_exception_handler(ApiError, handle_api_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
-    store = artifact_store(rooms_root)
+    store, jobs = artifact_store(rooms_root), job_store(rooms_root)
     app.include_router(status_routes(settings))
-    app.include_router(room_routes(store, job_store(rooms_root)))
+    app.include_router(room_routes(store, jobs))
     app.include_router(profile_routes(store))
     scale = session_clock(settings)
     app.include_router(
         session_routes(
             store,
+            jobs,
             session_store(rooms_root),
             clock or scale,
             scale,
             phraser or hint_phraser(settings),
             spawn,
+            settings,
             demo=settings.demo_timescale > 1,
             hosted=hosted,
-            disclosure=disclosure_lines(settings),
         )
     )
     if web_dist.is_dir():

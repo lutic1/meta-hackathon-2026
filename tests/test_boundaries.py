@@ -237,3 +237,62 @@ def test_pipeline_importing_the_mock_is_named(tmp_path):
         "src.pipeline.build imports src.providers.mock; src.pipeline imports only the domain and ports",
         "src.pipeline.build imports the adapter src.providers.mock",
     ]
+
+
+# --- Demo settings reach only timing and the Trickster source (AD-10, AD-15) -------
+
+
+def readers(src_root: Path, attr: str) -> dict[str, list[ast.AST]]:
+    """Each module under `src_root` that reads `<x>.<attr>`, with the expression each read sits in (a call or a keyword)."""
+    out: dict[str, list[ast.AST]] = {}
+    for path in sorted(src_root.rglob("*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and node.attr == attr:
+                holder: ast.AST = node
+                while holder in parents and not isinstance(holder, (ast.Call, ast.keyword, ast.stmt)):
+                    holder = parents[holder]
+                out.setdefault(_module_name(path, src_root), []).append(holder)
+    return out
+
+
+def test_demo_timescale_reaches_the_session_only_through_the_session_clock_thresholds():
+    src = REPO / "src"
+    reads = readers(src, "demo_timescale")
+    assert set(reads) == {"src.api.meta", "src.api.wiring", "src.api.app"}
+    # wiring builds the session clock from it; app flags the RoomResult `demo` (AD-8); meta reports it (AD-15).
+    assert all(isinstance(r, ast.Call) and getattr(r.func, "id", None) == "SessionClock" for r in reads["src.api.wiring"])
+    assert all(isinstance(r, ast.keyword) and r.arg == "demo" for r in reads["src.api.app"])
+    # Only the `Meta` model in schema.py names the reported field; no session, council, pipeline or provider code does.
+    for path in src.rglob("*.py"):
+        if path.relative_to(src).parts[0] in ("domain", "council", "pipeline", "providers") and path.name != "schema.py":
+            assert "timescale" not in _identifiers(path), path
+
+
+def _identifiers(path: Path) -> str:
+    """Every name, attribute and argument the module's code spells, docstrings and comments aside."""
+    names = {
+        getattr(node, "id", None) or getattr(node, "attr", None) or getattr(node, "arg", None)
+        for node in ast.walk(ast.parse(path.read_text(), filename=str(path)))
+    }
+    return " ".join(sorted(name for name in names if isinstance(name, str)))
+
+
+def test_the_session_clock_scales_thresholds_and_never_t_ms():
+    tree = ast.parse((REPO / "src" / "infra" / "clocks.py").read_text())
+    clock = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SessionClock")
+    methods = {n.name: n for n in clock.body if isinstance(n, ast.FunctionDef)}
+    uses = {name for name, fn in methods.items() if any(isinstance(n, ast.Attribute) and n.attr == "timescale" for n in ast.walk(fn))}
+    assert uses == {"__init__", "thresholds"}
+    assert "now_ms" in methods
+
+
+def test_demo_trickster_is_read_only_by_the_proposal_source_and_meta():
+    reads = readers(REPO / "src", "demo_trickster")
+    assert "src.api.meta" in reads and set(reads) <= {"src.api.meta", "src.council.trickster"}
+
+
+def test_a_second_demo_timescale_reader_is_named(tmp_path):
+    src = _tree(tmp_path, {"domain/session.py": "def apply(settings):\n    return settings.demo_timescale\n"})
+    assert set(readers(src, "demo_timescale")) == {"src.domain.session"}

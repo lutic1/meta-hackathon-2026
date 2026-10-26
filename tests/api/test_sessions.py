@@ -138,7 +138,9 @@ def test_derived_fresh_and_an_explicit_block_start_the_same_state(client: TestCl
     fresh = client.post("/api/sessions", json={"room_id": code_and_find_room.id}).json()
     explicit = client.post("/api/sessions", json={"room_id": code_and_find_room.id, "derived": Derived.fresh().model_dump()})
     assert explicit.status_code == 200
-    assert {**fresh, "id": None} == {**explicit.json(), "id": None} and fresh["id"] != explicit.json()["id"]
+    # The second session on the Room adds the earlier-builds Disclosure line (6.2); nothing else differs.
+    assert {**fresh, "id": None, "disclosure": None} == {**explicit.json(), "id": None, "disclosure": None}
+    assert fresh["id"] != explicit.json()["id"]
 
 
 @pytest.mark.parametrize("derived", [
@@ -252,8 +254,8 @@ def test_twenty_concurrent_events_all_land_in_append_order_with_strictly_increas
 def test_a_different_session_id_never_waits_on_this_sessions_lock(code_and_find_room: Room):
     sessions = OpenSessions()
     machine = SessionStateMachine(code_and_find_room)
-    a = sessions.open(new_session_id(), machine, 0)
-    b = sessions.open(new_session_id(), machine, 0)
+    a = sessions.open(new_session_id(), machine, 0, [])
+    b = sessions.open(new_session_id(), machine, 0, [])
     with a.lock:
         assert b.lock.acquire(timeout=1)
         b.lock.release()
