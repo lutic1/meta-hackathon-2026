@@ -66,7 +66,7 @@ development_status:
   epic-1-retrospective: optional
 
   epic-2: in-progress
-  2-1-model-ports-with-a-scripted-mock: backlog
+  2-1-model-ports-with-a-scripted-mock: done
   2-2-spend-arithmetic-as-pure-domain-functions: done
   2-3-spend-ledger-and-cap-guard-every-paid-call: backlog
   2-4-model-call-cache-in-front-of-the-ledger: backlog
