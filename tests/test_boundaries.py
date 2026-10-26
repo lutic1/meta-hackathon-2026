@@ -84,6 +84,13 @@ def test_ratified_scaffold_has_no_violation():
     assert violations(REPO / "src") == []
 
 
+def test_schema_imports_only_stdlib_and_pydantic():
+    src = REPO / "src"
+    path = src / "domain" / "schema.py"
+    tops = {name.split(".")[0] for name in _imports(path, "src.domain.schema", src)}
+    assert tops and tops <= set(sys.stdlib_module_names) | {"pydantic"}, tops
+
+
 def _tree(tmp_path: Path, files: dict[str, str]) -> Path:
     src = tmp_path / "src"
     for rel, text in files.items():
