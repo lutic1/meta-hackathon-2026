@@ -1,0 +1,26 @@
+{
+  "model": "muse-spark-open",
+  "status": 200,
+  "body": {
+    "id": "chatcmpl-sample-baseten-2026-10-27",
+    "object": "chat.completion",
+    "model": "meta-models/muse-spark-open",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "{\"puzzles\": [{\"key\": \"p1\", \"lock_type\": \"code\", \"requires\": [], \"solution\": {\"lock_type\": \"code\", \"code\": \"1842\"}, \"evidence\": {\"interactable\": \"ix_00000000000000000000000002\", \"visible_attribute\": \"a date carved in the lid\"}, \"clue\": \"The chest keeps the year it was sealed.\", \"lore\": \"No one has opened it since.\", \"rungs\": {\"nudge\": \"Look at the chest.\", \"direction\": \"Something is carved into its lid.\", \"near_answer\": \"Four figures on the lid, read left to right, open the lock.\"}, \"is_exit\": true}]}"
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 2210,
+      "completion_tokens": 640,
+      "total_tokens": 2850,
+      "prompt_tokens_details": {"cached_tokens": 0},
+      "completion_tokens_details": {"reasoning_tokens": 420}
+    }
+  }
+}

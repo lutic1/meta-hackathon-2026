@@ -1,0 +1,26 @@
+{
+  "model": "muse-spark-open",
+  "status": 200,
+  "body": {
+    "id": "chatcmpl-sample-baseten-prose-2026-10-27",
+    "object": "chat.completion",
+    "model": "meta-models/muse-spark-open",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "Here is the room. The first puzzle is a code lock on the chest; the year carved in its lid opens it."
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 2210,
+      "completion_tokens": 31,
+      "total_tokens": 2241,
+      "prompt_tokens_details": {"cached_tokens": 0},
+      "completion_tokens_details": {"reasoning_tokens": 0}
+    }
+  }
+}

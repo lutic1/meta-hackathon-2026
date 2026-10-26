@@ -29,6 +29,20 @@ def check_reasoning_effort(effort: str) -> None:
         raise ValueError(f"reasoning_effort {effort!r} is not one of {', '.join(REASONING_EFFORTS)}")
 
 
+class ProviderError(Exception):
+    """A model call that failed after the adapter's one retry, or that it never re-sent (AD-13).
+
+    `status` is the HTTP status, or `None` when no response came back
+    (a transport error or a timeout); `kind` is the vendor's error type,
+    or the adapter's own name for what went wrong.
+    """
+
+    def __init__(self, status: int | None, kind: str, message: str) -> None:
+        super().__init__(f"{status} {kind}: {message}")
+        self.status = status
+        self.kind = kind
+
+
 @dataclass
 class ChatMessage:
     role: str  # "system" | "user" | "assistant"
