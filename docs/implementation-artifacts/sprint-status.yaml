@@ -89,7 +89,7 @@ development_status:
   2-21-regeneration-loop-ending-in-needs_recapture: done
   2-22-scene-stage-writes-the-immutable-room-and-the-final-job-reco: done
   2-23-dry-run-prompt-builder-over-what-a-player-sees: done
-  2-24-dry-run-stage-proves-every-puzzle-solvable-before-the-room-s: backlog
+  2-24-dry-run-stage-proves-every-puzzle-solvable-before-the-room-s: done
   2-25-capture-screen-end-states-failed-too-few-objects-re-capture: backlog
   2-26-capture-measured-p50-per-stage-over-five-live-builds: backlog
   2-27-buildview-projection-never-carrying-a-solution: done
