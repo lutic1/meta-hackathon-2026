@@ -80,7 +80,7 @@ development_status:
   2-12-build-routes-per-role-provider-wiring-and-the-ledger-hooks: backlog
   2-13-mask-selection-and-box-conversion-as-pure-domain-functions: done
   2-14-architect-prompt-builder: done
-  2-15-architect-and-segment-stages-with-the-mask-preview: backlog
+  2-15-architect-and-segment-stages-with-the-mask-preview: done
   2-16-capture-screen-choose-and-upload-photos-with-the-retention-s: backlog
   2-17-capture-timer-from-upload-to-the-first-hotspot-response: backlog
   2-18-capture-progress-stage-list-regeneration-rows-mask-preview-a: backlog
