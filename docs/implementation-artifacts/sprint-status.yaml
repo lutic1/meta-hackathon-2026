@@ -131,9 +131,9 @@ development_status:
   5-8-room-2-built-and-greeted-from-a-real-room-1-record: backlog
   epic-5-retrospective: optional
 
-  epic-6: backlog
+  epic-6: in-progress
   6-1-backup-video-v0-once-the-room-is-playable: backlog
-  6-2-per-room-disclosure-lines-composed-on-the-server: backlog
+  6-2-per-room-disclosure-lines-composed-on-the-server: done
   6-3-room-bound-surfaces-show-their-room-s-disclosures: backlog
   6-4-backup-video-v1-and-the-sun-nov-1-2-00-pm-backup: backlog
   6-5-playtest-by-a-non-builder-on-a-fresh-profile-or-a-disclosed: backlog
