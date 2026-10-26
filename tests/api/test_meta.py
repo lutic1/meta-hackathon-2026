@@ -162,7 +162,7 @@ def test_the_local_retention_summary(client: TestClient):
     assert retention == RETENTION_LOCAL
     assert retention.startswith("Your photos and the puzzle text go to the Meta Model API (standard tier)")
     assert "Baseten or Fireworks" in retention
-    assert "Leave out faces, documents and other people's belongings." in retention
+    assert "Leave out faces" not in retention
     assert retention.endswith("A copy of your photos is also kept on this computer.")
     assert "Modal" not in retention
 
@@ -200,7 +200,7 @@ def test_the_hosted_retention_summary_replaces_the_local_storage_sentence():
         "No player profile data leaves your browser."
     )
     assert LOCAL_SENTENCE not in retention and "kept on this computer" not in retention
-    assert "Leave out faces, documents and other people's belongings." in retention
+    assert "Leave out faces" not in retention
     assert RETENTION_LOCAL.removeprefix(RETENTION_OPENING) == LOCAL_SENTENCE
 
 

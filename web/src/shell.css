@@ -40,8 +40,8 @@
   min-height: 0;
 }
 
-/* The Capture layout (Local `#/`): the left area beside the 400 px right column; the body scrolls, since the Stored
-   Rooms sit below the dropzone. */
+/* The Capture layout (Local `#/`): the left area beside the right column at 400, 360 or 340 px; the body scrolls,
+   since the Stored Rooms sit below the dropzone. */
 .capture-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
@@ -50,6 +50,16 @@
   align-items: start;
   padding: var(--spacing-frame-margin);
   overflow-y: auto;
+}
+@media (max-width: 1439px) {
+  .capture-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+@media (max-width: 1279px) {
+  .capture-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
 }
 /* The left area: the banner slot on top, then the controls a Build disables: the dropzone, the Photo tray, Upload
    and the Stored Rooms list. The fieldset only groups them, so it draws nothing of its own. */

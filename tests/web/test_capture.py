@@ -59,7 +59,12 @@ def test_the_right_column_holds_the_three_lines_then_the_retention_summary_in_or
     rules = _css("shell.css")
     assert rules[".capture-line"]["color"] == "var(--text)"
     assert rules[".capture-right"]["gap"] == "var(--spacing-4)"
-    assert rules[".capture-layout"]["grid-template-columns"] == "minmax(0, 1fr) var(--spacing-side-column)"
+    text = (WEB_SRC / "shell.css").read_text()
+    assert re.search(r"^\.capture-layout \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--spacing-side-column\);",
+                     text, re.MULTILINE)
+    # The right column narrows with the Play side column: 360 px at 1280 to 1439, 340 px at 1024 to 1279.
+    assert re.findall(r"@media \(max-width: (\d+)px\) \{\s*\.capture-layout \{\s*grid-template-columns: "
+                      r"minmax\(0, 1fr\) ([^;]+);", text) == [("1439", "360px"), ("1279", "340px")]
 
 
 def test_the_retention_summary_renders_the_served_text_then_the_privacy_line_never_truncated():

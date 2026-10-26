@@ -45,9 +45,9 @@ RETENTION_OPENING = (
     "Your photos and the puzzle text go to the Meta Model API (standard tier) to find objects, "
     "write puzzles and test them. If a backup model is switched on for the Riddler or the Trickster, "
     "that role's prompt goes to Baseten or Fireworks, never with an answer or anything from your "
-    "player profile. Leave out faces, documents and other people's belongings. "
+    "player profile. "
 )
-"""The shared opening of both Retention summaries, with the faces and documents request."""
+"""The shared opening of both Retention summaries; the faces and documents reminder stands on its own line."""
 RETENTION_LOCAL = RETENTION_OPENING + "A copy of your photos is also kept on this computer."
 """The Local Retention summary: the shared opening and the local storage sentence."""
 RETENTION_HOSTED = RETENTION_OPENING + (
