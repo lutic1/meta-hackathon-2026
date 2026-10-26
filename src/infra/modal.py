@@ -1,4 +1,4 @@
-"""Hosted-mode adapters over Modal Dicts and the `keyframe-data` Volume (AD-7, AD-9): the Dict `JobStore`, `SessionStore` and `LedgerStore`, and the Volume `ArtifactStore` and `Cache`.
+"""Hosted-mode adapters over Modal Dicts and the `keyframe-data` Volume (AD-7, AD-9): the Dict `JobStore` and its watchdog, the spawn `JobRunner`, the Dict `SessionStore` and `LedgerStore`, and the Volume `ArtifactStore` and `Cache`.
 
 `hosted_stores(handles)` builds all five over injected handles
 (`ModalHandles`): the Dicts `keyframe-jobs`, `keyframe-sessions` and
@@ -12,7 +12,18 @@ memory: every value is read from its Dict or file on each call.
 
 Dict values are plain JSON (`model_dump(mode="json")`), written whole on
 every change. `DictJobStore` keeps one key per job id and holds in-flight
-job state only; `DictSessionStore` keeps one key per session id holding its
+job state only; the `done` record is also written beside its Room on the
+Volume (`rooms/demo/<room_id>/job.json`) and committed, and a read falls
+through Dict then Volume, so a finished job outlives its Dict entry.
+`ModalJobRunner.start(job_id)` spawns the stage runner with the job id only
+and stores the `FunctionCall` id under its own key `call:<job_id>`; the
+runner then owns the job's record. A job store given a `poll` (the web
+side's) runs the watchdog on every read of a `queued` or `running` job: it
+marks the job `failed`, keeping the stage it reached, once its call has
+ended, once a `queued` job has no call key after `ORPHAN_S`, or once a call
+state that stays unknown passes `DEADLINE_S`; that mark is the only write
+besides the runner's. The runner's own store has no `poll`, so a restarted
+runner never fails the job it resumes. `DictSessionStore` keeps one key per session id holding its
 events in append order; `DictLedgerStore` keeps one key per `call_` ULID, so
 settling a call replaces its reserved entry under the same key (the only
 rewrite), returns every current-epoch entry so the total is summed on read,
@@ -36,16 +47,18 @@ from __future__ import annotations
 
 import json
 import posixpath
+import re
 import threading
-from collections.abc import Iterable
+import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import TypeAdapter
 
 from src.domain.ledger import LedgerEntry
-from src.domain.schema import Event, JobId, JobState, Room, SessionId
+from src.domain.schema import ErrorDetail, Event, JobId, JobState, JobStatus, Room, SessionId
 from src.pipeline.ports import ROOM_FILE
 
 JOBS_DICT = "keyframe-jobs"
@@ -63,6 +76,23 @@ CACHE_DIR = "cache"
 EPOCH_KEY = "epoch"
 """The reserved `keyframe-ledger` key holding the current epoch (AD-9); never a `call_` id."""
 EVENTS = TypeAdapter(list[Event])
+
+JOB_FILE = "job.json"
+"""The final job record, beside its Room at `rooms/demo/<room_id>/job.json` (AD-7)."""
+ORPHAN_S = 60
+"""AD-7: a `queued` job with no `call:<job_id>` key this long after it was minted was never spawned."""
+DEADLINE_S = 900 + 300
+"""AD-7: the runner's 900 s timeout plus margin; past it a call state that stays unknown counts as dead."""
+IN_FLIGHT: frozenset[JobStatus] = frozenset({"queued", "running"})
+"""The statuses the watchdog checks; every other status is terminal."""
+CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+type RunnerState = Literal["running", "finished", "timed_out", "crashed", "expired", "unknown"]
+"""A spawned call as Modal reports it without waiting: still going, ended (four ways), or not known because the poll failed."""
+type Poll = Callable[[str], RunnerState]
+"""The state of the `FunctionCall` a `call:<job_id>` key names; the hosted app wraps `FunctionCall.from_id(id).get(timeout=0)`."""
+ENDED: frozenset[RunnerState] = frozenset({"finished", "timed_out", "crashed", "expired"})
+"""Modal has reported that the call ended, so its runner can no longer write the job."""
 
 VOLUME_LOCK = threading.Lock()
 """Every Volume read and write in this process holds it, so `reload()` never runs while a file is open."""
@@ -196,25 +226,127 @@ class VolumeCache:
 # --- The Dicts ---------------------------------------------------------------
 
 
-class DictJobStore:
-    """`JobStore` over `keyframe-jobs`: one key per job id holding the whole `JobState`; in-flight state only (AD-7)."""
+def call_key(job_id: JobId) -> str:
+    """The `keyframe-jobs` key holding the job's `FunctionCall` id, apart from the record the runner owns (AD-7)."""
+    return f"call:{job_id}"
 
-    def __init__(self, jobs: DictLike) -> None:
+
+def minted_ms(prefixed_id: str) -> int:
+    """The Unix milliseconds in a prefixed ULID's first ten characters: when the server minted the id (AD-18)."""
+    value = 0
+    for char in prefixed_id.partition("_")[2][:10]:
+        value = value * 32 + CROCKFORD_BASE32.index(char)
+    return value
+
+
+def wall_ms() -> int:
+    """Unix milliseconds now, the clock a job's age is read against."""
+    return time.time_ns() // 1_000_000
+
+
+class DictJobStore:
+    """`JobStore` over `keyframe-jobs`, with the `done` record also on the Volume beside its Room (AD-7).
+
+    With a `poll`, every read of a `queued` or `running` job runs the
+    watchdog; a job's age is the time since its `job_` ULID was minted,
+    read on `now_ms`.
+    """
+
+    def __init__(self, jobs: DictLike, files: VolumeFiles, *, poll: Poll | None = None, now_ms: Callable[[], int] = wall_ms) -> None:
         self.jobs = jobs
+        self.files = files
+        self.poll = poll
+        self.now_ms = now_ms
 
     def put(self, state: JobState) -> None:
+        """Write the whole state to the Dict; a `done` record goes to the Volume first and is committed."""
+        if state.status == "done" and state.room_id is not None:
+            self.files.write(_final_record(state.room_id), state.model_dump_json().encode())
         self.jobs[state.id] = state.model_dump(mode="json")
 
     def read(self, job_id: JobId) -> JobState:
+        """The stored state, after the watchdog when this store has a `poll`; an unknown id raises `KeyError`."""
+        state = self.stored(job_id)
+        if self.poll is None or state.status not in IN_FLIGHT:
+            return state
+        return self._watch(state, self.poll)
+
+    def stored(self, job_id: JobId) -> JobState:
+        """The Dict entry, else the final record on the Volume, without the watchdog."""
         raw = self.jobs.get(job_id)
-        if raw is None:
-            raise KeyError(job_id)
-        return JobState.model_validate(raw)
+        if raw is not None:
+            return JobState.model_validate(raw)
+        for state in self._final_records():
+            if state.id == job_id:
+                return state
+        raise KeyError(job_id)
 
     def list_ids(self) -> list[JobId]:
-        """Every job id in the Dict; any other key the hosted app adds there is not a `job_` id."""
+        """Every job id in the Dict or in a final record; any other key the hosted app adds to the Dict is not a `job_` id."""
         keys = self.jobs.keys()  # `modal.Dict` offers `keys()`, not iteration
-        return sorted(key for key in keys if isinstance(key, str) and key.startswith("job_"))
+        ids = {key for key in keys if isinstance(key, str) and key.startswith("job_")}
+        return sorted(ids | {state.id for state in self._final_records()})
+
+    def _final_records(self) -> list[JobState]:
+        return [JobState.model_validate_json(data) for data in self.files.read_glob(_final_record("*"))]
+
+    def _watch(self, state: JobState, poll: Poll) -> JobState:
+        """Leave a live job as it is; mark one whose runner has ended, or that a backstop has caught, `failed` at the stage it reached."""
+        age_s = (self.now_ms() - minted_ms(state.id)) / 1000
+        call_id = self.jobs.get(call_key(state.id))
+        if call_id is None:  # the spawn is not recorded, yet or ever
+            dead = age_s > (ORPHAN_S if state.status == "queued" else DEADLINE_S)
+        else:
+            runner = poll(call_id)
+            dead = runner in ENDED or (runner == "unknown" and age_s > DEADLINE_S)
+        if not dead:
+            return state
+        fresh = self.stored(state.id)  # the runner may have written a terminal record meanwhile
+        if fresh.status not in IN_FLIGHT:
+            return fresh
+        stage = fresh.stage or (fresh.stages[-1].stage if fresh.stages else None)
+        failed = fresh.model_copy(update={"status": "failed", "stage": stage})
+        self.jobs[state.id] = failed.model_dump(mode="json")
+        return failed
+
+
+def _final_record(room_id: str) -> str:
+    return f"{ROOMS_DIR}/{DEMO_PARTITION}/{room_id}/{JOB_FILE}"
+
+
+class SpawnedCall(Protocol):
+    """What `Function.spawn` returns, as far as the runner reads it."""
+
+    @property
+    def object_id(self) -> str: ...
+
+
+type Spawn = Callable[[JobId], SpawnedCall]
+"""`run_build.spawn`: takes the job id only and returns at once."""
+
+
+class ModalJobRunner:
+    """`JobRunner` over `run_build.spawn(job_id)` (AD-7): the spawned runner, not this process, runs the stages."""
+
+    def __init__(self, store: DictJobStore, spawn: Spawn) -> None:
+        self.store = store
+        self.spawn = spawn
+
+    def start(self, job_id: JobId) -> None:
+        """Spawn the runner with the job id and store the call id under `call:<job_id>`; the job stays `queued` until the runner's first stage write.
+
+        A spawn that raises marks the job `failed` at stage `ingest` with
+        the error's class name in snake_case (AD-13) and re-raises, so the
+        route can answer with the error envelope.
+        """
+        try:
+            call = self.spawn(job_id)
+        except Exception as exc:
+            code = re.sub(r"(?<!^)(?=[A-Z])", "_", type(exc).__name__).lower()
+            error = ErrorDetail(code=code, message=str(exc), stage="ingest")
+            self.store.put(self.store.stored(job_id).model_copy(update={"status": "failed", "stage": "ingest", "error": error}))
+            raise
+        self.store.jobs[call_key(job_id)] = call.object_id
 
 
 class DictSessionStore:
@@ -289,11 +421,15 @@ class HostedStores:
     cache: VolumeCache
 
 
-def hosted_stores(handles: ModalHandles) -> HostedStores:
-    """Build every hosted adapter over `handles`; nothing here reads or writes a Dict or the Volume."""
+def hosted_stores(handles: ModalHandles, *, poll: Poll | None = None) -> HostedStores:
+    """Build every hosted adapter over `handles`; nothing here reads or writes a Dict or the Volume.
+
+    The web side passes `poll`, so its job reads run the watchdog; the
+    stage runner passes none.
+    """
     files = VolumeFiles(handles.volume, handles.root)
     return HostedStores(
-        jobs=DictJobStore(handles.jobs),
+        jobs=DictJobStore(handles.jobs, files, poll=poll),
         sessions=DictSessionStore(handles.sessions),
         ledger=DictLedgerStore(handles.ledger),
         artifacts=VolumeArtifactStore(files),

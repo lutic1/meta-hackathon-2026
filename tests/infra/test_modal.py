@@ -397,11 +397,12 @@ def test_session_ids_are_listed_and_deleted_one_at_a_time(handles):
 
 
 def test_a_job_reads_back_unchanged_and_the_dict_holds_only_its_in_flight_state(handles):
-    first = DictJobStore(handles.jobs)
+    files = VolumeFiles(handles.volume, handles.root)
+    first = DictJobStore(handles.jobs, files)
     first.put(_job_state(JOB_A))
     first.put(_job_state(JOB_B))
     handles.jobs[f"call:{JOB_A}"] = "fc-1"
-    second = DictJobStore(handles.jobs)
+    second = DictJobStore(handles.jobs, files)
     assert second.read(JOB_A) == _job_state(JOB_A) and second.list_ids() == [JOB_A, JOB_B]
     assert handles.jobs[JOB_A] == _job_state(JOB_A).model_dump(mode="json")
     done = _job_state(JOB_A).model_copy(update={"status": "done", "stage": None})
@@ -409,7 +410,7 @@ def test_a_job_reads_back_unchanged_and_the_dict_holds_only_its_in_flight_state(
     assert first.read(JOB_A) == done
     with pytest.raises(KeyError):
         first.read("job_01CX5ZZKBKACTAV9WEVGEMMVRZ")
-    assert vars(first) == {"jobs": handles.jobs}
+    assert vars(first) == {"jobs": handles.jobs, "files": files, "poll": None, "now_ms": modal_module.wall_ms}
 
 
 # --- No Derived block or profile field anywhere the adapters wrote ----------------------
