@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "types": "uv run --directory .. scripts/schema.py && node scripts/types.mjs"
   },
   "dependencies": {
     "three": "0.186.1"

@@ -36,14 +36,19 @@ def test_package_pins_are_exact_and_node_is_24():
     assert pkg["devDependencies"] == DEV_PINS
     assert pkg["engines"] == {"node": "24.x"}
     assert pkg["private"] is True and pkg["type"] == "module"
-    assert pkg["scripts"] == {"dev": "vite", "build": "tsc && vite build", "preview": "vite preview"}
+    assert pkg["scripts"] == {
+        "dev": "vite",
+        "build": "tsc && vite build",
+        "preview": "vite preview",
+        "types": "uv run --directory .. scripts/schema.py && node scripts/types.mjs",  # Story 1.15
+    }
 
 
-def test_exactly_one_type_generator_is_pinned_and_no_types_are_generated_yet():
+def test_exactly_one_type_generator_is_pinned():
     pkg = _package()
     assert [name for name in pkg["devDependencies"] if name in GENERATORS] == ["json-schema-to-typescript"]
     assert not any(p.startswith("node_modules/quicktype") for p in _lock()["packages"])
-    assert not (WEB / "src/types").exists() and not (WEB / "types").exists()
+    assert not (WEB / "src/types").exists()  # generated types live in web/types (Story 1.15, tests/web/test_types.py)
 
 
 def test_npmrc_saves_exact_and_is_engine_strict():
@@ -61,7 +66,7 @@ def test_tsconfig_is_strict():
     text = re.sub(r"/\*.*?\*/", "", (WEB / "tsconfig.json").read_text(), flags=re.S)
     config = json.loads(text)
     assert config["compilerOptions"]["strict"] is True
-    assert config["include"] == ["src", "vite.config.ts"]
+    assert config["include"] == ["src", "types", "vite.config.ts"]
 
 
 def test_lock_is_v3_matches_package_json_and_keeps_the_mac_bindings():

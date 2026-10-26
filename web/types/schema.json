@@ -1,0 +1,3634 @@
+{
+  "title": "Keyframe Schema v1",
+  "$defs": {
+    "AccessCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "builds_left": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Builds Left"
+        }
+      },
+      "required": [
+        "ok",
+        "builds_left"
+      ],
+      "title": "AccessCheck",
+      "type": "object"
+    },
+    "AccessCheckRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "AccessCheckRequest",
+      "type": "object"
+    },
+    "ArchitectCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "plural": {
+          "title": "Plural",
+          "type": "boolean"
+        },
+        "photo": {
+          "minimum": 0,
+          "title": "Photo",
+          "type": "integer"
+        },
+        "box": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "title": "Box",
+          "type": "array"
+        },
+        "attributes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Attributes",
+          "type": "array"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "plural",
+        "photo",
+        "box",
+        "attributes",
+        "confidence"
+      ],
+      "title": "ArchitectCandidate",
+      "type": "object"
+    },
+    "ArchitectResponse": {
+      "additionalProperties": false,
+      "description": "Correlated by list position; `ix_` ids are minted later by the segment stage (AD-18).",
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/ArchitectCandidate"
+          },
+          "title": "Candidates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidates"
+      ],
+      "title": "ArchitectResponse",
+      "type": "object"
+    },
+    "BuildView": {
+      "additionalProperties": false,
+      "description": "`to_build_view(room, job)`: never a solution, a dry-run answer or a clue-to-answer pairing.",
+      "properties": {
+        "room_id": {
+          "pattern": "^room_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Room Id",
+          "type": "string"
+        },
+        "job_id": {
+          "pattern": "^job_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "built_at": {
+          "format": "date-time",
+          "title": "Built At",
+          "type": "string"
+        },
+        "build_time_ms": {
+          "minimum": 0,
+          "title": "Build Time Ms",
+          "type": "integer"
+        },
+        "photos": {
+          "items": {
+            "$ref": "#/$defs/PhotoMasks"
+          },
+          "title": "Photos",
+          "type": "array"
+        },
+        "puzzles": {
+          "items": {
+            "$ref": "#/$defs/PuzzleNode"
+          },
+          "title": "Puzzles",
+          "type": "array"
+        },
+        "validator": {
+          "items": {
+            "$ref": "#/$defs/RuleVerdict"
+          },
+          "title": "Validator",
+          "type": "array"
+        },
+        "dry_run": {
+          "items": {
+            "$ref": "#/$defs/DryRunVerdict"
+          },
+          "title": "Dry Run",
+          "type": "array"
+        },
+        "regeneration_count": {
+          "minimum": 0,
+          "title": "Regeneration Count",
+          "type": "integer"
+        },
+        "regen_max": {
+          "minimum": 0,
+          "title": "Regen Max",
+          "type": "integer"
+        },
+        "sent_back": {
+          "items": {
+            "$ref": "#/$defs/SentBack"
+          },
+          "title": "Sent Back",
+          "type": "array"
+        },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelRow"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "calls": {
+          "items": {
+            "$ref": "#/$defs/CallRow"
+          },
+          "title": "Calls",
+          "type": "array"
+        },
+        "disclosure": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Disclosure",
+          "type": "array"
+        }
+      },
+      "required": [
+        "room_id",
+        "job_id",
+        "built_at",
+        "build_time_ms",
+        "photos",
+        "puzzles",
+        "validator",
+        "dry_run",
+        "regeneration_count",
+        "regen_max",
+        "sent_back",
+        "models",
+        "calls",
+        "disclosure"
+      ],
+      "title": "BuildView",
+      "type": "object"
+    },
+    "CallRow": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^call_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "architect",
+            "riddler",
+            "dryrun",
+            "trickster",
+            "image"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "host": {
+          "title": "Host",
+          "type": "string"
+        },
+        "cached": {
+          "title": "Cached",
+          "type": "boolean"
+        },
+        "spend_usd": {
+          "minimum": 0,
+          "title": "Spend Usd",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "model",
+        "host",
+        "cached",
+        "spend_usd"
+      ],
+      "title": "CallRow",
+      "type": "object"
+    },
+    "ClickBody": {
+      "additionalProperties": false,
+      "description": "Client-posted; `t_ms` is stamped by the API at append.",
+      "properties": {
+        "type": {
+          "const": "click",
+          "title": "Type",
+          "type": "string"
+        },
+        "interactable_id": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Interactable Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "interactable_id"
+      ],
+      "title": "ClickBody",
+      "type": "object"
+    },
+    "ClickEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "click",
+          "title": "Type",
+          "type": "string"
+        },
+        "interactable_id": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Interactable Id",
+          "type": "string"
+        },
+        "t_ms": {
+          "minimum": 0,
+          "title": "T Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "interactable_id",
+        "t_ms"
+      ],
+      "title": "ClickEvent",
+      "type": "object"
+    },
+    "CodeInput": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "code",
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle_id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle Id",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "puzzle_id",
+        "code"
+      ],
+      "title": "CodeInput",
+      "type": "object"
+    },
+    "CodeSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "lock_type": {
+          "const": "code",
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lock_type",
+        "code"
+      ],
+      "title": "CodeSolution",
+      "type": "object"
+    },
+    "Decoy": {
+      "additionalProperties": false,
+      "description": "An accepted `decoy` edit folded into a session's effective Room (option A, Oct 22).",
+      "properties": {
+        "id": {
+          "pattern": "^te_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "puzzle": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle",
+          "type": "string"
+        },
+        "interactable": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Interactable",
+          "type": "string"
+        },
+        "visible_attribute": {
+          "title": "Visible Attribute",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "puzzle",
+        "interactable",
+        "visible_attribute"
+      ],
+      "title": "Decoy",
+      "type": "object"
+    },
+    "DecoyPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "decoy",
+          "title": "Type",
+          "type": "string"
+        },
+        "interactable": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Interactable",
+          "type": "string"
+        },
+        "visible_attribute": {
+          "title": "Visible Attribute",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "interactable",
+        "visible_attribute"
+      ],
+      "title": "DecoyPayload",
+      "type": "object"
+    },
+    "Derived": {
+      "additionalProperties": false,
+      "properties": {
+        "sessions": {
+          "minimum": 0,
+          "title": "Sessions",
+          "type": "integer"
+        },
+        "persistence": {
+          "maximum": 1,
+          "minimum": -1,
+          "title": "Persistence",
+          "type": "number"
+        },
+        "time_to_first_hint_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Time To First Hint S"
+        },
+        "mean_rung_per_lock_type": {
+          "additionalProperties": {
+            "maximum": 3,
+            "minimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "code",
+              "order",
+              "use_on",
+              "find"
+            ]
+          },
+          "title": "Mean Rung Per Lock Type",
+          "type": "object"
+        }
+      },
+      "required": [
+        "sessions",
+        "persistence",
+        "time_to_first_hint_s",
+        "mean_rung_per_lock_type"
+      ],
+      "title": "Derived",
+      "type": "object"
+    },
+    "DryRunAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "puzzle_id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle Id",
+          "type": "string"
+        },
+        "answer": {
+          "discriminator": {
+            "mapping": {
+              "code": "#/$defs/CodeSolution",
+              "find": "#/$defs/FindSolution",
+              "order": "#/$defs/OrderSolution",
+              "use_on": "#/$defs/UseOnSolution"
+            },
+            "propertyName": "lock_type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CodeSolution"
+            },
+            {
+              "$ref": "#/$defs/OrderSolution"
+            },
+            {
+              "$ref": "#/$defs/UseOnSolution"
+            },
+            {
+              "$ref": "#/$defs/FindSolution"
+            }
+          ],
+          "title": "Answer"
+        }
+      },
+      "required": [
+        "puzzle_id",
+        "answer"
+      ],
+      "title": "DryRunAnswer",
+      "type": "object"
+    },
+    "DryRunAnswers": {
+      "additionalProperties": false,
+      "description": "A list, never a map keyed by puzzle id (AD-12).",
+      "properties": {
+        "answers": {
+          "items": {
+            "$ref": "#/$defs/DryRunAnswer"
+          },
+          "title": "Answers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "answers"
+      ],
+      "title": "DryRunAnswers",
+      "type": "object"
+    },
+    "DryRunVerdict": {
+      "additionalProperties": false,
+      "properties": {
+        "puzzle_id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle Id",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "pass",
+            "fail",
+            "skipped"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "puzzle_id",
+        "verdict"
+      ],
+      "title": "DryRunVerdict",
+      "type": "object"
+    },
+    "ErrorDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "enum": [
+                "ingest",
+                "architect",
+                "segment",
+                "author",
+                "validate",
+                "dryrun",
+                "scene"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Stage"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "stage"
+      ],
+      "title": "ErrorDetail",
+      "type": "object"
+    },
+    "ErrorEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ErrorDetail"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "queued",
+                "running",
+                "done",
+                "failed",
+                "needs_more_photos",
+                "needs_recapture"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "title": "ErrorEnvelope",
+      "type": "object"
+    },
+    "Event": {
+      "title": "Event",
+      "discriminator": {
+        "mapping": {
+          "click": "#/$defs/ClickEvent",
+          "hint_request": "#/$defs/HintRequestEvent",
+          "idle_tick": "#/$defs/IdleTickEvent",
+          "lock_input": "#/$defs/LockInputEvent",
+          "opening_line": "#/$defs/OpeningLineEvent",
+          "rung_change": "#/$defs/RungChangeEvent",
+          "trickster_card": "#/$defs/TricksterCardEvent"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ClickEvent"
+        },
+        {
+          "$ref": "#/$defs/LockInputEvent"
+        },
+        {
+          "$ref": "#/$defs/HintRequestEvent"
+        },
+        {
+          "$ref": "#/$defs/IdleTickEvent"
+        },
+        {
+          "$ref": "#/$defs/OpeningLineEvent"
+        },
+        {
+          "$ref": "#/$defs/TricksterCardEvent"
+        },
+        {
+          "$ref": "#/$defs/RungChangeEvent"
+        }
+      ]
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "interactable": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Interactable",
+          "type": "string"
+        },
+        "visible_attribute": {
+          "title": "Visible Attribute",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interactable",
+        "visible_attribute"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "FindSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "lock_type": {
+          "const": "find",
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "target": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lock_type",
+        "target"
+      ],
+      "title": "FindSolution",
+      "type": "object"
+    },
+    "GuideModel": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "host": {
+          "title": "Host",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "host"
+      ],
+      "title": "GuideModel",
+      "type": "object"
+    },
+    "HintRequestBody": {
+      "additionalProperties": false,
+      "description": "`puzzle_id` is always omitted by the client and resolved to the Active puzzle.",
+      "properties": {
+        "type": {
+          "const": "hint_request",
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle_id": {
+          "anyOf": [
+            {
+              "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Puzzle Id"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HintRequestBody",
+      "type": "object"
+    },
+    "HintRequestEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "hint_request",
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle_id": {
+          "anyOf": [
+            {
+              "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Puzzle Id"
+        },
+        "t_ms": {
+          "minimum": 0,
+          "title": "T Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "t_ms"
+      ],
+      "title": "HintRequestEvent",
+      "type": "object"
+    },
+    "IdleTickEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "idle_tick",
+          "title": "Type",
+          "type": "string"
+        },
+        "t_ms": {
+          "minimum": 0,
+          "title": "T Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "t_ms"
+      ],
+      "title": "IdleTickEvent",
+      "type": "object"
+    },
+    "Interactable": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "photo": {
+          "minimum": 0,
+          "title": "Photo",
+          "type": "integer"
+        },
+        "box": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Box",
+          "type": "array"
+        },
+        "polygons": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Polygons"
+        },
+        "instances": {
+          "minimum": 1,
+          "title": "Instances",
+          "type": "integer"
+        },
+        "attributes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Attributes",
+          "type": "array"
+        },
+        "tier2": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Tier2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "photo",
+        "box",
+        "polygons",
+        "instances",
+        "attributes"
+      ],
+      "title": "Interactable",
+      "type": "object"
+    },
+    "InteractableView": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "attributes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Attributes",
+          "type": "array"
+        },
+        "instances": {
+          "minimum": 1,
+          "title": "Instances",
+          "type": "integer"
+        },
+        "photo": {
+          "minimum": 0,
+          "title": "Photo",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "attributes",
+        "instances",
+        "photo"
+      ],
+      "title": "InteractableView",
+      "type": "object"
+    },
+    "JobState": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^job_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "failed",
+            "needs_more_photos",
+            "needs_recapture"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "enum": [
+                "ingest",
+                "architect",
+                "segment",
+                "author",
+                "validate",
+                "dryrun",
+                "scene"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stage"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "pattern": "^room_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/$defs/StageRecord"
+          },
+          "title": "Stages",
+          "type": "array"
+        },
+        "regeneration_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Regeneration Count",
+          "type": "integer"
+        },
+        "regen_max": {
+          "minimum": 0,
+          "title": "Regen Max",
+          "type": "integer"
+        },
+        "validator": {
+          "items": {
+            "$ref": "#/$defs/RuleVerdict"
+          },
+          "title": "Validator",
+          "type": "array"
+        },
+        "dry_run": {
+          "items": {
+            "$ref": "#/$defs/DryRunVerdict"
+          },
+          "title": "Dry Run",
+          "type": "array"
+        },
+        "sent_back": {
+          "items": {
+            "$ref": "#/$defs/SentBack"
+          },
+          "title": "Sent Back",
+          "type": "array"
+        },
+        "calls": {
+          "items": {
+            "$ref": "#/$defs/CallRow"
+          },
+          "title": "Calls",
+          "type": "array"
+        },
+        "build_time_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Build Time Ms"
+        },
+        "mask_preview": {
+          "items": {
+            "$ref": "#/$defs/MaskPreview"
+          },
+          "title": "Mask Preview",
+          "type": "array"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorDetail"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "regen_max"
+      ],
+      "title": "JobState",
+      "type": "object"
+    },
+    "LockInput": {
+      "title": "LockInput",
+      "discriminator": {
+        "mapping": {
+          "code": "#/$defs/CodeInput",
+          "order_start": "#/$defs/OrderStartInput",
+          "order_stop": "#/$defs/OrderStopInput",
+          "use_on": "#/$defs/UseOnInput"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CodeInput"
+        },
+        {
+          "$ref": "#/$defs/UseOnInput"
+        },
+        {
+          "$ref": "#/$defs/OrderStartInput"
+        },
+        {
+          "$ref": "#/$defs/OrderStopInput"
+        }
+      ]
+    },
+    "LockInputBody": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "lock_input",
+          "title": "Type",
+          "type": "string"
+        },
+        "input": {
+          "discriminator": {
+            "mapping": {
+              "code": "#/$defs/CodeInput",
+              "order_start": "#/$defs/OrderStartInput",
+              "order_stop": "#/$defs/OrderStopInput",
+              "use_on": "#/$defs/UseOnInput"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CodeInput"
+            },
+            {
+              "$ref": "#/$defs/UseOnInput"
+            },
+            {
+              "$ref": "#/$defs/OrderStartInput"
+            },
+            {
+              "$ref": "#/$defs/OrderStopInput"
+            }
+          ],
+          "title": "Input"
+        }
+      },
+      "required": [
+        "type",
+        "input"
+      ],
+      "title": "LockInputBody",
+      "type": "object"
+    },
+    "LockInputEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "lock_input",
+          "title": "Type",
+          "type": "string"
+        },
+        "input": {
+          "discriminator": {
+            "mapping": {
+              "code": "#/$defs/CodeInput",
+              "order_start": "#/$defs/OrderStartInput",
+              "order_stop": "#/$defs/OrderStopInput",
+              "use_on": "#/$defs/UseOnInput"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CodeInput"
+            },
+            {
+              "$ref": "#/$defs/UseOnInput"
+            },
+            {
+              "$ref": "#/$defs/OrderStartInput"
+            },
+            {
+              "$ref": "#/$defs/OrderStopInput"
+            }
+          ],
+          "title": "Input"
+        },
+        "t_ms": {
+          "minimum": 0,
+          "title": "T Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "input",
+        "t_ms"
+      ],
+      "title": "LockInputEvent",
+      "type": "object"
+    },
+    "LoosenPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "loosen",
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle",
+          "type": "string"
+        },
+        "rung": {
+          "enum": [
+            "nudge",
+            "direction",
+            "near_answer"
+          ],
+          "title": "Rung",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "puzzle",
+        "rung"
+      ],
+      "title": "LoosenPayload",
+      "type": "object"
+    },
+    "MaskOverlay": {
+      "additionalProperties": false,
+      "properties": {
+        "interactable_id": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Interactable Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "polygons": {
+          "items": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Polygons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "interactable_id",
+        "label",
+        "polygons"
+      ],
+      "title": "MaskOverlay",
+      "type": "object"
+    },
+    "MaskPreview": {
+      "additionalProperties": false,
+      "description": "Solution-free, served once the segment stage completes.",
+      "properties": {
+        "id": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "photo": {
+          "minimum": 0,
+          "title": "Photo",
+          "type": "integer"
+        },
+        "polygons": {
+          "items": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Polygons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "photo",
+        "polygons"
+      ],
+      "title": "MaskPreview",
+      "type": "object"
+    },
+    "MergePayload": {
+      "additionalProperties": false,
+      "description": "Makes `puzzle_b` require `puzzle_a`.",
+      "properties": {
+        "type": {
+          "const": "merge",
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle_a": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle A",
+          "type": "string"
+        },
+        "puzzle_b": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle B",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "puzzle_a",
+        "puzzle_b"
+      ],
+      "title": "MergePayload",
+      "type": "object"
+    },
+    "Meta": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "local",
+            "hosted"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "guide": {
+          "enum": [
+            "ollama",
+            "verbatim"
+          ],
+          "title": "Guide",
+          "type": "string"
+        },
+        "guide_model": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GuideModel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trickster": {
+          "enum": [
+            "live",
+            "scripted",
+            "cut1"
+          ],
+          "title": "Trickster",
+          "type": "string"
+        },
+        "demo_timescale": {
+          "minimum": 1,
+          "title": "Demo Timescale",
+          "type": "integer"
+        },
+        "cache": {
+          "enum": [
+            "on",
+            "off"
+          ],
+          "title": "Cache",
+          "type": "string"
+        },
+        "profile": {
+          "title": "Profile",
+          "type": "string"
+        },
+        "disclosure": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Disclosure",
+          "type": "array"
+        },
+        "retention": {
+          "title": "Retention",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "guide",
+        "guide_model",
+        "trickster",
+        "demo_timescale",
+        "cache",
+        "profile",
+        "disclosure",
+        "retention"
+      ],
+      "title": "Meta",
+      "type": "object"
+    },
+    "ModelRow": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "enum": [
+            "architect",
+            "riddler",
+            "dryrun",
+            "trickster",
+            "image"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "host": {
+          "title": "Host",
+          "type": "string"
+        },
+        "cached": {
+          "minimum": 0,
+          "title": "Cached",
+          "type": "integer"
+        },
+        "billed": {
+          "minimum": 0,
+          "title": "Billed",
+          "type": "integer"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "model",
+        "host",
+        "cached",
+        "billed",
+        "summary"
+      ],
+      "title": "ModelRow",
+      "type": "object"
+    },
+    "OpeningLine": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "greeting",
+            "welcome"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Text"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "OpeningLine",
+      "type": "object"
+    },
+    "OpeningLineEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "opening_line",
+          "title": "Type",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "greeting",
+            "welcome"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "t_ms": {
+          "minimum": 0,
+          "title": "T Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "kind",
+        "text",
+        "t_ms"
+      ],
+      "title": "OpeningLineEvent",
+      "type": "object"
+    },
+    "OrderBuffer": {
+      "additionalProperties": false,
+      "description": "Armed only while `puzzle_id` is the Active puzzle; clicks are the buffer.",
+      "properties": {
+        "puzzle_id": {
+          "anyOf": [
+            {
+              "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Puzzle Id"
+        },
+        "clicks": {
+          "items": {
+            "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "title": "Clicks",
+          "type": "array"
+        }
+      },
+      "title": "OrderBuffer",
+      "type": "object"
+    },
+    "OrderSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "lock_type": {
+          "const": "order",
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "interactables": {
+          "items": {
+            "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "title": "Interactables",
+          "type": "array"
+        }
+      },
+      "required": [
+        "lock_type",
+        "interactables"
+      ],
+      "title": "OrderSolution",
+      "type": "object"
+    },
+    "OrderStartInput": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "order_start",
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle_id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "puzzle_id"
+      ],
+      "title": "OrderStartInput",
+      "type": "object"
+    },
+    "OrderStopInput": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "order_stop",
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle_id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "puzzle_id"
+      ],
+      "title": "OrderStopInput",
+      "type": "object"
+    },
+    "Photo": {
+      "additionalProperties": false,
+      "properties": {
+        "hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Hash",
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "title": "Size",
+          "type": "integer"
+        },
+        "downscaled_path": {
+          "title": "Downscaled Path",
+          "type": "string"
+        },
+        "original_path": {
+          "title": "Original Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hash",
+        "size",
+        "downscaled_path",
+        "original_path"
+      ],
+      "title": "Photo",
+      "type": "object"
+    },
+    "PhotoMasks": {
+      "additionalProperties": false,
+      "properties": {
+        "photo": {
+          "minimum": 0,
+          "title": "Photo",
+          "type": "integer"
+        },
+        "masks": {
+          "items": {
+            "$ref": "#/$defs/MaskOverlay"
+          },
+          "title": "Masks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "photo",
+        "masks"
+      ],
+      "title": "PhotoMasks",
+      "type": "object"
+    },
+    "PhotoView": {
+      "additionalProperties": false,
+      "properties": {
+        "hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Hash",
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hash",
+        "size"
+      ],
+      "title": "PhotoView",
+      "type": "object"
+    },
+    "Placement": {
+      "additionalProperties": false,
+      "description": "Tier 2 object pose in original-photo pixels (fal metadata, else hand-placed).",
+      "properties": {
+        "translation": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Translation",
+          "type": "array"
+        },
+        "rotation": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Rotation",
+          "type": "array"
+        },
+        "scale": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Scale",
+          "type": "array"
+        }
+      },
+      "required": [
+        "translation",
+        "rotation",
+        "scale"
+      ],
+      "title": "Placement",
+      "type": "object"
+    },
+    "PlayInteractable": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "photo": {
+          "minimum": 0,
+          "title": "Photo",
+          "type": "integer"
+        },
+        "polygons": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Polygons"
+        },
+        "instances": {
+          "minimum": 1,
+          "title": "Instances",
+          "type": "integer"
+        },
+        "attributes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Attributes",
+          "type": "array"
+        },
+        "tier2": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Tier2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "photo",
+        "polygons",
+        "instances",
+        "attributes"
+      ],
+      "title": "PlayInteractable",
+      "type": "object"
+    },
+    "PlayPuzzle": {
+      "additionalProperties": false,
+      "description": "No solution and no Rung text; Rung text reaches the client only in hint replies and `rung_changes[]`.",
+      "properties": {
+        "id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "lock_type": {
+          "enum": [
+            "code",
+            "order",
+            "use_on",
+            "find"
+          ],
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "requires": {
+          "items": {
+            "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "is_exit": {
+          "title": "Is Exit",
+          "type": "boolean"
+        },
+        "clue": {
+          "title": "Clue",
+          "type": "string"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "evidence_cards": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence Cards",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "lock_type",
+        "requires",
+        "is_exit",
+        "clue",
+        "lore",
+        "evidence_cards"
+      ],
+      "title": "PlayPuzzle",
+      "type": "object"
+    },
+    "PlayView": {
+      "additionalProperties": false,
+      "description": "The client shape.",
+      "properties": {
+        "id": {
+          "pattern": "^room_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "created": {
+          "format": "date-time",
+          "title": "Created",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "photos": {
+          "items": {
+            "$ref": "#/$defs/PhotoView"
+          },
+          "title": "Photos",
+          "type": "array"
+        },
+        "interactables": {
+          "items": {
+            "$ref": "#/$defs/PlayInteractable"
+          },
+          "title": "Interactables",
+          "type": "array"
+        },
+        "puzzles": {
+          "items": {
+            "$ref": "#/$defs/PlayPuzzle"
+          },
+          "title": "Puzzles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "created",
+        "photos",
+        "interactables",
+        "puzzles"
+      ],
+      "title": "PlayView",
+      "type": "object"
+    },
+    "PostedEvent": {
+      "title": "PostedEvent",
+      "discriminator": {
+        "mapping": {
+          "click": "#/$defs/ClickBody",
+          "hint_request": "#/$defs/HintRequestBody",
+          "lock_input": "#/$defs/LockInputBody"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ClickBody"
+        },
+        {
+          "$ref": "#/$defs/LockInputBody"
+        },
+        {
+          "$ref": "#/$defs/HintRequestBody"
+        }
+      ]
+    },
+    "Profile": {
+      "additionalProperties": false,
+      "description": "The player profile as a whole: every `RoomResult` keyed by its `room_id`, plus the `Derived` block.\n\nThe browser owns it (AD-8); under cut 2 only, `GET|PUT /profile/<name>`\nreads and writes it as `rooms/profiles/<name>.json` in Local mode.",
+      "properties": {
+        "results": {
+          "patternProperties": {
+            "^room_[0-9A-HJKMNP-TV-Z]{26}$": {
+              "$ref": "#/$defs/RoomResult"
+            }
+          },
+          "title": "Results",
+          "type": "object"
+        },
+        "derived": {
+          "$ref": "#/$defs/Derived"
+        }
+      },
+      "required": [
+        "results",
+        "derived"
+      ],
+      "title": "Profile",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "model_ids": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "enum": [
+              "architect",
+              "riddler",
+              "dryrun",
+              "trickster",
+              "image"
+            ]
+          },
+          "title": "Model Ids",
+          "type": "object"
+        },
+        "prompt_hashes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "enum": [
+              "architect",
+              "riddler",
+              "dryrun",
+              "trickster",
+              "image"
+            ]
+          },
+          "title": "Prompt Hashes",
+          "type": "object"
+        },
+        "stage_timings_ms": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "propertyNames": {
+            "enum": [
+              "ingest",
+              "architect",
+              "segment",
+              "author",
+              "validate",
+              "dryrun",
+              "scene"
+            ]
+          },
+          "title": "Stage Timings Ms",
+          "type": "object"
+        },
+        "regeneration_count": {
+          "minimum": 0,
+          "title": "Regeneration Count",
+          "type": "integer"
+        },
+        "spend_per_stage_usd": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "ingest",
+              "architect",
+              "segment",
+              "author",
+              "validate",
+              "dryrun",
+              "scene"
+            ]
+          },
+          "title": "Spend Per Stage Usd",
+          "type": "object"
+        },
+        "applied_edits": {
+          "items": {
+            "pattern": "^te_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "title": "Applied Edits",
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_ids",
+        "prompt_hashes",
+        "stage_timings_ms",
+        "regeneration_count",
+        "spend_per_stage_usd"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Puzzle": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "lock_type": {
+          "enum": [
+            "code",
+            "order",
+            "use_on",
+            "find"
+          ],
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "requires": {
+          "items": {
+            "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "solution": {
+          "discriminator": {
+            "mapping": {
+              "code": "#/$defs/CodeSolution",
+              "find": "#/$defs/FindSolution",
+              "order": "#/$defs/OrderSolution",
+              "use_on": "#/$defs/UseOnSolution"
+            },
+            "propertyName": "lock_type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CodeSolution"
+            },
+            {
+              "$ref": "#/$defs/OrderSolution"
+            },
+            {
+              "$ref": "#/$defs/UseOnSolution"
+            },
+            {
+              "$ref": "#/$defs/FindSolution"
+            }
+          ],
+          "title": "Solution"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "clue": {
+          "title": "Clue",
+          "type": "string"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "rungs": {
+          "$ref": "#/$defs/Rungs"
+        },
+        "is_exit": {
+          "title": "Is Exit",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "lock_type",
+        "requires",
+        "solution",
+        "evidence",
+        "clue",
+        "lore",
+        "rungs",
+        "is_exit"
+      ],
+      "title": "Puzzle",
+      "type": "object"
+    },
+    "PuzzleDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "enum": [
+            "p1",
+            "p2",
+            "p3",
+            "p4",
+            "p5",
+            "p6"
+          ],
+          "title": "Key",
+          "type": "string"
+        },
+        "lock_type": {
+          "enum": [
+            "code",
+            "order",
+            "use_on",
+            "find"
+          ],
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "requires": {
+          "items": {
+            "enum": [
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "p6"
+            ],
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "solution": {
+          "discriminator": {
+            "mapping": {
+              "code": "#/$defs/CodeSolution",
+              "find": "#/$defs/FindSolution",
+              "order": "#/$defs/OrderSolution",
+              "use_on": "#/$defs/UseOnSolution"
+            },
+            "propertyName": "lock_type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CodeSolution"
+            },
+            {
+              "$ref": "#/$defs/OrderSolution"
+            },
+            {
+              "$ref": "#/$defs/UseOnSolution"
+            },
+            {
+              "$ref": "#/$defs/FindSolution"
+            }
+          ],
+          "title": "Solution"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "clue": {
+          "title": "Clue",
+          "type": "string"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "rungs": {
+          "$ref": "#/$defs/Rungs"
+        },
+        "is_exit": {
+          "title": "Is Exit",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "lock_type",
+        "requires",
+        "solution",
+        "evidence",
+        "clue",
+        "lore",
+        "rungs",
+        "is_exit"
+      ],
+      "title": "PuzzleDraft",
+      "type": "object"
+    },
+    "PuzzleNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "lock_type": {
+          "enum": [
+            "code",
+            "order",
+            "use_on",
+            "find"
+          ],
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "requires": {
+          "items": {
+            "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "is_exit": {
+          "title": "Is Exit",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "lock_type",
+        "requires",
+        "is_exit"
+      ],
+      "title": "PuzzleNode",
+      "type": "object"
+    },
+    "PuzzleResult": {
+      "additionalProperties": false,
+      "properties": {
+        "puzzle_id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle Id",
+          "type": "string"
+        },
+        "lock_type": {
+          "enum": [
+            "code",
+            "order",
+            "use_on",
+            "find"
+          ],
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "attempts": {
+          "minimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "wrong_attempts": {
+          "minimum": 0,
+          "title": "Wrong Attempts",
+          "type": "integer"
+        },
+        "rungs_used": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Rungs Used",
+          "type": "integer"
+        },
+        "time_to_first_hint": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Time To First Hint"
+        },
+        "solved": {
+          "title": "Solved",
+          "type": "boolean"
+        },
+        "time_spent_ms": {
+          "minimum": 0,
+          "title": "Time Spent Ms",
+          "type": "integer"
+        },
+        "nudge_fired": {
+          "title": "Nudge Fired",
+          "type": "boolean"
+        },
+        "hint_requested": {
+          "title": "Hint Requested",
+          "type": "boolean"
+        },
+        "early_ask": {
+          "title": "Early Ask",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "puzzle_id",
+        "lock_type",
+        "attempts",
+        "wrong_attempts",
+        "rungs_used",
+        "time_to_first_hint",
+        "solved",
+        "time_spent_ms",
+        "nudge_fired",
+        "hint_requested",
+        "early_ask"
+      ],
+      "title": "PuzzleResult",
+      "type": "object"
+    },
+    "PuzzleView": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "lock_type": {
+          "enum": [
+            "code",
+            "order",
+            "use_on",
+            "find"
+          ],
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "requires": {
+          "items": {
+            "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "is_exit": {
+          "title": "Is Exit",
+          "type": "boolean"
+        },
+        "clue": {
+          "title": "Clue",
+          "type": "string"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "rungs": {
+          "$ref": "#/$defs/Rungs"
+        }
+      },
+      "required": [
+        "id",
+        "lock_type",
+        "requires",
+        "is_exit",
+        "clue",
+        "lore",
+        "rungs"
+      ],
+      "title": "PuzzleView",
+      "type": "object"
+    },
+    "Room": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^room_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "created": {
+          "format": "date-time",
+          "title": "Created",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "photos": {
+          "items": {
+            "$ref": "#/$defs/Photo"
+          },
+          "title": "Photos",
+          "type": "array"
+        },
+        "interactables": {
+          "items": {
+            "$ref": "#/$defs/Interactable"
+          },
+          "title": "Interactables",
+          "type": "array"
+        },
+        "puzzles": {
+          "items": {
+            "$ref": "#/$defs/Puzzle"
+          },
+          "title": "Puzzles",
+          "type": "array"
+        },
+        "decoys": {
+          "items": {
+            "$ref": "#/$defs/Decoy"
+          },
+          "title": "Decoys",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "id",
+        "created",
+        "photos",
+        "interactables",
+        "puzzles",
+        "provenance"
+      ],
+      "title": "Room",
+      "type": "object"
+    },
+    "RoomDraft": {
+      "additionalProperties": false,
+      "description": "The Riddler's raw output, kept for provenance (AD-7).",
+      "properties": {
+        "puzzles": {
+          "items": {
+            "$ref": "#/$defs/PuzzleDraft"
+          },
+          "title": "Puzzles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "puzzles"
+      ],
+      "title": "RoomDraft",
+      "type": "object"
+    },
+    "RoomResult": {
+      "additionalProperties": false,
+      "properties": {
+        "room_id": {
+          "pattern": "^room_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Room Id",
+          "type": "string"
+        },
+        "demo": {
+          "title": "Demo",
+          "type": "boolean"
+        },
+        "elapsed_ms": {
+          "minimum": 0,
+          "title": "Elapsed Ms",
+          "type": "integer"
+        },
+        "rungs_used": {
+          "minimum": 0,
+          "title": "Rungs Used",
+          "type": "integer"
+        },
+        "wrong_attempts": {
+          "minimum": 0,
+          "title": "Wrong Attempts",
+          "type": "integer"
+        },
+        "puzzles": {
+          "items": {
+            "$ref": "#/$defs/PuzzleResult"
+          },
+          "title": "Puzzles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "room_id",
+        "demo",
+        "elapsed_ms",
+        "rungs_used",
+        "wrong_attempts",
+        "puzzles"
+      ],
+      "title": "RoomResult",
+      "type": "object"
+    },
+    "RoomSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "room_id": {
+          "pattern": "^room_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Room Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "cover_photo": {
+          "minimum": 0,
+          "title": "Cover Photo",
+          "type": "integer"
+        },
+        "puzzle_count": {
+          "minimum": 0,
+          "title": "Puzzle Count",
+          "type": "integer"
+        },
+        "job_id": {
+          "pattern": "^job_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "built_at": {
+          "format": "date-time",
+          "title": "Built At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "room_id",
+        "cover_photo",
+        "puzzle_count",
+        "job_id",
+        "built_at"
+      ],
+      "title": "RoomSummary",
+      "type": "object"
+    },
+    "RoomView": {
+      "additionalProperties": false,
+      "description": "The only type a prompt builder accepts.",
+      "properties": {
+        "id": {
+          "pattern": "^room_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "interactables": {
+          "items": {
+            "$ref": "#/$defs/InteractableView"
+          },
+          "title": "Interactables",
+          "type": "array"
+        },
+        "puzzles": {
+          "items": {
+            "$ref": "#/$defs/PuzzleView"
+          },
+          "title": "Puzzles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "interactables",
+        "puzzles"
+      ],
+      "title": "RoomView",
+      "type": "object"
+    },
+    "RuleVerdict": {
+      "additionalProperties": false,
+      "properties": {
+        "rule": {
+          "minimum": 1,
+          "title": "Rule",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rule",
+        "name",
+        "passed"
+      ],
+      "title": "RuleVerdict",
+      "type": "object"
+    },
+    "RungChangeEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "rung_change",
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle_id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle Id",
+          "type": "string"
+        },
+        "rung": {
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Rung",
+          "type": "integer"
+        },
+        "triggered_by": {
+          "items": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": "Triggered By",
+          "type": "array"
+        },
+        "phrased": {
+          "title": "Phrased",
+          "type": "boolean"
+        },
+        "phrasing_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Phrasing Ms"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "t_ms": {
+          "minimum": 0,
+          "title": "T Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "puzzle_id",
+        "rung",
+        "triggered_by",
+        "phrased",
+        "phrasing_ms",
+        "text",
+        "t_ms"
+      ],
+      "title": "RungChangeEvent",
+      "type": "object"
+    },
+    "Rungs": {
+      "additionalProperties": false,
+      "properties": {
+        "nudge": {
+          "title": "Nudge",
+          "type": "string"
+        },
+        "direction": {
+          "title": "Direction",
+          "type": "string"
+        },
+        "near_answer": {
+          "title": "Near Answer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nudge",
+        "direction",
+        "near_answer"
+      ],
+      "title": "Rungs",
+      "type": "object"
+    },
+    "SentBack": {
+      "additionalProperties": false,
+      "description": "The fixed messages that sent back one failed attempt.",
+      "properties": {
+        "attempt": {
+          "minimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "stage": {
+          "enum": [
+            "validate",
+            "dryrun"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "messages": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Messages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "attempt",
+        "stage",
+        "messages"
+      ],
+      "title": "SentBack",
+      "type": "object"
+    },
+    "SessionStart": {
+      "additionalProperties": false,
+      "description": "`POST /sessions`; hosted clients always send `Derived.fresh()`.",
+      "properties": {
+        "room_id": {
+          "pattern": "^room_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Room Id",
+          "type": "string"
+        },
+        "derived": {
+          "$ref": "#/$defs/Derived"
+        }
+      },
+      "required": [
+        "room_id"
+      ],
+      "title": "SessionStart",
+      "type": "object"
+    },
+    "SessionState": {
+      "additionalProperties": false,
+      "description": "Replayed from the log; carries `cards`, never an edit or the event log.",
+      "properties": {
+        "id": {
+          "pattern": "^sess_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "room_id": {
+          "pattern": "^room_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Room Id",
+          "type": "string"
+        },
+        "locks_open": {
+          "items": {
+            "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "title": "Locks Open",
+          "type": "array"
+        },
+        "inventory": {
+          "items": {
+            "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+            "type": "string"
+          },
+          "title": "Inventory",
+          "type": "array"
+        },
+        "current_rung": {
+          "patternProperties": {
+            "^pz_[0-9A-HJKMNP-TV-Z]{26}$": {
+              "maximum": 3,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "title": "Current Rung",
+          "type": "object"
+        },
+        "wrong_attempts": {
+          "patternProperties": {
+            "^pz_[0-9A-HJKMNP-TV-Z]{26}$": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "title": "Wrong Attempts",
+          "type": "object"
+        },
+        "rungs_used": {
+          "minimum": 0,
+          "title": "Rungs Used",
+          "type": "integer"
+        },
+        "order_buffer": {
+          "$ref": "#/$defs/OrderBuffer"
+        },
+        "active_puzzle_id": {
+          "anyOf": [
+            {
+              "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Active Puzzle Id"
+        },
+        "opening_line": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpeningLine"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "phrasing": {
+          "title": "Phrasing",
+          "type": "boolean"
+        },
+        "rung_changes": {
+          "items": {
+            "$ref": "#/$defs/RungChangeEvent"
+          },
+          "title": "Rung Changes",
+          "type": "array"
+        },
+        "trickster_window": {
+          "$ref": "#/$defs/TricksterWindow"
+        },
+        "trickster_calls": {
+          "maximum": 6,
+          "minimum": 0,
+          "title": "Trickster Calls",
+          "type": "integer"
+        },
+        "cards": {
+          "items": {
+            "$ref": "#/$defs/TricksterCard"
+          },
+          "title": "Cards",
+          "type": "array"
+        },
+        "room_revision": {
+          "minimum": 0,
+          "title": "Room Revision",
+          "type": "integer"
+        },
+        "disclosure": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Disclosure",
+          "type": "array"
+        },
+        "judge_room": {
+          "default": false,
+          "title": "Judge Room",
+          "type": "boolean"
+        },
+        "thresholds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Thresholds"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "room_id",
+        "locks_open",
+        "inventory",
+        "current_rung",
+        "wrong_attempts",
+        "rungs_used",
+        "order_buffer",
+        "active_puzzle_id",
+        "opening_line",
+        "phrasing",
+        "rung_changes",
+        "trickster_window",
+        "trickster_calls",
+        "cards",
+        "room_revision",
+        "disclosure"
+      ],
+      "title": "SessionState",
+      "type": "object"
+    },
+    "ShortcutPayload": {
+      "additionalProperties": false,
+      "description": "Removes the `requires` edge from `puzzle` to `requires`.",
+      "properties": {
+        "type": {
+          "const": "shortcut",
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle",
+          "type": "string"
+        },
+        "requires": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Requires",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "puzzle",
+        "requires"
+      ],
+      "title": "ShortcutPayload",
+      "type": "object"
+    },
+    "StageRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "enum": [
+            "ingest",
+            "architect",
+            "segment",
+            "author",
+            "validate",
+            "dryrun",
+            "scene"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "duration_ms": {
+          "minimum": 0,
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Count"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        }
+      },
+      "required": [
+        "stage",
+        "duration_ms"
+      ],
+      "title": "StageRecord",
+      "type": "object"
+    },
+    "Thresholds": {
+      "additionalProperties": false,
+      "description": "The effective nudge threshold and Rung spacing, their 1x values and the threshold's source.",
+      "properties": {
+        "nudge_threshold_ms": {
+          "minimum": 0,
+          "title": "Nudge Threshold Ms",
+          "type": "integer"
+        },
+        "nudge_threshold_base_ms": {
+          "minimum": 0,
+          "title": "Nudge Threshold Base Ms",
+          "type": "integer"
+        },
+        "rung_spacing_ms": {
+          "minimum": 0,
+          "title": "Rung Spacing Ms",
+          "type": "integer"
+        },
+        "rung_spacing_base_ms": {
+          "minimum": 0,
+          "title": "Rung Spacing Base Ms",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "derived",
+            "fresh"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nudge_threshold_ms",
+        "nudge_threshold_base_ms",
+        "rung_spacing_ms",
+        "rung_spacing_base_ms",
+        "source"
+      ],
+      "title": "Thresholds",
+      "type": "object"
+    },
+    "Tier2": {
+      "additionalProperties": false,
+      "properties": {
+        "glb_path": {
+          "title": "Glb Path",
+          "type": "string"
+        },
+        "placement": {
+          "$ref": "#/$defs/Placement"
+        }
+      },
+      "required": [
+        "glb_path",
+        "placement"
+      ],
+      "title": "Tier2",
+      "type": "object"
+    },
+    "TricksterCard": {
+      "additionalProperties": false,
+      "description": "The public card projection, `to_card_view(event)`: no payload or content field (AD-3).",
+      "properties": {
+        "edit_id": {
+          "anyOf": [
+            {
+              "pattern": "^te_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Edit Id"
+        },
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "edit_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "decoy",
+                "merge",
+                "loosen",
+                "shortcut"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Edit Type"
+        },
+        "puzzle_id": {
+          "anyOf": [
+            {
+              "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Puzzle Id"
+        },
+        "related_puzzle_id": {
+          "anyOf": [
+            {
+              "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Related Puzzle Id"
+        },
+        "room_revision": {
+          "minimum": 0,
+          "title": "Room Revision",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "const": "provider_unavailable",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Message"
+        },
+        "t_ms": {
+          "minimum": 0,
+          "title": "T Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "edit_id",
+        "accepted",
+        "edit_type",
+        "puzzle_id",
+        "related_puzzle_id",
+        "room_revision",
+        "reason",
+        "message",
+        "t_ms"
+      ],
+      "title": "TricksterCard",
+      "type": "object"
+    },
+    "TricksterCardEvent": {
+      "additionalProperties": false,
+      "description": "Stored server-side only, with the full edit for the AD-12 fold; the client sees `TricksterCard`.",
+      "properties": {
+        "type": {
+          "const": "trickster_card",
+          "title": "Type",
+          "type": "string"
+        },
+        "edit_id": {
+          "anyOf": [
+            {
+              "pattern": "^te_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Edit Id"
+        },
+        "edit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TricksterEdit"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "puzzle_id": {
+          "anyOf": [
+            {
+              "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Puzzle Id"
+        },
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "const": "provider_unavailable",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "room_revision": {
+          "minimum": 0,
+          "title": "Room Revision",
+          "type": "integer"
+        },
+        "t_ms": {
+          "minimum": 0,
+          "title": "T Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "edit_id",
+        "edit",
+        "puzzle_id",
+        "accepted",
+        "reason",
+        "room_revision",
+        "t_ms"
+      ],
+      "title": "TricksterCardEvent",
+      "type": "object"
+    },
+    "TricksterEdit": {
+      "additionalProperties": false,
+      "description": "Lives in the session log only (AD-12); never returned by a route (AD-3).",
+      "properties": {
+        "id": {
+          "pattern": "^te_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "decoy",
+            "merge",
+            "loosen",
+            "shortcut"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "puzzle": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle",
+          "type": "string"
+        },
+        "payload": {
+          "discriminator": {
+            "mapping": {
+              "decoy": "#/$defs/DecoyPayload",
+              "loosen": "#/$defs/LoosenPayload",
+              "merge": "#/$defs/MergePayload",
+              "shortcut": "#/$defs/ShortcutPayload"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DecoyPayload"
+            },
+            {
+              "$ref": "#/$defs/MergePayload"
+            },
+            {
+              "$ref": "#/$defs/LoosenPayload"
+            },
+            {
+              "$ref": "#/$defs/ShortcutPayload"
+            }
+          ],
+          "title": "Payload"
+        },
+        "validator_result": {
+          "$ref": "#/$defs/ValidatorResult"
+        },
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "window": {
+          "minimum": 0,
+          "title": "Window",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "puzzle",
+        "payload",
+        "validator_result",
+        "accepted",
+        "window"
+      ],
+      "title": "TricksterEdit",
+      "type": "object"
+    },
+    "TricksterWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "closed",
+            "open",
+            "pending"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Index"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "TricksterWindow",
+      "type": "object"
+    },
+    "UseOnInput": {
+      "additionalProperties": false,
+      "description": "No `puzzle_id`: the server resolves the puzzle from the pair.",
+      "properties": {
+        "type": {
+          "const": "use_on",
+          "title": "Type",
+          "type": "string"
+        },
+        "item": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Item",
+          "type": "string"
+        },
+        "target": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "item",
+        "target"
+      ],
+      "title": "UseOnInput",
+      "type": "object"
+    },
+    "UseOnSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "lock_type": {
+          "const": "use_on",
+          "title": "Lock Type",
+          "type": "string"
+        },
+        "item": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Item",
+          "type": "string"
+        },
+        "target": {
+          "pattern": "^ix_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lock_type",
+        "item",
+        "target"
+      ],
+      "title": "UseOnSolution",
+      "type": "object"
+    },
+    "ValidatorReason": {
+      "additionalProperties": false,
+      "description": "Structured and token-free: the rule, the puzzle, the field and the rule's fixed message (AD-3).",
+      "properties": {
+        "rule": {
+          "minimum": 1,
+          "title": "Rule",
+          "type": "integer"
+        },
+        "puzzle_id": {
+          "anyOf": [
+            {
+              "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Puzzle Id"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule",
+        "puzzle_id",
+        "field",
+        "message"
+      ],
+      "title": "ValidatorReason",
+      "type": "object"
+    },
+    "ValidatorResult": {
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/$defs/ValidatorReason"
+          },
+          "title": "Reasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ok",
+        "reasons"
+      ],
+      "title": "ValidatorResult",
+      "type": "object"
+    }
+  }
+}
