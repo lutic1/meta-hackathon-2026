@@ -35,9 +35,9 @@ project_key: NOKEY
 tracking_system: file-system
 story_location: docs/implementation-artifacts
 development_status:
-  epic-1: backlog
+  epic-1: in-progress
   1-1-tag-the-pre-hackathon-baseline-and-photograph-both-rooms-bef: backlog
-  1-2-ratify-the-scaffold-as-the-first-providers-story-pins-settin: backlog
+  1-2-ratify-the-scaffold-as-the-first-providers-story-pins-settin: done
   1-3-one-ci-job-offline-pytest-plus-the-web-build-and-type-check: backlog
   1-4-create-the-web-client-from-the-vite-8-vanilla-ts-template: backlog
   1-5-schema-v1-and-every-ad-2-api-model-as-one-set-of-pydantic-mo: backlog
