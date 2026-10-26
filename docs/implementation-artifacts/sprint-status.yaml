@@ -43,7 +43,7 @@ development_status:
   1-5-schema-v1-and-every-ad-2-api-model-as-one-set-of-pydantic-mo: done
   1-6-validator-rules-1-to-8-with-fixed-messages-the-dry-run-check: done
   1-7-redaction-views-keep-solutions-on-the-server: done
-  1-8-session-state-machine-code-and-find-locks-the-active-puzzle: backlog
+  1-8-session-state-machine-code-and-find-locks-the-active-puzzle: done
   1-9-order-sequences-armed-by-start-the-sequence-and-use_on-resol: backlog
   1-10-local-stores-and-the-two-clocks: backlog
   1-11-room-api-wiring-the-playview-and-photo-routes-and-the-static: backlog
