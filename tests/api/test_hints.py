@@ -26,6 +26,7 @@ from src.domain.schema import (
 from src.domain.session import SessionStateMachine
 from src.providers.base import HintPhraser, PhraserResponse
 from src.providers.verbatim import VerbatimPhraser
+from tests.api.hosted import hosted_handles, hosted_settings, make_hosted_app
 from tests.api.test_app import make_app
 from tests.api.test_sessions import (
     FRESH_THRESHOLDS,
@@ -343,9 +344,12 @@ def test_the_session_state_reports_the_effective_thresholds_their_1x_values_and_
     tmp_path: Path, code_and_find_room: Room, env: dict[str, str], derived: dict[str, Any] | None, hosted: bool,
     expected: tuple[int, int, int, int, str],
 ):
-    settings = Settings.from_env({**env, "GUIDE": "verbatim"})
-    client = TestClient(make_app(tmp_path, code_and_find_room, settings=settings, clock=Ticker(), phraser=SpyVerbatim(),
-                                 spawn=lambda task: None, hosted=hosted))
+    options: dict[str, Any] = {"clock": Ticker(), "phraser": SpyVerbatim(), "spawn": lambda task: None}
+    if hosted:
+        app = make_hosted_app(tmp_path, hosted_handles(tmp_path), code_and_find_room, settings=hosted_settings(**env), **options)
+    else:
+        app = make_app(tmp_path, code_and_find_room, settings=Settings.from_env({**env, "GUIDE": "verbatim"}), **options)
+    client = TestClient(app)
     session_id = start(client, code_and_find_room, **({} if derived is None else {"derived": derived}))
     thresholds = client.get(f"/api/sessions/{session_id}").json()["thresholds"]
     fields = ("nudge_threshold_ms", "nudge_threshold_base_ms", "rung_spacing_ms", "rung_spacing_base_ms", "source")
