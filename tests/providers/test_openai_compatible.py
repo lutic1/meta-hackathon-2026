@@ -293,7 +293,10 @@ def test_json_schema_mode_sends_strict_schema_and_the_reply_parses_as_on_the_met
         "json_schema": {"name": "RoomDraft", "schema": strict_schema(RoomDraft), "strict": True},
     }
     assert "$defs" not in json.dumps(h.bodies[0]["response_format"])
-    meta = MetaModelProvider("meta-key", transport=transport(DRAFT)).chat(MESSAGES)
+    meta_calls = GuardedCalls(MemoryCache(), SpendLedger(MemoryLedgerStore(), cap_usd=60), host="api.meta.ai")
+    meta = MetaModelProvider(
+        "meta-key", calls=meta_calls, chat_kind="riddler", budget_s=15.0, transport=transport(DRAFT)
+    ).chat(MESSAGES)
     assert response.text == meta.text and response.raw == meta.raw
     draft = RoomDraft.model_validate_json(response.text)
     assert draft == RoomDraft.model_validate_json(meta.text)
