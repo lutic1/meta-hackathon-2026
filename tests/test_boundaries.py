@@ -337,19 +337,48 @@ def test_a_second_persistence_reader_is_named(tmp_path):
 # --- MODE selects adapters in one place (AD-9) ------------------------------------------
 
 
-MODE_BRANCH_OWNERS = ("src.api.wiring", "src.infra")
-"""Where a mode branch may live: the `src/api` wiring and `src/infra` (AD-9)."""
+MODE_BRANCH_OWNERS = ("src.api.wiring", "src.infra", "src.config")
+"""Where a mode branch may live: the `src/api` wiring and `src/infra` (AD-9), and `src/config`'s per-mode refusals (AD-14)."""
 
 
-def _reads_mode(node: ast.AST) -> bool:
-    return any(isinstance(sub, ast.Attribute) and sub.attr == "mode" for sub in ast.walk(node))
+def _is_mode_read(node: ast.AST) -> bool:
+    """`<x>.mode`, or `<x>.get("mode", ...)`."""
+    if isinstance(node, ast.Attribute):
+        return node.attr == "mode"
+    return (
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get"
+        and bool(node.args) and isinstance(node.args[0], ast.Constant) and node.args[0].value == "mode"
+    )
+
+
+def _mode_aliases(tree: ast.AST) -> set[str]:
+    """Every local name bound to a value that reads the mode, as in `mode = settings.mode`."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign | ast.AnnAssign | ast.NamedExpr) or node.value is None:
+            continue
+        if any(_is_mode_read(sub) for sub in ast.walk(node.value)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names |= {sub.id for target in targets for sub in ast.walk(target) if isinstance(sub, ast.Name)}
+    return names
+
+
+def _reads_mode(node: ast.AST, aliases: set[str]) -> bool:
+    return any(
+        _is_mode_read(sub) or (isinstance(sub, ast.Name) and sub.id in aliases) for sub in ast.walk(node)
+    )
 
 
 def mode_branches(src_root: Path) -> list[str]:
-    """Every module that compares `<x>.mode`, or tests or matches on it; reading it as a value or a table key is no branch."""
+    """Every module that compares the mode, or tests or matches on it, read directly or through a local name.
+
+    Reading it as a value or a table key is no branch.
+    """
     out: set[str] = set()
     for path in sorted(src_root.rglob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text(), filename=str(path))):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        aliases = _mode_aliases(tree)
+        for node in ast.walk(tree):
             tested = (
                 [node] if isinstance(node, ast.Compare)
                 else [node.test] if isinstance(node, ast.If | ast.IfExp | ast.While | ast.Assert)
@@ -357,14 +386,14 @@ def mode_branches(src_root: Path) -> list[str]:
                 else node.values if isinstance(node, ast.BoolOp)
                 else []
             )
-            if any(_reads_mode(expr) for expr in tested):
+            if any(_reads_mode(expr, aliases) for expr in tested):
                 out.add(_module_name(path, src_root))
     return sorted(out)
 
 
 def test_no_mode_branch_outside_the_wiring_and_infra():
     branches = mode_branches(REPO / "src")
-    assert branches == ["src.api.wiring"]
+    assert branches == ["src.api.wiring", "src.config"]
     assert all(_in(module, *MODE_BRANCH_OWNERS) for module in branches)
 
 
@@ -379,6 +408,15 @@ def test_a_mode_branch_in_a_route_module_is_named(tmp_path):
         "api/meta.py": "def text(settings):\n    return 'a' if settings.mode else 'b'\n",
         "api/wiring.py": "def wire(settings):\n    match settings.mode:\n        case 'hosted':\n            return 1\n",
         "infra/modal.py": "def pick(settings):\n    return settings.mode == 'hosted'\n",
-        "api/ok.py": "TEXT = {'local': 'a'}\ndef text(settings):\n    return TEXT[settings.mode]\n",
+        "api/ok.py": "TEXT = {'local': 'a'}\ndef text(settings):\n    mode = settings.mode\n    return TEXT[mode]\n",
     })
     assert mode_branches(src) == ["src.api.app", "src.api.meta", "src.api.wiring", "src.infra.modal"]
+
+
+def test_a_mode_branch_through_a_local_name_is_named(tmp_path):
+    src = _tree(tmp_path, {
+        "api/app.py": "def routes(settings):\n    mode = settings.mode\n    if mode == 'hosted':\n        return []\n",
+        "api/meta.py": "def text(data):\n    return 'a' if data.get('mode') == 'hosted' else 'b'\n",
+        "api/session.py": "def text(info):\n    if (mode := info.data.get('mode')) is not None:\n        return mode\n",
+    })
+    assert mode_branches(src) == ["src.api.app", "src.api.meta", "src.api.session"]

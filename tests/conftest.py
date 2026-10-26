@@ -11,6 +11,7 @@ from src.domain.schema import Room
 from tests.fixtures.rooms import write_fixtures
 
 SECRET_KEYS = ("META_MODEL_API_KEY", "FAL_KEY", "OPENAI_COMPATIBLE_API_KEY", "ACCESS_CODE")
+DEPLOY_KEYS = ("MODE", "MIN_CONTAINERS")  # a deploy shell keeps MIN_CONTAINERS=1 (AD-9); tests choose their own mode
 ROLES = ("ARCHITECT", "RIDDLER", "DRYRUN", "TRICKSTER", "IMAGE")
 # A loopback HTTPS proxy (the cloud containers have one) would carry a request past the socket guard.
 PROXY_KEYS = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
@@ -22,7 +23,7 @@ os.environ["MODEL_PROVIDER"] = "mock"
 os.environ["GUIDE"] = "verbatim"  # the offline suite never resolves a Guide model (AD-5)
 for _role in ROLES:
     os.environ[f"PROVIDER_{_role}"] = "mock"
-for _key in SECRET_KEYS:
+for _key in (*SECRET_KEYS, *DEPLOY_KEYS):
     os.environ[_key] = ""  # set but blank: load_dotenv() keeps it, Settings reads None
 
 _real_connect = socket.socket.connect
@@ -55,7 +56,7 @@ def offline(monkeypatch):
     monkeypatch.setenv("GUIDE", "verbatim")
     for role in ROLES:
         monkeypatch.setenv(f"PROVIDER_{role}", "mock")
-    for key in SECRET_KEYS:
+    for key in (*SECRET_KEYS, *DEPLOY_KEYS):
         monkeypatch.setenv(key, "")
     for key in PROXY_KEYS:
         monkeypatch.delenv(key, raising=False)

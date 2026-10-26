@@ -120,7 +120,7 @@ def test_the_hosted_app_starts_without_the_local_export_or_a_job_restart(tmp_pat
 def test_the_api_module_imports_under_mode_hosted_and_builds_no_app_without_the_handles():
     """The hosted entry imports `create_app` in a `MODE=hosted` container; the local `app` is built only when read."""
     code = "import src.api.app as m\ntry:\n    m.app\nexcept ValueError as error:\n    print('refused:', error)\n"
-    env = {**os.environ, "MODE": "hosted", "GUIDE": "verbatim"}
+    env = {**os.environ, "MODE": "hosted", "GUIDE": "verbatim", "DEMO_TRICKSTER": ""}
     result = subprocess.run([sys.executable, "-c", code], cwd=REPO, env=env, capture_output=True, text=True, check=True)
     assert result.stdout.startswith("refused: MODE=hosted runs on Modal"), result.stdout + result.stderr
 
