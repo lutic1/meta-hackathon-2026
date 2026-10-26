@@ -1,11 +1,25 @@
-"""Story 3.2: `GUIDE` alone selects the `HintPhraser`, and `GUIDE=ollama` refuses to start without its adapter (AD-5, AD-14)."""
+"""Stories 1.11 and 3.2: wiring is the one module that builds an adapter; `GUIDE` alone selects the `HintPhraser`, and `GUIDE=ollama` refuses to start without its adapter (AD-5, AD-9, AD-14)."""
+
+import ast
+from pathlib import Path
 
 import pytest
 
-from src.api.wiring import NO_OLLAMA_ADAPTER, hint_phraser
+from src.api.wiring import NO_OLLAMA_ADAPTER, artifact_store, hint_phraser
 from src.config import Settings
+from src.infra.clocks import BuildClock, SessionClock
+from src.infra.local import ROOMS_ROOT, DiskArtifactStore, DiskCache, JsonlLedgerStore, JsonSessionStore
 from src.providers.base import HintPhraser
+from src.providers.meta_api import MetaModelProvider
+from src.providers.mock import MockProvider
 from src.providers.verbatim import VerbatimPhraser
+
+SRC = Path(__file__).resolve().parents[2] / "src"
+ADAPTERS = (
+    DiskArtifactStore, JsonSessionStore, JsonlLedgerStore, DiskCache, SessionClock, BuildClock,
+    VerbatimPhraser, MockProvider, MetaModelProvider,
+)
+"""Every class under `src/infra` and `src/providers` that implements a port."""
 
 
 def test_guide_verbatim_gives_the_verbatim_adapter():
@@ -43,9 +57,25 @@ def test_the_offline_suite_sets_guide_verbatim_explicitly():
     assert type(hint_phraser(settings)) is VerbatimPhraser
 
 
-def test_wiring_is_the_only_module_that_constructs_the_adapter():
-    from pathlib import Path
+def _constructed(path: Path) -> set[str]:
+    """The adapter classes a module calls by name."""
+    names = {adapter.__name__ for adapter in ADAPTERS}
+    called: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text(), filename=str(path))):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else None
+            if name in names:
+                called.add(name)
+    return called
 
-    src = Path(__file__).resolve().parents[2] / "src"
-    constructors = [p for p in src.rglob("*.py") if "VerbatimPhraser()" in p.read_text()]
-    assert constructors == [src / "api/wiring.py"]
+
+def test_wiring_is_the_only_module_that_constructs_an_adapter():
+    constructors = {path.relative_to(SRC).as_posix(): _constructed(path) for path in SRC.rglob("*.py") if _constructed(path)}
+    assert constructors == {"api/wiring.py": {"DiskArtifactStore", "VerbatimPhraser"}}
+
+
+def test_artifact_store_is_the_disk_store_under_rooms(tmp_path):
+    store = artifact_store()
+    assert type(store) is DiskArtifactStore and store.root == ROOMS_ROOT.resolve()
+    assert artifact_store(tmp_path / "rooms").root == tmp_path / "rooms"

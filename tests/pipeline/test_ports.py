@@ -9,7 +9,7 @@ from src.domain import clock
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import Event, Room, SessionId
 from src.pipeline import ports
-from src.pipeline.ports import ArtifactStore, Cache, Clock, LedgerStore, SessionStore
+from src.pipeline.ports import ROOM_FILE, ArtifactStore, Cache, Clock, LedgerStore, SessionStore, photo_key, room_key
 from tests.test_boundaries import _imports
 
 REPO = Path(__file__).resolve().parents[2]
@@ -105,3 +105,9 @@ def test_ports_import_only_the_domain():
     internal = {n for n in names if n.startswith("src.")}
     assert internal and all(n.startswith("src.domain") for n in internal), names
     assert {n.split(".")[0] for n in names - internal} <= set(sys.stdlib_module_names)
+
+
+def test_room_and_photo_keys_sit_under_the_room_folder():
+    room_id = "room_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    assert room_key(room_id) == f"{room_id}/{ROOM_FILE}" == f"{room_id}/room.json"
+    assert [photo_key(room_id, i) for i in range(2)] == [f"{room_id}/photos/0.jpg", f"{room_id}/photos/1.jpg"]

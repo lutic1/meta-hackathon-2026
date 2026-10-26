@@ -76,6 +76,7 @@ uv sync --locked
 uv run python main.py chat "You are the Riddler. Greet the player."
 uv run python main.py image "portrait of a wizard game master"
 uv run pytest -q
+uv run uvicorn src.api.app:app   # /api/* routes; serves web/dist at / once it is built
 cd web && npm ci && npm run dev      # the dev server proxies /api/* to uvicorn on 127.0.0.1:8000
 ```
 

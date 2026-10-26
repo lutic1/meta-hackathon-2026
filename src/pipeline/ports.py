@@ -14,10 +14,20 @@ from src.domain.clock import Clock
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import Event, Room, SessionId
 
-__all__ = ["ROOM_FILE", "ArtifactStore", "Cache", "Clock", "LedgerStore", "SessionStore"]
+__all__ = ["ROOM_FILE", "ArtifactStore", "Cache", "Clock", "LedgerStore", "SessionStore", "photo_key", "room_key"]
 
 ROOM_FILE = "room.json"
 """A Room's key ends in this name, under its own `<room_id>/` folder, so `list_rooms` can find every Room."""
+
+
+def room_key(room_id: str) -> str:
+    """The stored Room: `<room_id>/room.json`."""
+    return f"{room_id}/{ROOM_FILE}"
+
+
+def photo_key(room_id: str, index: int) -> str:
+    """The stored downscaled JPEG of photo `index`: `<room_id>/photos/<index>.jpg`."""
+    return f"{room_id}/photos/{index}.jpg"
 
 
 class ArtifactStore(Protocol):

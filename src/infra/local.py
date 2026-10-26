@@ -41,6 +41,8 @@ from src.domain.ledger import LedgerEntry, running_total_usd
 from src.domain.schema import Event, Model, Room, SessionId
 from src.pipeline.ports import ROOM_FILE
 
+ROOMS_ROOT = Path("rooms")
+"""Every local build artifact, git-ignored; the `ArtifactStore` refuses a key outside it."""
 LEDGER_PATH = Path("spend/ledger.jsonl")
 """The live ledger, git-ignored; `spend/exports/` beside it holds the committed daily exports."""
 EXPORTS_ROOT = Path("spend/exports")
