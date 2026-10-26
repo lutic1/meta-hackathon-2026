@@ -86,11 +86,11 @@ def test_calls_are_recorded_with_their_arguments():
         ok: bool
 
     mock = MockProvider("architect")
-    mock.chat(HELLO, images=[b"a", b"b"], response_schema=Reply, reasoning_effort="medium", model="m")
+    mock.chat(HELLO, images=[b"a", b"b"], response_schema=Reply, reasoning_effort="medium", model="m", attempt=2)
     mock.segment("lamp", b"a")
     mock.generate_image("a wizard")
     assert mock.calls == [
-        ChatCall(HELLO, [b"a", b"b"], Reply, "medium", "m"),
+        ChatCall(HELLO, [b"a", b"b"], Reply, "medium", "m", 2),
         SegmentCall("lamp", b"a"),
         ImageCall("a wizard"),
     ]

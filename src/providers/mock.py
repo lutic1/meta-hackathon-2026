@@ -43,6 +43,7 @@ class ChatCall:
     response_schema: type[BaseModel] | None
     reasoning_effort: str
     model: str | None
+    attempt: int = 0
 
 
 @dataclass(frozen=True)
@@ -79,9 +80,10 @@ class MockProvider(ModelProvider):
         response_schema: type[BaseModel] | None = None,
         reasoning_effort: ReasoningEffort = "low",
         model: str | None = None,
+        attempt: int = 0,
     ) -> ChatResponse:
         check_reasoning_effort(reasoning_effort)
-        self.calls.append(ChatCall(list(messages), list(images), response_schema, reasoning_effort, model))
+        self.calls.append(ChatCall(list(messages), list(images), response_schema, reasoning_effort, model, attempt))
         if self._script is not None:
             text = self._next("chat", self._script.chat)
         else:

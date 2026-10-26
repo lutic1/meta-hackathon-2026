@@ -169,6 +169,17 @@ def test_a_missing_base_url_or_key_is_refused():
         OpenAICompatibleProvider(settings.openai_compatible_api_key, settings.openai_compatible_base_url, calls)
 
 
+def test_attempt_joins_the_cache_key_so_a_regeneration_is_never_served_the_earlier_answer():
+    """Story 2.20: the Regeneration count travels as `attempt` into the AD-6 key on the fallback host too."""
+    h = Harness(reply(DRAFT), reply(DRAFT))
+    h.chat(response_schema=RoomDraft, reasoning_effort="medium")
+    h.chat(response_schema=RoomDraft, reasoning_effort="medium", attempt=1)
+    h.chat(response_schema=RoomDraft, reasoning_effort="medium", attempt=1)
+    assert len(h.host.requests) == 2
+    key = cache_key("meta-models/muse-spark-open", messages=MESSAGES, response_schema=RoomDraft, reasoning_effort="medium", attempt=1)
+    assert key in h.cache.rows and len(h.cache.rows) == 2
+
+
 def test_a_cache_hit_is_served_before_the_guard_and_cache_off_still_refuses_at_the_cap():
     key = cache_key("meta-models/muse-spark-open", messages=MESSAGES, reasoning_effort="low")
     row = {"text": "cached", "model": "meta-models/muse-spark-open", "usage": {}, "raw": None}

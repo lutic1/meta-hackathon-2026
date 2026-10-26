@@ -16,7 +16,7 @@ from src.domain.ledger import CallKind, SpendCapExceeded, fold, image_cost_usd, 
 from src.domain.schema import ArchitectResponse
 from src.providers import meta_api
 from src.providers.base import ChatMessage, ChatResponse, ImageResponse, ProviderError
-from src.providers.cache import GuardedCalls
+from src.providers.cache import GuardedCalls, cache_key
 from src.providers.meta_api import (
     CHAT_RETRYABLE_STATUS,
     IMAGE_BUDGET_S,
@@ -401,6 +401,17 @@ def test_every_call_goes_through_the_cache_and_then_the_ledger_guard_on_a_miss()
     assert len(replay.seen) == 3 and replay.cache.writes == 3 and replay.cache.reads == 6
     assert [e.kind for e in replay.entries()] == ["vision", "sam", "image"]
     assert all(e.status == "settled" for e in replay.entries())
+
+
+def test_attempt_joins_the_cache_key_so_a_regeneration_is_never_served_the_earlier_answer():
+    """Story 2.20: the author stage passes the Regeneration count as `attempt` (AD-6)."""
+    replay = Replay(CHAT, CHAT)
+    chat(replay, attempt=0)
+    chat(replay, attempt=1)  # a miss: attempt 1 is a new key
+    chat(replay, attempt=1)  # a hit
+    assert len(replay.seen) == 2 and len(replay.entries()) == 2
+    key = cache_key(meta_api.CHAT_MODEL, messages=MESSAGES, response_schema=ArchitectResponse, reasoning_effort="low", images=PHOTOS, attempt=1)
+    assert key in replay.cache.rows
 
 
 def test_cache_off_still_guards_every_call():

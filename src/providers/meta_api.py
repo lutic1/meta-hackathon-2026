@@ -287,11 +287,17 @@ class MetaModelProvider(ModelProvider):
         response_schema: type[BaseModel] | None = None,
         reasoning_effort: ReasoningEffort = "low",
         model: str | None = None,
+        attempt: int = 0,
     ) -> ChatResponse:
         check_reasoning_effort(reasoning_effort)
         chat_model = model or self.default_chat_model
         key = cache_key(
-            chat_model, messages=messages, response_schema=response_schema, reasoning_effort=reasoning_effort, images=images
+            chat_model,
+            messages=messages,
+            response_schema=response_schema,
+            reasoning_effort=reasoning_effort,
+            images=images,
+            attempt=attempt,
         )
         # Sampling stays at the API default, so neither `temperature` nor `max_tokens` is sent.
         body: Json = {

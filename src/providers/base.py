@@ -88,8 +88,14 @@ class ModelProvider(ABC):
         response_schema: type[BaseModel] | None = None,
         reasoning_effort: ReasoningEffort = "low",
         model: str | None = None,
+        attempt: int = 0,
     ) -> ChatResponse:
-        """Send a conversation, with the stored JPEG bytes as its images, and return the reply."""
+        """Send a conversation, with the stored JPEG bytes as its images, and return the reply.
+
+        `attempt` joins the AD-6 cache key: the Regeneration count on a
+        Riddler or Dry run call, so attempt n is never served attempt n-1's
+        answer; 0 everywhere else.
+        """
         raise NotImplementedError
 
     @abstractmethod

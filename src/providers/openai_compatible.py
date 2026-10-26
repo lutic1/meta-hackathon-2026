@@ -196,6 +196,7 @@ class OpenAICompatibleProvider(ModelProvider):
         response_schema: type[BaseModel] | None = None,
         reasoning_effort: ReasoningEffort = "low",
         model: str | None = None,
+        attempt: int = 0,
     ) -> ChatResponse:
         check_reasoning_effort(reasoning_effort)
         if images:
@@ -217,7 +218,9 @@ class OpenAICompatibleProvider(ModelProvider):
                     "strict": True,
                 },
             }
-        key = cache_key(chat_model, messages=sent, response_schema=response_schema, reasoning_effort=reasoning_effort)
+        key = cache_key(
+            chat_model, messages=sent, response_schema=response_schema, reasoning_effort=reasoning_effort, attempt=attempt
+        )
         response, _ = self._calls.chat(key, self.kind, model=chat_model, call=lambda: self._post(body))
         return response
 
