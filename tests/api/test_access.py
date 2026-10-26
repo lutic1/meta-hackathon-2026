@@ -1,8 +1,7 @@
 """Story 7.11: the hosted access guard on `POST /builds` and `GET /builds/<job_id>/room`, and the quota refusal (AD-3, AD-9, AD-13).
 
-The hosted job store is the 7.10 Dict adapter over a plain dict, so the
-slot claims run offline; `create_app(hosted=True)` stands in for
-`MODE=hosted` until 7.2 adds `Settings.mode`.
+The hosted app is `MODE=hosted` over plain dicts and a temporary Volume
+directory, so the 7.10 slot claims run offline.
 """
 
 from __future__ import annotations
@@ -19,13 +18,13 @@ from src.api.errors import AccessDenied
 from src.api.wiring import ACCESS_HEADER, access_guard, job_store
 from src.config import Settings
 from src.domain.schema import JobState, Room
-from src.infra.modal import BUILD_QUOTA, SLOT_KEYS, DictJobStore, VolumeFiles, slot_key
-from src.pipeline.build import STAGES, new_id
+from src.infra.modal import BUILD_QUOTA, ROOMS_DIR, SLOT_KEYS, hosted_stores, slot_key
+from src.pipeline.build import new_id
+from tests.api.hosted import hosted_handles, hosted_settings, make_hosted_app
 from tests.api.test_app import make_app
 from tests.api.test_builds import Stages, files, wait_terminal
 from tests.domain.test_redact import json_keys
 from tests.fixtures.rooms import SENTINEL_CODE, with_sentinel_solutions
-from tests.infra.test_modal import RecordingDict, StubVolume
 from tests.pipeline.uploads import make_uploads
 
 SRC = Path(__file__).resolve().parents[2] / "src"
@@ -36,21 +35,19 @@ WRONG = {"no header": {}, "a wrong code": {ACCESS_HEADER: "lantern-41"}, "an emp
 
 
 class Hosted:
-    """A hosted app over `tmp_path`: the Dict job store, the stage doubles, and every Room it was given stored on disk."""
+    """The `MODE=hosted` app over `tmp_path`: the Dict job store, the stage doubles, and every Room it was given seeded as a Demo room."""
 
     def __init__(self, tmp_path: Path, *rooms: Room, access_code: str | None = CODE) -> None:
-        self.dict = RecordingDict()
-        self.jobs = DictJobStore(self.dict, VolumeFiles(StubVolume([]), tmp_path / "data"))
+        handles = hosted_handles(tmp_path)
+        self.dict = handles.jobs
+        self.jobs = hosted_stores(handles).jobs
         self.stages = Stages()
-        self.rooms = tmp_path / "rooms"
-        env = {"GUIDE": "verbatim"} | ({"ACCESS_CODE": access_code} if access_code else {})
-        app = make_app(
-            tmp_path, *rooms, settings=Settings.from_env(env), stages=self.stages.functions(), jobs=self.jobs, hosted=True
-        )
-        self.client = TestClient(app)
+        self.rooms = handles.root / ROOMS_DIR
+        settings = hosted_settings(**({"ACCESS_CODE": access_code} if access_code else {}))
+        self.client = TestClient(make_hosted_app(tmp_path, handles, *rooms, settings=settings, stages=self.stages.functions()))
 
     def stored(self) -> set[Path]:
-        """Every file the local `ArtifactStore` holds under `rooms/`."""
+        """Every file the Volume holds under `rooms/`."""
         return {path for path in self.rooms.rglob("*") if path.is_file()} if self.rooms.exists() else set()
 
     def claim_all(self) -> None:
@@ -87,14 +84,13 @@ def test_without_an_access_code_configured_every_code_is_refused(tmp_path: Path)
     assert hosted.dict.writes == [] and hosted.stored() == set()
 
 
-def test_a_build_with_the_right_code_claims_one_slot_and_runs(tmp_path: Path):
+def test_a_build_with_the_right_code_claims_one_slot_and_is_queued(tmp_path: Path):
     hosted = Hosted(tmp_path)
     response = post(hosted.client, {ACCESS_HEADER: CODE})
-    assert response.status_code == 202
+    assert response.status_code == 202 and response.json()["status"] == "queued"
     job_id = response.json()["id"]
-    assert wait_terminal(hosted.client, job_id)["status"] == "done"
     assert hosted.jobs.builds_left() == BUILD_QUOTA - 1 and hosted.dict[slot_key(1)] == job_id
-    assert hosted.stages.of(job_id) == list(STAGES[1:])
+    assert hosted.jobs.read(job_id).status == "queued" and hosted.stages.calls == []  # `run_build` (7.8) runs the stages
 
 
 # --- GET /builds/<job_id>/room: the full Room only with the right code -------------

@@ -9,6 +9,7 @@ Every command here needs a Modal account and token, so all of them are live-only
 3. Create the Secret once per Environment, from the dashboard (Secrets panel) or from a file kept outside the repo:
    `modal secret create keyframe --from-dotenv ~/keyframe-hosted.env` (add `-e dev` for the dev copy, and `--force` to replace it).
    - Put only hosted keys in it: `META_MODEL_API_KEY`, `FAL_KEY`, `ACCESS_CODE`, and `OPENAI_COMPATIBLE_API_KEY` if the Riddler fallback runs hosted.
+   - Add `SPEND_CAP_USD` with the hosted allocation (20 through Wed Nov 4, and whatever the reset sets after it). Under `MODE=hosted` an unset `SPEND_CAP_USD` already defaults to 20 (AD-6, AD-14).
    - Never pass `KEY=value` pairs on the command line, where they land in shell history.
    - Never point `--from-dotenv` at the repo's `.env`. It holds local-only values (`GUIDE=ollama`, `OLLAMA_HOST`), and `Settings` refuses `MODE=hosted` with `GUIDE=ollama` (AD-14).
    - Key names may contain only letters, digits and underscores, and cannot start with a digit (https://modal.com/docs/guide/secrets.md).

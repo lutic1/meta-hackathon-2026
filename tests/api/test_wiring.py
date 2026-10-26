@@ -1,4 +1,4 @@
-"""Stories 1.11, 1.12, 1.14, 2.12, 2.22, 3.2 and 3.7: wiring is the one module that builds an adapter; one `ModelProvider` per council role, `PROVIDER_<ROLE>` replacing only its own; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter (AD-5, AD-7, AD-9, AD-14)."""
+"""Stories 1.11, 1.12, 1.14, 2.12, 2.22, 3.2, 3.7 and 7.2: wiring is the one module that builds an adapter; one `ModelProvider` per council role, `PROVIDER_<ROLE>` replacing only its own; `GUIDE` alone selects the `HintPhraser`, and only `GUIDE=ollama` builds the Ollama adapter; `MODE` selects the local or the hosted adapters (AD-5, AD-7, AD-9, AD-14)."""
 
 import ast
 import json
@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from src.api import wiring
+from src.api.errors import AccessDenied
 from src.api.wiring import (
     JOBS_DIR,
     ROLE_CALLS,
@@ -41,6 +42,14 @@ from src.infra.local import (
     JsonSessionStore,
     ThreadJobRunner,
 )
+from src.infra.modal import (
+    DictJobStore,
+    DictLedgerStore,
+    DictSessionStore,
+    VolumeArtifactStore,
+    VolumeCache,
+    call_key,
+)
 from src.pipeline.build import STAGES, Build, StageFn, StageResult
 from src.pipeline.ports import room_key
 from src.providers.base import HintPhraser, ModelProvider
@@ -49,6 +58,7 @@ from src.providers.mock import ChatCall, MockProvider, MockScript, SegmentCall
 from src.providers.ollama import DEFAULT_HOST, OllamaPhraser
 from src.providers.openai_compatible import OpenAICompatibleProvider
 from src.providers.verbatim import VerbatimPhraser
+from tests.api.hosted import hosted_handles, hosted_settings
 from tests.infra.test_clocks import Ticker
 from tests.pipeline.stages import labels
 from tests.pipeline.test_author_stage import reply, riddler, store_interactables
@@ -329,3 +339,76 @@ def test_job_runner_runs_the_job_in_the_background_then_calls_the_terminal_hook(
     queued = build.submit(make_uploads(6))
     runner.start(queued.id)
     assert exported.wait(5) and jobs.read(queued.id).status == "failed"
+
+
+# --- MODE selects the adapters (Story 7.2, AD-9) ---------------------------------
+
+
+def _wire(tmp_path: Path, settings: Settings, **options) -> wiring.Wiring:
+    """`wire` with every local path under `tmp_path` and stage doubles, so no test touches the repo."""
+    return wiring.wire(
+        settings,
+        stages={stage: _never for stage in STAGES[1:]},
+        rooms_root=tmp_path / "rooms",
+        ledger_path=tmp_path / LEDGER_PATH,
+        exports_root=tmp_path / "exports",
+        cache_root=tmp_path / CACHE_ROOT,
+        **options,
+    )
+
+
+def test_local_mode_wires_the_disk_adapters_the_profile_routes_and_the_greeting(tmp_path):
+    wired = _wire(tmp_path, Settings.from_env())
+    assert (type(wired.artifacts), type(wired.jobs), type(wired.sessions)) == (DiskArtifactStore, JsonJobStore, JsonSessionStore)
+    assert type(wired.runner) is ThreadJobRunner
+    assert (wired.profiles, wired.greets) == (True, True)
+
+
+def test_hosted_mode_wires_the_dict_and_volume_adapters_and_writes_nothing_locally(tmp_path, monkeypatch):
+    monkeypatch.setattr(wiring, "OllamaPhraser", _never)
+    handles = hosted_handles(tmp_path)
+    seen: dict[str, object] = {}
+
+    def providers(settings, cache, ledger):
+        seen.update(cache=cache, ledger=ledger)
+        return model_providers(settings, cache, ledger)
+
+    monkeypatch.setattr(wiring, "model_providers", providers)
+    wired = wiring.wire(
+        hosted_settings(), handles=handles, rooms_root=tmp_path / "rooms", ledger_path=tmp_path / LEDGER_PATH,
+        exports_root=tmp_path / "exports", cache_root=tmp_path / CACHE_ROOT,
+    )
+    assert (type(wired.artifacts), type(wired.jobs), type(wired.sessions)) == (VolumeArtifactStore, DictJobStore, DictSessionStore)
+    assert type(seen["cache"]) is VolumeCache and type(seen["ledger"]._store) is DictLedgerStore
+    assert seen["ledger"].cap_usd == 20  # the hosted allocation
+    assert wired.jobs.jobs is handles.jobs and wired.sessions.sessions is handles.sessions
+    assert (wired.profiles, wired.greets) == (False, False)
+    assert type(hint_phraser(hosted_settings())) is VerbatimPhraser
+    wired.startup()
+    wired.on_terminal()
+    assert not any((tmp_path / name).exists() for name in ("rooms", "exports", LEDGER_PATH.parts[0], CACHE_ROOT.parts[0]))
+    assert (handles.jobs, handles.sessions, handles.ledger) == ({}, {}, {}) and not handles.root.exists()
+
+
+def test_the_hosted_runner_leaves_the_job_queued_before_run_build(tmp_path):
+    handles = hosted_handles(tmp_path)
+    wired = _wire(tmp_path, hosted_settings(), handles=handles)
+    assert type(wired.runner) is wiring.NoRunner
+    queued = wired.build.submit(make_uploads(6))
+    wired.runner.start(queued.id)
+    assert wired.jobs.read(queued.id).status == "queued" and call_key(queued.id) not in handles.jobs
+
+
+def test_hosted_mode_without_the_modal_handles_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="modal_app"):
+        _wire(tmp_path, hosted_settings())
+
+
+def test_wire_injects_the_access_guard_of_the_running_mode(tmp_path):
+    local = _wire(tmp_path, Settings.from_env({"ACCESS_CODE": "lantern-42"}))
+    local.guard(None)
+    hosted = _wire(tmp_path, hosted_settings(ACCESS_CODE="lantern-42"), handles=hosted_handles(tmp_path))
+    hosted.guard("lantern-42")
+    with pytest.raises(AccessDenied) as excinfo:
+        hosted.guard(None)
+    assert (excinfo.value.status, excinfo.value.code, excinfo.value.stage) == (403, "access_denied", None)

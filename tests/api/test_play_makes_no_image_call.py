@@ -5,7 +5,6 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from src.api import app as app_module
 from src.api import wiring
 from src.api.app import create_app
 from src.api.wiring import artifact_store
@@ -24,12 +23,13 @@ IMAGE_REQUESTS = ("generate_image", "images/generations", "generateImage")
 
 def test_a_full_play_session_makes_no_image_call(tmp_path: Path, code_and_find_room: Room, monkeypatch):
     providers: dict[str, MockProvider] = {}
+    model_providers = wiring.model_providers
 
     def recording(settings, cache, ledger):
-        providers.update(wiring.model_providers(settings, cache, ledger))
+        providers.update(model_providers(settings, cache, ledger))
         return providers
 
-    monkeypatch.setattr(app_module, "model_providers", recording)
+    monkeypatch.setattr(wiring, "model_providers", recording)
     root = tmp_path / "rooms"
     store_room(artifact_store(root), code_and_find_room)
     ticker = Ticker()

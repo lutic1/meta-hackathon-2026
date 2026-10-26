@@ -1,23 +1,25 @@
 """The FastAPI app: routes under `/api/` and the built client at `/` (AD-4, AD-9, AD-13).
 
-`create_app(settings)` takes every adapter from `src/api/wiring.py` and
-mounts `web/dist` at `/` when it exists (one origin, no CORS); without a
-build the mount is skipped and the API still serves. Room routes return
-`PlayView` and the stored downscaled JPEG bytes, never a `Room` (AD-3).
+`create_app(settings)` takes every adapter from `wire` in
+`src/api/wiring.py`, which selects them by `MODE` (AD-9), and mounts
+`web/dist` at `/` when it exists (one origin, no CORS); without a build the
+mount is skipped and the API still serves. The hosted route table is the
+local one without the profile routes, and wiring's access guard runs first
+on `POST /builds` and `GET /builds/<job_id>/room`. Room routes return `PlayView` and the stored downscaled JPEG bytes, never a
+`Room` (AD-3).
 The cut-2 profile routes `GET|PUT /profile/<name>` read and write the
 `Profile` as `rooms/profiles/<name>.json` on the player's machine (AD-8):
 they are the only code that touches `rooms/profiles/`, every other route
-sees only the posted `derived`, and the hosted app never registers them
-(gated on `Settings.mode` when it lands, 7.2).
+sees only the posted `derived`, and the hosted app never registers them.
 
 Session routes are the one server-authoritative play surface (AD-4):
 `POST /sessions` starts a session and opens it with its opening line,
 `POST /sessions/<id>/events` appends a client event and `GET /sessions/<id>`
 replays the state, appending an `idle_tick` when `IDLE_TICK_MS` have passed
 since the last event, and `GET /sessions/<id>/result` computes the
-`RoomResult` from the log. In Local mode a Derived block with `sessions` >= 1
-is greeted: the start reply carries `opening_line {kind: greeting, text: null}`
-with `phrasing` true, and the Greeting composer (`compose_greeting`) runs off
+`RoomResult` from the log. In Local mode (wiring's `greets`) a Derived
+block with `sessions` >= 1 is greeted: the start reply carries
+`opening_line {kind: greeting, text: null}` with `phrasing` true, and the Greeting composer (`compose_greeting`) runs off
 the request, its phrased line or, on a fallback, the template appended as the
 one `opening_line` when it returns, with `phraser_fallback` logged against the
 session when the Guide model fell back. Every other start, and every hosted
@@ -80,8 +82,8 @@ the guard refuses a missing or wrong `X-Access-Code` with 403
 job state, 202 while `queued` or `running` and 200 when terminal, and never a
 Room; `GET /builds/<job_id>/room` is the one route a full Room leaves by
 (AD-3), behind the same guard (open in Local mode), `room_not_found` until
-the job is `done`. Every other route is open in both modes. At
-startup the app exports the ledger and restarts every job left `queued` or
+the job is `done`. Every other route is open in both modes. At startup the
+local app exports the ledger and restarts every job left `queued` or
 `running`; the runner exports again after each Build ends (AD-9). The
 Trickster route and `GET /builds/<job_id>/view` land with their stories.
 """
@@ -97,6 +99,7 @@ from dataclasses import dataclass
 from datetime import date
 from email import policy
 from email.parser import BytesParser
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -122,25 +125,7 @@ from src.api.errors import (
     handle_validation_error,
 )
 from src.api.meta import disclosure_lines, meta
-from src.api.wiring import (
-    ACCESS_HEADER,
-    AccessGuard,
-    access_guard,
-    artifact_store,
-    build_clock,
-    build_stages,
-    hint_phraser,
-    job_runner,
-    job_store,
-    ledger_export,
-    ledger_store,
-    model_cache,
-    model_providers,
-    resume_jobs,
-    session_clock,
-    session_store,
-    spend_ledger,
-)
+from src.api.wiring import ACCESS_HEADER, AccessGuard, hint_phraser, session_clock, wire
 from src.config import Settings
 from src.council.greeting import Greeting, compose_greeting
 from src.domain.redact import to_play_view
@@ -181,6 +166,7 @@ from src.domain.schema import (
 from src.domain.session import SessionStateMachine
 from src.infra.clocks import SessionClock
 from src.infra.local import CACHE_ROOT, EXPORTS_ROOT, LEDGER_PATH, ROOMS_ROOT
+from src.infra.modal import ModalHandles
 from src.pipeline.build import TERMINAL, Build, StageFn, error_code
 from src.pipeline.ingest import IngestRefused, UnsupportedImage, Upload
 from src.pipeline.ports import (
@@ -520,7 +506,7 @@ def session_routes(
     settings: Settings,
     *,
     demo: bool,
-    hosted: bool,
+    greets: bool,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     open_sessions = OpenSessions()
@@ -607,9 +593,9 @@ def session_routes(
 
     @router.post("")
     def start_session(body: SessionStart) -> SessionState:
-        """A fresh session over the stored Room: greeted from a returning Local block, else opened with the welcome."""
+        """A fresh session over the stored Room: greeted from a returning block where wiring greets, else opened with the welcome."""
         room = load_room(store, body.room_id)
-        greeted = not hosted and is_returning(body.derived)
+        greeted = greets and is_returning(body.derived)
         derived = body.derived if greeted else Derived.fresh()
         machine = SessionStateMachine(
             room, opening="greeting" if greeted else "welcome", thresholds=session_thresholds(derived, scale)
@@ -658,50 +644,42 @@ def session_routes(
 def create_app(
     settings: Settings,
     *,
+    handles: ModalHandles | None = None,
     rooms_root: Path = ROOMS_ROOT,
     web_dist: Path = WEB_DIST,
     clock: Clock | None = None,
     phraser: HintPhraser | None = None,
     spawn: Spawn = spawn_thread,
-    hosted: bool = False,
     stages: Mapping[Stage, StageFn] | None = None,
-    jobs: JobStore | None = None,
     ledger_path: Path = LEDGER_PATH,
     exports_root: Path = EXPORTS_ROOT,
     cache_root: Path = CACHE_ROOT,
     today: Callable[[], date] = date.today,
 ) -> FastAPI:
-    """The app over the adapters wiring builds; routes are registered before the static mount so `/api/` wins.
+    """The app over the adapters `wire` selects; routes are registered before the static mount so `/api/` wins.
 
-    Tests pass the session clock, the Guide adapter and the `Spawn` the
-    greeting runs through. `hosted` stands in for `Settings.mode == "hosted"`
-    until 7.2 adds `mode`: every hosted session opens with the welcome and
-    `Derived.fresh()` thresholds, and `greet` is never called.
-
-    The access guard comes from wiring over `Settings` and `hosted`.
-
-    `stages` replaces the stage functions wiring builds over the per-role
-    providers (tests pass doubles), and `jobs` the job store (tests pass the
-    hosted store, whose slot claims carry the build quota, until 7.2 has
-    wiring select it); the paths and `today` let tests keep the
-    ledger, its exports and the cache out of the repo.
+    `handles` are the Modal handles `src/api/modal_app.py` passes under
+    `MODE=hosted`. Tests pass the session clock, the Guide adapter and the
+    `Spawn` the greeting runs through; `stages` replaces the stage
+    functions wiring builds over the per-role providers (tests pass
+    doubles); the paths and `today` let tests keep the ledger, its exports
+    and the cache out of the repo.
     """
-    ledger = ledger_store(ledger_path)
-    export = ledger_export(settings, ledger, exports_root, today)
-    store = artifact_store(rooms_root)
-    if stages is None:
-        providers = model_providers(settings, model_cache(cache_root), spend_ledger(settings, ledger))
-        stages = build_stages(providers, store, ledger, dry_run=settings.dry_run == "on")
-    if jobs is None:
-        jobs = job_store(rooms_root)
-    build = Build(jobs=jobs, artifacts=store, clock=build_clock(), stages=stages, regen_max=settings.regen_max)
-    runner = job_runner(build, on_terminal=export)
+    wired = wire(
+        settings,
+        handles=handles,
+        stages=stages,
+        rooms_root=rooms_root,
+        ledger_path=ledger_path,
+        exports_root=exports_root,
+        cache_root=cache_root,
+        today=today,
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        """At startup: export the ledger, then restart every job a stopped process left `queued` or `running`."""
-        export()
-        resume_jobs(jobs, runner)
+        """At startup: wiring's startup hook (locally, the ledger export and the restart of every job left in flight)."""
+        wired.startup()
         yield
 
     app = FastAPI(
@@ -715,22 +693,25 @@ def create_app(
     app.add_exception_handler(ApiError, handle_api_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.include_router(status_routes(settings))
-    app.include_router(build_routes(build, jobs, store, runner, on_terminal=export, guard=access_guard(settings, hosted=hosted)))
-    app.include_router(room_routes(store, jobs))
-    app.include_router(profile_routes(store))
+    app.include_router(
+        build_routes(wired.build, wired.jobs, wired.artifacts, wired.runner, on_terminal=wired.on_terminal, guard=wired.guard)
+    )
+    app.include_router(room_routes(wired.artifacts, wired.jobs))
+    if wired.profiles:
+        app.include_router(profile_routes(wired.artifacts))
     scale = session_clock(settings)
     app.include_router(
         session_routes(
-            store,
-            jobs,
-            session_store(rooms_root),
+            wired.artifacts,
+            wired.jobs,
+            wired.sessions,
             clock or scale,
             scale,
             phraser or hint_phraser(settings),
             spawn,
             settings,
             demo=settings.demo_timescale > 1,
-            hosted=hosted,
+            greets=wired.greets,
         )
     )
     if web_dist.is_dir():
@@ -738,5 +719,18 @@ def create_app(
     return app
 
 
-app = create_app(Settings.from_env())
-"""`uv run uvicorn src.api.app:app` from the repo root."""
+@cache
+def local_app() -> FastAPI:
+    """The app over the environment's `Settings`, built once on first use."""
+    return create_app(Settings.from_env())
+
+
+def __getattr__(name: str) -> FastAPI:
+    """`uv run uvicorn src.api.app:app` from the repo root: `app` is built when first read, not at import.
+
+    So the hosted entry can import `create_app` in a container whose
+    environment says `MODE=hosted` without building an app with no handles.
+    """
+    if name == "app":
+        return local_app()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -22,6 +22,7 @@ from src.domain.session import SessionStateMachine
 from src.providers.base import HintPhraser, PhraserResponse
 from src.providers.ollama import OllamaPhraser
 from src.providers.verbatim import VerbatimPhraser, greeting_template
+from tests.api.hosted import hosted_handles, make_hosted_app
 from tests.api.test_app import make_app
 from tests.api.test_sessions import Ticker, click, post, stored
 from tests.providers.replay import load, transport
@@ -301,7 +302,7 @@ def test_a_first_room_start_gets_the_welcome_at_once_and_greet_is_not_called(
 def test_a_hosted_start_gets_the_welcome_and_fresh_thresholds_whatever_block_it_receives(
     tmp_path: Path, code_and_find_room: Room, spy: SpyPhraser, later: Later, sessions: int
 ):
-    client = TestClient(make_app(tmp_path, code_and_find_room, phraser=spy, spawn=later, hosted=True))
+    client = TestClient(make_hosted_app(tmp_path, hosted_handles(tmp_path), code_and_find_room, phraser=spy, spawn=later))
     received = RETURNING.model_copy(update={"sessions": sessions, "persistence": 1})
     state = begin(client, code_and_find_room, received)
     assert opening(state) == (WELCOME_LINE, False)
@@ -313,14 +314,18 @@ def test_a_hosted_start_gets_the_welcome_and_fresh_thresholds_whatever_block_it_
 def test_no_part_of_the_derived_block_is_stored_in_the_session_log(
     tmp_path: Path, code_and_find_room: Room, spy: SpyPhraser, later: Later, hosted: bool
 ):
-    client = TestClient(make_app(tmp_path, code_and_find_room, phraser=spy, spawn=later, hosted=hosted))
+    handles = hosted_handles(tmp_path)
+    if hosted:
+        client = TestClient(make_hosted_app(tmp_path, handles, code_and_find_room, phraser=spy, spawn=later))
+    else:
+        client = TestClient(make_app(tmp_path, code_and_find_room, phraser=spy, spawn=later))
     session_id = begin(client, code_and_find_room, RETURNING.model_copy(update={"sessions": 3}))["id"]
     later.run()
     post(client, session_id, click("key"))
     files = [path for path in (tmp_path / "rooms").rglob("*") if path.is_file() and "sessions" in path.parts]
-    assert files
-    for path in files:
-        text = path.read_text()
+    texts = [json.dumps(value) for value in handles.sessions.values()] if hosted else [path.read_text() for path in files]
+    assert texts and (files == []) == hosted
+    for text in texts:
         assert not any(key in text for key in ("derived", *Derived.model_fields))
         assert not any(value in text for value in SENTINEL_VALUES)
 

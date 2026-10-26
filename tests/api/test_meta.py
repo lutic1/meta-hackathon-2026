@@ -1,4 +1,4 @@
-"""Story 1.14: `GET /meta` serves the status model with the global Disclosure lines and the Local Retention summary, `GET /schema` every AD-2 model, and `GET /rooms` one `RoomSummary` per stored Room with a job record (AD-2, AD-9, AD-15)."""
+"""Stories 1.14 and 7.2: `GET /meta` serves the status model with the global Disclosure lines and the Retention summary of the running mode, `GET /schema` every AD-2 model, and `GET /rooms` one `RoomSummary` per stored Room with a job record (AD-2, AD-9, AD-15)."""
 
 import ast
 from datetime import UTC, datetime
@@ -11,13 +11,16 @@ from fastapi.testclient import TestClient
 from src.api.app import API_UNIONS, api_schema, room_summary
 from src.api.meta import (
     CUT1_LINE,
+    HOSTED_LINE,
+    RETENTION_HOSTED,
     RETENTION_LOCAL,
+    RETENTION_OPENING,
     SCRIPTED_LINE,
     TIMESCALE_LINE,
     disclosure_lines,
     meta,
 )
-from src.api.wiring import MODE, job_store
+from src.api.wiring import job_store
 from src.config import Settings
 from src.domain.schema import API_MODELS, JobState, Meta, Room, RoomSummary
 from src.providers.ollama import DEFAULT_HOST
@@ -54,7 +57,6 @@ def test_meta_has_exactly_the_status_fields_in_local_mode(client: TestClient):
         "mode": "local", "guide": "verbatim", "guide_model": None, "trickster": "live", "demo_timescale": 1,
         "cache": "on", "profile": "dev", "disclosure": [], "retention": RETENTION_LOCAL,
     }
-    assert MODE == "local"
 
 
 def test_meta_reads_guide_timescale_and_cache_from_settings(tmp_path: Path, four_lock_room: Room):
@@ -143,7 +145,7 @@ def _string_constants(path: Path) -> set[str]:
 
 def test_meta_py_is_the_only_module_that_writes_a_disclosure_line():
     """No other module under `src/` holds a Disclosure line or a piece of one."""
-    pieces = ("the Validator ran live", "the build timer is real time", "This room was built earlier")
+    pieces = ("the Validator ran live", "the build timer is real time", "This room was built earlier", "no hint model runs here")
     holders = {
         path.relative_to(SRC).as_posix()
         for path in SRC.rglob("*.py")
@@ -163,6 +165,43 @@ def test_the_local_retention_summary(client: TestClient):
     assert "Leave out faces, documents and other people's belongings." in retention
     assert retention.endswith("A copy of your photos is also kept on this computer.")
     assert "Modal" not in retention
+
+
+LOCAL_SENTENCE = "A copy of your photos is also kept on this computer."
+
+
+def test_meta_reads_the_mode_from_settings():
+    assert meta(settings()).mode == "local"
+    assert meta(Settings.from_env({"MODE": "hosted"})).mode == "hosted"
+    tree = ast.parse((SRC / "api" / "meta.py").read_text())
+    assert not any(isinstance(node, ast.ImportFrom) and node.module == "src.api.wiring" for node in ast.walk(tree))
+
+
+def test_hosted_meta_reports_verbatim_with_no_guide_model_and_the_hosted_line():
+    hosted = meta(Settings.from_env({"MODE": "hosted"}))
+    assert (hosted.mode, hosted.guide, hosted.guide_model) == ("hosted", "verbatim", None)
+    assert HOSTED_LINE == "Hosted mode: hints are shown as written; no hint model runs here."
+    assert hosted.disclosure == [HOSTED_LINE]
+    assert HOSTED_LINE not in meta(settings()).disclosure
+
+
+def test_the_hosted_line_follows_the_trickster_source_line():
+    hosted = Settings.from_env({"MODE": "hosted", "DEMO_TIMESCALE": "6", "DEMO_TRICKSTER": "scripted"})
+    assert disclosure_lines(hosted) == [TIMESCALE_LINE.format(n=6), SCRIPTED_LINE, HOSTED_LINE]
+
+
+def test_the_hosted_retention_summary_replaces_the_local_storage_sentence():
+    retention = meta(Settings.from_env({"MODE": "hosted"})).retention
+    assert retention == RETENTION_HOSTED
+    assert retention.startswith(RETENTION_OPENING) and RETENTION_LOCAL.startswith(RETENTION_OPENING)
+    assert retention.removeprefix(RETENTION_OPENING) == (
+        "In Hosted mode, your photos, the originals, your room and its play-throughs are stored on Modal "
+        "and deleted Tue Nov 10. Play-through logs are deleted 24 hours after their last event. "
+        "No player profile data leaves your browser."
+    )
+    assert LOCAL_SENTENCE not in retention and "kept on this computer" not in retention
+    assert "Leave out faces, documents and other people's belongings." in retention
+    assert RETENTION_LOCAL.removeprefix(RETENTION_OPENING) == LOCAL_SENTENCE
 
 
 # --- GET /schema -------------------------------------------------------------

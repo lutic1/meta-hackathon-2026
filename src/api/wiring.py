@@ -9,12 +9,20 @@ its own `GuardedCalls` (AD-6); the mock touches neither. `hint_phraser`
 resolves the `HintPhraser` from `GUIDE` alone; no other setting selects a
 phraser, and the Ollama adapter is built only for `GUIDE=ollama`, at
 `OLLAMA_HOST`, over the verbatim adapter it falls back to (the hosted app
-never builds it: `Settings.mode` refuses `GUIDE=ollama` in 7.2).
+never builds it: `Settings` refuses `MODE=hosted` with `GUIDE=ollama`).
+
+`wire(settings)` is where `MODE` selects the adapters (AD-9) and the one
+mode branch in `src/api`: under `MODE=local` the disk adapters below; under
+`MODE=hosted` the Dict and Volume adapters of `src/infra/modal.py` over the
+handles `src/api/modal_app.py` passes. It also returns what else differs
+between the modes, so `create_app` holds no mode branch of its own: the
+hosted app serves no profile route, greets no returning player, runs no
+local ledger export and resumes no job in process, and its `guard` is the
+hosted `access_guard`. The hosted `JobRunner` is wired with `run_build` in
+7.8; until then `NoRunner` leaves an accepted job `queued`, no stage run.
 
 `artifact_store`, `job_store`, `session_store`, `ledger_store` and
-`model_cache` build the local disk adapters; `MODE` joins `Settings` with
-the first hosted story (7.2), so only the local adapters exist, no setting
-selects them, and `MODE` is the constant `local` that `GET /meta` reports.
+`model_cache` build the local disk adapters.
 `job_runner` runs `Build.run` on the in-process runner and calls its
 `on_terminal` hook once the job reaches a terminal status; `resume_jobs`
 starts every job a stopped process left `queued` or `running`; and
@@ -29,8 +37,7 @@ against `ACCESS_CODE` from `Settings` in constant time and refusing every
 code when none is set; in Local mode it lets every request through. The
 build quota is the `JobStore`'s own: the hosted store refuses the 21st
 slot claim with `BuildQuotaExceeded` and the local store never refuses, so
-no route handler reads the mode. Until 7.2 adds `Settings.mode`, the
-`hosted` flag `create_app` receives stands in for it.
+no route handler reads the mode; `wire` passes `hosted` per mode.
 
 `build_stages` maps each stage after ingest to its function over the
 providers, the artifact store and the ledger store. Architect and segment
@@ -51,9 +58,10 @@ import logging
 import secrets
 import threading
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Literal, get_args
+from typing import get_args
 
 import httpx
 from pydantic import ValidationError
@@ -65,6 +73,7 @@ from src.domain.schema import JobId, JobState, Role, Stage
 from src.infra.clocks import BuildClock, SessionClock
 from src.infra.local import (
     CACHE_ROOT,
+    EXPORTS_ROOT,
     LEDGER_PATH,
     ROOMS_ROOT,
     DiskArtifactStore,
@@ -76,6 +85,7 @@ from src.infra.local import (
     ThreadJobRunner,
     export_ledger,
 )
+from src.infra.modal import ModalHandles, hosted_stores
 from src.pipeline.architect import architect_stage
 from src.pipeline.author import author_stage, validate_stage
 from src.pipeline.build import STAGES, TERMINAL, Build, StageFn, StageResult
@@ -90,9 +100,6 @@ from src.providers.ollama import OllamaPhraser
 from src.providers.openai_compatible import OpenAICompatibleProvider
 from src.providers.spend import SpendLedger
 from src.providers.verbatim import VerbatimPhraser
-
-MODE: Literal["local"] = "local"
-"""The running mode: only the local adapters exist until 7.2 adds `Settings.mode`."""
 
 JOBS_DIR = "jobs"
 """Job records live under `rooms/jobs/` (AD-7)."""
@@ -239,8 +246,8 @@ def model_cache(root: Path = CACHE_ROOT) -> Cache:
     return DiskCache(root)
 
 
-def spend_ledger(settings: Settings, store: JsonlLedgerStore) -> SpendLedger:
-    """The process's one `SpendLedger`, capped at the Local allocation `SPEND_CAP_USD` (AD-6)."""
+def spend_ledger(settings: Settings, store: LedgerStore) -> SpendLedger:
+    """The process's one `SpendLedger`, capped at the running mode's allocation `SPEND_CAP_USD` (AD-6)."""
     return SpendLedger(store, cap_usd=settings.spend_cap_usd)
 
 
@@ -295,3 +302,94 @@ def session_clock(settings: Settings) -> SessionClock:
 def build_clock() -> BuildClock:
     """The build clock for stage timings: real milliseconds, never scaled (AD-10)."""
     return BuildClock()
+
+
+# --- MODE: the adapters and what differs between the modes (AD-9) -------------
+
+
+class NoRunner:
+    """The hosted `JobRunner` until 7.8 spawns `run_build`: an accepted job stays `queued` and no stage runs in the web container (AD-7)."""
+
+    def start(self, job_id: JobId) -> None:
+        log.warning(json.dumps({"job_id": job_id, "event": "no_hosted_runner"}))
+
+
+def do_nothing() -> None:
+    """A hook the running mode has nothing to do in."""
+
+
+@dataclass(frozen=True)
+class Wiring:
+    """The adapters `MODE` selects and everything else `create_app` serves differently per mode."""
+
+    artifacts: ArtifactStore
+    jobs: JobStore
+    sessions: SessionStore
+    build: Build
+    runner: JobRunner
+    on_terminal: Callable[[], object]
+    """After a Build ends: locally the 2.6 ledger export; hosted nothing, the daily snapshot is a Modal Cron (7.8)."""
+    startup: Callable[[], object]
+    """When the app starts: locally the export, then `resume_jobs`; hosted nothing, the spawned runner owns its job (AD-7)."""
+    guard: AccessGuard
+    """The `access_guard` of the running mode: open locally, the `ACCESS_CODE` check hosted."""
+    profiles: bool
+    """Whether `GET|PUT /profile/<name>` are served: Local mode, cut 2 only (AD-8)."""
+    greets: bool
+    """Whether a returning Derived block is greeted: Local mode only; every hosted start gets the welcome and `Derived.fresh()`."""
+
+
+def wire(
+    settings: Settings,
+    *,
+    handles: ModalHandles | None = None,
+    stages: Mapping[Stage, StageFn] | None = None,
+    rooms_root: Path = ROOMS_ROOT,
+    ledger_path: Path = LEDGER_PATH,
+    exports_root: Path = EXPORTS_ROOT,
+    cache_root: Path = CACHE_ROOT,
+    today: Callable[[], date] = date.today,
+) -> Wiring:
+    """The app's adapters for `settings.mode`; `stages` replaces the stage functions built over the per-role providers.
+
+    `MODE=hosted` needs the Modal `handles`; the paths and `today` are the
+    local adapters' and are not read in Hosted mode.
+    """
+    if settings.mode == "hosted":
+        if handles is None:
+            raise ValueError("MODE=hosted runs on Modal: deploy src/api/modal_app.py, which passes the handles")
+        hosted = hosted_stores(handles)
+        build = _build(settings, hosted.artifacts, hosted.jobs, hosted.cache, hosted.ledger, stages)
+        return Wiring(
+            hosted.artifacts, hosted.jobs, hosted.sessions, build, NoRunner(),
+            on_terminal=do_nothing, startup=do_nothing, guard=access_guard(settings, hosted=True), profiles=False, greets=False,
+        )
+    ledger = ledger_store(ledger_path)
+    export = ledger_export(settings, ledger, exports_root, today)
+    artifacts, jobs = artifact_store(rooms_root), job_store(rooms_root)
+    build = _build(settings, artifacts, jobs, model_cache(cache_root), ledger, stages)
+    runner = job_runner(build, on_terminal=export)
+
+    def startup() -> None:
+        """Export the ledger, then restart every job a stopped process left `queued` or `running`."""
+        export()
+        resume_jobs(jobs, runner)
+
+    return Wiring(
+        artifacts, jobs, session_store(rooms_root), build, runner,
+        on_terminal=export, startup=startup, guard=access_guard(settings, hosted=False), profiles=True, greets=True,
+    )
+
+
+def _build(
+    settings: Settings,
+    artifacts: ArtifactStore,
+    jobs: JobStore,
+    cache: Cache,
+    ledger: LedgerStore,
+    stages: Mapping[Stage, StageFn] | None,
+) -> Build:
+    if stages is None:
+        providers = model_providers(settings, cache, spend_ledger(settings, ledger))
+        stages = build_stages(providers, artifacts, ledger, dry_run=settings.dry_run == "on")
+    return Build(jobs=jobs, artifacts=artifacts, clock=build_clock(), stages=stages, regen_max=settings.regen_max)

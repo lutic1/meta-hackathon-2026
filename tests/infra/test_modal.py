@@ -481,7 +481,7 @@ def test_a_hosted_session_writes_no_derived_value_or_profile_field_to_any_dict_o
             _never_spawned,
             Settings.from_env({"GUIDE": "verbatim"}),
             demo=False,
-            hosted=True,
+            greets=False,
         )
     )
     client = TestClient(app)

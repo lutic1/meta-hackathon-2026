@@ -288,7 +288,7 @@ def test_a_seeded_demo_room_is_listed_served_and_played_to_completion_with_no_le
             lambda task: None,
             Settings.from_env({"GUIDE": "verbatim"}),
             demo=False,
-            hosted=True,
+            greets=False,
         )
     )
     client = TestClient(app)
