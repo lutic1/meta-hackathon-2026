@@ -206,17 +206,36 @@ def test_at_most_two_cards_stack_newest_on_top_above_the_rung_line_the_rest_behi
     assert rules[".hint-more"]["color"] == "var(--lamp)"  # a link on dark (tests/web/test_card_log.py)
 
 
-def test_with_the_triggers_panel_open_a_stacked_card_keeps_its_first_lines_in_view():
+def test_while_a_card_is_stacked_the_tray_grows_past_its_cap_until_the_wizard_notes_reach_notes_min():
+    # The open item "Hint area cap and the first Card" (EXPERIENCE.md): the tray grows the way it does while the
+    # Triggers panel is open, so the Card and the Rung line get the side column's spare height before scrolling.
     rules = _rules("components/hint-area.css")
-    # The open panel lets the upper part give way first, but never below the Card's portrait height while a Card is
-    # stacked; the panel then scrolls inside what is left.
-    assert rules[".hint-area.is-triggers-open .hint-upper"] == {"flex-shrink": "1000"}
-    held = rules[".hint-area.is-triggers-open .hint-upper:has(> .hint-cards:not([hidden]))"]
-    assert held == {"min-height": "var(--spacing-7)"}
-    assert "--spacing-7: 48px;" in _ts("tokens.css")
-    assert _rules("components/trickster-card.css")[".trickster-card"]["grid-template-columns"] == "48px minmax(0, 1fr)"
-    panel = _rules("components/triggers-panel.css")[".triggers-panel"]
-    assert panel["min-height"] == "0" and panel["overflow-y"] == "auto"
+    grown = "calc(100% - var(--spacing-notes-min) - var(--spacing-5))"
+    assert rules[".hint-area.is-triggers-open,\n.hint-area:has(> .hint-upper > .hint-cards:not([hidden]))"] == {"max-height": grown}
+    assert rules[".hint-area"]["max-height"] == f"min(var(--spacing-hint-area-max), {grown})"
+
+
+def test_short_of_room_the_triggers_panel_gives_way_to_its_newest_row_before_the_card_and_the_rung_line_scroll():
+    # The tray's bands are its flex items (the lower part and the Triggers slot are display: contents), so the panel
+    # shrinks first, to one body-sm row inside its padding (the newest, scrolled to), then the upper part scrolls; the
+    # field, "Ask the Guide", the helper line and the toggle never shrink.
+    rules = _rules("components/hint-area.css")
+    assert rules[".hint-lower,\n.hint-triggers"] == {"display": "contents"}
+    assert rules[".hint-upper"]["flex"] == "1 1 auto" and rules[".hint-upper"]["min-height"] == "0"
+    assert rules[".hint-area .triggers-panel"] == {
+        "flex-shrink": "1000",
+        "min-height": "calc(1.45 * 14px)",
+    }
+    assert rules[".hint-ask"]["flex"] == "none" and rules[".hint-helper"]["flex"] == "none"
+    panel = _rules("components/triggers-panel.css")
+    assert panel[".triggers"] == {"display": "contents"}
+    assert panel[".triggers-toggle"]["flex"] == "none" and panel[".triggers-panel"]["overflow-y"] == "auto"
+    assert "flex-shrink: 1000" not in (WEB_SRC / "components/hint-area.css").read_text().split(".triggers-panel")[0]
+    assert ".hint-upper:has(" not in (WEB_SRC / "components/hint-area.css").read_text()  # no floor fights the controls
+    # A line that arrives is the last thing in the upper part, so it scrolls to it; a Card that enters is on top.
+    hint = _code(_ts("components/hint-area.ts"))
+    assert "upper.scrollTop = upper.scrollHeight" in _function(hint, "draw")
+    assert "upper.scrollTop = 0" in _function(hint, "enter")
 
 
 def test_a_new_card_enters_after_the_lock_open_state_and_is_announced_once():

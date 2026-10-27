@@ -1,13 +1,16 @@
 /* {components.hint-area}: a chrome-raised tray pinned under the Wizard notes, 16 px padding, rounded lg, up to
    hint-area-max; its upper part scrolls inside it, its lower part (the hint controls) never does. The arrival glow
    lights its edge with the portrait's ring. On a short window it stops where the Wizard notes reach notes-min, so
-   its upper part scrolls (a Card is about as tall as the cap) and the pinned controls stay in view. */
+   its upper part scrolls and the pinned controls stay in view. The tray's bands are its flex items: the upper part,
+   then the hint field row, the helper line, the Triggers toggle and the open Triggers panel, 8 px apart (the lower
+   part and the Triggers slot are display: contents), so short of room the panel gives way first, to its newest row,
+   and only then does the upper part scroll; the controls never shrink. */
 .hint-area {
   box-sizing: border-box;
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--spacing-2);
   max-height: min(var(--spacing-hint-area-max), calc(100% - var(--spacing-notes-min) - var(--spacing-5)));
   padding: var(--spacing-4);
   border-radius: var(--rounded-lg);
@@ -15,45 +18,35 @@
   color: var(--text);
   transition: box-shadow var(--motion-hover) var(--motion-ease);
 }
-/* While the Triggers panel is open the tray may grow past its cap until the Wizard notes, above it in the side
-   column with one column gap between, reach notes-min. On a short window the upper part scrolls inside what is
-   left; only once it is spent does the lower part give way, its Triggers rows (then the panel) scrolling inside
-   themselves, so the pinned controls never leave the tray. */
-.hint-area.is-triggers-open {
+/* While the Triggers panel is open, or a Card is stacked (the open item "Hint area cap and the first Card"), the
+   tray may grow past its cap until the Wizard notes, above it in the side column with one column gap between, reach
+   notes-min. */
+.hint-area.is-triggers-open,
+.hint-area:has(> .hint-upper > .hint-cards:not([hidden])) {
   max-height: calc(100% - var(--spacing-notes-min) - var(--spacing-5));
-}
-/* Shrink weights 1000 to 1: the lower part gives way only once the upper part is spent (a factor under 1 would
-   leave free space undistributed). */
-.hint-area.is-triggers-open .hint-upper {
-  flex-shrink: 1000;
-}
-/* While a Card is stacked the upper part never gives way below the Card's portrait height, so its first lines stay
-   in view; the Triggers panel scrolls inside what is left. */
-.hint-area.is-triggers-open .hint-upper:has(> .hint-cards:not([hidden])) {
-  min-height: var(--spacing-7);
-}
-.hint-area.is-triggers-open .hint-lower {
-  flex-shrink: 1;
-  min-height: 0;
-}
-.hint-triggers {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
 }
 .hint-area.is-glowing {
   box-shadow: var(--elevation-lamp-glow);
 }
+/* The upper part scrolls inside the tray, 16 px above the hint field; it gives way only once the panel is at its
+   newest row. */
 .hint-upper {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   gap: var(--spacing-3);
   min-height: 0;
+  margin-bottom: var(--spacing-2);
   overflow-y: auto;
 }
 .hint-upper:not(:has(> :not([hidden]))) {
   display: none;
+}
+/* The open panel (its rows already capped at triggers-panel-max) shrinks first, weighted 1000 to the upper part's 1,
+   and never below one body-sm row (14 px at 1.45) inside its padding: the newest row, which it scrolls to. */
+.hint-area .triggers-panel {
+  flex-shrink: 1000;
+  min-height: calc(1.45 * 14px);
 }
 
 /* {components.rung-line}: the Guide portrait (48 px) left; the label in label lamp, the line in wizard-line text. */
@@ -99,15 +92,15 @@
   box-shadow: var(--elevation-lamp-glow);
 }
 
-/* The pinned lower part: the field and "Ask the Guide" side by side, the helper line, then the Triggers slot. */
-.hint-lower {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: var(--spacing-2);
+/* The pinned lower part: the field and "Ask the Guide" side by side, the helper line, then the Triggers slot, each
+   a band of the tray that never scrolls or shrinks. */
+.hint-lower,
+.hint-triggers {
+  display: contents;
 }
 .hint-ask {
   display: flex;
+  flex: none;
   gap: var(--spacing-2);
 }
 /* {components.hint-field}: 44 px on chrome, 1 px hairline, rounded md; its text and placeholder in body-sm. */
@@ -131,11 +124,9 @@
   flex: none;
 }
 .hint-helper {
+  flex: none;
   margin: 0;
   color: var(--text-muted);
-}
-.hint-triggers:empty {
-  display: none;
 }
 
 /* Trickster cards stack above the Rung line, newest on top; under them, the count of older ones is a lamp link that

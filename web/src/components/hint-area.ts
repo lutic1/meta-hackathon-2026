@@ -79,10 +79,11 @@ function paragraph(className: string): HTMLParagraphElement {
 
 /**
  * The Hint area (`{components.hint-area}`, FR-14, UX-DR30 to UX-DR32): a `chrome-raised` tray pinned under the Wizard
- * notes, up to `{spacing.hint-area-max}`, its upper part scrolling (the Rung line) over a lower part that never
- * scrolls: the hint field and "Ask the Guide", the permanent helper line, and the slot of the Triggers toggle. While
- * the Triggers panel is open (`is-triggers-open`) the tray may grow past its cap until the Wizard notes reach
- * `{spacing.notes-min}`.
+ * notes, up to `{spacing.hint-area-max}`, its upper part scrolling (the Cards, then the Rung line) over a lower part
+ * that never scrolls: the hint field and "Ask the Guide", the permanent helper line, and the slot of the Triggers
+ * toggle. While the Triggers panel is open (`is-triggers-open`) or a Card is stacked, the tray may grow past its cap
+ * until the Wizard notes reach `{spacing.notes-min}`; short of room the open panel gives way first, to its newest
+ * row, and then the upper part scrolls, to the line that arrives (its last child) or the Card that enters (its first).
  *
  * Enter or the button posts exactly one `hint_request` with no `puzzle_id`: the server answers for the Active puzzle,
  * the entry marked "Current". The typed text is never read, so it leaves the browser in no body, query or header; it
@@ -216,6 +217,7 @@ export function hintArea(
     said.replaceChildren(speakerPrefix('guide'), line.text)
     words.classList.remove('is-leaving')
     think(false)
+    upper.scrollTop = upper.scrollHeight // the Rung line is last, under any Card
     onOpened(openedRungs(latest.rung_changes, line.shown, latest.trigger_events))
   }
 

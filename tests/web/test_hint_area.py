@@ -75,9 +75,13 @@ def test_the_tray_is_chrome_raised_up_to_hint_area_max_pinned_under_the_wizard_n
     assert tray["flex"] == "none"
     assert tray["padding"] == "var(--spacing-4)" and tray["border-radius"] == "var(--rounded-lg)"
     assert "--spacing-hint-area-max: 320px;" in _ts("tokens.css")
-    # The upper part scrolls inside the tray; the lower part, the hint controls, never does.
+    # The upper part scrolls inside the tray; the lower part, the hint controls, never does: its bands are the tray's
+    # own flex items (display: contents), each flex none, 16 px under the upper part.
     assert rules[".hint-upper"]["overflow-y"] == "auto" and rules[".hint-upper"]["min-height"] == "0"
-    assert rules[".hint-lower"]["flex"] == "none" and "overflow" not in " ".join(rules[".hint-lower"])
+    assert rules[".hint-lower,\n.hint-triggers"] == {"display": "contents"}
+    assert rules[".hint-ask"]["flex"] == "none" and rules[".hint-helper"]["flex"] == "none"
+    assert rules[".hint-area"]["gap"] == "var(--spacing-2)" and rules[".hint-upper"]["margin-bottom"] == "var(--spacing-2)"
+    assert "overflow" not in " ".join(rules[".hint-ask"]) and "overflow" not in " ".join(rules[".hint-helper"])
     # Pinned under the notes, in the side column, after them in the page and in the Tab order.
     built = play.split("const notes = wizardNotes(view, play)", 1)[1]
     assert built.index("sideColumn.append(notes.element)") < built.index("sideColumn.append(hints.element)")

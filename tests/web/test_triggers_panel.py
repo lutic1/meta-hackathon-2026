@@ -69,17 +69,18 @@ def test_the_toggle_sits_under_the_hint_controls_collapsed_unless_a_disclosure_i
 
 def test_open_the_hint_area_may_grow_until_the_wizard_notes_reach_notes_min():
     rules = _rules("components/hint-area.css")
-    assert rules[".hint-area"]["max-height"] == (
-        "min(var(--spacing-hint-area-max), calc(100% - var(--spacing-notes-min) - var(--spacing-5)))"
-    )
-    grown = rules[".hint-area.is-triggers-open"]
-    assert grown == {"max-height": "calc(100% - var(--spacing-notes-min) - var(--spacing-5))"}
+    grown = "calc(100% - var(--spacing-notes-min) - var(--spacing-5))"
+    assert rules[".hint-area"]["max-height"] == f"min(var(--spacing-hint-area-max), {grown})"
+    assert rules[".hint-area.is-triggers-open,\n.hint-area:has(> .hint-upper > .hint-cards:not([hidden]))"] == {"max-height": grown}
     assert _rules("shell.css")[".side-column"]["gap"] == "var(--spacing-5)"
-    # Short of room the upper part scrolls first; the pinned controls never leave the tray; then the panel scrolls
-    # (to its newest row) and the rows are never squeezed, so a wrapped newest row stays whole.
-    assert rules[".hint-area.is-triggers-open .hint-upper"] == {"flex-shrink": "1000"}
-    assert rules[".hint-area.is-triggers-open .hint-lower"] == {"flex-shrink": "1", "min-height": "0"}
+    # Short of room the panel gives way first, to its newest row inside its padding (scrolled to), and only then does
+    # the upper part scroll; the pinned controls never leave the tray, and the rows are never squeezed, so a wrapped
+    # newest row stays whole.
     panel = _rules("components/triggers-panel.css")
+    assert panel[".triggers"] == {"display": "contents"} and rules[".hint-lower,\n.hint-triggers"] == {"display": "contents"}
+    assert rules[".hint-upper"]["flex"] == "1 1 auto" and rules[".hint-upper"]["min-height"] == "0"
+    assert rules[".hint-area .triggers-panel"]["flex-shrink"] == "1000"
+    assert rules[".hint-area .triggers-panel"]["min-height"] == "calc(1.45 * 14px)"
     assert panel[".triggers-toggle"]["flex"] == "none" and panel[".triggers-header,\n.triggers-empty"]["flex"] == "none"
     assert panel[".triggers-rows"]["flex"] == "none" and "min-height" not in panel[".triggers-rows"]
     assert "--spacing-notes-min: 280px;" in _ts("tokens.css")
