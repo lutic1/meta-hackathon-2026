@@ -316,6 +316,7 @@ class TricksterCard(Model):
     accepted: bool
     edit_type: EditType | None
     puzzle_id: PuzzleId | None
+    """The Puzzle the Card names; on a `merge`, the one that now waits (`puzzle_b`), whichever the proposal named."""
     related_puzzle_id: PuzzleId | None
     """The second Puzzle of a `merge` or `shortcut`, else null."""
     room_revision: Annotated[int, Field(ge=0)]

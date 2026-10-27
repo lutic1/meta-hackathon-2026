@@ -87,9 +87,20 @@ def test_related_puzzle_is_the_second_puzzle_of_a_merge_or_shortcut():
                           edit=edit(TE_1, {"type": "shortcut", "puzzle": PZ_B, "requires": PZ_A}, puzzle=PZ_B))
     loosen = card_event(edit_id=TE_1, puzzle_id=PZ_A, accepted=True, reason=None, room_revision=0,
                         edit=edit(TE_1, {"type": "loosen", "puzzle": PZ_A, "rung": "direction"}))
-    assert to_card_view(merge).related_puzzle_id == PZ_B
+    assert (to_card_view(merge).puzzle_id, to_card_view(merge).related_puzzle_id) == (PZ_B, PZ_A)
     assert to_card_view(shortcut).related_puzzle_id == PZ_A
     assert to_card_view(loosen).related_puzzle_id is None
+
+
+@pytest.mark.parametrize("named", [PZ_A, PZ_B])
+def test_a_merge_card_names_the_waiting_puzzle_first_whichever_the_proposal_named(named: str):
+    # The proposal may name either Puzzle of the pair; the Card's `puzzle_id` is the one that now waits (`puzzle_b`).
+    for accepted in (True, False):
+        merge = card_event(edit_id=TE_1, puzzle_id=named, accepted=accepted, reason=None if accepted else 1,
+                           room_revision=int(accepted), edit=edit(TE_1, {"type": "merge", "puzzle_a": PZ_B, "puzzle_b": PZ_A},
+                                                                   puzzle=named, ok=accepted))
+        card = to_card_view(merge)
+        assert (card.puzzle_id, card.related_puzzle_id) == (PZ_A, PZ_B)
 
 
 def test_serialized_cards_leak_neither_the_decoy_nor_the_sentinel():

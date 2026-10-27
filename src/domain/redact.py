@@ -40,7 +40,6 @@ from .schema import (
     StageRecord,
     TricksterCard,
     TricksterCardEvent,
-    TricksterEdit,
 )
 
 
@@ -186,14 +185,22 @@ def to_build_view(room: Room, job: JobState, *, disclosure: Sequence[str] = ()) 
     })
 
 
-def _related_puzzle(edit: TricksterEdit) -> str | None:
-    """The second puzzle of a `merge` or `shortcut`, else None."""
+def _card_puzzles(event: TricksterCardEvent) -> tuple[str | None, str | None]:
+    """The Card's `puzzle_id` and `related_puzzle_id`: the event's puzzle and the second of a `merge` or `shortcut`.
+
+    A `merge` proposal may name either Puzzle of its pair, so the Card names
+    the one that now waits (`puzzle_b`) first and the one it waits on second,
+    whichever the proposal named.
+    """
+    edit = event.edit
+    if edit is None:
+        return event.puzzle_id, None
     payload = edit.payload
     if payload.type == "merge":
-        return payload.puzzle_b if payload.puzzle_a == edit.puzzle else payload.puzzle_a
+        return payload.puzzle_b, payload.puzzle_a
     if payload.type == "shortcut":
-        return payload.requires
-    return None
+        return event.puzzle_id, payload.requires
+    return event.puzzle_id, None
 
 
 def _fixed_message(event: TricksterCardEvent) -> str | None:
@@ -210,12 +217,13 @@ def _fixed_message(event: TricksterCardEvent) -> str | None:
 def to_card_view(event: TricksterCardEvent) -> TricksterCard:
     """The public card: ids, type, outcome, reason and fixed message; never the payload."""
     edit = event.edit
+    puzzle_id, related_puzzle_id = _card_puzzles(event)
     return TricksterCard(
         edit_id=event.edit_id,
         accepted=event.accepted,
         edit_type=None if edit is None else edit.type,
-        puzzle_id=event.puzzle_id,
-        related_puzzle_id=None if edit is None else _related_puzzle(edit),
+        puzzle_id=puzzle_id,
+        related_puzzle_id=related_puzzle_id,
         room_revision=event.room_revision,
         reason=event.reason,
         message=_fixed_message(event),
