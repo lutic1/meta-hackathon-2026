@@ -97,7 +97,12 @@ code is compared (AD-9). `GET /builds/<job_id>/view` serves the
 behind the guard, with its `disclosure` composed by `disclosure_lines` for
 the Room and its job record (AD-15); a known job not yet `done` answers 409
 `build_not_ready` with the job `status` in the envelope, and an unknown one
-404 (AD-3, AD-13). Every other route is open in both modes. At
+404 (AD-3, AD-13). A room id or job id that a deletion record names
+(`ArtifactStore.deleted_room`, hosted under `rooms/deleted/`) answers 410
+`room_deleted` on `GET /rooms/<room_id>`, its photos, `POST /sessions` and
+the three `/builds/<job_id>` reads, distinct from 404 `room_not_found` or
+`job_not_found` for an id no record names (AD-9); the record is read only
+after the Room or job is not found. Every other route is open in both modes. At
 startup the local app exports the ledger and restarts every job left
 `queued` or `running`; the runner exports again after each Build ends (AD-9). The
 Trickster route lands with its story.
@@ -134,6 +139,7 @@ from src.api.errors import (
     JobNotFound,
     PhotoNotFound,
     ProfileNotFound,
+    RoomDeleted,
     RoomNotFound,
     SessionNotFound,
     UploadRefused,
@@ -226,12 +232,18 @@ Spawn = Callable[[Callable[[], None]], None]
 log = logging.getLogger("keyframe.sessions")
 
 
+def missing_room(store: ArtifactStore, id_: str) -> RoomDeleted | None:
+    """`RoomDeleted` when a deletion record names `id_`, a room id or a job id, else `None` (AD-9)."""
+    room_id = store.deleted_room(id_)
+    return None if room_id is None else RoomDeleted(room_id)
+
+
 def load_room(store: ArtifactStore, room_id: str) -> Room:
-    """The stored Room, or `RoomNotFound`; a key the store refuses is as unknown as a missing one."""
+    """The stored Room, else `RoomDeleted` for a deleted Judge room or `RoomNotFound`; a key the store refuses is as unknown as a missing one."""
     try:
         data = store.read(room_key(room_id))
     except (KeyError, ValueError):
-        raise RoomNotFound(room_id) from None
+        raise missing_room(store, room_id) or RoomNotFound(room_id) from None
     return Room.model_validate_json(data)
 
 
@@ -400,8 +412,8 @@ def read_uploads(content_type: str, body: bytes) -> list[Upload]:
     return [Upload(downscale, original) for downscale, original in zip(downscales, originals, strict=True)]
 
 
-def read_job(jobs: JobStore, job_id: str) -> JobState:
-    """The persisted job state, or `JobNotFound`; an id the store refuses is as unknown as a missing one.
+def read_job(jobs: JobStore, store: ArtifactStore, job_id: str) -> JobState:
+    """The persisted job state, else `RoomDeleted` when a deletion record names the job, or `JobNotFound`; an id the store refuses is as unknown as a missing one.
 
     A job file that does not parse is not an unknown job: its `ValidationError` surfaces as a 500.
     """
@@ -410,7 +422,7 @@ def read_job(jobs: JobStore, job_id: str) -> JobState:
     except ValidationError:
         raise
     except (KeyError, ValueError):
-        raise JobNotFound(job_id) from None
+        raise missing_room(store, job_id) or JobNotFound(job_id) from None
 
 
 def job_status_code(state: JobState) -> int:
@@ -454,7 +466,7 @@ def build_routes(
     @router.get("/{job_id}")
     def get_build(job_id: str, response: Response) -> JobState:
         """The persisted job state alone: status, stage, timings, the Mask preview once segment completed, never a Room."""
-        state = read_job(jobs, job_id)
+        state = read_job(jobs, store, job_id)
         response.status_code = job_status_code(state)
         return state
 
@@ -462,7 +474,7 @@ def build_routes(
     def get_build_room(job_id: str, request: Request) -> Room:
         """The full Room, solutions included: the one route a Room leaves the server by (AD-3), behind the access guard."""
         guard(request.headers.get(ACCESS_HEADER), client_ip(request))
-        state = read_job(jobs, job_id)
+        state = read_job(jobs, store, job_id)
         if state.status != "done" or state.room_id is None:
             raise RoomNotFound(state.room_id or job_id)
         return load_room(store, state.room_id)
@@ -477,7 +489,7 @@ def build_view_routes(jobs: JobStore, store: ArtifactStore, settings: Settings) 
     @router.get("/{job_id}/view")
     def get_build_view(job_id: str) -> BuildView:
         """The `done` job's `BuildView` with the Room's Disclosure list; never a solution, a pairing or a Dry run answer."""
-        state = read_job(jobs, job_id)
+        state = read_job(jobs, store, job_id)
         if state.status != "done":
             raise BuildNotReady(job_id, state.status)
         if state.room_id is None:

@@ -19,12 +19,21 @@ from src.domain.schema import (
     JobStatus,
     MaskPreview,
     Room,
+    RoomId,
     SentBack,
     Stage,
     StageRecord,
 )
 from src.infra.clocks import BuildClock
-from src.pipeline.build import STAGES, TERMINAL, Build, StageResult, StageStop, error_code, new_id
+from src.pipeline.build import (
+    STAGES,
+    TERMINAL,
+    Build,
+    StageResult,
+    StageStop,
+    error_code,
+    new_id,
+)
 from src.pipeline.ingest import IngestRefused, photo_keys, read_photos
 from src.pipeline.ports import ArtifactStore, BuildQuotaExceeded, Clock, JobStore
 from src.providers.base import ProviderError
@@ -346,6 +355,9 @@ class OrderedArtifacts:
 
     def is_demo_room(self, room_id: str) -> bool:
         return self.inner.is_demo_room(room_id)
+
+    def deleted_room(self, id_: str) -> RoomId | None:
+        return self.inner.deleted_room(id_)
 
 
 class QuotaJobStore(MemoryJobStore):

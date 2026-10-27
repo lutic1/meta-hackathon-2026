@@ -19,17 +19,18 @@ spawned Build waits `queued` until the first ends; it sets no `retries`
 (AD-13). Each read of an in-flight job polls the runner's call with
 `FunctionCall.from_id(id).get(timeout=0)` for the watchdog. `ledger_export`
 runs daily at 06:00 New York time and writes the hosted ledger snapshot
-`spend/hosted-<date>.jsonl` to the Volume (AD-9).
+`spend/hosted-<date>.jsonl` to the Volume (AD-9). `session_sweep` runs
+hourly at minute 17 and deletes every Session more than 24 h past its last
+event through `sweep_sessions` (AD-8); no request triggers it.
 
 Importing this module contacts no Modal service: the Secret, the Volume,
 the three Dicts and the functions are lazy handles, and FastAPI, the app
-and the wiring are imported inside the functions. The session sweep Cron
-joins with its story.
+and the wiring are imported inside the functions.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
@@ -37,7 +38,17 @@ import modal
 import modal.exception
 
 from src.config import Settings
-from src.infra.modal import JOBS_DICT, LEDGER_DICT, MOUNT, SESSIONS_DICT, VOLUME, ModalHandles, RunnerState, export_hosted_ledger
+from src.infra.modal import (
+    JOBS_DICT,
+    LEDGER_DICT,
+    MOUNT,
+    SESSIONS_DICT,
+    VOLUME,
+    ModalHandles,
+    RunnerState,
+    export_hosted_ledger,
+    sweep_sessions,
+)
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -49,6 +60,8 @@ WEB_DIST = "/root/web/dist"
 """Where the image puts `web/dist`: beside `/root/src`, where `src/api/app.py` looks for it."""
 SNAPSHOT_TZ = "America/New_York"
 """The daily ledger snapshot runs at 06:00 in this zone and is named by its date there (AD-9)."""
+SWEEP_CRON = "17 * * * *"
+"""The hourly Session sweep (AD-8), off the top of the hour, in UTC."""
 POLL_ERRORS = (
     modal.exception.ConnectionError,
     modal.exception.InternalError,
@@ -125,3 +138,9 @@ def run_build(job_id: str) -> None:
 def ledger_export() -> None:
     """The daily hosted ledger snapshot: every current-epoch entry to `spend/hosted-<date>.jsonl` on the Volume, committed (AD-9)."""
     export_hosted_ledger(handles(), datetime.now(ZoneInfo(SNAPSHOT_TZ)).date())
+
+
+@app.function(schedule=modal.Cron(SWEEP_CRON))
+def session_sweep() -> None:
+    """The hourly Session sweep (AD-8): every Session whose last event is more than 24 h old is deleted."""
+    sweep_sessions(handles(), now=datetime.now(UTC))

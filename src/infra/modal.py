@@ -58,7 +58,9 @@ store writes every key of the port (`<room_id>/room.json`,
 `rooms/judge/`, reads a key from `rooms/demo/` first and then
 `rooms/judge/`, so a Judge room plays by its id, and `list_rooms()` lists
 `rooms/demo/` alone, so no Judge room is ever listed; `is_demo_room(room_id)`
-is true only for a Room under `rooms/demo/`. Cache entries live at
+is true only for a Room under `rooms/demo/`, and `deleted_room(id_)` reads
+the deletion records under `rooms/deleted/` for one naming that room id or
+job id, so a route answers a deleted Judge room with 410. Cache entries live at
 `/data/cache/<key>.json`. `run_build` runs a Judge build
 through `run_judge_build`, with a `CacheKeyLog` as the providers' Cache: the
 log adds each key to `rooms/judge/<room_id>/cache-keys.json`, committed,
@@ -347,6 +349,11 @@ class VolumeArtifactStore:
     def is_demo_room(self, room_id: str) -> bool:
         """Whether the Room is stored under `rooms/demo/<room_id>/`, after one reload; a Judge room or an unknown id is not."""
         return self.files.exists(f"{self.demo}/{self._clean(room_key(room_id))}")
+
+    def deleted_room(self, id_: str) -> RoomId | None:
+        """The Room id of the deletion record under `rooms/deleted/` that names `id_` as its room id or job id, after one reload; `None` when none does."""
+        records = map(DeletionRecord.model_validate_json, self.files.read_glob(f"{ROOMS_DIR}/{DELETED_PARTITION}/*.json"))
+        return next((record.room_id for record in records if id_ in (record.room_id, record.job_id)), None)
 
 
 class VolumeCache:

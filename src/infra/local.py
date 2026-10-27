@@ -45,7 +45,7 @@ from typing import Any, TextIO
 from pydantic import ConfigDict, Field, TypeAdapter
 
 from src.domain.ledger import LedgerEntry, running_total_usd
-from src.domain.schema import Event, JobId, JobState, Model, Room, SessionId
+from src.domain.schema import Event, JobId, JobState, Model, Room, RoomId, SessionId
 from src.pipeline.ports import ROOM_FILE
 
 ROOMS_ROOT = Path("rooms")
@@ -93,6 +93,10 @@ class DiskArtifactStore:
     def is_demo_room(self, room_id: str) -> bool:
         """Never: Local mode has no Demo rooms, so every local start gets the First-room welcome."""
         return False
+
+    def deleted_room(self, id_: str) -> RoomId | None:
+        """None: Local mode deletes no Room and keeps no deletion record (AD-8)."""
+        return None
 
 
 def _json_name(kind: str, id_: str) -> str:

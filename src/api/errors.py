@@ -39,6 +39,16 @@ class RoomNotFound(ApiError):
         super().__init__(f"no room {room_id}")
 
 
+class RoomDeleted(ApiError):
+    """A room-keyed or job-keyed route whose Judge room was deleted (AD-9, AD-13): 410, distinct from 404 `room_not_found`."""
+
+    status = 410
+    code = "room_deleted"
+
+    def __init__(self, room_id: str) -> None:
+        super().__init__(f"room {room_id} was deleted")
+
+
 class PhotoNotFound(ApiError):
     status = 404
     code = "photo_not_found"
