@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 
 from src.api import modal_app, wiring
 from src.config import Settings
+from src.council.trickster import RECORDED_PROPOSALS
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import IdleTickEvent
 from src.infra.modal import (
@@ -50,6 +51,7 @@ class Spies:
         self.made: list[Any] = []
         self.concurrent: list[dict[str, Any]] = []
         self.env: list[dict[str, Any]] = []
+        self.local_dirs: list[tuple[str, str]] = []
 
 
 @pytest.fixture
@@ -59,7 +61,7 @@ def spies(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Spies]:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     found = Spies()
-    function, concurrent, env = modal.App.function, modal.concurrent, modal.Image.env
+    function, concurrent, env, add_local_dir = modal.App.function, modal.concurrent, modal.Image.env, modal.Image.add_local_dir
 
     def spy_function(self: modal.App, **kwargs: Any) -> Any:
         found.function.append(kwargs)
@@ -79,9 +81,14 @@ def spies(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Spies]:
         found.env.append(vars)
         return env(self, vars)
 
+    def spy_add_local_dir(self: modal.Image, local_path: str, remote_path: str) -> Any:
+        found.local_dirs.append((local_path, remote_path))
+        return add_local_dir(self, local_path, remote_path)
+
     monkeypatch.setattr(modal.App, "function", spy_function)
     monkeypatch.setattr(modal, "concurrent", spy_concurrent)
     monkeypatch.setattr(modal.Image, "env", spy_env)
+    monkeypatch.setattr(modal.Image, "add_local_dir", spy_add_local_dir)
     yield found
     monkeypatch.undo()
     importlib.reload(modal_app)
@@ -156,6 +163,20 @@ def test_the_image_runs_hosted_with_the_verbatim_guide(spies: Spies):
     assert spies.env == [{"MODE": "hosted", "GUIDE": "verbatim"}]
     settings = Settings.from_env({**spies.env[0], "MODEL_PROVIDER": "mock"})
     assert (settings.mode, settings.guide, settings.spend_cap_usd) == ("hosted", "verbatim", 20)
+
+
+def test_the_image_carries_proposals_beside_src_when_the_folder_exists_so_a_scripted_trickster_has_a_source(
+    spies: Spies, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """`wiring.PROPOSALS_ROOT` is the parent of `src/`, `/root` in the container, so `proposals/` lands at `/root/proposals` (FR-31, AD-15)."""
+    monkeypatch.chdir(tmp_path)
+    load()
+    assert spies.local_dirs == [("web/dist", modal_app.WEB_DIST)]  # not committed yet: the deploy must not fail on it
+    (tmp_path / RECORDED_PROPOSALS).parent.mkdir()
+    spies.local_dirs.clear()
+    load()
+    assert spies.local_dirs == [("web/dist", modal_app.WEB_DIST), ("proposals", modal_app.PROPOSALS_DIR)]
+    assert Path(modal_app.PROPOSALS_DIR) == Path(modal_app.WEB_DIST).parents[1] / RECORDED_PROPOSALS.parent
 
 
 def test_importing_the_module_contacts_no_modal_service_and_hydrates_no_handle(spies: Spies):

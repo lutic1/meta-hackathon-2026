@@ -4,6 +4,8 @@ Deploy by hand from the repo root, after the web build:
 `modal deploy -m src.api.modal_app`. The image
 installs `uv.lock` and sets `MODE=hosted` and `GUIDE=verbatim`, so in the
 container `Settings` selects the hosted adapters and the verbatim Guide;
+it carries `proposals/` when the folder exists, so `DEMO_TRICKSTER=scripted`
+or `authored` has its source in the container (FR-31, AD-15);
 the `keyframe` Secret carries the keys `Settings` reads, `SPEND_CAP_USD`
 (the hosted allocation) among them. `web` serves `web/dist` at `/` and the
 API under `/api/` from one origin with no CORS, in one container
@@ -31,6 +33,7 @@ and the wiring are imported inside the functions.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
@@ -58,6 +61,8 @@ SECRET = "keyframe"
 """The one Secret (AD-14), attached at the App level."""
 WEB_DIST = "/root/web/dist"
 """Where the image puts `web/dist`: beside `/root/src`, where `src/api/app.py` looks for it."""
+PROPOSALS_DIR = "/root/proposals"
+"""Where the image puts `proposals/`: beside `/root/src`, where `wiring.PROPOSALS_ROOT` looks for it (AD-15)."""
 SNAPSHOT_TZ = "America/New_York"
 """The daily ledger snapshot runs at 06:00 in this zone and is named by its date there (AD-9)."""
 SWEEP_CRON = "17 * * * *"
@@ -81,6 +86,8 @@ image = (
     .add_local_python_source("src")
     .add_local_dir("web/dist", WEB_DIST)
 )
+if Path("proposals").is_dir():  # not committed yet; a missing folder would fail the deploy
+    image = image.add_local_dir("proposals", PROPOSALS_DIR)
 secret = modal.Secret.from_name(SECRET)
 volume = modal.Volume.from_name(VOLUME, create_if_missing=True)
 jobs = modal.Dict.from_name(JOBS_DICT, create_if_missing=True)
