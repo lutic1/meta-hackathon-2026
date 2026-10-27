@@ -1,6 +1,6 @@
 import './wizard-notes.css'
 import type { PlayPuzzle, PlayView, RungChangeEvent, SessionState } from '../../types'
-import { fadeIn } from '../fade.ts'
+import { fadeIn, stateFadeMs } from '../fade.ts'
 import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
 import { speakerPrefix, wizardPortrait } from '../wizards/portrait.ts'
@@ -18,6 +18,8 @@ export interface WizardNotes {
   render: (state: SessionState) => void
   /** Draws each Puzzle's opened Rungs: the `rung_changes` the Hint area's Rung line no longer shows (3.4). */
   openedRungs: (lines: readonly RungChangeEvent[]) => void
+  /** Redraws the notes over the refetched Effective room: its Evidence cards and which Puzzles wait (AD-12). */
+  reshape: (view: PlayView) => void
 }
 
 interface Entry {
@@ -28,6 +30,8 @@ interface Entry {
   opening: () => void
   /** Draws the entry's opened Rungs from all the opened Rungs of the Room. */
   rungs: (lines: readonly RungChangeEvent[]) => void
+  /** Draws the Puzzle's Evidence cards and their count as `view` gives them; the same cards redraw nothing. */
+  evidence: (view: PlayView, shown: PlayPuzzle) => void
 }
 
 /**
@@ -73,14 +77,8 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
   current.textContent = strings.current
   title.append(heading, current)
 
-  const interactables = new Map(room.interactables.map((interactable) => [interactable.id, interactable]))
-  const cards = puzzle.evidence_cards.flatMap((evidence) => {
-    const interactable = interactables.get(evidence.interactable)
-    return interactable === undefined ? [] : [evidenceCard(room.id, interactable, evidence)]
-  })
   const count = document.createElement('span')
   count.className = 'notes-count label'
-  count.textContent = cards.length === 1 ? strings.evidenceCard : fill(strings.evidenceCards, { k: cards.length })
   const opened = document.createElement('span')
   opened.className = 'chip chip-open label'
   opened.textContent = strings.open
@@ -93,7 +91,6 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
   clue.append(wizardPortrait('riddler', 32), paragraph('wizard-line', speakerPrefix('riddler'), puzzle.clue))
   const evidence = document.createElement('ul')
   evidence.className = 'notes-evidence'
-  evidence.append(...cards)
   const lore = paragraph('notes-lore lore', speakerPrefix('riddler'), puzzle.lore)
   const rungs = document.createElement('div')
   rungs.className = 'notes-rungs' // the opened Rungs
@@ -158,7 +155,29 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
     )
   }
 
-  return { element, heading, update, opening, rungs: drawRungs }
+  let drawnEvidence = ''
+  function drawEvidence(view: PlayView, shown: PlayPuzzle): void {
+    const key = JSON.stringify(shown.evidence_cards)
+    if (key === drawnEvidence) return
+    drawnEvidence = key
+    const interactables = new Map(view.interactables.map((interactable) => [interactable.id, interactable]))
+    const cards = shown.evidence_cards.flatMap((card) => {
+      const interactable = interactables.get(card.interactable)
+      return interactable === undefined ? [] : [evidenceCard(view.id, interactable, card)]
+    })
+    count.textContent = cards.length === 1 ? strings.evidenceCard : fill(strings.evidenceCards, { k: cards.length })
+    evidence.replaceChildren(...cards)
+  }
+  drawEvidence(room, puzzle)
+
+  return { element, heading, update, opening, rungs: drawRungs, evidence: drawEvidence }
+}
+
+/** The plain line an accepted Merge leaves where the entry it gated stood; focus can land on it (UX-DR27). */
+function waitingLine(n: number): HTMLParagraphElement {
+  const element = paragraph('notes-entry notes-waiting label', fill(strings.puzzleWaits, { n }))
+  element.tabIndex = -1
+  return element
 }
 
 /**
@@ -174,6 +193,13 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
  * (UX-DR38), then the notes draw the latest state: the entry collapses, newly available entries fade in, and focus
  * moves to the heading of the first of them, else of the Active puzzle. Everything follows session state; nothing
  * follows a click.
+ *
+ * `reshape` takes the Effective room refetched after an accepted edit (FR-19, AD-12) and keeps every entry, so the
+ * Code field's value and keyboard focus stay: an entry's Evidence cards and count change in place, a card the Room
+ * gained drawn like the others, with no highlight or announcement. An entry whose Puzzle now waits on an unopened one
+ * (a Merge) fades out and leaves "Puzzle {n} now waits on another puzzle." in its place, taking focus if it held it,
+ * until the Puzzle is available again; a Puzzle whose last unmet prerequisite went (a Shortcut) fades in as any newly
+ * available entry does. The placeholder is never written to the live region.
  */
 export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   const element = document.createElement('section')
@@ -181,6 +207,8 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   element.setAttribute('aria-label', strings.wizardNotes)
   element.tabIndex = 0 // its place in the Tab order, after the Inventory, and scrolled by the keyboard (UX-DR71)
   const entries = new Map<string, Entry>()
+  /** The Puzzles a Merge hid from view, each as it was drawn (its prerequisites open) and the line in its place. */
+  const waiting = new Map<string, { puzzle: PlayPuzzle; line: HTMLElement }>()
   let drawn: string | undefined
   /** `locks_open` as last drawn; undefined before the first draw, which shows open locks collapsed at once. */
   let drawnOpen: readonly string[] | undefined
@@ -188,10 +216,12 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   let holding = false
   let opened: readonly RungChangeEvent[] = []
 
+  const place = (id: string): number => room.puzzles.findIndex((puzzle) => puzzle.id === id) + 1
+
   function built(puzzle: PlayPuzzle): Entry {
     let made = entries.get(puzzle.id)
     if (made === undefined) {
-      made = entry(room, puzzle, room.puzzles.indexOf(puzzle) + 1, play)
+      made = entry(room, puzzle, place(puzzle.id), play)
       made.rungs(opened)
       entries.set(puzzle.id, made)
     }
@@ -201,15 +231,22 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   function draw(state: SessionState, afterOpening: boolean): void {
     drawn = drawKey(state)
     drawnOpen = state.locks_open
+    for (const puzzle of room.puzzles) {
+      if (waiting.has(puzzle.id) && puzzle.requires.every((id) => state.locks_open.includes(id))) waiting.delete(puzzle.id)
+    }
     const before = new Set(element.children)
-    const shown = availableInOrder(room.puzzles, state.locks_open).map((puzzle) => {
+    // A waiting Puzzle keeps the place it was drawn in, as its line.
+    const listed = availableInOrder(room.puzzles.map((puzzle) => waiting.get(puzzle.id)?.puzzle ?? puzzle), state.locks_open)
+    const shown = listed.flatMap((puzzle) => {
+      if (waiting.has(puzzle.id)) return []
       const made = built(puzzle)
       made.update(state)
-      return made
+      return [made]
     })
+    const rows = listed.map((puzzle) => waiting.get(puzzle.id)?.line ?? built(puzzle).element)
     const children = [...element.children]
-    if (shown.length !== children.length || shown.some(({ element: child }, index) => child !== children[index])) {
-      element.replaceChildren(...shown.map((made) => made.element))
+    if (rows.length !== children.length || rows.some((child, index) => child !== children[index])) {
+      element.replaceChildren(...rows)
     }
     const arrived = shown.filter((made) => !before.has(made.element))
     if (before.size > 0) for (const made of arrived) fadeIn(made.element)
@@ -248,5 +285,31 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
     for (const made of entries.values()) made.rungs(lines)
   }
 
-  return { element, render, openedRungs }
+  function reshape(view: PlayView): void {
+    const open = drawnOpen ?? []
+    // The drawn entries of unopened Puzzles that the new Room makes wait on an unopened one.
+    const gated = room.puzzles.filter((puzzle) => {
+      const now = view.puzzles.find(({ id }) => id === puzzle.id)
+      const shown = entries.get(puzzle.id)?.element.isConnected === true && !open.includes(puzzle.id)
+      return shown && now !== undefined && !now.requires.every((id) => open.includes(id))
+    })
+    room = view
+    for (const puzzle of view.puzzles) entries.get(puzzle.id)?.evidence(view, puzzle)
+    for (const puzzle of gated) waiting.set(puzzle.id, { puzzle, line: waitingLine(place(puzzle.id)) })
+    const leaving = gated.flatMap((puzzle) => entries.get(puzzle.id) ?? [])
+    const focused = gated.find((puzzle) => entries.get(puzzle.id)?.element.contains(document.activeElement))
+    for (const made of leaving) made.element.classList.add('is-leaving')
+    const redraw = (): void => {
+      for (const made of leaving) made.element.classList.remove('is-leaving')
+      drawn = undefined
+      if (!holding && latest !== undefined && element.isConnected) draw(latest, false)
+      const line = focused === undefined ? undefined : waiting.get(focused.id)?.line
+      if (line?.isConnected) line.focus()
+    }
+    // The gated entries fade out (instant under reduced motion) before their lines take their places.
+    if (leaving.length === 0) redraw()
+    else setTimeout(redraw, stateFadeMs())
+  }
+
+  return { element, render, openedRungs, reshape }
 }

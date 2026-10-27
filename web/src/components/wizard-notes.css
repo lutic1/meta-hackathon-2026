@@ -38,6 +38,15 @@
 .notes-entry.is-arriving {
   opacity: 0;
 }
+/* An entry an accepted Merge gated fades out the same way before its placeholder takes its place. */
+.notes-entry.is-leaving {
+  opacity: 0;
+}
+/* The one-line plain placeholder a Merge leaves in the gated entry's place, in label ink-muted. */
+.notes-waiting {
+  margin: 0;
+  color: var(--ink-muted);
+}
 /* {components.active-puzzle-marker}: a 3 px lamp-ink left rule, drawn in the sheet's padding so the text stays
    aligned, plus the word "Current" in label lamp-ink beside the heading: never color alone. */
 .notes-entry.is-current {

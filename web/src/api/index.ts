@@ -106,6 +106,14 @@ export function getRoom(roomId: string): Promise<PlayView> {
   return getJson<PlayView>(`/rooms/${encodeURIComponent(roomId)}`)
 }
 
+/**
+ * `GET /sessions/<id>/room`: the `PlayView` of the session's Effective room, the stored Room with the accepted Trickster
+ * edits folded in (AD-12); the Play screen draws from it and refetches it when `room_revision` changes.
+ */
+export function getEffectiveRoom(sessionId: string): Promise<PlayView> {
+  return getJson<PlayView>(`/sessions/${encodeURIComponent(sessionId)}/room`)
+}
+
 /** The URL of photo `index` of a stored Room: its downscaled JPEG. */
 export function photoUrl(roomId: string, index: number): string {
   return `/api/rooms/${encodeURIComponent(roomId)}/photos/${index}`

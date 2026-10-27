@@ -1,5 +1,5 @@
 import type { Meta, PlayView, PostedEvent, SessionState } from '../types'
-import { getRoom, getSession, postEvent, RequestFailed, startSession } from './api/index.ts'
+import { getEffectiveRoom, getSession, postEvent, RequestFailed, startSession } from './api/index.ts'
 import { secondaryButton, toggleButton } from './components/button.ts'
 import { type HintArea, hintArea } from './components/hint-area.ts'
 import { inventory } from './components/inventory.ts'
@@ -88,7 +88,8 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
 
 /**
  * The Play screen (FR-11): the Scene over the row of the Thumbnail strip and the Inventory, and the Wizard notes in
- * the side column, over the session's Room from `GET /rooms/<room_id>`. The client polls `GET /sessions/<id>` every
+ * the side column, over the session's Effective room from `GET /sessions/<id>/room` (never `GET /rooms/<room_id>`),
+ * whose revision is the `room_revision` of the state it mounted with. The client polls `GET /sessions/<id>` every
  * 2000 ms, from a worker so the cadence holds while the tab is hidden, and every part draws open locks, the
  * Inventory and Wrong attempts from the latest state the server sent: a poll or the reply to a posted event, never
  * its own clicks. A poll sent before a reply that arrived first is stale and dropped. A session opened with a
@@ -100,12 +101,15 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * arrived, its panel open from the start when the session loads with a Disclosure active. "Leave room" beside it, or
  * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
  * confirming goes to `#/` and records no Room result. A state that shows a Trickster window open asks for its
- * proposal once (`tricksterRequest`), and the Card arrives in the Hint area through the poll. Once a state
+ * proposal once (`tricksterRequest`), and the Card arrives in the Hint area through the poll. A state whose
+ * `room_revision` differs from the revision of the room last fetched (an accepted edit; a rejected or skipped Card
+ * leaves it as it was) refetches `GET /sessions/<id>/room`, one request at a time, and redraws the Wizard notes and
+ * the Hotspots from it without a reload: the open Scene, the Inventory and keyboard focus stay (FR-19, AD-12). Once a state
  * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
  * replacing the Play route and its Back guard in the history (`LeaveRoom.exit`); an Exit already open when the screen mounts has no Open state, so it routes
  * at once.
  *
- * A reload mounts the same way from `GET /sessions/<id>` and the Room: the first Scene, the Inventory and the open
+ * A reload mounts the same way from `GET /sessions/<id>` and the Effective room: the first Scene, the Inventory and the open
  * locks, with no welcome once play has begun and nothing announced. A poll that fails, or is still unanswered at the
  * next tick, is missed; after two in a row comes the reconnecting state: the status strip at the top of the Scene
  * column, the Scene frame shrunk by its height, the photo dimmed and every input inert, the line written to the live
@@ -267,14 +271,34 @@ export function mountPlay(
   })
   frame.controls.append(showAll, leaveRoom.button)
 
-  const room: Promise<PlayView> = getRoom(session.room_id)
+  const room: Promise<PlayView> = getEffectiveRoom(session.id)
+  /** The `room_revision` of the Effective room last fetched: the mounting state's, as the first fetch follows it. */
+  let fetchedRevision = session.room_revision
+  let refetching = false
   sceneColumn.append(stage, stripRow)
-  const unmountScene = mountScene(stage, stripRow, play, room)
+  const scene = mountScene(stage, stripRow, play, room)
   room
     .then((view) => {
       if (!mounted) return
       const held = inventory(view, play.useOn)
       const notes = wizardNotes(view, play)
+      /** Refetches the Effective room when `state` names another revision, then redraws the notes and Hotspots. */
+      const refetchRoom = async (state: SessionState): Promise<void> => {
+        if (refetching || state.room_revision === fetchedRevision) return
+        refetching = true
+        try {
+          const next = await getEffectiveRoom(session.id)
+          if (!mounted || ended) return
+          fetchedRevision = state.room_revision
+          scene.reshape(next)
+          notes.reshape(next)
+        } catch {
+          return // the next state that names another revision asks again
+        } finally {
+          refetching = false
+        }
+        void refetchRoom(latest) // a later revision arrived while this one was fetched
+      }
       stripRow.append(held.element)
       sideColumn.append(notes.element)
       parts.push(held.render, notes.render, lockOutcomes(view, latest))
@@ -289,6 +313,8 @@ export function mountPlay(
       holdInputs()
       parts.push(hints.render)
       parts.push(triggers.render)
+      parts.push((state) => void refetchRoom(state))
+      void refetchRoom(latest)
       const exit = view.puzzles.find((puzzle) => puzzle.is_exit)
       if (exit === undefined) return
       parts.push((state) => leaveOnExit(exit.id, state))
@@ -329,7 +355,7 @@ export function mountPlay(
     ticker.terminate()
     play.useOn.dispose()
     showAll.remove()
-    unmountScene()
+    scene.unmount()
     stage.remove()
     stripRow.remove()
     sideColumn.replaceChildren()
@@ -338,7 +364,8 @@ export function mountPlay(
 
 /**
  * The Play screen as it stands under the Completion sheet: the Scene on the photo it last showed in this page (the
- * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session`, and the
+ * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session` over its
+ * Effective room (`GET /sessions/<id>/room`), and the
  * "Show all objects" toggle, unpressed, and "Leave room" in the top bar's `controls`. It never polls and never posts; the shell holds
  * both columns and the top bar inert. A Room answered 410 `room_deleted` or 404 `room_not_found` is handed to
  * `onGone`. Returns the teardown.
@@ -363,10 +390,10 @@ export function mountPlayBehind(
     openingLine: null,
     useOn: useOnSelection(),
   }
-  const room: Promise<PlayView> = getRoom(session.room_id)
+  const room: Promise<PlayView> = getEffectiveRoom(session.id)
   const stripRow = document.createElement('div')
   stripRow.className = 'scene-strip-row'
-  const unmountScene = mountScene(sceneColumn, stripRow, play, room, lastShownPhoto(session.id))
+  const scene = mountScene(sceneColumn, stripRow, play, room, lastShownPhoto(session.id))
   sceneColumn.append(stripRow)
   room
     .then((view) => {
@@ -389,7 +416,7 @@ export function mountPlayBehind(
     play.useOn.dispose()
     showAll.remove()
     leave.remove()
-    unmountScene()
+    scene.unmount()
     stripRow.remove()
     sideColumn.replaceChildren()
   }

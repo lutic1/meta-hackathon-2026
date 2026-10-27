@@ -38,6 +38,13 @@ export function lastShownPhoto(sessionId: string): number {
   return shownPhoto.get(sessionId) ?? 0
 }
 
+/** The mounted Scene: its teardown, and the redraw for the refetched Effective room. */
+export interface MountedScene {
+  unmount: () => void
+  /** The Effective room after an accepted edit (AD-12): the shown photo's Hotspots from `view`; the photo stays. */
+  reshape: (view: PlayView) => void
+}
+
 function firstPointerResponse(sessionId: string): void {
   if (responded.has(sessionId)) return
   responded.add(sessionId)
@@ -46,7 +53,7 @@ function firstPointerResponse(sessionId: string): void {
 
 /**
  * The Play screen's Scene (FR-11, AD-11): the Scene frame in `root` and the Thumbnail strip at the start of
- * `stripRow`, for the session's Room as `GET /rooms/<room_id>` serves it. Each photo from
+ * `stripRow`, for the session's Effective room as `GET /sessions/<id>/room` serves it. Each photo from
  * `GET /rooms/<room_id>/photos/<i>` is drawn as a three textured plane, exactly as served (no tone mapping, no
  * light), on a canvas sized to the photo contained in the frame; the photo's Hotspots lie over it in its own pixel
  * space. The frame shows its loading line until a photo and its Hotspots are live. A Hotspot click posts one `click`
@@ -56,7 +63,11 @@ function firstPointerResponse(sessionId: string): void {
  * dropped on a Hotspot, or a Hotspot activated while an item is selected (whose "Using {item label}" chip is pinned
  * to the frame's top-left), posts one `use_on` lock input naming the item and the Hotspot's Interactable, never a
  * `click` and never a Puzzle (AD-4), and clears the selection; until the reply, the target's label chip shows with
- * "Checking" beside it. The selection outlives photo switches. It opens on photo `first`. Returns the teardown.
+ * "Checking" beside it. The selection outlives photo switches. It opens on photo `first`.
+ *
+ * `reshape` lays the shown photo's Hotspots again from a refetched `PlayView` when its Interactables changed, keeping
+ * the photo, the strip and the selection; keyboard focus on a Hotspot that is still there stays on it. Returns the
+ * teardown and `reshape`.
  */
 export function mountScene(
   root: HTMLElement,
@@ -64,7 +75,7 @@ export function mountScene(
   play: PlaySession,
   rooms: Promise<PlayView>,
   first = 0,
-): () => void {
+): MountedScene {
   const frame = document.createElement('div')
   frame.className = 'scene-frame is-loading'
   const ground = document.createElement('div')
@@ -146,6 +157,39 @@ export function mountScene(
     if (mounted && !opened) layer?.showLabel(interactable)
   }
 
+  /** Lays the Hotspots of photo `index` of `view` over the photo, over the canvas. */
+  function layHotspots(view: PlayView, photoSize: Size, index: number): void {
+    layer = hotspotLayer(
+      photoSize,
+      view.interactables.filter((interactable) => interactable.photo === index),
+      {
+        onActivate: (interactable) => void activate(interactable).catch(() => undefined),
+        onPointerEnter: () => firstPointerResponse(play.id),
+        canDrop: () => play.useOn.dragging() !== null,
+        onDrop: (interactable) => {
+          const item = play.useOn.dragging()
+          if (item !== null) void useOn(item, interactable).catch(() => undefined)
+        },
+      },
+    )
+    layer.setCollected(play.state().inventory)
+    photo.replaceChildren(renderer.domElement, ...layer.elements)
+  }
+
+  function reshape(view: PlayView): void {
+    const before = room
+    room = view
+    // A photo still loading lays the new Room's Hotspots when it is live.
+    if (before === undefined || size === undefined || photo.hidden || layer === undefined) return
+    const on = (shown: PlayView): string => JSON.stringify(shown.interactables.filter((interactable) => interactable.photo === current))
+    if (on(before) === on(view)) return
+    const [svg] = layer.elements
+    const focused = svg.contains(document.activeElement) ? document.activeElement?.id : undefined
+    layHotspots(view, size, current)
+    if (focused !== undefined) layer.elements[0].querySelector<SVGElement>(`[id="${focused}"]`)?.focus()
+    render()
+  }
+
   async function show(index: number): Promise<void> {
     if (room === undefined || index === current) return
     current = index
@@ -171,21 +215,7 @@ export function mountScene(
     camera.top = size.height / 2
     camera.bottom = -size.height / 2
     camera.updateProjectionMatrix()
-    layer = hotspotLayer(
-      size,
-      room.interactables.filter((interactable) => interactable.photo === index),
-      {
-        onActivate: (interactable) => void activate(interactable).catch(() => undefined),
-        onPointerEnter: () => firstPointerResponse(play.id),
-        canDrop: () => play.useOn.dragging() !== null,
-        onDrop: (interactable) => {
-          const item = play.useOn.dragging()
-          if (item !== null) void useOn(item, interactable).catch(() => undefined)
-        },
-      },
-    )
-    layer.setCollected(play.state().inventory)
-    photo.replaceChildren(renderer.domElement, ...layer.elements)
+    layHotspots(room, size, index)
     frame.classList.remove('is-loading')
     loading.hidden = true
     photo.hidden = false
@@ -210,7 +240,7 @@ export function mountScene(
     })
     .catch(() => undefined)
 
-  return () => {
+  function unmount(): void {
     mounted = false
     observer.disconnect()
     for (const loaded of textures.values()) void loaded.then((map) => map.dispose(), () => undefined)
@@ -220,4 +250,6 @@ export function mountScene(
     frame.remove()
     strip?.element.remove()
   }
+
+  return { unmount, reshape }
 }

@@ -100,9 +100,11 @@ def test_the_wizard_notes_draw_one_entry_per_available_puzzle_in_availability_or
     assert ".filter(({ puzzle }) => puzzle.requires.every((id) => locksOpen.includes(id)))" in order
     assert "Math.max(-1, ...puzzle.requires.map((id) => locksOpen.indexOf(id)))" in order
     assert ".sort((a, b) => a.since - b.since || a.place - b.place)" in order
-    assert "availableInOrder(room.puzzles, state.locks_open)" in notes
+    # A Puzzle a Merge hid keeps its place, as its placeholder, until it is available again (Story 4.6).
+    assert "availableInOrder(room.puzzles.map((puzzle) => waiting.get(puzzle.id)?.puzzle ?? puzzle), state.locks_open)" in notes
     # n is the Puzzle's fixed place in the Room, never its place in the list.
-    assert "entry(room, puzzle, room.puzzles.indexOf(puzzle) + 1, play)" in notes
+    assert "const place = (id: string): number => room.puzzles.findIndex((puzzle) => puzzle.id === id) + 1" in notes
+    assert "entry(room, puzzle, place(puzzle.id), play)" in notes
     assert "heading.textContent = fill(strings.puzzleHeading, { n })" in notes
 
 
@@ -113,7 +115,7 @@ def test_each_entry_is_heading_and_count_then_portrait_and_clue_evidence_lore_ru
     assert "clue.append(wizardPortrait('riddler', 32), paragraph('wizard-line', speakerPrefix('riddler'), puzzle.clue))" in notes
     assert "paragraph('notes-lore lore', speakerPrefix('riddler'), puzzle.lore)" in notes
     assert "body.append(clue, evidence, lore, rungs, lock)" in notes
-    assert "puzzle.evidence_cards.flatMap(" in notes  # in the order PlayView gives
+    assert "shown.evidence_cards.flatMap(" in notes and "drawEvidence(room, puzzle)" in notes  # in PlayView order
     rules = _rules("components/wizard-notes.css")
     sheet = rules[".wizard-notes"]
     assert sheet["background"] == "var(--parchment)" and sheet["color"] == "var(--ink)"
@@ -252,7 +254,7 @@ def test_the_four_lock_room_serves_what_the_notes_and_the_inventory_draw(client:
 
 def test_a_reload_rebuilds_the_play_screen_from_the_session_and_its_room_announcing_nothing():
     shell, play = _ts("shell.ts"), _ts("play.ts")
-    assert "getSession(sessionId).catch(refused)" in shell and "const room: Promise<PlayView> = getRoom(session.room_id)" in play
+    assert "getSession(sessionId).catch(refused)" in shell and "const room: Promise<PlayView> = getEffectiveRoom(session.id)" in play
     # The first draw shows open locks collapsed and held items in place: no Open hold, no fade, no focus move.
     notes, held = _ts("components/wizard-notes.ts"), _ts("components/inventory.ts")
     assert "previous === undefined\n        ? []" in notes and "if (before.size > 0) for (const made of arrived) fadeIn(made.element)" in notes

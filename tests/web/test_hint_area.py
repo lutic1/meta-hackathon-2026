@@ -175,7 +175,9 @@ def test_every_new_line_fades_the_shown_one_out_and_in_and_a_reply_never_glows()
     assert "words.classList.add('is-leaving')" in present and "setTimeout(swap, fade)" in present
     assert "fadeIn(words)" in present and "if (arrived) glow()" in present
     assert "const fade = rungLine.hidden ? 0 : stateFadeMs()" in present
-    assert "getPropertyValue('--motion-state')" in hint and "value.endsWith('ms') ? 1 : 1000" in hint
+    fade = _ts("fade.ts")
+    assert "getPropertyValue('--motion-state')" in fade and "value.endsWith('ms') ? 1 : 1000" in fade
+    assert "import { fadeIn, stateFadeMs } from '../fade.ts'" in hint
     request = _function(hint, "request")
     assert "present(replyLine(reply), false)" in request  # the player asked: no glow
     assert "announce(`${strings.speakerGuide} ${reply.text}`)" in request  # announced again, even a repeat
@@ -248,7 +250,7 @@ def test_the_opening_line_sits_as_the_first_guide_line_after_begin_never_announc
 
 def test_the_line_the_rung_line_gives_up_moves_into_its_puzzles_opened_rungs():
     hint, notes = _ts("components/hint-area.ts"), _ts("components/wizard-notes.ts")
-    assert "onOpened(openedRungs(latest.rung_changes, line.shown))" in _function(hint, "draw")
+    assert "onOpened(openedRungs(latest.rung_changes, line.shown, latest.trigger_events))" in _function(hint, "draw")
     opened = hint.split("export function openedRungs(", 1)[1].split("\n}\n", 1)[0]
     assert "change.puzzle_id !== shown.puzzle_id || change.rung !== shown.rung" in opened
     # The No-hint line and the opening line are no Rung, so they keep nothing back.

@@ -1,6 +1,6 @@
 import './hint-area.css'
 import type { HintReply, Meta, PlayView, RungChangeEvent, SessionState, TricksterCard } from '../../types'
-import { fadeIn } from '../fade.ts'
+import { fadeIn, stateFadeMs } from '../fade.ts'
 import { announce } from '../live-region.ts'
 import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
@@ -38,10 +38,24 @@ export function rungLabel(n: number, rung: number): string {
   return fill(RUNG_LABELS[rung] ?? strings.puzzleHeading, { n })
 }
 
-/** Every Rung change but the one on the Rung line, which are the opened Rungs the Wizard notes keep. */
-export function openedRungs(changes: readonly RungChangeEvent[], shown: Shown | null): RungChangeEvent[] {
+/** A Rung a Loosen card opened: its one triggering log event is the `trickster_card`, as the Triggers panel reads it. */
+function byLoosen(change: RungChangeEvent, events: SessionState['trigger_events']): boolean {
+  const [only, ...rest] = change.triggered_by
+  return only !== undefined && rest.length === 0 && events?.[only]?.type === 'trickster_card'
+}
+
+/**
+ * The opened Rungs the Wizard notes keep: every Rung change but the one on the Rung line, unless a Loosen card opened
+ * that one, which shows in its Puzzle's entry as well (FR-19).
+ */
+export function openedRungs(
+  changes: readonly RungChangeEvent[],
+  shown: Shown | null,
+  events: SessionState['trigger_events'] = {},
+): RungChangeEvent[] {
   return changes.filter(
-    (change) => shown === null || change.puzzle_id !== shown.puzzle_id || change.rung !== shown.rung,
+    (change) =>
+      shown === null || change.puzzle_id !== shown.puzzle_id || change.rung !== shown.rung || byLoosen(change, events),
   )
 }
 
@@ -55,12 +69,6 @@ export interface HintArea {
   triggers: HTMLElement
   /** The Triggers panel opened or closed: the tray may grow past its cap, and only the newest Card stacks. */
   triggersOpen: (open: boolean) => void
-}
-
-/** `--motion-state` in ms as the page resolves it now ("200ms" or ".2s"): 200, or 0 under reduced motion. */
-function stateFadeMs(): number {
-  const value = getComputedStyle(document.documentElement).getPropertyValue('--motion-state').trim()
-  return (parseFloat(value) || 0) * (value.endsWith('ms') ? 1 : 1000)
 }
 
 function paragraph(className: string): HTMLParagraphElement {
@@ -88,7 +96,7 @@ function paragraph(className: string): HTMLParagraphElement {
  * the one live region as "The Guide: …". A `rung_change` in a state the server sent (never computed here, and its
  * words taken from `rung_changes[]`) shows the same way with one arrival glow on the portrait ring and the tray edge;
  * a reply the player asked for never glows. The line the Rung line no longer shows moves into its Puzzle's opened
- * Rungs, through `onOpened`. The first state is only read: the latest `rung_change`, else the opening line, is drawn
+ * Rungs, through `onOpened`; a Rung a Loosen card opened shows there at once as well. The first state is only read: the latest `rung_change`, else the opening line, is drawn
  * without a fade, a glow or an announcement, so a reload rebuilds the Rungs and re-announces nothing.
  *
  * Trickster cards (FR-19, UX-DR40 to UX-DR42) stack above the Rung line, newest on top: at most `CARDS_STACKED`, only
@@ -201,7 +209,7 @@ export function hintArea(
     said.replaceChildren(speakerPrefix('guide'), line.text)
     words.classList.remove('is-leaving')
     think(false)
-    onOpened(openedRungs(latest.rung_changes, line.shown))
+    onOpened(openedRungs(latest.rung_changes, line.shown, latest.trigger_events))
   }
 
   function glow(): void {

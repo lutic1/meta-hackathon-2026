@@ -67,6 +67,7 @@ export const strings = {
   current: 'Current',
   evidenceCards: '{k} evidence cards',
   evidenceCard: '1 evidence card',
+  puzzleWaits: 'Puzzle {n} now waits on another puzzle.',
   notThis: 'Not this · {n}',
   open: 'Open',
   codeFor: 'Code for Puzzle {n}',

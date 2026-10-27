@@ -36,14 +36,16 @@ def client(tmp_path: Path, four_lock_room: Room) -> TestClient:
     return TestClient(make_app(tmp_path, four_lock_room))
 
 
-def test_the_play_route_mounts_the_scene_for_its_session_and_reads_the_room_from_get_rooms():
+def test_the_play_route_mounts_the_scene_for_its_session_and_reads_the_effective_room():
     shell, play, scene, api = _ts("shell.ts"), _ts("play.ts"), _ts("scene/index.ts"), _ts("api/index.ts")
     assert "if (state !== null) content = { name, session: state, guide: meta.guide, mode: meta.mode, profile: place.profile }" in shell
     assert "mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame)" in shell
-    # Story 1.20: the Play screen reads the Room once and shares it with the Scene, the Inventory and the notes.
-    assert "const room: Promise<PlayView> = getRoom(session.room_id)" in play
+    # Story 1.20: the Play screen reads the Room once and shares it with the Scene, the Inventory and the notes;
+    # Story 4.6: it is the session's Effective room, never GET /rooms/<room_id>.
+    assert "const room: Promise<PlayView> = getEffectiveRoom(session.id)" in play
     assert "mountScene(stage, stripRow, play, room)" in play and "rooms\n    .then((view) => {" in scene
-    assert "return getJson<PlayView>(`/rooms/${encodeURIComponent(roomId)}`)" in api
+    assert "return getJson<PlayView>(`/sessions/${encodeURIComponent(sessionId)}/room`)" in api
+    assert "getRoom(" not in play
     assert "`/api/rooms/${encodeURIComponent(roomId)}/photos/${index}`" in api
 
 
@@ -68,8 +70,9 @@ def test_the_frame_shows_its_loading_line_until_the_photo_and_its_hotspots_are_l
     assert "loading.textContent = strings.sceneLoading" in scene and "loading.className = 'scene-loading body-sm'" in scene
     show = scene.split("async function show(", 1)[1].split("\n  }\n", 1)[0]
     live = show.index("frame.classList.remove('is-loading')")
-    assert show.index("await texture(index)") < show.index("layer = hotspotLayer(") < live
-    assert show.index("photo.replaceChildren(renderer.domElement, ...layer.elements)") < live
+    assert show.index("await texture(index)") < show.index("layHotspots(room, size, index)") < live
+    lay = scene.split("function layHotspots(", 1)[1].split("\n  }\n", 1)[0]
+    assert lay.index("layer = hotspotLayer(") < lay.index("photo.replaceChildren(renderer.domElement, ...layer.elements)")
     assert show.index("frame.classList.add('is-loading')") < show.index("await texture(index)")
     # The line leaves once the photo is live, so it never shows in a portrait photo's letterbox.
     assert show.index("loading.hidden = false") < show.index("await texture(index)")
@@ -92,7 +95,7 @@ def test_the_scene_frame_is_the_gilt_rule_the_chrome_mat_and_the_canvas_ground()
 
 def test_a_hotspot_is_the_union_of_its_polygons_in_photo_pixels_with_the_interactable_id():
     layer, geometry, scene = _ts("scene/hotspots.ts"), _ts("scene/geometry.ts"), _ts("scene/index.ts")
-    assert "room.interactables.filter((interactable) => interactable.photo === index)" in scene
+    assert "view.interactables.filter((interactable) => interactable.photo === index)" in scene
     assert ".map((interactable) => ({ interactable, d: hotspotPath(interactable.polygons ?? []) }))" in layer
     assert "hotspot.id = interactable.id" in layer
     # The photo's own pixel space is the viewBox, so the browser scales every polygon to the rendered size.
