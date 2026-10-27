@@ -146,8 +146,10 @@ def test_an_entry_a_merge_gates_fades_out_and_its_placeholder_holds_its_place_wi
     assert "return shown && now !== undefined && !now.requires.every((id) => open.includes(id))" in reshape
     assert "waiting.set(puzzle.id, { puzzle, line: waitingLine(place(puzzle.id)) })" in reshape
     assert "made.element.classList.add('is-leaving')" in reshape and "setTimeout(redraw, stateFadeMs())" in reshape
-    assert "entries.get(puzzle.id)?.element.contains(document.activeElement)" in reshape
-    assert "if (line?.isConnected) line.focus()" in reshape
+    # Focus inside the gated entry moves to its line when the line takes its place, whichever draw does that.
+    focus = _nested(notes, "function keepFocus(focused: Element | null): HTMLElement | undefined {")
+    assert "const line = [...waiting].find(([id]) => entries.get(id)?.element.contains(focused))?.[1].line" in focus
+    assert "line.focus()" in focus
     line = notes.split("function waitingLine(n: number): HTMLParagraphElement {", 1)[1].split("\n}\n", 1)[0]
     assert "paragraph('notes-entry notes-waiting label', fill(strings.puzzleWaits, { n }))" in line
     assert "element.tabIndex = -1" in line
@@ -158,6 +160,36 @@ def test_an_entry_a_merge_gates_fades_out_and_its_placeholder_holds_its_place_wi
     rules = css_rules((WEB_SRC / "components/wizard-notes.css").read_text())
     assert rules[".notes-entry.is-leaving"] == {"opacity": "0"}
     assert rules[".notes-waiting"] == {"margin": "0", "color": "var(--ink-muted)"}
+
+
+def test_a_merge_that_lands_in_the_open_hold_keeps_its_entry_faded_until_the_holds_draw_puts_the_line_in():
+    notes = _ts("components/wizard-notes.ts")
+    reshape = _nested(notes, "function reshape(view: PlayView): void {")
+    # Gated against the latest state: a lock the hold shows open gates nothing.
+    assert "const open = latest?.locks_open ?? []" in reshape and "drawnOpen" not in reshape
+    # The fade-out is never undone while the hold runs; the hold's draw swaps the line in.
+    assert "classList.remove('is-leaving')" not in reshape
+    redraw = reshape.split("const redraw = (): void => {", 1)[1].split("\n    }\n", 1)[0]
+    assert "if (!holding && latest !== undefined && element.isConnected) draw(latest, false)" in redraw
+    draw = _nested(notes, "function draw(state: SessionState, afterOpening: boolean): void {")
+    # Only an entry drawn again loses the class, and a line that took focus keeps it over the arriving heading.
+    shown = draw.split("const shown = listed.flatMap((puzzle) => {", 1)[1].split("\n    })\n", 1)[0]
+    assert "if (waiting.has(puzzle.id)) return []" in shown
+    assert shown.index("return []") < shown.index("made.element.classList.remove('is-leaving')")
+    assert "line = keepFocus(focused)" in draw and "if (!afterOpening || line !== undefined) return" in draw
+
+
+def test_a_row_swap_keeps_focus_on_an_entry_that_stays():
+    notes = _ts("components/wizard-notes.ts")
+    draw = _nested(notes, "function draw(state: SessionState, afterOpening: boolean): void {")
+    # replaceChildren detaches every kept entry for a moment, so focus is read before and put back after.
+    assert draw.index("const focused = document.activeElement") < draw.index("element.replaceChildren(...rows)")
+    assert draw.index("element.replaceChildren(...rows)") < draw.index("line = keepFocus(focused)")
+    # Focusing forces a style pass, so the arriving entries take their transparent start first or skip their fade.
+    assert draw.index("for (const made of arrived) fadeIn(made.element)") < draw.index("line = keepFocus(focused)")
+    focus = _nested(notes, "function keepFocus(focused: Element | null): HTMLElement | undefined {")
+    assert "if (!(focused instanceof HTMLElement) || document.activeElement === focused) return undefined" in focus
+    assert "if (focused.isConnected) {\n      focused.focus({ preventScroll: true })" in focus
 
 
 def test_a_shortcut_entry_fades_in_only_once_no_prerequisite_is_unmet():

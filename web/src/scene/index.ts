@@ -181,7 +181,8 @@ export function mountScene(
     room = view
     // A photo still loading lays the new Room's Hotspots when it is live.
     if (before === undefined || size === undefined || photo.hidden || layer === undefined) return
-    const on = (shown: PlayView): string => JSON.stringify(shown.interactables.filter((interactable) => interactable.photo === current))
+    const on = (shown: PlayView): string =>
+      JSON.stringify(shown.interactables.filter((interactable) => interactable.photo === current))
     if (on(before) === on(view)) return
     const [svg] = layer.elements
     const focused = svg.contains(document.activeElement) ? document.activeElement?.id : undefined

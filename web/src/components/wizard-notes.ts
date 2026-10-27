@@ -228,6 +228,23 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
     return made
   }
 
+  /**
+   * Puts focus back after the rows were swapped, which detaches every kept entry for a moment: on the element that
+   * held it when that is still drawn, else on the line that took the place of the gated entry that held it. Returns
+   * that line, if any.
+   */
+  function keepFocus(focused: Element | null): HTMLElement | undefined {
+    if (!(focused instanceof HTMLElement) || document.activeElement === focused) return undefined
+    if (focused.isConnected) {
+      focused.focus({ preventScroll: true })
+      return undefined
+    }
+    const line = [...waiting].find(([id]) => entries.get(id)?.element.contains(focused))?.[1].line
+    if (!line?.isConnected) return undefined
+    line.focus()
+    return line
+  }
+
   function draw(state: SessionState, afterOpening: boolean): void {
     drawn = drawKey(state)
     drawnOpen = state.locks_open
@@ -241,16 +258,21 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
       if (waiting.has(puzzle.id)) return []
       const made = built(puzzle)
       made.update(state)
+      made.element.classList.remove('is-leaving') // an entry a Merge gated is drawn again once its Puzzle is available
       return [made]
     })
     const rows = listed.map((puzzle) => waiting.get(puzzle.id)?.line ?? built(puzzle).element)
     const children = [...element.children]
-    if (rows.length !== children.length || rows.some((child, index) => child !== children[index])) {
-      element.replaceChildren(...rows)
-    }
     const arrived = shown.filter((made) => !before.has(made.element))
-    if (before.size > 0) for (const made of arrived) fadeIn(made.element)
-    if (!afterOpening) return
+    let line: HTMLElement | undefined
+    if (rows.length !== children.length || rows.some((child, index) => child !== children[index])) {
+      const focused = document.activeElement
+      element.replaceChildren(...rows)
+      // The arriving entries start transparent before focus moves: its style pass would otherwise skip their fade.
+      if (before.size > 0) for (const made of arrived) fadeIn(made.element)
+      line = keepFocus(focused)
+    }
+    if (!afterOpening || line !== undefined) return
     const active = state.active_puzzle_id === null ? undefined : entries.get(state.active_puzzle_id)
     const next = arrived[0] ?? (active !== undefined && active.element.isConnected ? active : undefined)
     next?.heading.focus()
@@ -286,7 +308,8 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   }
 
   function reshape(view: PlayView): void {
-    const open = drawnOpen ?? []
+    // The latest state, not the drawn one: during the Open hold a lock it shows open gates nothing.
+    const open = latest?.locks_open ?? []
     // The drawn entries of unopened Puzzles that the new Room makes wait on an unopened one.
     const gated = room.puzzles.filter((puzzle) => {
       const now = view.puzzles.find(({ id }) => id === puzzle.id)
@@ -297,16 +320,14 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
     for (const puzzle of view.puzzles) entries.get(puzzle.id)?.evidence(view, puzzle)
     for (const puzzle of gated) waiting.set(puzzle.id, { puzzle, line: waitingLine(place(puzzle.id)) })
     const leaving = gated.flatMap((puzzle) => entries.get(puzzle.id) ?? [])
-    const focused = gated.find((puzzle) => entries.get(puzzle.id)?.element.contains(document.activeElement))
     for (const made of leaving) made.element.classList.add('is-leaving')
     const redraw = (): void => {
-      for (const made of leaving) made.element.classList.remove('is-leaving')
       drawn = undefined
+      // During the Open hold the entries stay faded out, and the hold's own draw puts their lines in.
       if (!holding && latest !== undefined && element.isConnected) draw(latest, false)
-      const line = focused === undefined ? undefined : waiting.get(focused.id)?.line
-      if (line?.isConnected) line.focus()
     }
-    // The gated entries fade out (instant under reduced motion) before their lines take their places.
+    // The gated entries fade out (instant under reduced motion) before their lines take their places, and focus
+    // inside one moves to its line.
     if (leaving.length === 0) redraw()
     else setTimeout(redraw, stateFadeMs())
   }

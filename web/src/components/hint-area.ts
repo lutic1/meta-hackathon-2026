@@ -96,8 +96,9 @@ function paragraph(className: string): HTMLParagraphElement {
  * the one live region as "The Guide: …". A `rung_change` in a state the server sent (never computed here, and its
  * words taken from `rung_changes[]`) shows the same way with one arrival glow on the portrait ring and the tray edge;
  * a reply the player asked for never glows. The line the Rung line no longer shows moves into its Puzzle's opened
- * Rungs, through `onOpened`; a Rung a Loosen card opened shows there at once as well. The first state is only read: the latest `rung_change`, else the opening line, is drawn
- * without a fade, a glow or an announcement, so a reload rebuilds the Rungs and re-announces nothing.
+ * Rungs, through `onOpened`; a Rung a Loosen card opened shows there at once as well. The first state is only read:
+ * the latest `rung_change`, else the opening line, is drawn without a fade, a glow or an announcement, so a reload
+ * rebuilds the Rungs and re-announces nothing.
  *
  * Trickster cards (FR-19, UX-DR40 to UX-DR42) stack above the Rung line, newest on top: at most `CARDS_STACKED`, only
  * the newest while the Triggers panel is open, the rest behind "{n} more in the Card log". Each new entry of the

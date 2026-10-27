@@ -365,10 +365,9 @@ export function mountPlay(
 /**
  * The Play screen as it stands under the Completion sheet: the Scene on the photo it last showed in this page (the
  * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session` over its
- * Effective room (`GET /sessions/<id>/room`), and the
- * "Show all objects" toggle, unpressed, and "Leave room" in the top bar's `controls`. It never polls and never posts; the shell holds
- * both columns and the top bar inert. A Room answered 410 `room_deleted` or 404 `room_not_found` is handed to
- * `onGone`. Returns the teardown.
+ * Effective room (`GET /sessions/<id>/room`), and the "Show all objects" toggle, unpressed, and "Leave room" in the
+ * top bar's `controls`. It never polls and never posts; the shell holds both columns and the top bar inert. A Room
+ * answered 410 `room_deleted` or 404 `room_not_found` is handed to `onGone`. Returns the teardown.
  */
 export function mountPlayBehind(
   sceneColumn: HTMLElement,
