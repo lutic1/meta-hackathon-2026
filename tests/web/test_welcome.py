@@ -143,8 +143,8 @@ def test_begin_keeps_the_line_for_the_hint_area_and_focuses_the_first_hotspot():
     assert "openingLine: null," in play and "openingLine: string | null" in play
     focus = play.split("function focusFirstHotspot(", 1)[1].split("\n}\n", 1)[0]
     assert "sceneColumn.querySelector<SVGElement>('.hotspot')" in focus and "live.focus()" in focus
-    # Nothing announces the line again.
-    assert "announce(" not in _code(play)
+    # Nothing announces the line again: the Play screen writes only the reconnecting line (1.24).
+    assert re.findall(r"announce\(([^)]*)\)", _code(play)) == ["strings.reconnectingPlay"]
 
 
 def test_a_reload_once_play_has_begun_does_not_show_the_card_again():

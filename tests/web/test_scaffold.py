@@ -105,7 +105,8 @@ def test_root_page_mounts_an_empty_three_scene_into_a_canvas():
     # Story 1.19: the Scene draws the session's photos into a canvas sized to the photo inside the Scene frame;
     # Story 1.20: the Play screen mounts it beside the Inventory and the Wizard notes.
     assert "mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame)" in (WEB / "src/shell.ts").read_text()
-    assert "mountScene(sceneColumn, stripRow, play, room)" in (WEB / "src/play.ts").read_text()
+    # Story 1.24: inside the Scene column's stage, which holds the reconnecting strip above the frame.
+    assert "mountScene(stage, stripRow, play, room)" in (WEB / "src/play.ts").read_text()
     scene = (WEB / "src/scene/index.ts").read_text()
     assert "from 'three'" in scene
     assert "new WebGLRenderer(" in scene and "new Scene()" in scene

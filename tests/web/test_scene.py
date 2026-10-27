@@ -42,7 +42,7 @@ def test_the_play_route_mounts_the_scene_for_its_session_and_reads_the_room_from
     assert "mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame)" in shell
     # Story 1.20: the Play screen reads the Room once and shares it with the Scene, the Inventory and the notes.
     assert "const room: Promise<PlayView> = getRoom(session.room_id)" in play
-    assert "mountScene(sceneColumn, stripRow, play, room)" in play and "rooms\n    .then((view) => {" in scene
+    assert "mountScene(stage, stripRow, play, room)" in play and "rooms\n    .then((view) => {" in scene
     assert "return getJson<PlayView>(`/rooms/${encodeURIComponent(roomId)}`)" in api
     assert "`/api/rooms/${encodeURIComponent(roomId)}/photos/${index}`" in api
 

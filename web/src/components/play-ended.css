@@ -1,0 +1,26 @@
+/* The play-through-ended state: the box centered over the Scene frame, which stays in place under it. */
+.play-ended {
+  box-sizing: border-box;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--spacing-5);
+  pointer-events: none;
+}
+/* A plain line on chrome-raised, never parchment, with "Start again" left-aligned under it. */
+.play-ended-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+  max-width: 100%;
+  padding: var(--spacing-5);
+  background: var(--chrome-raised);
+  color: var(--text);
+  border-radius: var(--rounded-md);
+  pointer-events: auto;
+}
+.play-ended-line {
+  margin: 0;
+}

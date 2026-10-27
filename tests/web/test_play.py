@@ -248,3 +248,103 @@ def test_the_four_lock_room_serves_what_the_notes_and_the_inventory_draw(client:
     # locks_open keeps the order locks opened in, which is the order the notes read availability from.
     assert state["locks_open"] == [view["puzzles"][0]["id"], clock]
     assert state["wrong_attempts"][clock] == 1
+
+
+def test_a_reload_rebuilds_the_play_screen_from_the_session_and_its_room_announcing_nothing():
+    shell, play = _ts("shell.ts"), _ts("play.ts")
+    assert "getSession(sessionId).catch(refused)" in shell and "const room: Promise<PlayView> = getRoom(session.room_id)" in play
+    # The first draw shows open locks collapsed and held items in place: no Open hold, no fade, no focus move.
+    notes, held = _ts("components/wizard-notes.ts"), _ts("components/inventory.ts")
+    assert "previous === undefined\n        ? []" in notes and "if (before.size > 0) for (const made of arrived) fadeIn(made.element)" in notes
+    assert "if (before !== undefined && !before.has(interactable.id)) arrived.push(item)" in held
+    assert "if (playHasBegun(session)) play.openingLine = line" in play
+    assert re.findall(r"announce\(([^)]*)\)", _code(play)) == ["strings.reconnectingPlay"]
+
+
+def test_two_consecutive_missed_polls_show_the_reconnecting_strip_once_and_hold_every_input():
+    play = _ts("play.ts")
+    assert "export const MISSES_TO_RECONNECT = 2" in play
+    assert "const strip = statusStrip(strings.reconnectingPlay)" in play
+    missed = play.split("function missed(): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "misses += 1" in missed and "if (misses < MISSES_TO_RECONNECT || reconnecting || ended) return" in missed
+    assert "stage.prepend(strip)" in missed and "announce(strings.reconnectingPlay)" in missed
+    # A failed poll is missed, and so is one still unanswered at the next tick.
+    poll = play.split("async function poll(): Promise<void> {", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (polling) return missed()" in poll and "else missed()" in poll
+    hold = play.split("function holdInputs(): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "const held = reconnecting || ended" in hold and "element.inert = held" in hold
+    assert "[sceneFrame, stripRow, ...sideColumn.children]" in hold and "stage.classList.toggle('is-dimmed', held)" in hold
+    # The strip is plain and takes no focus.
+    strip = _ts("components/status-strip.ts")
+    assert "tabIndex" not in strip and "focus" not in _code(strip)
+    assert _rules("components/status-strip.css")[".status-strip"]["height"] == "var(--spacing-status-strip)"
+
+
+def test_the_strip_sits_above_the_scene_frame_which_shrinks_by_its_height_and_the_photo_dims_to_60_percent():
+    rules = _rules("shell.css")
+    stage = rules[".scene-stage"]
+    assert stage["display"] == "flex" and stage["flex-direction"] == "column" and stage["position"] == "relative"
+    assert rules[".scene-stage > .status-strip"] == {"flex": "none"}
+    assert rules[".scene-stage > .scene-frame"] == {"flex": "1 1 0"}
+    assert rules[".scene-stage.is-dimmed .scene-photo"] == {"opacity": "0.6"}
+    assert "sceneColumn.append(stage, stripRow)" in _ts("play.ts")
+    assert "status-strip: 32px" in design_text()
+
+
+def test_an_input_that_never_reached_the_server_is_dropped_and_the_next_state_removes_the_strip():
+    play, field = _ts("play.ts"), _ts("components/code-field.ts")
+    receive = play.split("function receive(", 1)[1].split("\n  }\n", 1)[0]
+    assert "misses = 0" in receive and "strip.remove()" in receive and "for (const render of parts) render(state)" in receive
+    # A post that failed counts nothing on the client: no state is drawn from it and the field keeps its value.
+    post = play.split("post: async (body) => {", 1)[1].split("\n    },", 1)[0]
+    assert post.index("await postEvent(") < post.index("receive(reply)")
+    assert "showChip(null) // nothing reached the server" in field and "field.value = " not in field
+
+
+def test_a_session_answered_404_dims_the_photo_under_the_session_gone_line_with_start_again():
+    play, ended = _ts("play.ts"), _ts("components/play-ended.ts")
+    assert "if (error instanceof RequestFailed && error.status === 404) endPlay()" in play
+    end = play.split("function endPlay(): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "ticker.terminate()" in end and "stage.append(playEnded(() => void startAgain()))" in end and "holdInputs()" in end
+    again = play.split("async function startAgain(): Promise<void> {", 1)[1].split("\n  }\n", 1)[0]
+    assert "startSession({ room_id: session.room_id, derived: freshDerived() })" in again
+    assert "route: { name: 'play', sessionId: next.id }" in again
+    assert "line.textContent = strings.sessionGone" in ended and "line.className = 'play-ended-line body-md'" in ended
+    assert "secondaryButton({ label: strings.startAgain, onActivate: onStartAgain })" in ended
+    box = _rules("components/play-ended.css")[".play-ended-box"]
+    assert box["background"] == "var(--chrome-raised)" and box["color"] == "var(--text)"
+
+
+def test_a_room_answered_404_room_not_found_shows_the_centered_480px_card_focused_on_its_heading():
+    play, card = _ts("play.ts"), _ts("components/notice-card.ts")
+    assert "error.status === 404 && error.code === 'room_not_found') roomMissing()" in play
+    missing = play.split("function roomMissing(): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "heading: strings.roomNotFound" in missing and "sentence: strings.roomNotFoundBody" in missing
+    assert "label: strings.buildARoom" in missing and "route: { name: 'home' }" in missing
+    assert "frame.body.replaceChildren(card.element)" in missing and "card.heading.focus()" in missing
+    assert "heading.tabIndex = -1" in card and "heading.className = 'notice-card-heading display-sm'" in card
+    assert "body.className = 'notice-card-sentence body-md'" in card and "primaryButton({" in card
+    rules = _rules("components/notice-card.css")
+    sheet = rules[".notice-card"]
+    assert sheet["width"] == "480px" and sheet["background"] == "var(--chrome-raised)" and sheet["color"] == "var(--text)"
+    assert sheet["border-radius"] == "var(--rounded-lg)" and sheet["box-shadow"] == "var(--elevation-overlay)"
+    token = design_text().split("  leave-room-confirmation:\n", 1)[1].split("\n  build-view-header:", 1)[0]
+    assert "width: 480px" in token and "background: '{colors.chrome-raised}'" in token
+    assert _rules("shell.css")[".notice-layout"]["place-items"] == "center"
+
+
+def test_every_color_pair_of_the_reconnecting_ended_and_missing_states_passes_the_audit():
+    table = design_text().split("### Contrast (load-bearing pairs)", 1)[1].split("\n## ", 1)[0]
+    rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]
+            for line in table.splitlines() if line.startswith("| `")]
+    for fg, bg in {("text", "warning-surface"), ("text", "chrome-raised"), ("lamp", "chrome-raised"), ("on-lamp", "lamp")}:
+        assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
+    # The two-tone ring around "Start again" and "Build a room" sits on chrome-raised: 3:1 for non-text.
+    assert contrast(_hex(PROPS["focus-ring"])[0], _hex(PROPS["chrome-raised"])[0]) >= 3
+
+
+def test_an_unknown_session_and_an_unknown_room_answer_404_with_their_codes(client: TestClient):
+    session = client.get("/api/sessions/sess_01JZZZZZZZZZZZZZZZZZZZZZZZ")
+    assert session.status_code == 404 and session.json()["error"]["code"] == "session_not_found"
+    room = client.get("/api/rooms/room_missing")
+    assert room.status_code == 404 and room.json()["error"]["code"] == "room_not_found"

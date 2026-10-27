@@ -1,0 +1,23 @@
+/* {components.leave-room-confirmation} without its scrim: a 480 px chrome-raised card, plain, never parchment. */
+.notice-card {
+  box-sizing: border-box;
+  width: 480px;
+  max-width: 100%;
+  padding: var(--spacing-6);
+  background: var(--chrome-raised);
+  color: var(--text);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--elevation-overlay);
+}
+.notice-card-heading {
+  margin: 0;
+  color: var(--text);
+}
+.notice-card-sentence {
+  margin: var(--spacing-3) 0 0;
+}
+.notice-card-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-5);
+}

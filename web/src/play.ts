@@ -1,9 +1,13 @@
 import type { Meta, PlayView, PostedEvent, SessionState } from '../types'
-import { getRoom, getSession, postEvent } from './api/index.ts'
+import { freshDerived, getRoom, getSession, postEvent, RequestFailed, startSession } from './api/index.ts'
 import { toggleButton } from './components/button.ts'
 import { inventory } from './components/inventory.ts'
+import { noticeCard } from './components/notice-card.ts'
+import { playEnded } from './components/play-ended.ts'
+import { statusStrip } from './components/status-strip.ts'
 import { OPEN_HOLD_MS, wizardNotes } from './components/wizard-notes.ts'
 import { lockOutcomes } from './lock-outcomes.ts'
+import { announce } from './live-region.ts'
 import { currentPlace, placeHref } from './router.ts'
 import { lastShownPhoto, mountScene } from './scene/index.ts'
 import { strings } from './strings.ts'
@@ -11,6 +15,9 @@ import { mountWelcome, playHasBegun } from './welcome.ts'
 
 /** The Play screen reads `GET /sessions/<id>` this often while it is open, hidden tab included (AD-4, UX-DR65). */
 export const POLL_MS = 2000
+
+/** This many consecutive missed polls show the reconnecting state (UX-DR13). */
+export const MISSES_TO_RECONNECT = 2
 
 /** The session as the Play screen's parts share it: the latest state the server sent, and the one way to post. */
 export interface PlaySession {
@@ -80,7 +87,17 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * every Hotspot while pressed, across Scene changes, and lock outcomes are announced in the live region. Once a state
  * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
  * replacing the Play route in the history; an Exit already open when the screen mounts has no Open state, so it routes
- * at once. Returns the teardown.
+ * at once.
+ *
+ * A reload mounts the same way from `GET /sessions/<id>` and the Room: the first Scene, the Inventory and the open
+ * locks, with no welcome once play has begun and nothing announced. A poll that fails, or is still unanswered at the
+ * next tick, is missed; after two in a row comes the reconnecting state: the status strip at the top of the Scene
+ * column, the Scene frame shrunk by its height, the photo dimmed and every input inert, the line written to the live
+ * region once. An input posted meanwhile never reached the server and is dropped (the Code field keeps its value);
+ * the next state the server sends re-renders everything and removes the strip. A poll answered 404 ends the
+ * play-through: the photo dims under the Session-gone line, whose "Start again" starts a new Session on the same
+ * Room. A Room answered 404 `room_not_found` replaces the page body with the unknown-room card, focused on its
+ * heading, whose "Build a room" goes to `#/`. Returns the teardown.
  */
 export function mountPlay(
   sceneColumn: HTMLElement,
@@ -92,9 +109,43 @@ export function mountPlay(
   let latest = session
   let replies = 0
   const parts: ((state: SessionState) => void)[] = []
+  /** The Scene frame and its reconnecting strip or ended state; the frame takes what the strip leaves. */
+  const stage = document.createElement('div')
+  stage.className = 'scene-stage'
+  const stripRow = document.createElement('div')
+  stripRow.className = 'scene-strip-row'
+  const strip = statusStrip(strings.reconnectingPlay)
+  let misses = 0
+  let reconnecting = false
+  /** The play-through ended or its Room is missing: nothing polls or takes input again. */
+  let ended = false
+  let unmountWelcome: (() => void) | undefined
+
+  /** Every input inert, and the photo dimmed, while reconnecting or once the play-through has ended. */
+  function holdInputs(): void {
+    const held = reconnecting || ended
+    const sceneFrame = stage.querySelector<HTMLElement>('.scene-frame')
+    for (const element of [sceneFrame, stripRow, ...sideColumn.children]) if (element instanceof HTMLElement) element.inert = held
+    stage.classList.toggle('is-dimmed', held)
+  }
+
+  function missed(): void {
+    misses += 1
+    if (misses < MISSES_TO_RECONNECT || reconnecting || ended) return
+    reconnecting = true
+    stage.prepend(strip)
+    holdInputs()
+    announce(strings.reconnectingPlay)
+  }
 
   function receive(state: SessionState): void {
-    if (!mounted) return
+    if (!mounted || ended) return
+    misses = 0
+    if (reconnecting) {
+      reconnecting = false
+      strip.remove()
+      holdInputs()
+    }
     latest = state
     for (const render of parts) render(state)
   }
@@ -117,14 +168,15 @@ export function mountPlay(
 
   let polling = false
   async function poll(): Promise<void> {
-    if (polling) return
+    if (polling) return missed()
     polling = true
     const before = replies
     try {
       const state = await getSession(session.id)
       if (before === replies) receive(state)
-    } catch {
-      // A missed poll changes nothing on screen; the reconnecting state lands in 1.24.
+    } catch (error) {
+      if (error instanceof RequestFailed && error.status === 404) endPlay()
+      else missed()
     } finally {
       polling = false
     }
@@ -132,6 +184,52 @@ export function mountPlay(
   const ticker = new Worker(new URL('./poll-ticker.ts', import.meta.url), { type: 'module' })
   ticker.onmessage = () => void poll()
   ticker.postMessage(POLL_MS)
+
+  let starting = false
+  async function startAgain(): Promise<void> {
+    if (starting) return
+    starting = true
+    try {
+      const next = await startSession({ room_id: session.room_id, derived: freshDerived() })
+      location.hash = placeHref({ route: { name: 'play', sessionId: next.id }, profile: currentPlace().profile })
+    } catch {
+      // Nothing started; "Start again" stays for another try.
+    } finally {
+      starting = false
+    }
+  }
+
+  /** The session is gone (404): the photo dims under the Session-gone line and "Start again". */
+  function endPlay(): void {
+    if (ended) return
+    ended = true
+    ticker.terminate()
+    reconnecting = false
+    strip.remove()
+    stage.append(playEnded(() => void startAgain()))
+    holdInputs()
+  }
+
+  /** The Room is gone (404 `room_not_found`): the page body holds only the unknown-room card. */
+  function roomMissing(): void {
+    ended = true
+    ticker.terminate()
+    unmountWelcome?.()
+    const home = placeHref({ route: { name: 'home' }, profile: currentPlace().profile })
+    const card = noticeCard({
+      heading: strings.roomNotFound,
+      sentence: strings.roomNotFoundBody,
+      action: {
+        label: strings.buildARoom,
+        onActivate: () => {
+          location.hash = home
+        },
+      },
+    })
+    frame.body.className = 'shell-body notice-layout'
+    frame.body.replaceChildren(card.element)
+    card.heading.focus()
+  }
 
   let leaving: ReturnType<typeof setTimeout> | undefined
   function leaveOnExit(exitId: string, state: SessionState): void {
@@ -144,10 +242,8 @@ export function mountPlay(
   frame.controls.append(showAll)
 
   const room: Promise<PlayView> = getRoom(session.room_id)
-  const stripRow = document.createElement('div')
-  stripRow.className = 'scene-strip-row'
-  const unmountScene = mountScene(sceneColumn, stripRow, play, room)
-  sceneColumn.append(stripRow)
+  sceneColumn.append(stage, stripRow)
+  const unmountScene = mountScene(stage, stripRow, play, room)
   room
     .then((view) => {
       if (!mounted) return
@@ -155,6 +251,7 @@ export function mountPlay(
       const notes = wizardNotes(view, play)
       stripRow.append(held.element)
       sideColumn.append(notes.element)
+      holdInputs()
       parts.push(held.render, notes.render, lockOutcomes(view, latest))
       held.render(latest)
       notes.render(latest)
@@ -163,9 +260,11 @@ export function mountPlay(
       parts.push((state) => leaveOnExit(exit.id, state))
       leaveOnExit(exit.id, latest)
     })
-    .catch(() => undefined) // the Scene keeps its loading line; the reconnecting state lands in 1.24
+    .catch((error: unknown) => {
+      // Any other failure keeps the Scene's loading line.
+      if (mounted && error instanceof RequestFailed && error.status === 404 && error.code === 'room_not_found') roomMissing()
+    })
 
-  let unmountWelcome: (() => void) | undefined
   let unfocus: (() => void) | undefined
   const welcome = session.opening_line
   if (welcome?.kind === 'welcome' && welcome.text !== null) {
@@ -187,6 +286,7 @@ export function mountPlay(
     ticker.terminate()
     showAll.remove()
     unmountScene()
+    stage.remove()
     stripRow.remove()
     sideColumn.replaceChildren()
   }

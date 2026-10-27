@@ -78,7 +78,7 @@ export function codeField(puzzle: PlayPuzzle, n: number, play: PlaySession): Cod
     try {
       reply = await play.post({ type: 'lock_input', input: { type: 'code', puzzle_id: puzzle.id, code } })
     } catch {
-      showChip(null) // nothing reached the server; the field keeps its value (the reconnecting state lands in 1.24)
+      showChip(null) // nothing reached the server, so the input is dropped; the field keeps its value
       return
     } finally {
       pending = false

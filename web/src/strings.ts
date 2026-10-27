@@ -176,6 +176,12 @@ export const strings = {
   showAllTip: "Tip: 'Show all objects' in the top bar outlines everything you can click.",
   lockNotThis: 'Puzzle {n}: not this, {count}.',
   lockOpen: 'Puzzle {n}: open.',
+  reconnectingPlay: "Reconnecting to Keyframe. Your progress is safe; play resumes when it's back.",
+  sessionGone: 'This play-through has ended. Start the room again.',
+  startAgain: 'Start again',
+  roomNotFound: "Keyframe can't find this room",
+  roomNotFoundBody: 'Check the link, or start from the beginning.',
+  buildARoom: 'Build a room',
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

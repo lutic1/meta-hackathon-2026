@@ -175,7 +175,7 @@ export function mountScene(
 
   const observer = new ResizeObserver(render)
   observer.observe(ground)
-  // A failed room or photo request leaves the loading line; the reconnecting state lands in 1.24.
+  // A failed room or photo request leaves the loading line; missed polls show the reconnecting state (play.ts).
   rooms
     .then((view) => {
       if (!mounted) return

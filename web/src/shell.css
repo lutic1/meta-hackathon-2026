@@ -38,6 +38,28 @@
   min-width: 0;
   min-height: 0;
 }
+/* The Scene stage: the reconnecting strip (32 px) on top and the Scene frame taking the rest, so the strip never
+   covers the photo or a Hotspot; it positions the play-through-ended box over the frame. While reconnecting or ended
+   the photo dims to 60%. */
+.scene-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.scene-stage > .status-strip {
+  flex: none;
+}
+.scene-stage > .scene-frame {
+  flex: 1 1 0;
+}
+.scene-stage .scene-photo {
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+.scene-stage.is-dimmed .scene-photo {
+  opacity: 0.6;
+}
 .scene-strip-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 288px;
@@ -108,6 +130,14 @@
 .capture-line {
   margin: 0;
   color: var(--text);
+}
+
+/* A missing Room: the page body holds only the centered notice card. */
+.notice-layout {
+  display: grid;
+  place-items: center;
+  padding: var(--spacing-frame-margin);
+  overflow-y: auto;
 }
 
 /* Server unreachable: the status strip centered, alone. */

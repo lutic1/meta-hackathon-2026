@@ -254,3 +254,13 @@ def test_the_build_end_state_strings_are_the_experience_lines():
     assert strings["recapture"] == "Keyframe couldn't build a fair room from these photos."
     assert strings["recaptureBody"] == "Try brighter, closer shots where labels and printed text are readable."
     assert (strings["addPhotos"], strings["startOver"], strings["tryAgain"]) == ("Add photos", "Start over", "Try again")
+
+
+def test_the_reconnecting_session_gone_and_unknown_room_strings_are_the_experience_lines():
+    strings = _strings()
+    assert strings["reconnectingPlay"] == "Reconnecting to Keyframe. Your progress is safe; play resumes when it's back."
+    assert strings["sessionGone"] == "This play-through has ended. Start the room again."
+    assert strings["startAgain"] == "Start again"
+    assert strings["roomNotFound"] == "Keyframe can't find this room"
+    assert strings["roomNotFoundBody"] == "Check the link, or start from the beginning."
+    assert strings["buildARoom"] == "Build a room"
