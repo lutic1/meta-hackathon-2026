@@ -1978,6 +1978,18 @@
           },
           "title": "Evidence Cards",
           "type": "array"
+        },
+        "sequence_length": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sequence Length"
         }
       },
       "required": [
@@ -1987,7 +1999,8 @@
         "is_exit",
         "clue",
         "lore",
-        "evidence_cards"
+        "evidence_cards",
+        "sequence_length"
       ],
       "title": "PlayPuzzle",
       "type": "object"

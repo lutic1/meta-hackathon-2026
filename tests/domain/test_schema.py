@@ -391,7 +391,8 @@ def test_meta_has_exactly_its_fields():
 def test_room_view_and_play_view_declare_no_solution_or_profile_field():
     assert set(schema.InteractableView.model_fields) == {"id", "label", "attributes", "instances", "photo"}
     assert set(schema.PuzzleView.model_fields) == {"id", "lock_type", "requires", "is_exit", "clue", "lore", "rungs"}
-    assert set(schema.PlayPuzzle.model_fields) == {"id", "lock_type", "requires", "is_exit", "clue", "lore", "evidence_cards"}
+    assert set(schema.PlayPuzzle.model_fields) == {
+        "id", "lock_type", "requires", "is_exit", "clue", "lore", "evidence_cards", "sequence_length"}
     forbidden = {"solution", "evidence", "provenance", "decoys", "derived", "persistence", "sessions", "profile"}
     for view in (RoomView, PlayView):
         assert forbidden.isdisjoint(keys(view.model_json_schema())), view

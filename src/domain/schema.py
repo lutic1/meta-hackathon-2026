@@ -497,6 +497,8 @@ class PlayPuzzle(Model):
     lore: str
     evidence_cards: list[Evidence]
     """Real evidence and any decoys merged in a stable order; nothing marks a card as a decoy."""
+    sequence_length: Annotated[int, Field(ge=1)] | None
+    """An `order` Puzzle's number of positions, one pip each (UX-DR35), never its objects; null for other lock types."""
 
 
 class PlayView(Model):

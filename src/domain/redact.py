@@ -24,6 +24,7 @@ from .schema import (
     MaskOverlay,
     Model,
     ModelRow,
+    OrderSolution,
     PhotoMasks,
     PhotoView,
     PlayInteractable,
@@ -73,6 +74,11 @@ def _evidence_cards(room: Room, puzzle: Puzzle) -> list[Evidence]:
     return sorted([puzzle.evidence, *decoys], key=lambda card: _card_rank(room.id, puzzle.id, card))
 
 
+def _sequence_length(puzzle: Puzzle) -> int | None:
+    """How many clicks an `order` Puzzle's sequence takes, the pips the client draws; None for any other lock type."""
+    return len(puzzle.solution.interactables) if isinstance(puzzle.solution, OrderSolution) else None
+
+
 def to_play_view(room: Room) -> PlayView:
     """The client shape: masks, photo hashes and evidence cards; never a solution, a Rung, a decoy mark or a path."""
     return PlayView(
@@ -82,7 +88,11 @@ def to_play_view(room: Room) -> PlayView:
         photos=[PhotoView.model_validate(_narrow(photo, PhotoView)) for photo in room.photos],
         interactables=[PlayInteractable.model_validate(_narrow(ix, PlayInteractable)) for ix in room.interactables],
         puzzles=[
-            PlayPuzzle.model_validate({**_narrow(puzzle, PlayPuzzle), "evidence_cards": _evidence_cards(room, puzzle)})
+            PlayPuzzle.model_validate({
+                **_narrow(puzzle, PlayPuzzle),
+                "evidence_cards": _evidence_cards(room, puzzle),
+                "sequence_length": _sequence_length(puzzle),
+            })
             for puzzle in room.puzzles
         ],
     )
