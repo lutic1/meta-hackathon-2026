@@ -14,6 +14,13 @@ export interface SecondaryButtonOptions {
   onParchment?: boolean
 }
 
+export interface SecondaryLinkOptions {
+  label: string
+  href: string
+  /** `lamp-ink` label and border for a link that sits on parchment (the Completion sheet). */
+  onParchment?: boolean
+}
+
 export interface ToggleButtonOptions {
   label: string
   /** `pressed` ("Show all objects") or `expanded` (the Triggers toggle, "Show the build JSON"). */
@@ -55,6 +62,16 @@ export function secondaryButton({ label, onActivate, onParchment = false }: Seco
   const element = button('button-secondary', label)
   element.classList.toggle('on-parchment', onParchment)
   element.addEventListener('click', onActivate)
+  return element
+}
+
+/** A link drawn as `{components.button-secondary}`; Enter follows it, as on any link. */
+export function secondaryLink({ label, href, onParchment = false }: SecondaryLinkOptions): HTMLAnchorElement {
+  const element = document.createElement('a')
+  element.className = 'button-secondary'
+  element.classList.toggle('on-parchment', onParchment)
+  element.href = href
+  element.textContent = label
   return element
 }
 

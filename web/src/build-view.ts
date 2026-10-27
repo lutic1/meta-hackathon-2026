@@ -1,12 +1,14 @@
 import type { BuildView, Meta } from '../types'
 import { getBuildView, RequestFailed } from './api/index.ts'
 import { buildViewHeader } from './components/build-view-header.ts'
-import { secondaryButton } from './components/button.ts'
+import { buildViewJson } from './components/build-view-json.ts'
+import { secondaryButton, secondaryLink } from './components/button.ts'
 import { inPlayBlock } from './components/in-play-block.ts'
 import { maskOverlays } from './components/mask-overlays.ts'
 import { modelTable } from './components/model-table.ts'
 import { puzzleGraph } from './components/puzzle-graph.ts'
-import { captureHref } from './router.ts'
+import { dryRunRows, verdictTable } from './components/verdict-table.ts'
+import { buildViewHref, captureHref, CUT_0 } from './router.ts'
 import { strings } from './strings.ts'
 
 /** What `GET /builds/<job_id>/view` answered: the `BuildView`, a Build not yet `done`, or no usable answer. */
@@ -25,6 +27,15 @@ export async function loadBuildView(jobId: string): Promise<BuildViewState> {
   }
 }
 
+/**
+ * "How this room was built" (secondary), opening `#/build/<job_id>/view` for `jobId`; its "Back" returns to the opener.
+ * null under cut 0, which drops every link to the Build view (UX-DR84).
+ */
+export function buildViewLink(jobId: string, profile: string, onParchment = false): HTMLAnchorElement | null {
+  if (CUT_0) return null
+  return secondaryLink({ label: strings.howBuilt, href: buildViewHref(jobId, profile), onParchment })
+}
+
 export interface BuildViewOptions {
   meta: Meta
   profile: string
@@ -41,12 +52,12 @@ export interface BuildViewSurface {
 }
 
 /**
- * The Build view body (UX-DR67): the header row, then a left two-thirds column (the puzzle graph over the mask
- * overlays; the JSON pane joins in 2.31) and a right third holding the Model table, then the In play block. The right
- * column comes first in the page, so Tab runs the title, "Back", the right column, then the graph nodes and the mask
- * label chips (UX-DR71); the stylesheet places it on the right. Initial focus goes to the title. Not ready: the header,
- * then "This room is still being built." linking to the Build's Capture screen, with no panels. Failed: the plain
- * failed line with "Try again".
+ * The Build view body (UX-DR67): the header row, then a left two-thirds column (the puzzle graph, the mask overlays,
+ * then the build JSON pane) and a right third holding the Model table, the In play block, the verdict table and the
+ * Dry run rows. The right column comes first in the page, so Tab runs the title, "Back", the right column, then the
+ * graph nodes, the mask label chips and the JSON toggle (UX-DR71); the stylesheet places it on the right. Initial
+ * focus goes to the title. Not ready: the header, then "This room is still being built." linking to the Build's
+ * Capture screen, with no panels. Failed: the plain failed line with "Try again".
  */
 export function buildViewSurface(state: BuildViewState, { meta, profile, onBack, onRetry }: BuildViewOptions): BuildViewSurface {
   if (state.name === 'failed') {
@@ -74,10 +85,10 @@ export function buildViewSurface(state: BuildViewState, { meta, profile, onBack,
   const header = buildViewHeader(state.view, onBack)
   const left = document.createElement('section')
   left.className = 'build-view-left'
-  left.append(puzzleGraph(state.view), maskOverlays(state.view))
+  left.append(puzzleGraph(state.view), maskOverlays(state.view), buildViewJson(state.view))
   const right = document.createElement('aside')
   right.className = 'build-view-right'
-  right.append(modelTable(state.view), inPlayBlock(meta))
+  right.append(modelTable(state.view), inPlayBlock(meta), verdictTable(state.view), dryRunRows(state.view))
   const columns = document.createElement('div')
   columns.className = 'build-view-columns'
   columns.append(right, left)

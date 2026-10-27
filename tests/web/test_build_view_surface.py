@@ -112,7 +112,7 @@ def test_only_the_body_scrolls_under_the_pinned_banner_and_top_bar_in_two_column
 
 def test_the_right_column_holds_the_model_table_first_then_the_in_play_block():
     view = _ts("build-view.ts")
-    assert "right.append(modelTable(state.view), inPlayBlock(meta))" in view
+    assert "right.append(modelTable(state.view), inPlayBlock(meta), verdictTable(state.view), dryRunRows(state.view))" in view
     # The right column first in the page, for Tab order (UX-DR71); the stylesheet places it in the right third.
     assert "columns.append(right, left)" in view
     assert "return { children: [header.element, columns], focus: () => header.title?.focus() }" in view

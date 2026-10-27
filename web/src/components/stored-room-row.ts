@@ -1,6 +1,7 @@
 import './stored-room-row.css'
 import type { RoomSummary } from '../../types'
 import { photoUrl } from '../api/index.ts'
+import { buildViewLink } from '../build-view.ts'
 import { fill, strings } from '../strings.ts'
 import { secondaryButton } from './button.ts'
 
@@ -13,10 +14,10 @@ export function roomTitle(room: RoomSummary): string {
 
 /**
  * `{components.stored-room-row}` (UX-DR19): a `chrome` row with the 96 x 72 cover thumbnail, the title, the Puzzle
- * count in `body-sm` and "Play" (secondary). The thumbnail is decorative beside the title, so its alt is empty.
- * "How this room was built" joins in 2.31.
+ * count in `body-sm`, "Play" (secondary) and "How this room was built" (secondary, the Build view of the summary's
+ * job; absent under cut 0). The thumbnail is decorative beside the title, so its alt is empty.
  */
-export function storedRoomRow(room: RoomSummary, onPlay: () => void): HTMLLIElement {
+export function storedRoomRow(room: RoomSummary, profile: string, onPlay: () => void): HTMLLIElement {
   const row = document.createElement('li')
   row.className = 'stored-room-row'
   const cover = document.createElement('img')
@@ -35,5 +36,7 @@ export function storedRoomRow(room: RoomSummary, onPlay: () => void): HTMLLIElem
   count.textContent = fill(strings.puzzleCount, { n: room.puzzle_count })
   text.append(title, count)
   row.append(cover, text, secondaryButton({ label: strings.play, onActivate: onPlay }))
+  const link = buildViewLink(room.job_id, profile)
+  if (link !== null) row.append(link)
   return row
 }

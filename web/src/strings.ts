@@ -1,6 +1,6 @@
 // Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75);
 // a few lines EXPERIENCE.md gives only in Component Patterns (the Stored Room row, the Wizard portrait's speaker
-// prefixes, the Build view rows, the Code field's Submit) or State Patterns (the Build view states, the Completion
+// prefixes, the Build view rows and its JSON toggle, the Code field's Submit) or State Patterns (the Build view states, the Completion
 // screen's error line). EXPERIENCE.md words no Scene loading line, no thumbnail name and no Timer end status, so the loading line reuses the "Setting
 // the scene" stage name, a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and
 // the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory
@@ -82,6 +82,25 @@ export const strings = {
   hostMeta: 'Meta Model API',
   hostThisMac: 'this Mac',
   hostOllama: 'Ollama on the Mac',
+  verdictCaption: 'The Validator is code, not a model. It checks these 8 rules on every draft; a failed rule sends the draft back to the Riddler.',
+  verdictRule: 'Rule',
+  verdictCheck: 'Check',
+  verdictVerdict: 'Verdict',
+  rule1Failed: 'Two locks would wait on each other forever.',
+  rule2Failed: 'A lock could never be reached.',
+  rule3Failed: "A puzzle names something that isn't in this room.",
+  rule4Failed: 'A puzzle cites something the Architect never saw.',
+  rule5Failed: 'A hint gives part of an answer away.',
+  rule6Failed: 'Lore or a hint breaks the length rules.',
+  rule7Failed: "A lock doesn't have a valid shape.",
+  rule8Failed: "A puzzle needs an item that can't be picked up yet.",
+  dryRunCaption: 'A separate muse-spark-1.3 call saw only the clues, hints and object names, never the answers, and tried every puzzle.',
+  dryRunOffCaption: 'The test run was switched off for this build, so no puzzle was tried blind.',
+  dryRunPuzzle: 'Puzzle',
+  dryRunLockType: 'Lock type',
+  showBuildJson: 'Show the build JSON',
+  buildJsonCaption: 'Everything this page receives. It holds no answers; a sentinel test checks every build for them.',
+  howBuilt: 'How this room was built',
   validator: 'Validator',
   validatorModel: 'code, no model',
   validatorDid: 'checked 8 rules',

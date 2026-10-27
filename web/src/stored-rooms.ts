@@ -41,6 +41,6 @@ export function storedRooms(rooms: readonly RoomSummary[], profile: string, bann
 
   const list = document.createElement('ul')
   list.className = 'stored-room-list'
-  list.append(...rooms.map((room) => storedRoomRow(room, () => void start(room))))
+  list.append(...rooms.map((room) => storedRoomRow(room, profile, () => void start(room))))
   return list
 }

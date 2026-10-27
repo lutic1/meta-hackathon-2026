@@ -1,0 +1,84 @@
+/* {components.verdict-table}: the Validator verdict table and the Dry run rows, each a chrome panel with no heading:
+   the plain caption above, header cells in label text-muted over a hairline rule, a hairline between rows. The
+   number and verdict columns are fixed and the check column wraps, so the table fits the 1280 px right third. */
+.verdict-table-panel {
+  box-sizing: border-box;
+  padding: var(--spacing-4);
+  border-radius: var(--rounded-md);
+  background: var(--chrome);
+}
+.verdict-table {
+  width: 100%;
+  border-collapse: collapse;
+  caption-side: top;
+  color: var(--text);
+}
+.verdict-table-caption {
+  margin-bottom: var(--spacing-3);
+  text-align: left;
+  color: var(--text-muted);
+}
+.verdict-table th,
+.verdict-table td {
+  padding: var(--spacing-2) 6px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+}
+.verdict-table th:first-child,
+.verdict-table td:first-child {
+  padding-left: 0;
+}
+.verdict-table th:last-child,
+.verdict-table td:last-child {
+  padding-right: 0;
+}
+.verdict-table thead th {
+  padding-top: 0;
+  vertical-align: bottom;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--hairline);
+}
+.verdict-table tbody tr + tr > * {
+  border-top: 1px solid var(--hairline);
+}
+.verdict-table .verdict-table-number {
+  width: 44px;
+  padding-top: 9px;
+  font-weight: 400;
+}
+.verdict-table-word,
+.verdict-table thead th:last-child {
+  width: 88px;
+}
+.verdict-table-message {
+  margin-top: var(--spacing-1);
+}
+/* The verdict word after its 8 px marker: filled in graph-pass or graph-fail, a ring in graph-skipped. */
+.verdict-word {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+.verdict-word::before {
+  content: '';
+  box-sizing: border-box;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--rounded-full);
+  background: currentColor;
+}
+.verdict-word-pass {
+  color: var(--graph-pass);
+}
+.verdict-word-fail {
+  color: var(--graph-fail);
+}
+.verdict-word-skipped {
+  color: var(--graph-skipped);
+}
+.verdict-word-skipped::before {
+  background: transparent;
+  border: 1.5px solid currentColor;
+}

@@ -22,9 +22,9 @@ def _strings() -> dict[str, str]:
 COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "speakerGuide", "speakerTrickster",
                            "back", "regenerations", "attemptSentBack", "validatorDid", "museImage", "museImageModel",
                            "museImageDid", "guideWritten", "trickster", "submit", "graphNode", "requiresNone",
-                           "exit", "guideIntroduction"}
+                           "exit", "guideIntroduction", "showBuildJson"}
 """Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list, the Wizard
-portrait's speaker prefixes, the Build view rows, the Code field's Submit, the puzzle graph node's name, the
+portrait's speaker prefixes, the Build view rows and its JSON toggle, the Code field's Submit, the puzzle graph node's name, the
 First-room welcome's live-region text)."""
 
 STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed", "resultLoadFailed"}

@@ -52,6 +52,7 @@
   background: transparent;
   color: var(--lamp);
   border: 1px solid var(--lamp);
+  text-decoration: none;
 }
 .button-secondary:hover {
   background: var(--lamp-hover-fill);

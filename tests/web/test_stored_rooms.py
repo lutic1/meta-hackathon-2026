@@ -37,7 +37,7 @@ def test_the_list_comes_only_from_get_rooms_read_afresh_on_every_visit():
 
 def test_rows_follow_the_served_order_and_the_empty_list_reads_no_rooms_yet():
     ts = _ts("stored-rooms.ts")
-    assert "list.append(...rooms.map((room) => storedRoomRow(room, () => void start(room))))" in ts
+    assert "list.append(...rooms.map((room) => storedRoomRow(room, profile, () => void start(room))))" in ts
     assert not re.search(r"\.sort\(|\.reverse\(|\.filter\(", ts), "newest build first is the server's order"
     assert "if (rooms.length === 0)" in ts and "empty.textContent = strings.noRooms" in ts
     assert "empty.className = 'stored-room-empty body-sm'" in ts

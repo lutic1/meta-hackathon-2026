@@ -1,6 +1,8 @@
 import './completion.css'
 import type { RoomResult, SessionState } from '../types'
-import { getResult } from './api/index.ts'
+import { getResult, listRooms } from './api/index.ts'
+import { buildViewLink } from './build-view.ts'
+import { sessionJob } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
 import { formatElapsed } from './components/timer.ts'
 import { announce } from './live-region.ts'
@@ -63,14 +65,29 @@ function timeRows(result: RoomResult): HTMLTableRowElement[] {
 }
 
 /**
+ * The job that built the Session's Room: the Build that opened it in this tab, else the `RoomSummary` of its Room in
+ * `GET /rooms`; null when neither names one.
+ */
+async function roomJob(session: SessionState): Promise<string | null> {
+  const opened = sessionJob(session.id)
+  if (opened !== null) return opened
+  try {
+    return (await listRooms()).find((room) => room.room_id === session.room_id)?.job_id ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * The Completion screen (FR-13, UX-DR44, UX-DR66): the Play screen dimmed under the scrim, which covers the page body
  * only, and the centered 720 px parchment sheet (`{components.completion-sheet}`) over it. The sheet reads
  * `GET /sessions/<id>/result`: the heading "The room is open.", the Guide's sign-off beside its 48 px portrait, "Time",
  * "Hints used" (the Rungs used) and "Wrong attempts" three across in `mono-timer`, and the "Time per puzzle" table.
  * Until the result returns the stats show as pending; while the request fails a plain line says so and it is asked
- * again every 2000 ms. "Build another room", the one primary action, goes to `#/` and is there from the start. The
- * heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}". The top bar's
- * `controls` keep "Show all objects" in place, inert. Returns the teardown.
+ * again every 2000 ms. "Build another room", the one primary action, goes to `#/` and is there from the start;
+ * "How this room was built" (secondary) joins it once the Room's job is known, opening its Build view, and is absent
+ * under cut 0. The heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}".
+ * The top bar's `controls` keep "Show all objects" in place, inert. Returns the teardown.
  */
 export function mountCompletion(
   body: HTMLElement,
@@ -176,6 +193,10 @@ export function mountCompletion(
     if (mounted) show(result)
   }
   void load()
+  void roomJob(session).then((jobId) => {
+    const link = jobId === null ? null : buildViewLink(jobId, profile, true)
+    if (mounted && link !== null) actions.append(link)
+  })
 
   return () => {
     mounted = false

@@ -1,0 +1,35 @@
+/* {components.build-view-json}: a chrome panel under the mask overlays holding the toggle; open, the caption in
+   body-sm text-muted, then the build data in mono-sm text, at most 360 px high and scrolling inside. */
+.build-view-json {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  border-radius: var(--rounded-md);
+  background: var(--chrome);
+  color: var(--text);
+}
+.build-view-json-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  align-self: stretch;
+  min-width: 0;
+}
+.build-view-json-pane[hidden] {
+  display: none;
+}
+.build-view-json-caption {
+  margin: 0;
+  color: var(--text-muted);
+}
+.build-view-json-data {
+  box-sizing: border-box;
+  max-height: 360px;
+  margin: 0;
+  overflow: auto;
+  color: var(--text);
+  white-space: pre;
+}

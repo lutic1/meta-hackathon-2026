@@ -3,6 +3,7 @@ import { freshDerived, getBuild, photoUrl, postBuild, RequestFailed, startSessio
 import { type EndAction, buildEnd } from './build-end.ts'
 import { carryPhotos, heldPhotos, passPhotos, releasePhotos } from './build-photos.ts'
 import { stageRows } from './build-stages.ts'
+import { buildViewLink } from './build-view.ts'
 import { captureColumn } from './capture.ts'
 import { buildAccepted, buildEnded, sessionOpened, startTimer } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
@@ -53,8 +54,9 @@ async function photoSize(url: string): Promise<Size | null> {
  * draws on their downscales. When a poll reads `done` after this page saw the Build unfinished, or uploaded it, a
  * Session starts with `Derived.fresh()` (until 5.1) and the Play screen opens, the Timer passing to that Session.
  * A Build already `done` when the route opens shows "Play this room" instead, and the photos the server now serves
- * for its Room. A refused session start shows the session-start-refused banner, whose "Try again" posts it again;
- * the Timer keeps running toward T1.
+ * for its Room, with "How this room was built" beside it opening the Build's Build view (absent under cut 0). A
+ * refused session start shows the session-start-refused banner, whose "Try again" posts it again; the Timer keeps
+ * running toward T1.
  *
  * A Build that ends without a Room (`build-end.ts`) stops its Timer beside the status, marks the row it stopped at
  * failed, keeps its photos in the tray and shows one banner, which takes focus, its actions next in Tab order:
@@ -158,7 +160,8 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
           pendingLabel: strings.playThisRoom,
           onActivate: () => start(roomId),
         })
-        actions.replaceChildren(play)
+        const link = buildViewLink(jobId, profile)
+        actions.replaceChildren(play, ...(link === null ? [] : [link]))
         actions.hidden = false
       }
 

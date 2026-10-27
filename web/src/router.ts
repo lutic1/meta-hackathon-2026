@@ -16,6 +16,9 @@ export interface Place {
 
 export const DEFAULT_PROFILE = 'dev'
 
+/** Cut 0 (FR-38, UX-DR84), the first cut taken: true drops every link to the Build view. */
+export const CUT_0: boolean = false
+
 const SESSION_ROUTE = /^\/(play|done)\/([\w-]+)$/ // session ids are `sess_` plus a ULID
 const BUILD_ROUTE = /^\/build\/([\w-]+)$/ // job ids are `job_` plus a ULID
 const BUILD_VIEW_ROUTE = /^\/build\/([\w-]+)\/view$/ // job ids are `job_` plus a ULID
@@ -50,6 +53,11 @@ export function placeHref({ route, profile }: Place): string {
 /** The hash of a Build's Capture screen, `#/build/<job_id>`, carrying the profile. */
 export function captureHref(jobId: string, profile: string): string {
   return `#/build/${jobId}?profile=${encodeURIComponent(profile)}`
+}
+
+/** The hash of a Build's Build view, `#/build/<job_id>/view`, carrying the profile. */
+export function buildViewHref(jobId: string, profile: string): string {
+  return placeHref({ route: { name: 'view', jobId }, profile })
 }
 
 let carried = DEFAULT_PROFILE

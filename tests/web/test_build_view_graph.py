@@ -141,7 +141,7 @@ def _box(node: dict[str, float], pad: float = 0) -> tuple[float, float, float, f
 
 def test_the_graph_sits_at_the_top_of_the_left_column_over_the_mask_overlays():
     view = _ts("build-view.ts")
-    assert "left.append(puzzleGraph(state.view), maskOverlays(state.view))" in view
+    assert "left.append(puzzleGraph(state.view), maskOverlays(state.view), buildViewJson(state.view))" in view
     # The right column comes first in the page for Tab order and is placed in the right third by the stylesheet.
     assert "columns.append(right, left)" in view
     rules = _css("shell.css")

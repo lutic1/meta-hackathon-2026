@@ -75,6 +75,11 @@ export function buildEnded(jobId: string, status: string): void {
   if (counting()?.jobId === jobId) stopTimer(status)
 }
 
+/** The Build that opened `sessionId` in this tab, while its run is the one kept; null for any other Session. */
+export function sessionJob(sessionId: string): string | null {
+  return run !== null && run.sessionId === sessionId ? run.jobId : null
+}
+
 /** Stops the counting run: at T1 when `status` is null, else beside that end status. A stopped run stays frozen. */
 export function stopTimer(status: string | null): void {
   const current = counting()
