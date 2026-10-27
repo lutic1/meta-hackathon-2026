@@ -132,11 +132,17 @@ def test_the_first_room_welcome_shows_its_plain_tip_on_the_scrim_under_the_card(
     assert "tip: '{typography.body-sm}'" in overlay and "tipColor: '{colors.text-muted}'" in overlay
 
 
-def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_and_lock_outcomes_write_to_it():
+def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_lock_outcomes_and_reconnecting_line_write_to_it():
     sources = {path: _code(text) for path, text in source_ts().items() if "/types/" not in path}
     assert sum(text.count("aria-live") for text in sources.values()) == 1
     writers = {path for path, text in sources.items() if "announce(" in text and not path.endswith("live-region.ts")}
-    assert writers == {"web/src/welcome.ts", "web/src/completion.ts", "web/src/lock-outcomes.ts"}
+    assert writers == {
+        "web/src/welcome.ts",
+        "web/src/completion.ts",
+        "web/src/lock-outcomes.ts",
+        "web/src/build-progress.ts",  # the reconnecting line
+    }
+    assert "announce(strings.reconnectingBuild)" in sources["web/src/build-progress.ts"]
     # The sign-off is a Guide line, so it is heard with its speaker prefix.
     assert "announce(`${strings.speakerGuide} ${said}`)" in sources["web/src/completion.ts"]
     assert "parts.push(held.render, notes.render, lockOutcomes(view, latest))" in _ts("play.ts")
