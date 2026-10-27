@@ -53,3 +53,35 @@ export function photoTray(photos: readonly TrayPhoto[], onRemove: (index: number
   tray.append(count, grid)
   return tray
 }
+
+/**
+ * The Photo tray during a Build (UX-DR15): compact, the count line kept over `{components.photo-tray-thumb}` at
+ * 96 x 72 in upload order, same radius and gaps, with no remove control, since the set can no longer change.
+ */
+export function compactPhotoTray(urls: readonly string[]): HTMLElement {
+  const tray = document.createElement('div')
+  tray.className = 'photo-tray compact'
+  const count = document.createElement('p')
+  count.className = 'photo-tray-count label'
+  count.textContent = fill(strings.photosChosen, { n: urls.length })
+  const grid = document.createElement('ol')
+  grid.className = 'photo-tray-grid'
+  grid.append(
+    ...urls.map((url) => {
+      const cell = document.createElement('li')
+      cell.className = 'photo-tray-cell'
+      const thumb = document.createElement('div')
+      thumb.className = 'photo-tray-thumb'
+      const image = document.createElement('img')
+      image.src = url
+      image.alt = ''
+      image.width = 96
+      image.height = 72
+      thumb.append(image)
+      cell.append(thumb)
+      return cell
+    }),
+  )
+  tray.append(count, grid)
+  return tray
+}

@@ -108,6 +108,11 @@ export function startSession(body: SessionStart): Promise<SessionState> {
   return postJson<SessionState>('/sessions', body)
 }
 
+/** `GET /builds/<job_id>`: the persisted job state (202 while `queued` or `running`, 200 once terminal), never a Room. */
+export function getBuild(jobId: string): Promise<JobState> {
+  return getJson<JobState>(`/builds/${encodeURIComponent(jobId)}`)
+}
+
 /** One chosen photo as `POST /builds` takes it: the client-made downscale and the original, byte for byte. */
 export interface UploadPhoto {
   downscale: Blob

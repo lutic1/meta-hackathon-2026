@@ -46,8 +46,9 @@ def _component_patterns() -> str:
 
 
 def _verbatim(value: str, source: str) -> bool:
-    """`value` word for word in `source`, each `{name}` standing where the source shows a placeholder or an example."""
-    pattern = r"(?:\{[^}]+\}|\w+)".join(re.escape(part) for part in re.split(r"\{\w+\}", value))
+    """`value` word for word in `source`, each `{name}` standing where the source shows a placeholder or an example
+    ("4.2" for the duration's `{s}`)."""
+    pattern = r"(?:\{[^}]+\}|[\w.]+)".join(re.escape(part) for part in re.split(r"\{\w+\}", value))
     return re.search(pattern, source) is not None
 
 
@@ -70,6 +71,7 @@ def test_a_placeholder_stands_only_for_a_placeholder_or_an_example():
     assert _verbatim("Regenerations: {n} of {max}", 'reads "Regenerations: n of {max}"')
     assert _verbatim("{n} billed", 'for example "3 billed · 9 cached"')
     assert not _verbatim("Regenerations: {n} of {max}", "Regenerations: none")
+    assert _verbatim("{s} s", 'the duration, which reads like "4.2 s"')
 
 
 def test_the_stored_room_strings_are_the_experience_lines():
@@ -171,3 +173,36 @@ def test_the_timer_strings_are_the_experience_lines():
     # EXPERIENCE.md words no end status for the Timer; a failed upload shows the name Voice and Tone gives it.
     assert strings["uploadFailedStatus"] == "Upload failed"
     assert "| Upload failed (any other failure of the upload: network, 5xx) |" in _voice_and_tone()
+
+
+def test_the_stage_list_strings_are_the_experience_lines():
+    strings = _strings()
+    names = [strings[key] for key in ("readingPhotos", "findingObjects", "writingPuzzles", "testingRoom", "sceneLoading")]
+    assert names == ["Reading your photos", "Finding objects", "Writing puzzles", "Testing the room", "Setting the scene"]
+    for name, stage in zip(names, ("ingest", "architect, segment", "author", "validate, dry run", "scene"), strict=True):
+        assert f'"{name}" ({stage})' in _voice_and_tone()
+    assert strings["rewritingPuzzles"].format(n=1, max=1) == "Rewriting puzzles, attempt 1 of 1"
+    assert strings["sentBack"].format(messages="A puzzle cites something the Architect never saw.") == (
+        "Sent back: A puzzle cites something the Architect never saw.")
+    assert strings["stageDuration"].format(s="33.1") == "33.1 s"
+    assert [strings[key].format(n=8) for key in ("photoCount", "objectCount", "scenesReady")] == [
+        "8 photos", "8 objects", "8 scenes ready"]
+    assert strings["rulesPassed"].format(passed=8, total=8) == "Rules: 8 of 8 passed"
+    assert strings["testRunReached"].format(reached=5, total=5) == "Test run: reached 5 of 5 answers"
+    assert strings["playThisRoom"] == "Play this room"
+
+
+def test_the_wizard_introductions_and_the_architect_lines_are_the_experience_lines():
+    strings = _strings()
+    assert strings["architectVoice"] == "I notice everything. Mostly mugs."
+    assert strings["riddlerVoice"] == "I taught your things to talk. Pity they only speak in riddles."
+    assert strings["readingLine"].format(n=8) == "8 photos of one room. Let me find my loupe."
+    three = {"n": 9, "first": "mug", "second": "lamp", "third": "books"}
+    assert strings["maskPreviewLine"].format(**three) == (
+        "I see 9 things worth a closer look, starting with the mug, the lamp and the books.")
+    assert strings["maskPreviewLineTwo"].format(**three) == (
+        "I see 9 things worth a closer look, starting with the mug and the lamp.")
+    assert strings["writingLine"] == "I've handed my notes to the Riddler. Brace yourself."
+    assert strings["testingLine"] == "Now we make sure every lock can actually be opened. Fair is fair."
+    assert strings["sceneLine"] == "Hanging your room on the wall. Mind the frame."
+    assert strings["regenerationLine"] == "The Riddler's draft didn't pass. Another go."

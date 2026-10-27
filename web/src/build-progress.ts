@@ -1,0 +1,173 @@
+import type { JobState } from '../types'
+import { freshDerived, getBuild, photoUrl, RequestFailed, startSession } from './api/index.ts'
+import { heldPhotos, releasePhotos } from './build-photos.ts'
+import { stageRows } from './build-stages.ts'
+import { captureColumn } from './capture.ts'
+import { sessionOpened } from './capture-timer.ts'
+import { primaryButton } from './components/button.ts'
+import { bannerSlot, showBanner } from './components/error-banner.ts'
+import { reveal } from './components/fade.ts'
+import { fitChips, maskPreview, type TilePhoto } from './components/mask-preview.ts'
+import { compactPhotoTray } from './components/photo-tray.ts'
+import { stageList } from './components/stage-list.ts'
+import { placeHref } from './router.ts'
+import type { Size } from './scene/geometry.ts'
+import { strings } from './strings.ts'
+
+/** How often `#/build/<job_id>` reads job state (UX-DR8, the session cadence). */
+export const BUILD_POLL_MS = 2000
+
+export interface BuildScreen {
+  left: HTMLElement
+  right: HTMLElement
+  /** Runs once the screen is in the page: starts polling; returns the teardown that stops it. */
+  mount: () => () => void
+}
+
+/** The pixel size of the photo at `url` once it decodes; null when it does not. */
+async function photoSize(url: string): Promise<Size | null> {
+  const image = new Image()
+  image.src = url
+  try {
+    await image.decode()
+    return { width: image.naturalWidth, height: image.naturalHeight }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The Capture screen during a Build (`#/build/<job_id>`, FR-5, UX-DR62): the right column as before the Build; on
+ * the left, under the banner slot, the Stage list in the dropzone's place, the Mask preview once job state carries
+ * it, and the Photo tray, compact. `GET /builds/<job_id>` is read at once and every 2000 ms while the Build is
+ * `queued` or `running`; a missed poll is tried again on the same cadence, while a refused one (4xx) ends the
+ * polling with the list as last seen. Job state alone drives the list; nothing is inferred between polls.
+ *
+ * The page that uploaded the Build holds its photos (`build-photos.ts`): the tray shows them and the Mask preview
+ * draws on their downscales. When a poll reads `done` after this page saw the Build unfinished, or uploaded it, a
+ * Session starts with `Derived.fresh()` (until 5.1) and the Play screen opens, the Timer passing to that Session.
+ * A Build already `done` when the route opens shows "Play this room" instead, and the photos the server now serves
+ * for its Room. A refused session start shows the session-start-refused banner, whose "Try again" posts it again;
+ * the Timer keeps running toward T1.
+ */
+export function buildScreen(jobId: string, profile: string, retention: string): BuildScreen {
+  const held = heldPhotos(jobId)
+  const banners = bannerSlot()
+  const stages = stageList()
+  stages.update(stageRows(null))
+  const actions = document.createElement('div')
+  actions.className = 'capture-actions'
+  actions.hidden = true
+  const maskSlot = document.createElement('div')
+  const traySlot = document.createElement('div')
+  if (held !== null) traySlot.append(compactPhotoTray(held.thumbnails))
+  const left = document.createElement('section')
+  left.className = 'capture-left'
+  left.append(banners, stages.element, actions, maskSlot, traySlot)
+
+  return {
+    left,
+    right: captureColumn(retention),
+    mount: () => {
+      let mounted = true
+      let polling: ReturnType<typeof setTimeout> | undefined
+      /** Whether reading `done` opens the Play screen: this page uploaded the Build, or saw it unfinished. */
+      let live = held !== null
+      let masked = false
+      let starting = false
+      let started = false
+
+      /** The photo at `index`: this page's downscale, else, once the Room exists, the one the server stores. */
+      function photo(job: JobState, index: number): string | null {
+        if (held !== null) return held.downscales[index] ?? null
+        return job.status === 'done' && job.room_id != null ? photoUrl(job.room_id, index) : null
+      }
+
+      async function showMask(job: JobState): Promise<void> {
+        const tiles = job.mask_preview ?? []
+        const photos = new Map<number, TilePhoto>()
+        await Promise.all(
+          [...new Set(tiles.map((tile) => tile.photo))].map(async (index) => {
+            const url = photo(job, index)
+            const size = url === null ? null : await photoSize(url)
+            if (url !== null && size !== null) photos.set(index, { url, size })
+          }),
+        )
+        if (!mounted) return
+        const grid = maskPreview(tiles, photos)
+        maskSlot.replaceChildren(grid)
+        fitChips(grid)
+        reveal(grid)
+      }
+
+      async function start(roomId: string): Promise<void> {
+        if (starting || started) return
+        starting = true
+        try {
+          const session = await startSession({ room_id: roomId, derived: freshDerived() })
+          started = true
+          showBanner(banners, null)
+          sessionOpened(jobId, session.id)
+          location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })
+        } catch {
+          showBanner(banners, {
+            variant: 'error',
+            heading: strings.sessionStartRefused,
+            sentence: strings.sessionStartRefusedBody,
+            actions: [{ label: strings.tryAgain, onActivate: () => void start(roomId) }],
+          })
+        } finally {
+          starting = false
+        }
+      }
+
+      function done(job: JobState, roomId: string): void {
+        if (live) {
+          void start(roomId)
+          return
+        }
+        const photos = job.stages?.find((record) => record.stage === 'ingest')?.count ?? 0
+        const urls = Array.from({ length: photos }, (_, index) => photoUrl(roomId, index))
+        if (urls.length > 0) traySlot.replaceChildren(compactPhotoTray(urls))
+        const play = primaryButton({
+          label: strings.playThisRoom,
+          pendingLabel: strings.playThisRoom,
+          onActivate: () => start(roomId),
+        })
+        actions.replaceChildren(play)
+        actions.hidden = false
+      }
+
+      function apply(job: JobState): void {
+        stages.update(stageRows(job))
+        if (!masked && (job.mask_preview ?? []).length > 0) {
+          masked = true
+          void showMask(job)
+        }
+        if (job.status !== 'done') live = true
+        else if (job.room_id != null) done(job, job.room_id)
+      }
+
+      async function poll(): Promise<void> {
+        let job: JobState
+        try {
+          job = await getBuild(jobId)
+        } catch (error) {
+          const refused = error instanceof RequestFailed && error.status !== null && error.status < 500
+          if (mounted && !refused) polling = setTimeout(() => void poll(), BUILD_POLL_MS)
+          return
+        }
+        if (!mounted) return
+        apply(job)
+        if (job.status === 'queued' || job.status === 'running') polling = setTimeout(() => void poll(), BUILD_POLL_MS)
+      }
+
+      void poll()
+      return () => {
+        mounted = false
+        clearTimeout(polling)
+        if (started) releasePhotos()
+      }
+    },
+  }
+}

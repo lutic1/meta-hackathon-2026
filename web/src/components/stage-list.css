@@ -1,0 +1,108 @@
+/* {components.stage-list-item} on a chrome-raised tray, rounded lg, 16 px by 24 px padding: the Architect's
+   introduction, a 1 px hairline rule, then the stage rows (marker, name and lines, meta at the right end). */
+.stage-list {
+  padding: var(--spacing-4) var(--spacing-5);
+  background: var(--chrome-raised);
+  border-radius: var(--rounded-lg);
+}
+.stage-list p {
+  margin: 0;
+}
+.stage-list-rule {
+  height: 1px;
+  margin: var(--spacing-3) 0 var(--spacing-2);
+  background: var(--hairline);
+}
+
+/* A wizard's introduction: the 48 px portrait, 12 px from the name (label), role line (body-sm, text-muted) and
+   voice line (wizard-line, text). */
+.stage-intro {
+  display: flex;
+  gap: var(--spacing-3);
+  align-items: flex-start;
+}
+.stage-intro-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.stage-intro-name {
+  color: var(--text);
+}
+.stage-intro-role {
+  color: var(--text-muted);
+}
+.stage-intro-voice {
+  color: var(--text);
+}
+.stage-intro-slot .stage-intro {
+  margin-top: var(--spacing-2);
+}
+
+.stage-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stage-row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  column-gap: var(--spacing-3);
+  align-items: start;
+  padding: 5px 0;
+}
+/* The 12 px marker: hollow text-muted pending, filled lamp running, success done, error-text failed. */
+.stage-marker {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  border-radius: var(--rounded-full);
+  border: 2px solid var(--text-muted);
+}
+.stage-row[data-state='running'] .stage-marker {
+  border-color: var(--lamp);
+  background: var(--lamp);
+}
+.stage-row[data-state='done'] .stage-marker {
+  border-color: var(--success);
+  background: var(--success);
+}
+.stage-row[data-state='failed'] .stage-marker {
+  border-color: var(--error-text);
+  background: var(--error-text);
+}
+.stage-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.stage-name {
+  color: var(--text-muted);
+}
+.stage-row[data-state='running'] .stage-name {
+  color: var(--lamp);
+}
+.stage-row[data-state='done'] .stage-name {
+  color: var(--text);
+}
+.stage-row[data-state='failed'] .stage-name {
+  color: var(--error-text);
+}
+.stage-result,
+.stage-sent-back,
+.stage-line {
+  color: var(--text);
+}
+/* The meta: the model id in text-muted beside the duration in success, both mono-sm, never wrapping. */
+.stage-meta {
+  display: flex;
+  gap: var(--spacing-4);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.stage-duration {
+  color: var(--success);
+}

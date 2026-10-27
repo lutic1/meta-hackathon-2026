@@ -47,7 +47,7 @@ export function placeHref({ route, profile }: Place): string {
   return `#${path}?profile=${encodeURIComponent(profile)}`
 }
 
-/** The hash of a Build's Capture screen, `#/build/<job_id>`, carrying the profile; the route itself joins in 2.18. */
+/** The hash of a Build's Capture screen, `#/build/<job_id>`, carrying the profile. */
 export function captureHref(jobId: string, profile: string): string {
   return `#/build/${jobId}?profile=${encodeURIComponent(profile)}`
 }

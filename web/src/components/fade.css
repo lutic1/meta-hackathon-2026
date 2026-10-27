@@ -1,0 +1,8 @@
+/* The state fade: hidden until revealed, then opacity over 200 ms, ease-out; instant under reduced motion. */
+.fade {
+  opacity: 0;
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+.fade.is-shown {
+  opacity: 1;
+}

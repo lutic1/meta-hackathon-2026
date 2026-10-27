@@ -1,0 +1,50 @@
+/* The Mask preview: the Photo tray's grid (12 px gaps) of 120 x 90 tiles, rounded sm; each outline drawn as
+   {components.build-view-mask} (mask-overlay fill, 2 px mask-overlay stroke over a 1 px dark halo) and its label
+   on a {components.hotspot-label-chip}. Nothing in it takes the pointer. */
+.mask-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mask-tile {
+  position: relative;
+  width: 120px;
+  height: 90px;
+  overflow: hidden;
+  border-radius: var(--rounded-sm);
+  background: var(--chrome);
+  pointer-events: none;
+}
+.mask-tile svg {
+  display: block;
+  width: 120px;
+  height: 90px;
+}
+.mask-tile-halo,
+.mask-tile-outline {
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.mask-tile-halo {
+  fill: none;
+  stroke: var(--hotspot-halo);
+  stroke-width: 4px;
+}
+.mask-tile-outline {
+  fill: var(--mask-overlay-fill);
+  stroke: var(--mask-overlay-stroke);
+  stroke-width: 2px;
+}
+.mask-tile-chip {
+  position: absolute;
+  box-sizing: border-box;
+  max-width: 120px;
+  padding: 1px 6px;
+  overflow-wrap: break-word;
+  border-radius: var(--rounded-sm);
+  background: var(--parchment);
+  color: var(--ink);
+}

@@ -1,6 +1,7 @@
 import './shell.css'
 import type { Meta, RoomSummary, SessionState } from '../types'
 import { getMeta, getSession, listRooms, RequestFailed } from './api/index.ts'
+import { buildScreen } from './build-progress.ts'
 import { type BuildViewOptions, type BuildViewState, buildViewSurface, loadBuildView } from './build-view.ts'
 import { captureScreen } from './capture.ts'
 import { mountTimer, type TimerRun } from './capture-timer.ts'
@@ -31,8 +32,8 @@ function refused(error: unknown): null {
  * no Room, so its route shows the global lines with an empty body; its own states belong to later surfaces.
  * In Local mode `#/` also waits for `GET /rooms`, read afresh on every visit: the browser keeps no list of its own;
  * it is the Capture screen, its Retention summary the `retention` text of the same `GET /meta`. `#/build/<job_id>`
- * holds the global lines and the Timer of that Build; its body belongs to 2.18. The top bar's Timer slot shows the
- * run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
+ * holds the global lines, the Timer of that Build and the Capture screen during that Build, in both modes. The top
+ * bar's Timer slot shows the run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
  * `#/build/<job_id>/view` waits for `GET /builds/<job_id>/view` once and shows the Build view, ready, not ready or
  * failed (never the unreachable strip), with the `BuildView`'s own Disclosure list once it answered; only its body
  * scrolls, so the banner and the top bar stay pinned.
@@ -87,6 +88,8 @@ export function startShell(root: HTMLElement): void {
       if (state === undefined) return
       if (state !== null) disclosure = state.disclosure
       if (name === 'play' && state !== null) content = { name: 'play', session: state }
+    } else if (place.route.name === 'build') {
+      content = { name: 'build', jobId: place.route.jobId, profile: place.profile, retention: meta.retention }
     } else if (place.route.name === 'home' && meta.mode === 'local') {
       const rooms = await answered(mine, listRooms)
       if (rooms === undefined) return
@@ -121,12 +124,13 @@ interface Surface {
 
 /**
  * What a route's body holds: the Build view, the Play layout for a session, the Capture screen with the Stored Rooms
- * list (Local `#/`) or nothing yet.
+ * list (Local `#/`), the Capture screen during a Build (`#/build/<job_id>`) or nothing yet.
  */
 type Content =
   | ({ name: 'view'; state: BuildViewState } & BuildViewOptions)
   | { name: 'play'; session: SessionState }
   | { name: 'rooms'; rooms: RoomSummary[]; profile: string; retention: string }
+  | { name: 'build'; jobId: string; profile: string; retention: string }
   | { name: 'empty' }
 
 /**
@@ -163,6 +167,12 @@ function surface(content: Content, timerSlot: HTMLElement): Surface {
     const capture = captureScreen(content.rooms, content.profile, content.retention, timerSlot)
     element.append(capture.left, capture.right)
     return { element, mount: capture.mount }
+  }
+  if (content.name === 'build') {
+    element.classList.add('capture-layout')
+    const build = buildScreen(content.jobId, content.profile, content.retention)
+    element.append(build.left, build.right)
+    return { element, mount: build.mount }
   }
   element.classList.add('play-layout')
   const sceneColumn = document.createElement('section')

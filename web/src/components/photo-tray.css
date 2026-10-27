@@ -69,3 +69,12 @@
   margin: 0;
   color: var(--wrong);
 }
+/* Compact during a Build: 96 x 72 thumbnails, the same radius and gaps, the count line kept. */
+.photo-tray.compact .photo-tray-cell {
+  width: 96px;
+}
+.photo-tray.compact .photo-tray-thumb,
+.photo-tray.compact .photo-tray-thumb img {
+  width: 96px;
+  height: 72px;
+}

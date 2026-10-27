@@ -1,5 +1,6 @@
 import type { RoomSummary } from '../types'
 import { postBuild, RequestFailed, type UploadPhoto } from './api/index.ts'
+import { holdPhotos } from './build-photos.ts'
 import { buildAccepted, mountTimer, startTimer, stopTimer } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
 import { captureDropzone } from './components/capture-dropzone.ts'
@@ -7,6 +8,7 @@ import { type BannerState, bannerSlot, showBanner } from './components/error-ban
 import { photoTray } from './components/photo-tray.ts'
 import { retentionSummary } from './components/retention-summary.ts'
 import { downscale, isJpeg, isValidSet } from './photos.ts'
+import { captureHref } from './router.ts'
 import { storedRooms } from './stored-rooms.ts'
 import { strings } from './strings.ts'
 
@@ -42,6 +44,17 @@ function release(photos: readonly ChosenPhoto[]): void {
 }
 
 /**
+ * The Capture screen's right column, before and during a Build: the Input requirement standing alone, the iPhone
+ * tip, the faces, documents and belongings reminder, then the Retention summary.
+ */
+export function captureColumn(retention: string): HTMLElement {
+  const right = document.createElement('aside')
+  right.className = 'capture-right'
+  right.append(line(strings.inputRequirement), line(strings.iphoneTip), line(strings.reminder), retentionSummary(retention))
+  return right
+}
+
+/**
  * The Capture screen before a Build (Local `#/`, UX-DR62). Right: the Input requirement standing alone, the iPhone
  * tip, the faces, documents and belongings reminder, then the Retention summary, all there before any photo is
  * chosen. Left: the banner slot, the dropzone, the Photo tray, Upload and the Stored Rooms list.
@@ -50,7 +63,8 @@ function release(photos: readonly ChosenPhoto[]): void {
  * disabled, so nothing is sent; a valid set clears it and enables Upload. Upload downscales each photo and posts
  * them all with their originals in one `POST /builds`; its pending label is the ingest stage name, the step the
  * server runs before it answers. A refused or failed upload keeps the photos and shows its banner; an accepted one
- * starts the Build, and everything but the Retention summary and the banners is disabled.
+ * starts the Build: everything but the Retention summary and the banners is disabled, the photos and their
+ * downscales are handed to `build-photos.ts`, and `#/build/<job_id>` opens with the profile carried.
  *
  * Each Upload click is T0 (FR-5): the top bar's `timerSlot` shows the run it starts, nothing before. An upload that
  * fails or is refused freezes the run beside its end status, and the next Upload starts a new T0; an accepted one
@@ -66,6 +80,8 @@ export function captureScreen(
   let refusal: HTMLElement | null = null
   /** The T0 of the run this screen's last Upload started. */
   let t0: number | null = null
+  /** The Build `POST /builds` accepted; its photos now belong to `#/build/<job_id>`. */
+  let accepted: string | null = null
 
   const banners = bannerSlot()
   const dropzone = captureDropzone((files, replace) => void choose(files, replace))
@@ -82,9 +98,7 @@ export function captureScreen(
   const left = document.createElement('section')
   left.className = 'capture-left'
   left.append(banners, controls)
-  const right = document.createElement('aside')
-  right.className = 'capture-right'
-  right.append(line(strings.inputRequirement), line(strings.iphoneTip), line(strings.reminder), retentionSummary(retention))
+  const right = captureColumn(retention)
 
   const chooseAgain = { label: strings.choosePhotosAgain, onActivate: dropzone.chooseAgain }
   const refused: BannerState = { variant: 'error', heading: strings.photosRefused, actions: [chooseAgain] }
@@ -143,8 +157,9 @@ export function captureScreen(
     if (outcome !== null) stopTimer(strings.uploadFailedStatus)
     render()
     show(outcome)
-    // An accepted set starts the Build; the Build's own route (`#/build/<job_id>`) joins in 2.18.
+    // An accepted set starts the Build, which its own route follows, carrying the profile.
     if (outcome === null) controls.disabled = true
+    if (accepted !== null) location.hash = captureHref(accepted, profile)
   }
 
   /** null once `POST /builds` accepted the set, else the banner for why it did not. */
@@ -158,6 +173,12 @@ export function captureScreen(
     try {
       const job = await postBuild(pairs)
       buildAccepted(job.id)
+      accepted = job.id
+      holdPhotos({
+        jobId: job.id,
+        thumbnails: set.map(({ url }) => url),
+        downscales: pairs.map(({ downscale }) => URL.createObjectURL(downscale)),
+      })
       return null
     } catch (error) {
       const code = error instanceof RequestFailed && error.status === 422 ? error.code : null
@@ -173,7 +194,7 @@ export function captureScreen(
       dropzone.button.focus()
       const unmountTimer = mountTimer(timerSlot, (run) => run.t0 === t0)
       return () => {
-        release(photos)
+        if (accepted === null) release(photos)
         unmountTimer()
       }
     },
