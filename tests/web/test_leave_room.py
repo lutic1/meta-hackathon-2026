@@ -124,6 +124,31 @@ def test_back_on_the_play_screen_is_caught_by_a_guard_entry_and_asks_the_same_co
     assert "popstate" not in shell and "window.addEventListener('hashchange', () => void render())" in shell
 
 
+def test_routing_to_completion_takes_the_guard_off_the_history_so_back_leaves_the_completion_screen():
+    leave = _code(_ts("leave-room.ts"))
+    exit_ = leave.split("function exit(href: string): void {", 1)[1].split("\n  }\n", 1)[0]
+    # Back is no longer caught; with the guard on top, it is popped first and the Play route under it is replaced, so
+    # the history ends [..., home, done] and Back from the Completion screen never lands on the Play route again.
+    assert exit_.index("window.removeEventListener('popstate', onBack)") < exit_.index("history.back()")
+    assert "if (!isGuard(history.state)) return location.replace(href)" in exit_
+    assert "exiting = () => location.replace(href)" in exit_
+    assert exit_.index("window.addEventListener('popstate', exiting, { once: true })") < exit_.index("history.back()")
+    assert "if (exiting !== undefined) window.removeEventListener('popstate', exiting)" in leave
+    assert "    exit,\n" in leave
+    # The Play screen routes to Completion only through it.
+    play = _code(_ts("play.ts"))
+    assert "location.replace(" not in play
+    on_exit = play.split("function leaveOnExit(", 1)[1].split("\n  }\n", 1)[0]
+    assert "leaveRoom.exit(done)" in on_exit
+
+
+def test_keep_playing_after_back_over_an_inert_scene_focuses_leave_room():
+    play = _code(_ts("play.ts"))
+    focus = play.split("focusScene: () => {", 1)[1].split("\n    },", 1)[0]
+    assert "if (reconnecting || ended) leaveRoom.button.focus()" in focus
+    assert "else unfocus = focusFirstHotspot(sceneColumn)" in focus
+
+
 def test_modals_never_stack():
     leave = _code(_ts("leave-room.ts"))
     assert "if (close !== undefined || frame.modalOpen()) return" in leave

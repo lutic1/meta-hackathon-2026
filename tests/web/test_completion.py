@@ -70,7 +70,8 @@ def test_the_play_screen_routes_to_done_when_the_exit_puzzles_open_state_ends():
     assert "if (leaving !== undefined || !state.locks_open.includes(exitId)) return" in leave
     assert "placeHref({ route: { name: 'done', sessionId: session.id }, profile: currentPlace().profile })" in leave
     # The Exit's Open chip holds as long as every lock's (UX-DR38); an Exit open at mount has no Open state to wait for.
-    assert "setTimeout(() => location.replace(done), session.locks_open.includes(exitId) ? 0 : OPEN_HOLD_MS)" in leave
+    # The route replaces the Play route and its Back guard (test_leave_room), so Back leaves the Completion screen.
+    assert "setTimeout(() => leaveRoom.exit(done), session.locks_open.includes(exitId) ? 0 : OPEN_HOLD_MS)" in leave
     assert "clearTimeout(leaving)" in play
 
 

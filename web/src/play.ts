@@ -95,7 +95,7 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * room confirmation (see `mountLeaveRoom`), never over the First-room welcome; confirming goes to `#/` and records no
  * Room result. Once a state
  * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
- * replacing the Play route in the history; an Exit already open when the screen mounts has no Open state, so it routes
+ * replacing the Play route and its Back guard in the history (`LeaveRoom.exit`); an Exit already open when the screen mounts has no Open state, so it routes
  * at once.
  *
  * A reload mounts the same way from `GET /sessions/<id>` and the Room: the first Scene, the Inventory and the open
@@ -247,7 +247,7 @@ export function mountPlay(
   function leaveOnExit(exitId: string, state: SessionState): void {
     if (leaving !== undefined || !state.locks_open.includes(exitId)) return
     const done = placeHref({ route: { name: 'done', sessionId: session.id }, profile: currentPlace().profile })
-    leaving = setTimeout(() => location.replace(done), session.locks_open.includes(exitId) ? 0 : OPEN_HOLD_MS)
+    leaving = setTimeout(() => leaveRoom.exit(done), session.locks_open.includes(exitId) ? 0 : OPEN_HOLD_MS)
   }
 
   let welcoming = false
@@ -259,7 +259,9 @@ export function mountPlay(
     modalOpen: () => welcoming,
     focusScene: () => {
       unfocus?.()
-      unfocus = focusFirstHotspot(sceneColumn)
+      // An inert Scene (reconnecting, or the play-through ended) takes no focus, so it stays in the top bar.
+      if (reconnecting || ended) leaveRoom.button.focus()
+      else unfocus = focusFirstHotspot(sceneColumn)
     },
     leave: () => {
       location.hash = placeHref({ route: { name: 'home' }, profile: currentPlace().profile })

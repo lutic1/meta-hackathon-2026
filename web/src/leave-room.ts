@@ -26,6 +26,11 @@ export interface LeaveRoomFrame {
 export interface LeaveRoom {
   /** The top bar's "Leave room" button. */
   button: HTMLButtonElement
+  /**
+   * Routes to `href` in place of the Play route, taking the guard entry off the history first, so Back from there
+   * lands on the route before the Play screen, never on the Play route again.
+   */
+  exit: (href: string) => void
   /** Closes the confirmation, stops catching the Back button and removes the button. */
   unmount: () => void
 }
@@ -40,6 +45,7 @@ export interface LeaveRoom {
  * The Back button is caught by a history entry pushed over the Play route at the same URL (once: a reload already
  * stands on it). Back pops it, the URL stays put and no route change happens; the entry is pushed again at once, so
  * the next Back is caught too. A navigation the client makes itself changes the hash, so it is never mistaken for Back.
+ * `exit` pops the guard before it replaces the Play route, so the history keeps no Play entry behind the route it opens.
  */
 export function mountLeaveRoom(frame: LeaveRoomFrame): LeaveRoom {
   const playHash = location.hash
@@ -102,10 +108,21 @@ export function mountLeaveRoom(frame: LeaveRoomFrame): LeaveRoom {
   if (!isGuard(history.state)) guard()
   window.addEventListener('popstate', onBack)
 
+  let exiting: (() => void) | undefined
+  function exit(href: string): void {
+    window.removeEventListener('popstate', onBack)
+    if (!isGuard(history.state)) return location.replace(href)
+    exiting = () => location.replace(href)
+    window.addEventListener('popstate', exiting, { once: true })
+    history.back()
+  }
+
   return {
     button,
+    exit,
     unmount: () => {
       window.removeEventListener('popstate', onBack)
+      if (exiting !== undefined) window.removeEventListener('popstate', exiting)
       close?.()
       button.remove()
     },
