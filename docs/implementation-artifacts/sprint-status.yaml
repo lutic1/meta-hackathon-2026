@@ -125,7 +125,7 @@ development_status:
   4-5-trickster-cards-in-the-hint-area: backlog
   4-6-accepted-edits-reshape-the-room-in-play: backlog
   4-7-card-log-as-a-modal-dialog: backlog
-  4-8-live-trickster-proposals-from-the-game-state-summary: backlog
+  4-8-live-trickster-proposals-from-the-game-state-summary: done
   epic-4-retrospective: optional
 
   epic-5: in-progress
