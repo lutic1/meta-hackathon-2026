@@ -1,6 +1,11 @@
-// Hash routes (UX-DR8): `#/`, `#/play/<session_id>` and `#/done/<session_id>`, each carrying `?profile=` (AD-14).
+// Hash routes (UX-DR8): `#/`, `#/build/<job_id>`, `#/play/<session_id>` and `#/done/<session_id>`, each carrying
+// `?profile=` (AD-14).
 
-export type Route = { name: 'home' } | { name: 'play'; sessionId: string } | { name: 'done'; sessionId: string }
+export type Route =
+  | { name: 'home' }
+  | { name: 'build'; jobId: string }
+  | { name: 'play'; sessionId: string }
+  | { name: 'done'; sessionId: string }
 
 export interface Place {
   route: Route
@@ -10,6 +15,7 @@ export interface Place {
 export const DEFAULT_PROFILE = 'dev'
 
 const SESSION_ROUTE = /^\/(play|done)\/([\w-]+)$/ // session ids are `sess_` plus a ULID
+const BUILD_ROUTE = /^\/build\/([\w-]+)$/ // job ids are `job_` plus a ULID
 
 /**
  * The route and profile in a URL's hash (`#/play/sess_…?profile=demo`); `?profile=` before the hash also counts,
@@ -18,6 +24,8 @@ const SESSION_ROUTE = /^\/(play|done)\/([\w-]+)$/ // session ids are `sess_` plu
 export function parsePlace(hash: string, search: string, carried = DEFAULT_PROFILE): Place {
   const [path, query = ''] = hash.replace(/^#/, '').split('?', 2)
   const profile = new URLSearchParams(query).get('profile') || new URLSearchParams(search).get('profile') || carried
+  const build = BUILD_ROUTE.exec(path)
+  if (build !== null) return { route: { name: 'build', jobId: build[1] }, profile }
   const match = SESSION_ROUTE.exec(path)
   if (match === null) return { route: { name: 'home' }, profile }
   const sessionId = match[2]
@@ -26,7 +34,8 @@ export function parsePlace(hash: string, search: string, carried = DEFAULT_PROFI
 
 /** The hash for `place`, always carrying its profile. */
 export function placeHref({ route, profile }: Place): string {
-  const path = route.name === 'home' ? '/' : `/${route.name}/${route.sessionId}`
+  const path =
+    route.name === 'home' ? '/' : `/${route.name}/${route.name === 'build' ? route.jobId : route.sessionId}`
   return `#${path}?profile=${encodeURIComponent(profile)}`
 }
 

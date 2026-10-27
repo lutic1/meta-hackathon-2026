@@ -46,12 +46,13 @@ def test_meta_is_read_once_per_profile_and_the_profile_reaches_get_meta():
 def test_disclosure_lines_come_from_meta_on_home_and_from_session_state_on_play_and_done():
     shell = _ts("shell.ts")
     assert "let disclosure = meta.disclosure" in shell and "if (state !== null) disclosure = state.disclosure" in shell
-    assert "if (place.route.name !== 'home')" in shell
+    assert "if (place.route.name === 'play' || place.route.name === 'done')" in shell
     # A 4xx is an answer, not an unreachable server: no retry, and no Room whose lines could be missing.
     assert "getSession(sessionId).catch(refused)" in shell
     assert "error instanceof RequestFailed && error.status !== null && error.status < 500" in shell
     # Banner first, then the top bar, then the body: part of the grid, above the top bar.
-    assert "show(...(banner === null ? [] : [banner]), topBar(meta).element, body.element)" in shell
+    assert "const bar = topBar(meta)" in shell
+    assert "show(...(banner === null ? [] : [banner]), bar.element, body.element)" in shell
 
 
 def test_disclosure_banner_renders_lines_as_served_with_no_control_and_no_focus():

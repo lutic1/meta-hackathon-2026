@@ -1,0 +1,27 @@
+/* {components.timer}: the label in text-muted, the static 6 px lamp dot while it runs, the mono-timer digits in
+   text, or in success once frozen at T1; an end status in text-muted after the frozen digits. Nothing blinks. */
+.timer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  white-space: nowrap;
+}
+.timer-label {
+  color: var(--text-muted);
+}
+.timer-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lamp);
+}
+.timer-digits {
+  color: var(--text);
+}
+.timer[data-state='playable'] .timer-digits {
+  color: var(--success);
+}
+.timer-status {
+  color: var(--text-muted);
+}

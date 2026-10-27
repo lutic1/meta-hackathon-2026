@@ -1,5 +1,6 @@
 import type { RoomSummary } from '../types'
 import { postBuild, RequestFailed, type UploadPhoto } from './api/index.ts'
+import { buildAccepted, mountTimer, startTimer, stopTimer } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
 import { captureDropzone } from './components/capture-dropzone.ts'
 import { type BannerState, bannerSlot, showBanner } from './components/error-banner.ts'
@@ -12,7 +13,10 @@ import { strings } from './strings.ts'
 export interface CaptureScreen {
   left: HTMLElement
   right: HTMLElement
-  /** Runs once the screen is in the page: focuses "Choose photos"; returns the teardown releasing the thumbnails. */
+  /**
+   * Runs once the screen is in the page: focuses "Choose photos" and readies the Timer slot; returns the teardown
+   * releasing the thumbnails and the Timer.
+   */
   mount: () => () => void
 }
 
@@ -47,10 +51,21 @@ function release(photos: readonly ChosenPhoto[]): void {
  * them all with their originals in one `POST /builds`; its pending label is the ingest stage name, the step the
  * server runs before it answers. A refused or failed upload keeps the photos and shows its banner; an accepted one
  * starts the Build, and everything but the Retention summary and the banners is disabled.
+ *
+ * Each Upload click is T0 (FR-5): the top bar's `timerSlot` shows the run it starts, nothing before. An upload that
+ * fails or is refused freezes the run beside its end status, and the next Upload starts a new T0; an accepted one
+ * records its job id, so `#/build/<job_id>` resumes the run after a reload.
  */
-export function captureScreen(rooms: readonly RoomSummary[], profile: string, retention: string): CaptureScreen {
+export function captureScreen(
+  rooms: readonly RoomSummary[],
+  profile: string,
+  retention: string,
+  timerSlot: HTMLElement,
+): CaptureScreen {
   let photos: ChosenPhoto[] = []
   let refusal: HTMLElement | null = null
+  /** The T0 of the run this screen's last Upload started. */
+  let t0: number | null = null
 
   const banners = bannerSlot()
   const dropzone = captureDropzone((files, replace) => void choose(files, replace))
@@ -121,8 +136,11 @@ export function captureScreen(rooms: readonly RoomSummary[], profile: string, re
 
   async function send(): Promise<void> {
     if (!isValidSet(photos)) return
+    t0 = Date.now() // set before the run starts, so the slot shows it at once
+    startTimer(t0)
     render(true)
     const outcome = await submit(photos)
+    if (outcome !== null) stopTimer(strings.uploadFailedStatus)
     render()
     show(outcome)
     // An accepted set starts the Build; the Build's own route (`#/build/<job_id>`) joins in 2.18.
@@ -138,7 +156,8 @@ export function captureScreen(rooms: readonly RoomSummary[], profile: string, re
       return unreadable
     }
     try {
-      await postBuild(pairs)
+      const job = await postBuild(pairs)
+      buildAccepted(job.id)
       return null
     } catch (error) {
       const code = error instanceof RequestFailed && error.status === 422 ? error.code : null
@@ -152,7 +171,11 @@ export function captureScreen(rooms: readonly RoomSummary[], profile: string, re
     right,
     mount: () => {
       dropzone.button.focus()
-      return () => release(photos)
+      const unmountTimer = mountTimer(timerSlot, (run) => run.t0 === t0)
+      return () => {
+        release(photos)
+        unmountTimer()
+      }
     },
   }
 }

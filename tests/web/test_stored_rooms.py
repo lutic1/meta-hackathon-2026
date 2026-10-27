@@ -23,12 +23,15 @@ def test_the_list_comes_only_from_get_rooms_read_afresh_on_every_visit():
     api, shell = _ts("api/index.ts"), _ts("shell.ts")
     assert "return getJson<RoomSummary[]>('/rooms')" in api
     render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
-    assert "} else if (meta.mode === 'local') {" in render
+    assert "} else if (place.route.name === 'home' && meta.mode === 'local') {" in render
     assert render.index("await answered(mine, listRooms)") < render.index("show(")
     assert "content = { name: 'rooms', rooms, profile: place.profile, retention: meta.retention }" in render
-    # No room list of the browser's own: nothing cached across visits and no browser storage anywhere.
+    # No room list of the browser's own: nothing cached across visits, and no browser storage anywhere but the
+    # Capture Timer's one run (2.17).
     assert "listRooms" not in shell.split("async function render()", 1)[0].split("export function startShell", 1)[1]
     for path, text in source_ts().items():
+        if path.endswith("web/src/capture-timer.ts"):
+            continue
         assert not re.search(r"localStorage|sessionStorage|indexedDB", text), path
 
 

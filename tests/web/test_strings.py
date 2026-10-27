@@ -111,3 +111,11 @@ def test_the_scene_strings_are_the_experience_lines():
     # EXPERIENCE.md words no Scene loading line; it reuses the scene stage's name from the Stage names row.
     assert strings["sceneLoading"] == "Setting the scene" and '"Setting the scene" (scene)' in _voice_and_tone()
     assert strings["photoThumbnail"].format(n=3) == "Photo 3"
+
+
+def test_the_timer_strings_are_the_experience_lines():
+    strings = _strings()
+    assert (strings["photosToPlay"], strings["playableIn"]) == ("Photos to play", "Playable in")
+    # EXPERIENCE.md words no end status for the Timer; a failed upload shows the name Voice and Tone gives it.
+    assert strings["uploadFailedStatus"] == "Upload failed"
+    assert "| Upload failed (any other failure of the upload: network, 5xx) |" in _voice_and_tone()
