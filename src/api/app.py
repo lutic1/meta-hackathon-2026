@@ -121,7 +121,8 @@ Game-state summary; it mints the edit's `te_` id, judges the proposal live
 with `check_edit` (the bounds, then rules 1 to 9 over `apply_edit`) and
 appends one `trickster_card` carrying the full `TricksterEdit`, which
 closes the window. A source that yields no proposal (another Room, a
-used-up recording, or no source under `live` until 4.8) appends nothing; a
+used-up recording, no source under `live` until 4.8, or a proposals file
+that is missing or fails to load, which is logged) appends nothing; a
 `ProviderError` or `SpendCapExceeded` appends the skipped card
 `{accepted: false, edit_id: null, reason: provider_unavailable}`, never a
 rejected card or the error envelope (AD-13). The reply is the session
@@ -814,7 +815,11 @@ def session_routes(
             try:
                 room = effective_room(session.machine.room, log_)
                 summary = game_state_summary(state, max(0, clock.now_ms() - session.started_ms))
-                source = trickster()
+                try:
+                    source = trickster()
+                except (OSError, ValidationError) as exc:  # a missing or malformed proposals file: no proposal
+                    log.warning(json.dumps({"session_id": session_id, "event": "trickster_source_unavailable", "error": type(exc).__name__}))
+                    source = None
                 try:
                     proposal = None if source is None else source.propose(
                         session.machine.room.id, window.index, to_prompt_view(room), summary

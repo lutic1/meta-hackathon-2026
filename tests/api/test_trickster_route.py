@@ -27,7 +27,7 @@ from src.council.trickster import (
 )
 from src.domain.edits import effective_room
 from src.domain.ledger import SpendCapExceeded
-from src.domain.redact import to_play_view
+from src.domain.redact import to_play_view, to_prompt_view
 from src.domain.rungs import TRICKSTER_WINDOW_MS
 from src.domain.schema import (
     ULID,
@@ -35,10 +35,11 @@ from src.domain.schema import (
     Meta,
     Room,
     RoomView,
+    SessionState,
     TricksterCard,
     TricksterCardEvent,
 )
-from src.domain.session import TRICKSTER_CALLS_MAX, GameStateSummary
+from src.domain.session import TRICKSTER_CALLS_MAX, GameStateSummary, game_state_summary
 from src.domain.validator import RULES, validate
 from src.infra.local import CACHE_ROOT, LEDGER_PATH
 from src.pipeline.ports import room_key
@@ -47,7 +48,16 @@ from tests.api.test_app import make_app
 from tests.api.test_sessions import Ticker, click, code, post, start, stored
 from tests.domain.test_redact import json_keys
 from tests.domain.test_trickster_windows import skipped
-from tests.fixtures.rooms import IX, PZ
+from tests.fixtures.rooms import (
+    IX,
+    PZ,
+    SENTINEL_FIND,
+    SENTINEL_IX,
+    SENTINEL_ORDER,
+    SENTINEL_PAIR,
+    with_sentinel_solutions,
+)
+from tests.fixtures.rooms import SENTINEL_CODE as SENTINEL_SOLUTION
 
 REPO = Path(__file__).resolve().parents[2]
 FIXTURE_FILE = REPO / "tests/fixtures/proposals/four_lock.json"
@@ -119,9 +129,11 @@ class Counting:
     def __init__(self, proposal: TricksterProposal | None = DECOY, pause: float = 0.0, during: Any = None) -> None:
         self.proposal, self.pause, self.during = proposal, pause, during
         self.calls: list[tuple[str, int]] = []
+        self.inputs: list[tuple[RoomView, GameStateSummary]] = []
 
     def propose(self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary) -> TricksterProposal | None:
         self.calls.append((room_id, window))
+        self.inputs.append((room_view, summary))
         time.sleep(self.pause)
         if self.during is not None:
             self.during()
@@ -224,6 +236,22 @@ def test_the_scripted_source_is_judged_live_and_one_card_lands_per_window(tmp_pa
         assert not json_keys(reply["cards"]) & HIDDEN_KEYS
 
 
+def test_the_source_is_handed_the_effective_rooms_view_and_the_game_state_summary(
+    tmp_path: Path, ticker: Ticker, four_lock_room: Room
+):
+    source = Counting(TricksterProposal.model_validate(VALID_MERGE))
+    client = app_client(tmp_path, ticker, four_lock_room, trickster=always(source))
+    session_id, (first, second) = two_windows(client, ticker, four_lock_room, click("key"), code("clock_code", "415"))
+
+    assert first["cards"][0]["accepted"] and [window for _, window in source.calls] == [0, 1]
+    room_view, summary = source.inputs[1]
+    assert room_view == to_prompt_view(effective_room(four_lock_room, stored(tmp_path, session_id)[:-1]))
+    clock = next(puzzle for puzzle in room_view.puzzles if puzzle.id == PZ["clock_code"])
+    assert clock.requires == [PZ["find_key"]]  # window 0's accepted Merge is in the view, not the stored Room's empty list
+    assert summary == game_state_summary(SessionState.model_validate(second), ticker.ms)
+    assert summary.locks_open == [PZ["find_key"], PZ["clock_code"]] and summary.elapsed_ms == ticker.ms > 0
+
+
 def test_the_stored_card_keeps_the_judged_edit_with_a_minted_id_server_side(tmp_path: Path, ticker: Ticker, four_lock_room: Room):
     client = app_client(tmp_path, ticker, four_lock_room, proposals_root=proposals_root(tmp_path))
     session_id, _ = two_windows(client, ticker, four_lock_room, click("key"), code("clock_code", "415"))
@@ -324,6 +352,25 @@ def test_no_session_body_carries_the_decoys_identity_or_a_rejected_proposals_tok
         assert refused["accepted"] is False and refused["reason"] == 9 and refused["message"] == RULES[9].message  # rule 9: a Decoy gives no answer away
 
 
+def test_no_trickster_or_effective_room_response_carries_a_solution_provenance_payload_or_edit_key_or_a_sentinel(
+    tmp_path: Path, ticker: Ticker, four_lock_room: Room
+):
+    room = with_sentinel_solutions(four_lock_room)
+    source = Counting()
+    client = app_client(tmp_path, ticker, room, trickster=always(source))
+    session_id = start(client, room)
+    responses = [client.post(f"/api/sessions/{session_id}/trickster")]  # outside a window
+    open_window(client, ticker, session_id, code("clock_code", SENTINEL_SOLUTION), 0)
+    responses += [client.post(f"/api/sessions/{session_id}/trickster"), client.get(f"/api/sessions/{session_id}/room")]
+
+    assert [r.status_code for r in responses] == [200, 200, 200] and len(source.calls) == 1
+    assert len(responses[1].json()["cards"]) == 1 and len(cards_in(tmp_path, session_id)) == 1
+    sentinels = [SENTINEL_SOLUTION, json.dumps(SENTINEL_ORDER)[1:-1], *SENTINEL_PAIR, SENTINEL_FIND, *SENTINEL_IX]
+    for response in responses:
+        assert not json_keys(response.json()) & {"solution", "provenance", "payload", "edit"}
+        assert all(sentinel.encode() not in response.content for sentinel in sentinels)
+
+
 # --- The verdict is computed, never stored ------------------------------------------------
 
 
@@ -386,6 +433,24 @@ def test_a_window_with_no_proposal_appends_nothing_and_stays_as_it_was(
     assert [reply[field] for field in fields] == [before[field] for field in fields]
     assert files_outside_sessions(tmp_path) == files  # no ledger entry, no cache entry
     assert not (tmp_path / LEDGER_PATH).exists() and not (tmp_path / CACHE_ROOT).exists()
+
+
+@pytest.mark.parametrize("contents", [None, "{not json", json.dumps({"room_id": "nope"})], ids=["missing", "malformed", "invalid"])
+def test_a_proposals_file_that_fails_to_load_is_no_proposal_and_never_a_500(
+    tmp_path: Path, ticker: Ticker, four_lock_room: Room, contents: str | None, caplog: pytest.LogCaptureFixture
+):
+    root = tmp_path / "repo"
+    if contents is not None:
+        (root / RECORDED_PROPOSALS).parent.mkdir(parents=True)
+        (root / RECORDED_PROPOSALS).write_text(contents)
+    client = app_client(tmp_path, ticker, four_lock_room, proposals_root=root)
+    session_id = start(client, four_lock_room)
+    open_window(client, ticker, session_id, click("key"), 0)
+    before, log = state_of(client, session_id), stored(tmp_path, session_id)
+    caplog.set_level("WARNING", logger="keyframe.sessions")
+    assert trickster(client, session_id) == before and stored(tmp_path, session_id) == log
+    assert before["trickster_window"] == {"state": "open", "index": 0}
+    assert any("trickster_source_unavailable" in record.getMessage() for record in caplog.records)
 
 
 # --- A provider failure is a skipped card ------------------------------------------------
