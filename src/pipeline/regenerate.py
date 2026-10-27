@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 from pydantic import TypeAdapter
 
 from src.council.riddler import (
+    DraftReason,
     RiddlerPrompt,
     build_author_prompt,
     build_regeneration_prompt,
@@ -40,7 +41,6 @@ from src.domain.schema import (
     RoomId,
     RoomView,
     SentBack,
-    ValidatorReason,
 )
 from src.pipeline.ports import ArtifactStore
 
@@ -49,11 +49,13 @@ if TYPE_CHECKING:
 
 REASONS_FILE = "reasons.json"
 """The stage artifact under `<room_id>/`: the last failed attempt's reasons, for the regeneration prompt."""
-REASONS = TypeAdapter(list[ValidatorReason])
+REASONS = TypeAdapter(list[DraftReason])
 
 
 class FailedAttempt(Exception):
     """A draft a gate sent back (AD-13): its fixed messages, which quote no token or answer, and its structured reasons.
+
+    Each reason names its Puzzle by the draft's own key, as the Riddler wrote it.
 
     `result` is what the gate's stage did first (its call rows and
     verdicts), which the runner records before the loop decides.
@@ -62,7 +64,7 @@ class FailedAttempt(Exception):
     gate: ClassVar[Literal["validate", "dryrun"]]
     """The gate the "Sent back" lines name: `validate` for the author stage's refusals and the Validator's."""
 
-    def __init__(self, messages: Sequence[str], result: StageResult, reasons: Sequence[ValidatorReason] = ()) -> None:
+    def __init__(self, messages: Sequence[str], result: StageResult, reasons: Sequence[DraftReason] = ()) -> None:
         super().__init__("The draft was sent back: " + " ".join(messages))
         self.messages = list(messages)
         self.result = result
@@ -73,7 +75,7 @@ def reasons_key(room_id: RoomId) -> str:
     return f"{room_id}/{REASONS_FILE}"
 
 
-def read_reasons(room_id: RoomId, artifacts: ArtifactStore) -> list[ValidatorReason]:
+def read_reasons(room_id: RoomId, artifacts: ArtifactStore) -> list[DraftReason]:
     """The reasons of the last failed attempt for `room_id`."""
     return REASONS.validate_json(artifacts.read(reasons_key(room_id)))
 

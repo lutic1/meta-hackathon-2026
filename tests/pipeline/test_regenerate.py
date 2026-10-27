@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from src.council.riddler import build_regeneration_prompt
-from src.domain.schema import JobState, SentBack, ValidatorReason
+from src.council.riddler import DraftReason, build_regeneration_prompt
+from src.domain.schema import JobState, SentBack
 from src.domain.validator import RULES
 from src.infra.clocks import BuildClock
 from src.pipeline.author import (
@@ -39,6 +39,7 @@ from tests.pipeline.test_author_stage import (
     reply,
     riddler,
     store_interactables,
+    with_puzzle,
 )
 from tests.pipeline.test_build import RunnerDied
 from tests.providers.replay import transport
@@ -155,6 +156,17 @@ def test_under_cache_on_attempt_n_is_never_served_the_cached_answer_of_attempt_n
     assert (again.cached, repeat.cached) == (False, True)
 
 
+def test_a_validator_reason_names_its_puzzle_by_the_riddlers_own_key_never_a_pz_id(loop, uploads):
+    exit_leaks = with_puzzle("p5", clue="The way out wears 7342 on its face.")
+    provider = riddler(reply(p5=None, p6=exit_leaks), reply())  # p5 left null, so p6 is the fifth puzzle drafted
+    runner = loop(provider)
+    done = runner.run(runner.submit(uploads).id)
+    assert (done.status, done.regeneration_count) == ("done", 1)
+    sent = chat_calls(provider)[1].messages[-1].content
+    assert f"- rule 5, puzzle p6, field clue: {RULES[5].message}" in sent
+    assert "pz_" not in sent and "7342" not in sent
+
+
 def test_unreadable_output_is_rewritten_from_its_fixed_message_only(loop, uploads, artifacts, four_lock_room):
     unreadable = "not json: the Riddler muses on CLUE-NOISE-QZX"
     provider = riddler(unreadable, reply())
@@ -180,7 +192,7 @@ def test_a_dry_run_refusal_is_rewritten_from_its_fixed_message(loop, uploads, do
 
 
 def test_a_count_refusal_carries_its_fixed_message_beside_the_validator_reasons(artifacts, four_lock_room):
-    reasons = [ValidatorReason(rule=5, puzzle_id=None, field="clue", message=RULES[5].message)]
+    reasons = [DraftReason(rule=5, key=None, field="clue", message=RULES[5].message)]
     artifacts.put(reasons_key(four_lock_room.id), REASONS.dump_json(reasons))
     sent_back = [SentBack(attempt=0, stage="validate", messages=[COUNT_MESSAGE, RULES[5].message])]
     state = JobState(id="job_00000000000000000000000001", status="running", stage="author", room_id=four_lock_room.id,

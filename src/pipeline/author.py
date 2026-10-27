@@ -23,7 +23,9 @@ than 6 Puzzles never passes. It writes no `room` artifact either way: the
 scene stage writes it, once (AD-12).
 
 A failed attempt raises `ValidationError` with its fixed messages, which
-quote no solution token or answer, and the Validator's structured reasons.
+quote no solution token or answer, and the Validator's structured reasons,
+each naming its Puzzle by the draft's own `p1`..`p6` key again, so the
+regeneration prompt speaks the Riddler's keys and never a `pz_` id.
 The regeneration loop records it as one `SentBack` list and either has the
 Riddler write another attempt or ends the job, so a draft never ends a
 Build `failed`. The Riddler's 45 s budget (`budgets.md`) is measured by the
@@ -40,7 +42,7 @@ import pydantic
 from pydantic import TypeAdapter
 
 from src.council import architect as architect_prompt
-from src.council.riddler import PUZZLE_KEYS, build_author_prompt
+from src.council.riddler import PUZZLE_KEYS, DraftReason, build_author_prompt
 from src.domain.ledger import LedgerEntry, fold
 from src.domain.schema import (
     FindSolution,
@@ -49,6 +51,7 @@ from src.domain.schema import (
     JobState,
     Model,
     OrderSolution,
+    OrdinalKey,
     Provenance,
     Puzzle,
     PuzzleDraft,
@@ -60,6 +63,7 @@ from src.domain.schema import (
     RuleVerdict,
     Stage,
     UseOnSolution,
+    ValidatorReason,
     ValidatorResult,
 )
 from src.domain.validator import BUILD_RULES, RULES, validate
@@ -187,6 +191,13 @@ def map_draft(draft: RoomDraft, interactable_ids: Collection[str]) -> list[Puzzl
     ]
 
 
+def draft_reasons(reasons: Iterable[ValidatorReason], keys: dict[str, OrdinalKey]) -> list[DraftReason]:
+    """The Validator's reasons with each `pz_` id mapped back to the key the Riddler gave that Puzzle."""
+    return [
+        DraftReason(rule=r.rule, key=keys.get(r.puzzle_id or ""), field=r.field, message=r.message) for r in reasons
+    ]
+
+
 # --- Provenance (AD-16) and verdicts ----------------------------------------
 
 
@@ -282,7 +293,9 @@ def run_validate(state: JobState, *, artifacts: ArtifactStore, ledger: LedgerSto
     if len(room.puzzles) not in PUZZLE_COUNT:
         messages.insert(0, COUNT_MESSAGE)
     if messages:
-        raise ValidationError(messages, stage_result, result.reasons)
+        drafted = read_draft(room.id, artifacts).puzzles  # mapped in this order by `map_draft`
+        keys = {puzzle.id: draft.key for puzzle, draft in zip(room.puzzles, drafted)}
+        raise ValidationError(messages, stage_result, draft_reasons(result.reasons, keys))
     return stage_result
 
 

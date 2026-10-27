@@ -13,7 +13,7 @@ from src.config import Settings
 from src.council.architect import build_architect_prompt
 from src.council.dryrun import build_dry_run_prompt
 from src.council.greeting import Greeting, compose_greeting
-from src.council.riddler import build_author_prompt, build_regeneration_prompt
+from src.council.riddler import DraftReason, build_author_prompt, build_regeneration_prompt
 from src.domain.ledger import LedgerEntry
 from src.domain.redact import to_prompt_view
 from src.domain.schema import (
@@ -26,7 +26,6 @@ from src.domain.schema import (
     OpeningLineEvent,
     Room,
     SessionStart,
-    ValidatorReason,
 )
 from src.domain.session import SessionStateMachine
 from src.providers.base import HintPhraser, PhraserResponse
@@ -226,7 +225,7 @@ def _captured_surfaces(room: Room, greeting: Greeting) -> dict[str, str]:
     """Every model prompt, cache key, ledger entry and session write a played Session produces today."""
     view = to_prompt_view(room)
     photos = [Path(p.downscaled_path).read_bytes() for p in room.photos]
-    reasons = [ValidatorReason(rule=5, puzzle_id=room.puzzles[0].id, field="rungs.nudge", message="a rung holds a token")]
+    reasons = [DraftReason(rule=5, key="p1", field="rungs.nudge", message="a rung holds a token")]
     architect = build_architect_prompt(photos)
     author = build_author_prompt(view)
     regeneration = build_regeneration_prompt(view, reasons)

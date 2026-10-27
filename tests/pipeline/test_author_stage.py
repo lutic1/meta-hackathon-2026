@@ -282,10 +282,9 @@ def test_a_failing_draft_yields_structured_reasons_with_the_fixed_messages(seede
     run_author(seeded, provider=riddler(reply(p2=LEAKY)), artifacts=artifacts)
     with pytest.raises(ValidationError) as caught:
         run_validate(seeded, artifacts=artifacts, ledger=MemoryLedgerStore())
-    puzzle_id = read_puzzles(seeded.room_id, artifacts)[1].id
-    assert [(r.rule, r.puzzle_id, r.field, r.message) for r in caught.value.reasons] == [
-        (5, puzzle_id, "clue", RULES[5].message),
-        (5, puzzle_id, "near_answer", RULES[5].message),  # the near-answer is read with its clue
+    assert [(r.rule, r.key, r.field, r.message) for r in caught.value.reasons] == [
+        (5, "p2", "clue", RULES[5].message),  # the Riddler's own key for the puzzle, not its `pz_` id
+        (5, "p2", "near_answer", RULES[5].message),  # the near-answer is read with its clue
     ]
     assert caught.value.messages == [RULES[5].message]  # one line per fixed message
 

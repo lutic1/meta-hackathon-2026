@@ -6,8 +6,9 @@ solution, a photo or a profile field. The fixed prefix carries the response
 shape, the Validator's checks and the generated-line voice rules (UX-DR76),
 so a Rung shown word for word still reads in character. The regeneration
 variant adds the refused attempt's fixed messages (UX-DR77) and never its
-draft. The response schema keys Puzzles by `p1`..`p6` (AD-18), admits only
-the Lock types the builder is given and has no map-typed field (AD-2).
+draft; a Validator reason names its Puzzle by the draft's own key. The
+response schema keys Puzzles by `p1`..`p6` (AD-18), admits only the Lock
+types the builder is given and has no map-typed field (AD-2).
 """
 
 from __future__ import annotations
@@ -33,7 +34,6 @@ from src.domain.schema import (
     Rungs,
     Solution,
     UseOnSolution,
-    ValidatorReason,
 )
 from src.domain.validator import BUILD_RULES, CODE_LENGTH, LORE_MAX_WORDS, ORDER_LENGTH, RULES
 from src.providers.base import ChatMessage, ReasoningEffort
@@ -109,6 +109,15 @@ def _response_schema(lock_types: tuple[LockType, ...]) -> type[Model]:
     return create_model("RiddlerResponse", __base__=Model, **fields)
 
 
+class DraftReason(Model):
+    """A Validator reason as the Riddler reads it: its Puzzle named by the draft's own key (`p1`..`p6`), never a `pz_` id."""
+
+    rule: Annotated[int, Field(ge=1)]
+    key: OrdinalKey | None
+    field: str
+    message: str
+
+
 # --- Prompt text ------------------------------------------------------------
 
 
@@ -165,10 +174,10 @@ def _objects(view: RoomView) -> str:
     return json.dumps([ix.model_dump() for ix in view.interactables], indent=2)
 
 
-def _reason_line(reason: ValidatorReason | str) -> str:
+def _reason_line(reason: DraftReason | str) -> str:
     if isinstance(reason, str):
         return f"- {reason}"
-    where = f"puzzle {reason.puzzle_id}, " if reason.puzzle_id is not None else ""
+    where = f"puzzle {reason.key}, " if reason.key is not None else ""
     return f"- rule {reason.rule}, {where}field {reason.field}: {reason.message}"
 
 
@@ -195,11 +204,11 @@ def build_author_prompt(view: RoomView, lock_types: tuple[LockType, ...] = LOCK_
 
 
 def build_regeneration_prompt(
-    view: RoomView, reasons: Sequence[ValidatorReason | str], lock_types: tuple[LockType, ...] = LOCK_TYPES
+    view: RoomView, reasons: Sequence[DraftReason | str], lock_types: tuple[LockType, ...] = LOCK_TYPES
 ) -> RiddlerPrompt:
     """The authoring prompt plus the refused attempt's reasons, never its draft.
 
-    A structured reason reads as its rule, Puzzle, field and fixed message; a
+    A structured reason reads as its rule, Puzzle key, field and fixed message; a
     plain string is a fixed message with no structured reason behind it (A-24).
     """
     prompt = build_author_prompt(view, lock_types)

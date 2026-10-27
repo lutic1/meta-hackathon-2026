@@ -10,13 +10,14 @@ from pydantic import ValidationError
 from src.council.riddler import (
     CUT6_LOCK_TYPES,
     LOCK_TYPES,
+    DraftReason,
     RiddlerPrompt,
     build_author_prompt,
     build_regeneration_prompt,
     response_schema,
 )
 from src.domain.redact import to_prompt_view
-from src.domain.schema import Derived, InteractableView, Room, RoomDraft, RoomView, ValidatorReason, strict_schema
+from src.domain.schema import Derived, InteractableView, Room, RoomDraft, RoomView, strict_schema
 from src.domain.validator import BUILD_RULES, LORE_MAX_WORDS, RULES
 from src.providers.base import ChatMessage
 from tests.fixtures.rooms import IX
@@ -34,7 +35,6 @@ PROFILE_FIELDS = {"derived", "profile", *Derived.model_fields}
 PUZZLE_FIELDS = {"lock_type", "is_exit", "requires", "clue", "lore", "rungs", "evidence", "solution"}
 SOLUTION_KEYS = {"code": {"code"}, "order": {"interactables"}, "use_on": {"item", "target"}, "find": {"target"}}
 IX_PATTERN = "^ix_[0-9A-HJKMNP-TV-Z]{26}$"
-PZ_1 = f"pz_{ULID[:-1]}1"
 
 
 def with_sentinel_solutions(room: Room) -> Room:
@@ -239,9 +239,9 @@ SENTINEL_DRAFT = RoomDraft.model_validate({"puzzles": [
     },
 ]})
 REASONS = [
-    ValidatorReason(rule=5, puzzle_id=PZ_1, field="near_answer", message=RULES[5].message),
-    ValidatorReason(rule=6, puzzle_id=PZ_1, field="lore", message=RULES[6].message),
-    ValidatorReason(rule=7, puzzle_id=None, field="is_exit", message=RULES[7].message),
+    DraftReason(rule=5, key="p1", field="near_answer", message=RULES[5].message),
+    DraftReason(rule=6, key="p1", field="lore", message=RULES[6].message),
+    DraftReason(rule=7, key=None, field="is_exit", message=RULES[7].message),
 ]
 
 
@@ -252,8 +252,8 @@ def test_regeneration_variant_carries_the_reasons_only(four_lock_room: Room):
     assert prompt.reasoning_effort == "medium" and prompt.response_schema is author.response_schema
     assert prompt.user.startswith(author.user) and objects_in(prompt) == objects_in(author)
     assert "refused" in prompt.user and "not shown" in prompt.user
-    assert f"- rule 5, puzzle {PZ_1}, field near_answer: {RULES[5].message}" in prompt.user
-    assert f"- rule 6, puzzle {PZ_1}, field lore: {RULES[6].message}" in prompt.user
+    assert f"- rule 5, puzzle p1, field near_answer: {RULES[5].message}" in prompt.user
+    assert f"- rule 6, puzzle p1, field lore: {RULES[6].message}" in prompt.user
     assert f"- rule 7, field is_exit: {RULES[7].message}" in prompt.user
     assert "None" not in prompt.user
     assert list(inspect.signature(build_regeneration_prompt).parameters) == ["view", "reasons", "lock_types"]
