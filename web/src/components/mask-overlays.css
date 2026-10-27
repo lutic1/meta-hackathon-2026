@@ -50,3 +50,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* A focused chip and its ring sit over any chip next to it. */
+.mask-chip:focus-visible {
+  z-index: 1;
+}
