@@ -101,8 +101,11 @@ def test_confirming_goes_home_and_records_no_room_result():
     leave = _code(_ts("leave-room.ts"))
     assert "leave.addEventListener('click', () => {\n      close?.()\n      frame.leave()\n    })" in leave
     play = _code(_ts("play.ts"))
-    gone = play.split("leave: () => {", 1)[1].split("\n    },", 1)[0]
-    assert "location.hash = placeHref({ route: { name: 'home' }, profile: currentPlace().profile })" in gone
+    gone = play.split("leave: () => ", 1)[1].split("\n", 1)[0]
+    # Through `LeaveRoom.exit`, as the Exit's route to Completion: the Play route and its guard leave the history,
+    # so Back from `#/` never resumes the play-through just left.
+    assert gone == "leaveRoom.exit(placeHref({ route: { name: 'home' }, profile: currentPlace().profile })),"
+    assert "location.hash" not in play.split("const leaveRoom = mountLeaveRoom({", 1)[1].split("\n  })\n", 1)[0]
     # Only the Completion screen records a Room result; neither the Play screen nor the confirmation posts one.
     for name in ("play.ts", "leave-room.ts", "components/leave-room-confirmation.ts"):
         code = _code(_ts(name))

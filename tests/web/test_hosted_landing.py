@@ -143,7 +143,7 @@ def test_a_card_shows_the_cover_the_name_the_meta_line_and_the_four_portraits_un
     ts = _code("components/demo-room-card.ts")
     assert "cover.src = photoUrl(room.room_id, room.cover_photo)" in ts and "cover.alt = ''" in ts
     assert "title.className = 'demo-room-title display-sm'" in ts and "title.textContent = roomTitle(room)" in ts
-    assert "return room.name || BUILT_AT.format(new Date(room.built_at))" in _ts("components/stored-room-row.ts")
+    assert "return room.name || buildTime(room.built_at)" in _ts("components/stored-room-row.ts")
     assert "meta.className = 'demo-room-meta body-sm'" in ts
     assert "meta.textContent = fill(strings.demoRoomMeta, { n: room.puzzle_count })" in ts
     assert "const WIZARDS: readonly Wizard[] = ['architect', 'riddler', 'guide', 'trickster']" in ts

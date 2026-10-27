@@ -19,7 +19,7 @@ export interface LeaveRoomFrame {
   modalOpen: () => boolean
   /** Focuses the Scene's first Hotspot: where focus returns when the Back button opened the confirmation. */
   focusScene: () => void
-  /** Leaves the room: goes to `#/`, recording no Room result. */
+  /** Leaves the room: goes to `#/` through `exit`, recording no Room result. */
   leave: () => void
 }
 

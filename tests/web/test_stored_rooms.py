@@ -48,8 +48,10 @@ def test_a_row_shows_the_cover_thumbnail_the_title_the_puzzle_count_and_play():
     row = _ts("components/stored-room-row.ts")
     assert "cover.src = photoUrl(room.room_id, room.cover_photo)" in row and "cover.alt = ''" in row
     assert "cover.width = 96" in row and "cover.height = 72" in row
-    assert "return room.name || BUILT_AT.format(new Date(room.built_at))" in row
-    assert "new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })" in row
+    # An unnamed Room is titled by its build time as the Build view header titles it, "Tue Nov 3, 10:42" (UX-DR48).
+    assert "return room.name || buildTime(room.built_at)" in row
+    assert "import { buildTime } from './build-view-header.ts'" in row
+    assert "Intl.DateTimeFormat" not in row
     assert "count.textContent = fill(strings.puzzleCount, { n: room.puzzle_count })" in row
     assert "count.className = 'stored-room-meta body-sm'" in row
     assert "secondaryButton({ label: strings.play, onActivate: onPlay })" in row

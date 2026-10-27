@@ -191,6 +191,9 @@ def test_the_fixed_rows_and_no_guide_or_trickster_row():
     assert "billing: ''" in validator
     assert "did: DRY_RUN_OFF, billing: ''" in ts and "model: '', id: true, host: ''" in ts
     assert "roleLines(models('dryrun'), () => roleCell(strings.dryRun))" in ts
+    # A Build with no Dry run verdict at all reads "skipped" here too, as the Dry run rows and the graph read it.
+    assert "const dryRunOff = view.dry_run.every(({ verdict }) => verdict === DRY_RUN_OFF)" in ts
+    assert "dry_run.length" not in ts
     muse = ts.split("role: roleCell(strings.museImage),", 1)[1].split("}),", 1)[0]
     assert "model: strings.museImageModel" in muse and "did: strings.museImageDid" in muse
     assert "host: strings.hostMeta" in muse

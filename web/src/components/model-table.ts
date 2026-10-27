@@ -6,7 +6,10 @@ import { type Wizard, wizardPortrait } from '../wizards/portrait.ts'
 /** The hosts a Meta-served call row names: the adapter's name, or the Meta Model API's default base URL host. */
 const META_HOSTS = new Set(['meta', 'api.meta.ai'])
 
-/** The verdict every Dry run row carries under cut 4 (`DRY_RUN=off`), shown as served in the fixed Dry run row. */
+/**
+ * The verdict every Dry run row carries under cut 4 (`DRY_RUN=off`), shown as served in the fixed Dry run row; a Build
+ * that recorded no Dry run verdict reads the same, as the Dry run rows and the puzzle graph read it.
+ */
 const DRY_RUN_OFF: DryRunVerdict['verdict'] = 'skipped'
 
 /** One body row: the first cell (a wizard's portrait and name, a fixed row's label, or empty) and four text cells. */
@@ -95,7 +98,7 @@ function roleLineRow(text: string): HTMLTableRowElement {
 export function modelTable(view: BuildView): HTMLElement {
   const models = (role: ModelRow['role']): ModelRow[] => view.models.filter((row) => row.role === role)
   const wizard = (who: Wizard, name: string) => () => roleCell(wizardPortrait(who, 24), name)
-  const dryRunOff = view.dry_run.length > 0 && view.dry_run.every(({ verdict }) => verdict === DRY_RUN_OFF)
+  const dryRunOff = view.dry_run.every(({ verdict }) => verdict === DRY_RUN_OFF)
   const image = models('image')
 
   const table = document.createElement('table')

@@ -101,7 +101,8 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * Scene changes, and lock outcomes are announced in the live region. The Triggers toggle under the hint controls shows why each Rung
  * arrived, its panel open from the start when the session loads with a Disclosure active. "Leave room" beside it, or
  * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
- * confirming goes to `#/` and records no Room result. A state that shows a Trickster window open asks for its
+ * confirming goes to `#/` in place of the Play route (`LeaveRoom.exit`, so Back never resumes the play-through) and
+ * records no Room result. A state that shows a Trickster window open asks for its
  * proposal once (`tricksterRequest`), and the Card arrives in the Hint area through the poll. The top bar's "Card log"
  * button, between "Show all objects" and "Leave room", and the Hint area's "{n} more in the Card log" link open the
  * Card log (see `mountCardLog`), which lists every Card of `cards[]`; neither it nor the Leave room confirmation opens
@@ -272,9 +273,7 @@ export function mountPlay(
       if (reconnecting || ended) leaveRoom.button.focus()
       else unfocus = focusFirstHotspot(sceneColumn)
     },
-    leave: () => {
-      location.hash = placeHref({ route: { name: 'home' }, profile: currentPlace().profile })
-    },
+    leave: () => leaveRoom.exit(placeHref({ route: { name: 'home' }, profile: currentPlace().profile })),
   })
   frame.controls.append(showAll, cardLog.button, leaveRoom.button)
 

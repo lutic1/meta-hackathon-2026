@@ -3,13 +3,12 @@ import type { RoomSummary } from '../../types'
 import { photoUrl } from '../api/index.ts'
 import { buildViewLink } from '../build-view.ts'
 import { fill, strings } from '../strings.ts'
+import { buildTime } from './build-view-header.ts'
 import { secondaryButton } from './button.ts'
 
-const BUILT_AT = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-
-/** The row's title: the Room's name when it has one, else its build date and time. */
+/** The row's title: the Room's name when it has one, else its build time as the Build view header reads it. */
 export function roomTitle(room: RoomSummary): string {
-  return room.name || BUILT_AT.format(new Date(room.built_at))
+  return room.name || buildTime(room.built_at)
 }
 
 /**
