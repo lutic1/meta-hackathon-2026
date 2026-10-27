@@ -30,7 +30,7 @@ def _token(name: str, following: str) -> str:
 
 def test_leave_room_sits_right_of_show_all_objects_in_the_play_top_bar():
     play = _code(_ts("play.ts"))
-    assert "frame.controls.append(showAll, leaveRoom.button)" in play
+    assert "frame.controls.append(showAll, cardLog.button, leaveRoom.button)" in play
     assert "held: [frame.topBar, sceneColumn, sideColumn]" in play
     leave = _code(_ts("leave-room.ts"))
     assert "secondaryButton({ label: strings.leaveRoom, onActivate: () => open(() => button.focus()) })" in leave
@@ -153,7 +153,7 @@ def test_modals_never_stack():
     leave = _code(_ts("leave-room.ts"))
     assert "if (close !== undefined || frame.modalOpen()) return" in leave
     play = _code(_ts("play.ts"))
-    assert "modalOpen: () => welcoming" in play
+    assert "modalOpen: () => welcoming || cardLog.isOpen()" in play  # nor over the Card log (Story 4.7)
     welcome = play.split("const opening = session.opening_line", 1)[1]
     assert welcome.index("welcoming = true") < welcome.index("mountWelcome(") < welcome.index("welcoming = false")
     # Only the Play screen opens it: the Completion screen's "Leave room" is held inert with its top bar.

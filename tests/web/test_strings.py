@@ -41,6 +41,10 @@ UNWORDED = {"photoThumbnail": "Remove photo {n}"}
 """Names EXPERIENCE.md never words, each derived from the Voice and Tone line given: the Thumbnail strip's
 "Photo {n}" is the photo tray's remove control without its verb."""
 
+UNWORDED_CONTROLS = {"closeCardLog": "close control"}
+"""Controls EXPERIENCE.md names in Component Patterns without wording them, each named by the verb of that name: the
+Card log's "close control" is "Close", inside the dialog named "Card log"."""
+
 CUT2_PLACEHOLDER_ONLY = {"openProfileFile", "saveProfileFile", "profileFileLine"}
 """Lines EXPERIENCE.md words only in the Information Architecture's Cut 2 placeholder (the profile file controls and
 their plain line)."""
@@ -78,6 +82,10 @@ def test_every_string_is_verbatim_from_voice_and_tone():
         if key in UNWORDED_REFUSALS:
             line, phrase, swapped = UNWORDED_REFUSALS[key]
             assert line in source and value == line.replace(phrase, swapped), key
+            continue
+        if key in UNWORDED_CONTROLS:
+            phrase = UNWORDED_CONTROLS[key]
+            assert phrase in _component_patterns() and value == phrase.split()[0].capitalize(), key
             continue
         if key in CUT2_PLACEHOLDER_ONLY:
             assert _verbatim(value, _section("Information Architecture")), f"strings.{key} {value!r} is not in the Cut 2 placeholder"

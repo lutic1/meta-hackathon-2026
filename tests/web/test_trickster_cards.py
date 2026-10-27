@@ -196,14 +196,14 @@ def test_at_most_two_cards_stack_newest_on_top_above_the_rung_line_the_rest_behi
     # Newest on top: the last held Cards, reversed; only one while the Triggers panel is open.
     assert "const shown = held.slice(-(triggersShown ? 1 : CARDS_STACKED)).reverse()" in restack
     assert "more.textContent = fill(strings.moreInCardLog, { n: rest })" in restack and "more.hidden = rest === 0" in restack
-    assert "const more = paragraph('hint-more body-sm')" in hint
+    assert "more.className = 'hint-more body-sm'" in hint
     toggled = _function(hint, "triggersOpen")
     assert "element.classList.toggle('is-triggers-open', open)" in toggled and "restack()" in toggled
     # The hint controls stay in the pinned lower part, outside the scrolling upper part.
     assert "lower.append(ask, helper, triggers)" in hint and "element.append(upper, lower)" in hint
     rules = _rules("components/hint-area.css")
     assert rules[".hint-cards"]["flex-direction"] == "column" and rules[".hint-cards[hidden]"]["display"] == "none"
-    assert rules[".hint-more"]["color"] == "var(--text-muted)"
+    assert rules[".hint-more"]["color"] == "var(--lamp)"  # a link on dark (tests/web/test_card_log.py)
 
 
 def test_with_the_triggers_panel_open_a_stacked_card_keeps_its_first_lines_in_view():

@@ -138,7 +138,8 @@
   display: none;
 }
 
-/* Trickster cards stack above the Rung line, newest on top; the count of older ones under them is plain. */
+/* Trickster cards stack above the Rung line, newest on top; under them, the count of older ones is a lamp link that
+   opens the Card log. */
 .hint-cards {
   display: flex;
   flex: none;
@@ -149,6 +150,13 @@
   display: none;
 }
 .hint-more {
+  align-self: flex-start;
   margin: 0;
-  color: var(--text-muted);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--lamp);
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
 }

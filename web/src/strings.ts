@@ -12,7 +12,8 @@
 // Tone line split after "idle", where the threshold's 1× value goes at a Demo timescale above 1, as in "Nudge after
 // 15 s idle (90 s at 1×) …". The cut-2 controls and their line are worded only in the Information Architecture's
 // Cut 2 placeholder, and EXPERIENCE.md words no refusal of a profile file, so its banner heading follows the photos'
-// "Keyframe couldn't read these photos." for one file.
+// "Keyframe couldn't read these photos." for one file. EXPERIENCE.md names the Card log's "close control" without
+// wording it, so the control is named by that verb alone, "Close", inside the dialog named "Card log".
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -274,6 +275,9 @@ export const strings = {
   proposedShortcut: 'Puzzle {n} stops waiting on Puzzle {m}',
   changeRefused: 'That change was refused. {message}',
   moreInCardLog: '{n} more in the Card log',
+  cardLog: 'Card log',
+  cardLogEmpty: 'No cards yet in this play-through.',
+  closeCardLog: 'Close',
   dismissCard: 'Dismiss card',
   cardAnnouncement: 'The Trickster: {sentence} {outcome label}.',
   firstCardAnnouncement: 'The Trickster. {role line} {voice line} {sentence} {outcome label}.',

@@ -1,0 +1,88 @@
+/* {components.card-log}: the scrim covers the page body only (it starts below the top bar, so the Disclosure banner
+   and the Timer stay undimmed); the 360 px chrome dialog hangs under the top bar's "Card log" button, whose right
+   edge the script lines it up with, at most 480 px high and scrolling inside itself. */
+.card-log-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--scrim);
+}
+.card-log {
+  box-sizing: border-box;
+  position: absolute;
+  top: var(--spacing-2);
+  right: var(--spacing-frame-margin);
+  width: 360px;
+  max-height: min(480px, calc(100% - 2 * var(--spacing-2)));
+  overflow-y: auto;
+  padding: 0 var(--spacing-4) var(--spacing-4);
+  background: var(--chrome);
+  color: var(--text);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--elevation-overlay);
+  transition: opacity var(--motion-overlay) var(--motion-ease);
+}
+.card-log.is-arriving {
+  opacity: 0;
+}
+/* The close control stays at the top while the rows scroll under it. */
+.card-log-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--spacing-2) 0;
+  background: var(--chrome);
+}
+/* A 32 px hit area with the shared focus ring. */
+.card-log-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.card-log-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card-log-list[hidden] {
+  display: none;
+}
+/* One row per Card: the 24 px portrait beside its words, rows ruled apart by a hairline. */
+.card-log-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: var(--spacing-3);
+  align-items: start;
+  padding: var(--spacing-3) 0;
+}
+.card-log-row + .card-log-row {
+  border-top: 1px solid var(--hairline);
+}
+.card-log-words > p {
+  margin: 0;
+}
+.card-log-words > * + * {
+  margin-top: var(--spacing-1);
+}
+.card-log-time,
+.card-log-empty {
+  color: var(--text-muted);
+}
+.card-log-empty {
+  margin: 0;
+}
+.card-log-empty[hidden] {
+  display: none;
+}

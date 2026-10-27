@@ -101,7 +101,8 @@ function paragraph(className: string): HTMLParagraphElement {
  * rebuilds the Rungs and re-announces nothing.
  *
  * Trickster cards (FR-19, UX-DR40 to UX-DR42) stack above the Rung line, newest on top: at most `CARDS_STACKED`, only
- * the newest while the Triggers panel is open, the rest behind "{n} more in the Card log". Each new entry of the
+ * the newest while the Triggers panel is open, the rest behind the link "{n} more in the Card log", which opens the
+ * Card log through `openCardLog` (focus returns to it when the log closes). Each new entry of the
  * state's `cards[]` (the `TricksterCard` projection) enters with a 200 ms fade once the lock-open state has played out
  * (the Open chip's `OPEN_HOLD_MS`, then the entry collapse and the next Puzzle's fade-in; a collected item's fade-in
  * starts with the state and ends sooner), and is written once to the live region. A Card stays until dismissed;
@@ -114,6 +115,7 @@ export function hintArea(
   play: PlaySession,
   guide: Meta['guide'],
   onOpened: (lines: readonly RungChangeEvent[]) => void,
+  openCardLog: (opener: HTMLElement) => void,
 ): HintArea {
   const element = document.createElement('section')
   element.className = 'hint-area'
@@ -136,8 +138,12 @@ export function hintArea(
   const stack = document.createElement('div')
   stack.className = 'hint-cards'
   stack.hidden = true
-  const more = paragraph('hint-more body-sm')
+  const more = document.createElement('button')
+  more.type = 'button'
+  more.className = 'hint-more body-sm'
   more.hidden = true
+  more.setAttribute('aria-haspopup', 'dialog')
+  more.addEventListener('click', () => openCardLog(more))
   upper.append(stack, more, rungLine)
 
   const lower = document.createElement('div')

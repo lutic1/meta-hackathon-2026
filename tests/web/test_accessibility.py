@@ -80,7 +80,8 @@ def test_show_all_objects_is_a_pressed_toggle_in_the_top_bar_controls():
     assert "label: strings.showAllObjects" in toggle and "state: 'pressed'" in toggle
     assert "onToggle: (on) => sceneColumn.classList.toggle('is-showing-all', on)" in toggle
     assert "const showAll = showAllToggle(sceneColumn)" in play
-    assert "frame.controls.append(showAll, leaveRoom.button)" in play  # "Leave room" sits right of it (UX-DR7)
+    # "Card log" then "Leave room" sit right of it (UX-DR7).
+    assert "frame.controls.append(showAll, cardLog.button, leaveRoom.button)" in play
     assert "showAll.remove()" in play
     assert "controls: bar.controls" in shell and "controls: HTMLElement" in play
     # The shared toggle announces its pressed state and holds the pressed fill and 2 px lamp border.
@@ -92,13 +93,14 @@ def test_show_all_objects_is_a_pressed_toggle_in_the_top_bar_controls():
 
 
 
-def test_the_completion_top_bar_keeps_show_all_objects_and_leave_room_in_place_and_inert():
+def test_the_completion_top_bar_keeps_show_all_objects_card_log_and_leave_room_in_place_and_inert():
     play, shell = _code(_ts("play.ts")), _code(_ts("shell.ts"))
     behind = play.split("export function mountPlayBehind(", 1)[1]
     assert "controls: HTMLElement" in behind.split("{", 1)[0]
-    assert "const showAll = showAllToggle(sceneColumn)" in behind and "controls.append(showAll, leave)" in behind
+    assert "const showAll = showAllToggle(sceneColumn)" in behind and "controls.append(showAll, log, leave)" in behind
+    assert "const log = cardLogButton(() => undefined)" in behind
     assert "const leave = secondaryButton({ label: strings.leaveRoom, onActivate: () => undefined })" in behind
-    assert "showAll.remove()" in behind and "leave.remove()" in behind
+    assert "showAll.remove()" in behind and "log.remove()" in behind and "leave.remove()" in behind
     assert "mountPlayBehind(sceneColumn, sideColumn, session, controls, (gone) => {" in _ts("completion.ts")
     assert "mountCompletion(element, sceneColumn, sideColumn, session, profile, mode, bar.controls)" in shell
     # Unpressed (the toggle's default) and taking no input: the shell holds the whole top bar inert on #/done.

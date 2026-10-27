@@ -1,5 +1,6 @@
 import type { Meta, PlayView, PostedEvent, SessionState } from '../types'
 import { getEffectiveRoom, getSession, postEvent, RequestFailed, startSession } from './api/index.ts'
+import { cardLogButton, mountCardLog } from './card-log.ts'
 import { secondaryButton, toggleButton } from './components/button.ts'
 import { type HintArea, hintArea } from './components/hint-area.ts'
 import { inventory } from './components/inventory.ts'
@@ -101,7 +102,10 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * arrived, its panel open from the start when the session loads with a Disclosure active. "Leave room" beside it, or
  * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
  * confirming goes to `#/` and records no Room result. A state that shows a Trickster window open asks for its
- * proposal once (`tricksterRequest`), and the Card arrives in the Hint area through the poll. A state whose
+ * proposal once (`tricksterRequest`), and the Card arrives in the Hint area through the poll. The top bar's "Card log"
+ * button, between "Show all objects" and "Leave room", and the Hint area's "{n} more in the Card log" link open the
+ * Card log (see `mountCardLog`), which lists every Card of `cards[]`; neither it nor the Leave room confirmation opens
+ * over the other. A state whose
  * `room_revision` differs from the revision of the room last fetched (an accepted edit; a rejected or skipped Card
  * leaves it as it was) refetches `GET /sessions/<id>/room`, one request at a time, and redraws the Wizard notes and
  * the Hotspots from it without a reload: the open Scene, the Inventory and keyboard focus stay (FR-19, AD-12). Once a state
@@ -240,6 +244,7 @@ export function mountPlay(
     ended = true
     ticker.terminate()
     unmountWelcome?.()
+    cardLog.unmount()
     leaveRoom.unmount()
     showRoomGone(frame.body, gone, frame.mode, currentPlace().profile)
   }
@@ -255,10 +260,12 @@ export function mountPlay(
   let welcoming = false
   let unfocus: (() => void) | undefined
   const showAll = showAllToggle(sceneColumn)
+  const room: Promise<PlayView> = getEffectiveRoom(session.id)
+  const cardLog = mountCardLog({ body: frame.body, held: [frame.topBar, sceneColumn, sideColumn], room, play })
   const leaveRoom = mountLeaveRoom({
     body: frame.body,
     held: [frame.topBar, sceneColumn, sideColumn],
-    modalOpen: () => welcoming,
+    modalOpen: () => welcoming || cardLog.isOpen(),
     focusScene: () => {
       unfocus?.()
       // An inert Scene (reconnecting, or the play-through ended) takes no focus, so it stays in the top bar.
@@ -269,9 +276,8 @@ export function mountPlay(
       location.hash = placeHref({ route: { name: 'home' }, profile: currentPlace().profile })
     },
   })
-  frame.controls.append(showAll, leaveRoom.button)
+  frame.controls.append(showAll, cardLog.button, leaveRoom.button)
 
-  const room: Promise<PlayView> = getEffectiveRoom(session.id)
   /** The `room_revision` of the Effective room last fetched: the mounting state's, as the first fetch follows it. */
   let fetchedRevision = session.room_revision
   let refetching = false
@@ -304,7 +310,7 @@ export function mountPlay(
       parts.push(held.render, notes.render, lockOutcomes(view, latest))
       held.render(latest)
       notes.render(latest)
-      hints = hintArea(view, play, frame.guide, notes.openedRungs)
+      hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open)
       const area = hints
       const triggers = triggersPanel(view, latest, currentPlace().profile, (open) => area.triggersOpen(open))
       hints.triggers.append(triggers.element)
@@ -349,6 +355,7 @@ export function mountPlay(
   return () => {
     mounted = false
     unmountWelcome?.()
+    cardLog.unmount()
     leaveRoom.unmount()
     unfocus?.()
     clearTimeout(leaving)
@@ -365,8 +372,9 @@ export function mountPlay(
 /**
  * The Play screen as it stands under the Completion sheet: the Scene on the photo it last showed in this page (the
  * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session` over its
- * Effective room (`GET /sessions/<id>/room`), and the "Show all objects" toggle, unpressed, and "Leave room" in the
- * top bar's `controls`. It never polls and never posts; the shell holds both columns and the top bar inert. A Room
+ * Effective room (`GET /sessions/<id>/room`), and the "Show all objects" toggle, unpressed, the "Card log" button and
+ * "Leave room" in the top bar's `controls`. It never polls and never posts; the shell holds both columns and the top
+ * bar inert. A Room
  * answered 410 `room_deleted` or 404 `room_not_found` is handed to `onGone`. Returns the teardown.
  */
 export function mountPlayBehind(
@@ -378,8 +386,9 @@ export function mountPlayBehind(
 ): () => void {
   let mounted = true
   const showAll = showAllToggle(sceneColumn)
-  const leave = secondaryButton({ label: strings.leaveRoom, onActivate: () => undefined }) // held inert with the bar
-  controls.append(showAll, leave)
+  const log = cardLogButton(() => undefined) // held inert with the bar, as is "Leave room"
+  const leave = secondaryButton({ label: strings.leaveRoom, onActivate: () => undefined })
+  controls.append(showAll, log, leave)
   const play: PlaySession = {
     id: session.id,
     roomId: session.room_id,
@@ -414,6 +423,7 @@ export function mountPlayBehind(
     mounted = false
     play.useOn.dispose()
     showAll.remove()
+    log.remove()
     leave.remove()
     scene.unmount()
     stripRow.remove()
