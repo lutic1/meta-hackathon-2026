@@ -104,7 +104,7 @@ development_status:
   3-2-hintphraser-port-with-the-verbatim-adapter: done
   3-3-hint-requests-return-the-current-rung-or-the-no-hint-line: done
   3-4-hint-area-ask-the-guide-and-read-the-rung-line: done
-  3-5-triggers-panel-shows-why-each-rung-arrived: backlog
+  3-5-triggers-panel-shows-why-each-rung-arrived: done
   3-6-the-four-wizard-portraits-painted-once: done
   3-7-hints-phrased-on-the-mac-by-llama-3-2-3b: done
   epic-3-retrospective: optional
