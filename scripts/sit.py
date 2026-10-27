@@ -32,9 +32,11 @@ import argparse
 import importlib.util
 import io
 import json
+import os
 import sys
 import time
 import traceback
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -87,6 +89,45 @@ class RecordingTransport(httpx.BaseTransport):
             body = response.text
         self.responses.append((response.status_code, body))
         return response
+
+
+class EnvironmentTransport(httpx.BaseTransport):
+    """Routes each request the way `httpx.Client(trust_env=True)` does: through the environment's proxy unless `NO_PROXY` covers the host.
+
+    An adapter given an explicit transport bypasses its client's own environment proxy mounts, so a bare
+    `httpx.HTTPTransport` would send every SIT call straight to the host; in the cloud container the egress
+    proxy at `HTTPS_PROXY` is what adds the Meta key (AD-14), and without it every Meta call answers 401.
+    With no proxy variable set (the Mac) every request goes direct, as before. `NO_PROXY` matching is loose:
+    `*`, an exact host, or a suffix after a leading dot; CIDR entries are not matched.
+    """
+
+    def __init__(self, direct: httpx.BaseTransport, proxied: Mapping[str, httpx.BaseTransport], no_proxy: tuple[str, ...]) -> None:
+        self.direct = direct
+        self.proxied = proxied  # by request scheme
+        self.no_proxy = no_proxy
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str] = os.environ) -> EnvironmentTransport:
+        """`HTTPS_PROXY` for https requests and `HTTP_PROXY` for http ones (either case), `NO_PROXY` as a comma-separated host list."""
+
+        def read(name: str) -> str:
+            return env.get(name.upper()) or env.get(name.lower()) or ""
+
+        proxied = {scheme: httpx.HTTPTransport(proxy=url) for scheme in ("https", "http") if (url := read(f"{scheme}_proxy"))}
+        no_proxy = tuple(entry.strip() for entry in read("no_proxy").split(",") if entry.strip())
+        return cls(httpx.HTTPTransport(), proxied, no_proxy)
+
+    def covered(self, host: str) -> bool:
+        return any(entry == "*" or entry == host or (entry.startswith(".") and host.endswith(entry)) for entry in self.no_proxy)
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        proxied = None if self.covered(request.url.host) else self.proxied.get(request.url.scheme)
+        return (proxied or self.direct).handle_request(request)
+
+    def close(self) -> None:
+        self.direct.close()
+        for transport in self.proxied.values():
+            transport.close()
 
 
 def downscale(jpeg: bytes, long_edge: int = LONG_EDGE) -> bytes:
@@ -251,7 +292,7 @@ def main(argv: list[str] | None = None, *, root: Path = REPO, cases_root: Path |
     if not cases:
         print(f"no case under {CASES_ROOT}/", file=sys.stderr)
         return 1
-    sit = Sit(root, Settings.from_env(), transport or RecordingTransport(httpx.HTTPTransport()))
+    sit = Sit(root, Settings.from_env(), transport or RecordingTransport(EnvironmentTransport.from_env()))
     print(f"sit {date.today().isoformat()}: {len(cases)} cases; running total {sit.running_total_usd():.4f} USD against the {sit.ledger.cap_usd:.2f} USD local cap")
     failed: list[str] = []
     for path in cases:

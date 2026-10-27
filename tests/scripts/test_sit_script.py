@@ -290,6 +290,63 @@ def test_the_recording_transport_keeps_status_and_body_and_passes_the_response_t
     assert transport.responses == [(503, "overloaded")]
 
 
+# --- The run's transport honours the environment's proxy ----------------------------
+
+
+class Handled(httpx.BaseTransport):
+    """A fake inner transport that remembers the URLs it served."""
+
+    def __init__(self, **kwargs) -> None:
+        self.kwargs = kwargs
+        self.urls: list[str] = []
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        self.urls.append(str(request.url))
+        return httpx.Response(200)
+
+
+PROXY_VARIABLES = ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "NO_PROXY", "no_proxy")
+
+
+def _route(transport: httpx.BaseTransport, *urls: str) -> None:
+    with httpx.Client(transport=transport) as client:
+        for url in urls:
+            assert client.get(url).status_code == 200
+
+
+def test_the_environment_transport_proxies_every_host_no_proxy_does_not_cover(monkeypatch):
+    for name in PROXY_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1,.baseten.co")
+    built: list[Handled] = []
+    monkeypatch.setattr(sit_script.httpx, "HTTPTransport", lambda **kwargs: built.append(Handled(**kwargs)) or built[-1])
+    transport = sit_script.EnvironmentTransport.from_env()
+    _route(transport, "https://api.meta.ai/v1/chat/completions", "http://127.0.0.1:11434/api/generate", "https://model.api.baseten.co/v1/x")
+    direct = next(t for t in built if "proxy" not in t.kwargs)
+    proxied = next(t for t in built if t.kwargs.get("proxy") == "http://127.0.0.1:9")
+    assert proxied.urls == ["https://api.meta.ai/v1/chat/completions"]
+    assert direct.urls == ["http://127.0.0.1:11434/api/generate", "https://model.api.baseten.co/v1/x"]
+
+
+def test_without_proxy_variables_every_request_goes_direct(monkeypatch):
+    for name in PROXY_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    built: list[Handled] = []
+    monkeypatch.setattr(sit_script.httpx, "HTTPTransport", lambda **kwargs: built.append(Handled(**kwargs)) or built[-1])
+    transport = sit_script.EnvironmentTransport.from_env()
+    _route(transport, "https://api.meta.ai/v1/chat/completions", "http://127.0.0.1:11434/api/generate")
+    assert [t.kwargs for t in built] == [{}]
+    assert built[0].urls == ["https://api.meta.ai/v1/chat/completions", "http://127.0.0.1:11434/api/generate"]
+
+
+def test_the_run_records_over_the_environment_transport(tmp_path, monkeypatch):
+    monkeypatch.setenv("MODEL_API_KEY", "test-key")
+    cases = tmp_path / "sit"
+    write_case(cases, "test_00_transport", "    assert type(sit.transport.inner).__name__ == 'EnvironmentTransport', type(sit.transport.inner)")
+    assert sit_script.main([], root=tmp_path, cases_root=cases) == 0
+
+
 # --- The shipped cases, end to end on replayed responses -----------------------------
 
 
