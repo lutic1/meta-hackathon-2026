@@ -73,7 +73,7 @@ def test_the_hint_area_link_opens_the_log_and_takes_focus_back():
     assert "const more = document.createElement('button')" in hint and "more.type = 'button'" in hint
     assert "more.setAttribute('aria-haspopup', 'dialog')" in hint
     assert "more.addEventListener('click', () => openCardLog(more))" in hint
-    assert "hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open)" in _code(_ts("play.ts"))
+    assert "hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open, () => triggers.reveal())" in _code(_ts("play.ts"))
     # A link on dark: lamp, underlined, no button chrome, hidden with the count when no Card is behind it.
     more = _rules("components/hint-area.css")[".hint-more"]
     assert more["color"] == "var(--lamp)" and more["text-decoration"] == "underline"

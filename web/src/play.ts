@@ -310,7 +310,7 @@ export function mountPlay(
       parts.push(held.render, notes.render, lockOutcomes(view, latest))
       held.render(latest)
       notes.render(latest)
-      hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open)
+      hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open, () => triggers.reveal())
       const area = hints
       const triggers = triggersPanel(view, latest, currentPlace().profile, (open) => area.triggersOpen(open))
       hints.triggers.append(triggers.element)

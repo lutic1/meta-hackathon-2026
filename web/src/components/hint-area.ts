@@ -83,7 +83,10 @@ function paragraph(className: string): HTMLParagraphElement {
  * that never scrolls: the hint field and "Ask the Guide", the permanent helper line, and the slot of the Triggers
  * toggle. While the Triggers panel is open (`is-triggers-open`) or a Card is stacked, the tray may grow past its cap
  * until the Wizard notes reach `{spacing.notes-min}`; short of room the open panel gives way first, to its newest
- * row, and then the upper part scrolls, to the line that arrives (its last child) or the Card that enters (its first).
+ * row, and then the upper part scrolls to its end: the line that arrives, or the Card that enters over it (its
+ * sentence, its outcome and the Rung line in one frame, the introduction a scroll above). Each time a Card enters
+ * or is dismissed the bands are restacked, so `onStacked` is called for the panel to scroll its newest row back into
+ * view; the panel's toggle reveals the row itself.
  *
  * Enter or the button posts exactly one `hint_request` with no `puzzle_id`: the server answers for the Active puzzle,
  * the entry marked "Current". The typed text is never read, so it leaves the browser in no body, query or header; it
@@ -117,6 +120,7 @@ export function hintArea(
   guide: Meta['guide'],
   onOpened: (lines: readonly RungChangeEvent[]) => void,
   openCardLog: (opener: HTMLElement) => void,
+  onStacked: () => void,
 ): HintArea {
   const element = document.createElement('section')
   element.className = 'hint-area'
@@ -286,6 +290,7 @@ export function hintArea(
     held.splice(held.indexOf(card), 1)
     card.remove()
     restack()
+    onStacked()
     const next = stack.children[at] ?? stack.lastElementChild
     if (next instanceof HTMLElement) next.focus()
     else field.focus()
@@ -301,9 +306,10 @@ export function hintArea(
       return { made, line: cardAnnouncement(text, first) }
     })
     restack()
-    upper.scrollTop = 0 // the newest Card is on top
+    upper.scrollTop = upper.scrollHeight // the newest Card's sentence and outcome sit over the Rung line
     for (const { made } of arrived) if (made.isConnected) fadeIn(made)
     announce(arrived.map(({ line }) => line).join(' '))
+    onStacked()
   }
 
   /** Holds new Cards for the lock-open state: the Open chip, then the entry collapse and the next Puzzle's fade-in. */

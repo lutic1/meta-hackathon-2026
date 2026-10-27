@@ -232,10 +232,28 @@ def test_short_of_room_the_triggers_panel_gives_way_to_its_newest_row_before_the
     assert panel[".triggers-toggle"]["flex"] == "none" and panel[".triggers-panel"]["overflow-y"] == "auto"
     assert "flex-shrink: 1000" not in (WEB_SRC / "components/hint-area.css").read_text().split(".triggers-panel")[0]
     assert ".hint-upper:has(" not in (WEB_SRC / "components/hint-area.css").read_text()  # no floor fights the controls
-    # A line that arrives is the last thing in the upper part, so it scrolls to it; a Card that enters is on top.
+    # The upper part scrolls to its end for a line that arrives and for a Card that enters, so the Card's sentence,
+    # its outcome and the Rung line share the frame and the introduction is a scroll above.
     hint = _code(_ts("components/hint-area.ts"))
     assert "upper.scrollTop = upper.scrollHeight" in _function(hint, "draw")
-    assert "upper.scrollTop = 0" in _function(hint, "enter")
+    assert "upper.scrollTop = upper.scrollHeight" in _function(hint, "enter")
+    assert "upper.scrollTop = 0" not in hint
+
+
+def test_a_card_that_enters_or_leaves_restacks_the_bands_and_the_triggers_panel_reveals_its_newest_row():
+    # The panel shrinks to its newest row when a Card enters and grows back when one is dismissed, each with a stale
+    # scrollTop, so the Hint area tells the panel to scroll that row back into view after each restack; on a toggle
+    # the panel reveals the row itself (components/triggers-panel.ts), so the Hint area says nothing then.
+    hint = _code(_ts("components/hint-area.ts"))
+    assert "onStacked: () => void," in hint
+    enter = _function(hint, "enter")
+    assert enter.index("restack()") < enter.index("upper.scrollTop = upper.scrollHeight") < enter.index("onStacked()")
+    dismiss = _function(hint, "dismiss")
+    assert dismiss.index("restack()") < dismiss.index("onStacked()") < dismiss.index("next.focus()")
+    assert "onStacked()" not in _function(hint, "triggersOpen")
+    play = _code(_ts("play.ts"))
+    assert "hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open, () => triggers.reveal())" in play
+    assert "const triggers = triggersPanel(view, latest, currentPlace().profile, (open) => area.triggersOpen(open))" in play
 
 
 def test_a_new_card_enters_after_the_lock_open_state_and_is_announced_once():

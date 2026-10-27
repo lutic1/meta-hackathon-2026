@@ -85,7 +85,7 @@ def test_the_tray_is_chrome_raised_up_to_hint_area_max_pinned_under_the_wizard_n
     # Pinned under the notes, in the side column, after them in the page and in the Tab order.
     built = play.split("const notes = wizardNotes(view, play)", 1)[1]
     assert built.index("sideColumn.append(notes.element)") < built.index("sideColumn.append(hints.element)")
-    assert "hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open)" in play
+    assert "hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open, () => triggers.reveal())" in play
     assert "parts.push(hints.render)" in play
     assert _rules("components/wizard-notes.css")[".wizard-notes"]["min-height"] == "var(--spacing-notes-min)"
 
