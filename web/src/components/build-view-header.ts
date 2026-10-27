@@ -40,7 +40,8 @@ export interface BuildViewHeader {
 /**
  * `{components.build-view-header}` (UX-DR48): a `chrome` row with the Room's name as its `display-md` title and the
  * build time beside it, or the build time as the title when the Room has no name; "Regenerations: n of {max}" with
- * `mono-sm` numbers; one "Attempt {k} sent back: …" line per failed attempt with its fixed messages; and "Back".
+ * `mono-sm` numbers; one "Attempt {k} sent back: …" line per failed attempt with its fixed messages (`sent_back.attempt`
+ * is 0-based, so the line numbers attempts from 1 like the Stage list's "attempt n of {max}"); and "Back".
  * The title is in the Tab order ahead of "Back". Without a `BuildView` (not ready) the row holds "Back" alone.
  */
 export function buildViewHeader(view: BuildView | null, onBack: () => void): BuildViewHeader {
@@ -66,7 +67,7 @@ export function buildViewHeader(view: BuildView | null, onBack: () => void): Bui
     heading,
     line('build-view-meta body-sm', ...withNumbers(strings.regenerations, { n: view.regeneration_count, max: view.regen_max })),
     ...view.sent_back.map(({ attempt, messages }) =>
-      line('build-view-sent body-sm', fill(strings.attemptSentBack, { k: attempt, messages: messages.join(' ') })),
+      line('build-view-sent body-sm', fill(strings.attemptSentBack, { k: attempt + 1, messages: messages.join(' ') })),
     ),
   )
   element.append(text, back)

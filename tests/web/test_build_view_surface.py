@@ -151,7 +151,9 @@ def test_the_header_shows_regenerations_each_sent_back_attempt_and_back():
     assert "withNumbers(strings.regenerations, { n: view.regeneration_count, max: view.regen_max })" in ts
     assert "number.className = 'mono-sm'" in ts
     assert "...view.sent_back.map(({ attempt, messages }) =>" in ts
-    assert "fill(strings.attemptSentBack, { k: attempt, messages: messages.join(' ') })" in ts
+    # `sent_back.attempt` is 0-based (the first failed attempt is recorded as attempt 0); the line numbers attempts
+    # from 1, as the Stage list's "Rewriting puzzles, attempt n of {max}" does.
+    assert "fill(strings.attemptSentBack, { k: attempt + 1, messages: messages.join(' ') })" in ts
     assert "secondaryButton({ label: strings.back, onActivate: onBack })" in ts
     # Tab order: the title, then "Back".
     assert "element.append(text, back)" in ts
