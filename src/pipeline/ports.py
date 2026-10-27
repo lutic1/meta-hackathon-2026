@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from src.domain.clock import Clock
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import Event, JobId, JobState, Room, RoomId, SessionId
+from src.domain.session import SessionHeader
 
 __all__ = [
     "ROOM_FILE",
@@ -142,7 +143,11 @@ class SessionStore(Protocol):
 
     `read_all` returns a session's events in append order and `list_ids`
     every stored session id; `read_all` and `delete` raise `KeyError` for an
-    unknown id. No session state lives in a process variable.
+    unknown id. Beside the log, `put_header` stores the session's
+    `SessionHeader` once at its start and `read_header` returns it, raising
+    `KeyError` for a session stored without one; `delete` removes both, and
+    `list_ids` never lists a header. No session state lives in a process
+    variable, so a restarted process reopens a session from these two.
     """
 
     def append(self, session_id: SessionId, event: Event) -> None: ...
@@ -152,6 +157,10 @@ class SessionStore(Protocol):
     def list_ids(self) -> list[SessionId]: ...
 
     def delete(self, session_id: SessionId) -> None: ...
+
+    def put_header(self, session_id: SessionId, header: SessionHeader) -> None: ...
+
+    def read_header(self, session_id: SessionId) -> SessionHeader: ...
 
 
 class LedgerStore(Protocol):

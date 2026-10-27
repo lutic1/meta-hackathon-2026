@@ -47,7 +47,14 @@ the same lock, sharing that event's `t_ms`, with `phrased`, `phrasing_ms`
 The event and its `rung_change` are two store writes; should the second fail,
 replay still selects the same Rung on that event, so the served state keeps
 the Rung (in its verbatim words) and only the log lacks it. The lock and the clock reading at the
-session's start are transient request state, never replayed state. `t_ms` is
+session's start are transient request state, never replayed state. What the
+start fixes that the log does not hold (the Room, the opening's kind, the 1x
+nudge threshold and whether an earlier session existed) is stored once as the
+session's `SessionHeader` beside the log, never a Derived field, so a process
+that never opened the session (a restart, a new container) reopens it from
+the header and the log, its clock resuming at the last event's `t_ms` and its
+Derived block `Derived.fresh()`; only an id with no stored header answers 404
+`session_not_found`. `t_ms` is
 stamped from the session clock at append, so a body carrying one is refused.
 A `hint_request` is answered on its reply in `hint_reply`: the current Rung
 of the Puzzle it resolved to, routed through the `HintPhraser`, or with no
@@ -59,8 +66,8 @@ and `duration_ms` (AR-22). Every session state served, the greeted start
 reply included, carries its Room's Disclosure list, composed once at the
 session's start by `disclosure_lines` in `src/api/meta.py` (AD-15): the
 global lines, plus the earlier-builds line for a Demo room, a Room with a
-session already started in this process, or a Room whose job record holds
-any call served from the Cache; a later session on the same Room never
+session already started (in this process or stored by an earlier one), or a
+Room whose job record holds any call served from the Cache; a later session on the same Room never
 changes an earlier session's list. Every session state served also carries
 `judge_room`, read once at the session's start from
 `ArtifactStore.is_judge_room` (hosted, a Room under `rooms/judge/`; local,
@@ -194,9 +201,9 @@ from src.domain.redact import to_build_view, to_play_view, to_prompt_view
 from src.domain.rungs import (
     RUNG_SPACING_MS,
     TRICKSTER_WINDOW_MS,
+    ThresholdSource,
     is_returning,
     nudge_threshold_ms,
-    threshold_source,
 )
 from src.domain.schema import (
     API_MODELS,
@@ -233,7 +240,7 @@ from src.domain.schema import (
     TriggerEvent,
     ValidatorResult,
 )
-from src.domain.session import SessionStateMachine, game_state_summary
+from src.domain.session import SessionHeader, SessionStateMachine, game_state_summary
 from src.infra.clocks import SessionClock
 from src.infra.local import CACHE_ROOT, EXPORTS_ROOT, LEDGER_PATH, ROOMS_ROOT
 from src.infra.modal import ModalHandles, wall_ms
@@ -558,9 +565,10 @@ def spawn_thread(task: Callable[[], None]) -> None:
     threading.Thread(target=task, name="greeting", daemon=True).start()
 
 
-def session_thresholds(derived: Derived, scale: SessionClock) -> tuple[Thresholds, Milliseconds]:
-    """The session's thresholds and Trickster window: the 1x values `rungs` computes from `derived`, divided by the session clock (AD-10)."""
-    nudge_ms = nudge_threshold_ms(derived)
+def scaled_thresholds(
+    nudge_ms: Milliseconds, source: ThresholdSource, scale: SessionClock
+) -> tuple[Thresholds, Milliseconds]:
+    """The thresholds and Trickster window over a 1x nudge threshold, divided by the session clock (AD-10)."""
     scaled = scale.thresholds(
         nudge_threshold_ms=nudge_ms, rung_spacing_ms=RUNG_SPACING_MS, trickster_window_ms=TRICKSTER_WINDOW_MS
     )
@@ -569,7 +577,7 @@ def session_thresholds(derived: Derived, scale: SessionClock) -> tuple[Threshold
         nudge_threshold_base_ms=nudge_ms,
         rung_spacing_ms=scaled.rung_spacing_ms,
         rung_spacing_base_ms=RUNG_SPACING_MS,
-        source=threshold_source(derived),
+        source=source,
     )
     return thresholds, scaled.trickster_window_ms
 
@@ -646,11 +654,17 @@ class OpenSession:
 
 
 class OpenSessions:
-    """One lock per session id in this process; a different session id never waits on another's lock."""
+    """One lock per session id in this process; a different session id never waits on another's lock.
 
-    def __init__(self) -> None:
+    A session id this process has not opened is reopened through `reopen`
+    (the session's stored header and log, so a restart loses no session);
+    without one, or when it finds none, the id answers `SessionNotFound`.
+    """
+
+    def __init__(self, reopen: Callable[[SessionId], OpenSession | None] = lambda session_id: None) -> None:
         self._guard = threading.Lock()
         self._open: dict[SessionId, OpenSession] = {}
+        self._reopen = reopen
 
     def open(
         self,
@@ -675,9 +689,13 @@ class OpenSessions:
     def get(self, session_id: SessionId) -> OpenSession:
         with self._guard:
             session = self._open.get(session_id)
-        if session is None:
+        if session is not None:
+            return session
+        reopened = self._reopen(session_id)
+        if reopened is None:
             raise SessionNotFound(session_id)
-        return session
+        with self._guard:
+            return self._open.setdefault(session_id, reopened)
 
 
 def session_routes(
@@ -695,7 +713,48 @@ def session_routes(
     trickster: Sources = lambda: None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
-    open_sessions = OpenSessions()
+
+    def machine_for(room: Room, header: SessionHeader) -> SessionStateMachine:
+        """The session's machine over the stored Room, with the opening and thresholds its start fixed."""
+        source: ThresholdSource = "derived" if header.opening == "greeting" else "fresh"
+        thresholds, window_ms = scaled_thresholds(header.nudge_threshold_base_ms, source, scale)
+        return SessionStateMachine(room, opening=header.opening, thresholds=thresholds, trickster_window_ms=window_ms)
+
+    def reopen(session_id: SessionId) -> OpenSession | None:
+        """A session another process started, from its stored header and log; None when no header is stored.
+
+        Its clock resumes at the last event's `t_ms`, so the downtime is not
+        counted; its Derived block, never stored, is `Derived.fresh()`.
+        """
+        try:
+            header = sessions.read_header(session_id)
+        except KeyError:
+            return None
+        room = load_room(store, header.room_id)
+        log_ = events(session_id)
+        disclosure = disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=header.earlier_session)
+        return OpenSession(
+            machine_for(room, header),
+            threading.Lock(),
+            clock.now_ms() - (log_[-1].t_ms if log_ else 0),
+            disclosure,
+            Derived.fresh(),
+            store.is_judge_room(room.id),
+        )
+
+    def earlier_session(room_id: RoomId) -> bool:
+        """Whether a session on this Room has started: in this process, or stored by an earlier one."""
+        if open_sessions.any_on(room_id):
+            return True
+        for session_id in sessions.list_ids():
+            try:
+                if sessions.read_header(session_id).room_id == room_id:
+                    return True
+            except KeyError:
+                continue
+        return False
+
+    open_sessions = OpenSessions(reopen)
 
     def served(session: OpenSession, state: SessionState, log_: Sequence[Event]) -> SessionState:
         """The state as the client sees it: with the Room's Disclosure list (AD-15), its Judge room flag and the events its Rungs name."""
@@ -792,12 +851,16 @@ def session_routes(
         room = load_room(store, body.room_id)
         greeted = greets and is_returning(body.derived)
         derived = body.derived if greeted else Derived.fresh()
-        thresholds, window_ms = session_thresholds(derived, scale)
-        machine = SessionStateMachine(
-            room, opening="greeting" if greeted else "welcome", thresholds=thresholds, trickster_window_ms=window_ms
+        header = SessionHeader(
+            room_id=room.id,
+            opening="greeting" if greeted else "welcome",
+            nudge_threshold_base_ms=nudge_threshold_ms(derived),
+            earlier_session=earlier_session(room.id),
         )
-        disclosure = disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=open_sessions.any_on(room.id))
+        machine = machine_for(room, header)
+        disclosure = disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=header.earlier_session)
         session_id = new_session_id()
+        sessions.put_header(session_id, header)
         session = open_sessions.open(
             session_id, machine, clock.now_ms(), disclosure, derived, judge_room=store.is_judge_room(room.id)
         )

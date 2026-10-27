@@ -431,7 +431,7 @@ IN_MEMORY = {"src/domain/edits.py": {"remove"}}
 def test_no_local_adapter_deletes_and_nothing_outside_the_hosted_modules_runs_a_deletion():
     sources = sorted([*(REPO / "src").rglob("*.py"), *(REPO / "scripts").rglob("*.py")])
     local = [(name, scope) for name, scope in _calls(REPO / "src" / "infra" / "local.py") if name in REMOVERS | {"delete"}]
-    assert local == [("unlink", "JsonSessionStore.delete")]
+    assert set(local) == {("unlink", "JsonSessionStore.delete")}  # the log and its header
     for path in sources:
         rel = path.relative_to(REPO).as_posix()
         if rel in HOSTED_ONLY or rel == "src/infra/local.py":

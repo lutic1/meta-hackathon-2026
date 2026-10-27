@@ -8,6 +8,7 @@ from pathlib import Path
 from src.domain import clock
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import Event, JobId, JobState, Room, SessionId
+from src.domain.session import SessionHeader
 from src.pipeline import ports
 from src.pipeline.ports import (
     ROOM_FILE,
@@ -119,6 +120,14 @@ def test_session_store_declares_append_read_all_list_ids_and_delete():
     assert inspect.signature(SessionStore.list_ids, eval_str=True).return_annotation == list[SessionId]
     assert _params(SessionStore.delete) == ["self", "session_id"]
     assert inspect.signature(SessionStore.delete, eval_str=True).return_annotation is None
+
+
+def test_session_store_declares_the_header_beside_the_log():
+    put = inspect.signature(SessionStore.put_header, eval_str=True)
+    assert _params(SessionStore.put_header) == ["self", "session_id", "header"]
+    assert put.parameters["header"].annotation is SessionHeader and put.return_annotation is None
+    assert _params(SessionStore.read_header) == ["self", "session_id"]
+    assert inspect.signature(SessionStore.read_header, eval_str=True).return_annotation is SessionHeader
 
 
 def test_job_store_declares_put_read_and_list_ids_over_job_state():

@@ -39,6 +39,8 @@ available and unsolved.
 The session start fixes two things the log does not hold: the opening line's
 kind, which the empty state carries with no text while `phrasing` is true,
 and the session's `Thresholds`, which every replayed state reports (AR-31).
+The API stores what fixes them as the session's `SessionHeader`, beside the
+log, so a restarted process rebuilds the same machine.
 
 Rungs (AD-4): after every event but a `rung_change` or a `hint_request`
 (a Hint request never triggers a Rung), `apply` asks
@@ -125,6 +127,7 @@ from .schema import (
     PuzzleId,
     PuzzleResult,
     Room,
+    RoomId,
     RoomResult,
     RungChangeEvent,
     SessionId,
@@ -147,6 +150,21 @@ class GameStateSummary(Model):
     locks_open: list[PuzzleId]
     elapsed_ms: Milliseconds
     rungs_used: Annotated[int, Field(ge=0)]
+
+
+class SessionHeader(Model):
+    """What a session's start fixes that its log does not hold, stored beside the log so a restarted process reopens it (AD-4, AD-9).
+
+    It keeps no Derived field: the 1x nudge threshold stands for the block,
+    and the threshold's source follows from `opening` (only a returning
+    block is greeted).
+    """
+
+    room_id: RoomId
+    opening: Literal["greeting", "welcome"]
+    nudge_threshold_base_ms: Milliseconds
+    earlier_session: bool
+    """Whether a session on the same Room had started before this one, for its Disclosure list (AD-15)."""
 
 
 def game_state_summary(state: SessionState, elapsed_ms: Milliseconds) -> GameStateSummary:

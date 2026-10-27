@@ -30,6 +30,7 @@ from src.infra.clocks import SessionClock
 from src.infra.modal import (
     CACHE_DIR,
     EPOCH_KEY,
+    HEADER_SUFFIX,
     JOB_FILE,
     JOBS_DICT,
     LEDGER_DICT,
@@ -62,6 +63,7 @@ from src.providers.verbatim import VerbatimPhraser
 from tests.api.test_app import store_room
 from tests.api.test_sessions import Ticker, click, code
 from tests.infra.test_local import (
+    HEADER,
     JOB_A,
     JOB_B,
     SESSION_A,
@@ -455,6 +457,20 @@ def test_session_ids_are_listed_and_deleted_one_at_a_time(handles):
     assert vars(store) == {"sessions": handles.sessions}
 
 
+def test_a_header_sits_beside_the_log_is_never_listed_and_is_deleted_with_it(handles):
+    store = DictSessionStore(handles.sessions)
+    with pytest.raises(KeyError):
+        store.read_header(SESSION_A)
+    store.put_header(SESSION_A, HEADER)
+    store.append(SESSION_A, _events()[0])
+    assert DictSessionStore(handles.sessions).read_header(SESSION_A) == HEADER
+    assert store.list_ids() == [SESSION_A]
+    store.delete(SESSION_A)
+    assert store.list_ids() == [] and dict(handles.sessions) == {}
+    with pytest.raises(KeyError):
+        store.read_header(SESSION_A)
+
+
 def test_a_job_reads_back_unchanged_and_the_dict_holds_only_its_in_flight_state(handles):
     files = VolumeFiles(handles.volume, handles.root)
     first = DictJobStore(handles.jobs, files)
@@ -524,10 +540,11 @@ def test_a_hosted_session_writes_no_derived_value_or_profile_field_to_any_dict_o
     result = client.get(f"/api/sessions/{session_id}/result")
     assert result.status_code == 200 and all(p["solved"] for p in result.json()["puzzles"])
 
-    assert list(handles.sessions) == [session_id]
+    assert list(handles.sessions) == [session_id + HEADER_SUFFIX, session_id]  # the header, put before the first event
     written = [json.dumps(value) for d in (handles.jobs, handles.sessions, handles.ledger) for value in d.values()]
     written += [path.read_text() for path in handles.root.rglob("*") if path.is_file() and path.suffix == ".json"]
     for text in written:
         assert all(sentinel not in text for sentinel in SENTINELS)
         assert not (_keys(json.loads(text)) & PROFILE_FIELDS)
-    assert "derived" not in json.dumps(handles.sessions[session_id]) and "profile" not in json.dumps(handles.sessions[session_id])
+    for key in handles.sessions:
+        assert "derived" not in json.dumps(handles.sessions[key]) and "profile" not in json.dumps(handles.sessions[key])

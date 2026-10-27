@@ -22,6 +22,7 @@ from src.domain.schema import (
     Room,
     StageRecord,
 )
+from src.domain.session import SessionHeader
 from src.infra import local as local_module
 from src.infra.clocks import BuildClock
 from src.infra.local import (
@@ -69,6 +70,7 @@ from tests.providers.test_spend import JOB, settled
 
 SESSION_A = "sess_01ARZ3NDEKTSV4RRFFQ69G5FAV"
 SESSION_B = "sess_01BX5ZZKBKACTAV9WEVGEMMVRZ"
+HEADER = SessionHeader(room_id="room_00000000000000000000000002", opening="welcome", nudge_threshold_base_ms=90_000, earlier_session=False)
 
 
 def _events() -> list[Event]:
@@ -171,6 +173,22 @@ def test_a_new_instance_over_the_same_directory_reads_the_same_events(tmp_path):
     second.append(SESSION_A, IdleTickEvent(type="idle_tick", t_ms=15000))
     assert first.read_all(SESSION_A)[-1].t_ms == 15000
     assert not [v for v in vars(first).values() if isinstance(v, (list, dict))]
+
+
+def test_a_header_is_stored_beside_the_log_read_by_a_new_instance_never_listed_and_deleted_with_it(tmp_path):
+    directory = tmp_path / "rooms" / "sessions"
+    store = JsonSessionStore(directory)
+    with pytest.raises(KeyError):
+        store.read_header(SESSION_A)
+    store.put_header(SESSION_A, HEADER)
+    store.append(SESSION_A, _events()[0])
+    assert JsonSessionStore(directory).read_header(SESSION_A) == HEADER
+    assert store.list_ids() == [SESSION_A]
+    assert (directory / "headers" / f"{SESSION_A}.json").is_file()
+    store.delete(SESSION_A)
+    assert store.list_ids() == []
+    with pytest.raises(KeyError):
+        store.read_header(SESSION_A)
 
 
 def test_a_session_id_that_is_not_a_file_name_is_refused(tmp_path):

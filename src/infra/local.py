@@ -4,7 +4,7 @@
 refuses any key that resolves outside it. `JsonJobStore` keeps one JSON
 file per job under `rooms/jobs/`, has no build quota and never refuses a
 Build; `JsonSessionStore` keeps one per session
-under `rooms/sessions/`; neither holds job or session state in a process
+under `rooms/sessions/`, its header under `rooms/sessions/headers/`; neither holds job or session state in a process
 variable, so every instance over the same directory reads the same state,
 and a restarted process reads exactly what the stopped one last wrote.
 `ThreadJobRunner.start(job_id)` runs the stage runner wiring hands it on a
@@ -52,6 +52,7 @@ from pydantic import ConfigDict, Field, TypeAdapter
 
 from src.domain.ledger import LedgerEntry, running_total_usd
 from src.domain.schema import Event, JobId, JobState, Model, Room, RoomId, SessionId
+from src.domain.session import SessionHeader
 from src.pipeline.ports import ROOM_FILE
 
 ROOMS_ROOT = Path("rooms")
@@ -62,6 +63,8 @@ EXPORTS_ROOT = Path("spend/exports")
 """The dated exports, committed with each day's work; an earlier export is never rewritten."""
 CACHE_ROOT = Path(".cache")
 """The model-call cache, git-ignored; deleting it never touches `spend/`."""
+SESSION_HEADERS_DIR = "headers"
+"""Each session's `SessionHeader`, one file per session id, in this folder under the sessions directory."""
 EVENTS = TypeAdapter(list[Event])
 
 def _replace(path: Path, data: bytes) -> None:
@@ -159,11 +162,16 @@ class ThreadJobRunner:
 
 
 class JsonSessionStore:
+    """One JSON file of events per session under `rooms/sessions/`, its header under `rooms/sessions/headers/`."""
+
     def __init__(self, directory: Path) -> None:
         self.directory = directory
 
     def _path(self, session_id: str) -> Path:
         return self.directory / _json_name("session", session_id)
+
+    def _header_path(self, session_id: str) -> Path:
+        return self.directory / SESSION_HEADERS_DIR / _json_name("session", session_id)
 
     def append(self, session_id: SessionId, event: Event) -> None:
         path = self._path(session_id)
@@ -185,6 +193,16 @@ class JsonSessionStore:
     def delete(self, session_id: SessionId) -> None:
         try:
             self._path(session_id).unlink()
+        except FileNotFoundError:
+            raise KeyError(session_id) from None
+        self._header_path(session_id).unlink(missing_ok=True)
+
+    def put_header(self, session_id: SessionId, header: SessionHeader) -> None:
+        _replace(self._header_path(session_id), header.model_dump_json().encode())
+
+    def read_header(self, session_id: SessionId) -> SessionHeader:
+        try:
+            return SessionHeader.model_validate_json(self._header_path(session_id).read_bytes())
         except FileNotFoundError:
             raise KeyError(session_id) from None
 

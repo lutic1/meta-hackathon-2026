@@ -38,7 +38,7 @@ build. `DictAttemptStore` keeps the access attempts of each client (AD-9)
 in the same Dict, one key per client holding the Unix milliseconds of its
 recent attempts, so the per-IP limit survives a restart and no count lives
 in process memory. `DictSessionStore` keeps one key per session id holding its
-events in append order; `DictLedgerStore` keeps one key per `call_` ULID, so
+events in append order, and its header under that id plus `HEADER_SUFFIX`; `DictLedgerStore` keeps one key per `call_` ULID, so
 settling a call replaces its reserved entry under the same key (the only
 rewrite), returns every current-epoch entry so the total is summed on read,
 and keeps the epoch marker (AD-9) under the reserved key `EPOCH_KEY`. Dict
@@ -133,6 +133,7 @@ from src.domain.schema import (
     TricksterCardEvent,
     UseOnInput,
 )
+from src.domain.session import SessionHeader
 from src.pipeline.ports import (
     ROOM_FILE,
     ArtifactStore,
@@ -178,6 +179,8 @@ IN_FLIGHT: frozenset[JobStatus] = frozenset({"queued", "running"})
 CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 BUILD_QUOTA = 20
 """AD-9: the judge builds the hosted app accepts; the 21st is refused with `BuildQuotaExceeded`."""
+HEADER_SUFFIX = ":header"
+"""A session's `SessionHeader` sits in `keyframe-sessions` under its id plus this suffix; `list_ids` never lists it."""
 SESSION_TTL_MS = 24 * 60 * 60 * 1000
 """AD-8: a hosted Session is deleted once its last event is more than 24 h old."""
 
@@ -547,7 +550,7 @@ class DictAttemptStore:
 
 
 class DictSessionStore:
-    """`SessionStore` over `keyframe-sessions`: one key per session id holding its events in append order."""
+    """`SessionStore` over `keyframe-sessions`: one key per session id holding its events in append order, its header beside it."""
 
     def __init__(self, sessions: DictLike) -> None:
         self.sessions = sessions
@@ -564,12 +567,24 @@ class DictSessionStore:
         return EVENTS.validate_python(events)
 
     def list_ids(self) -> list[SessionId]:
-        return sorted(self.sessions.keys())
+        keys = self.sessions.keys()
+        return sorted(key for key in keys if not key.endswith(HEADER_SUFFIX))
 
     def delete(self, session_id: SessionId) -> None:
         if session_id not in self.sessions:
             raise KeyError(session_id)
         self.sessions.pop(session_id)
+        if session_id + HEADER_SUFFIX in self.sessions:
+            self.sessions.pop(session_id + HEADER_SUFFIX)
+
+    def put_header(self, session_id: SessionId, header: SessionHeader) -> None:
+        self.sessions[session_id + HEADER_SUFFIX] = header.model_dump(mode="json")
+
+    def read_header(self, session_id: SessionId) -> SessionHeader:
+        header = self.sessions.get(session_id + HEADER_SUFFIX)
+        if header is None:
+            raise KeyError(session_id)
+        return SessionHeader.model_validate(header)
 
 
 class DictLedgerStore:
