@@ -9,6 +9,7 @@ Every command here needs a Modal account and token, so all of them are live-only
 3. Create the Secret once per Environment, from the dashboard (Secrets panel) or from a file kept outside the repo:
    `modal secret create keyframe --from-dotenv ~/keyframe-hosted.env` (add `-e dev` for the dev copy, and `--force` to replace it).
    - Put only hosted keys in it: `MODEL_API_KEY`, `FAL_KEY`, `ACCESS_CODE`, and `OPENAI_COMPATIBLE_API_KEY` if the Riddler fallback runs hosted.
+   - `MODEL_API_KEY`, `FAL_KEY` and `ACCESS_CODE` are the Secret's `required_keys` in `src/api/modal_app.py`, so `modal serve` and `modal deploy` fail by name when one is missing (an old key name counts as missing); the Meta adapter runs keyless (AD-14), so nothing later refuses a keyless Secret before the first Build fails.
    - Add `SPEND_CAP_USD` with the hosted allocation (20 through Wed Nov 4, and whatever the reset sets after it). Under `MODE=hosted` an unset `SPEND_CAP_USD` already defaults to 20 (AD-6, AD-14).
    - Never pass `KEY=value` pairs on the command line, where they land in shell history.
    - Never point `--from-dotenv` at the repo's `.env`. It holds local-only values (`GUIDE=ollama`, `OLLAMA_HOST`), and `Settings` refuses `MODE=hosted` with `GUIDE=ollama` (AD-14).
@@ -28,6 +29,7 @@ Every command here needs a Modal account and token, so all of them are live-only
 1. Run the offline suite (`pytest`) and `scripts/selfcheck.py`, then `cd web && npm run build`, then `bash scripts/check.sh --predeploy` (keyframe-devops: `uv.lock` in sync, since the image installs it with `uv_sync`, which runs `--frozen`; CI's uv and `.python-version` match the image; clean tree; `web/dist` present).
 2. Set `MIN_CONTAINERS` in the shell. Use 0 before Thu Nov 5, 1 from Thu Nov 5 to Mon Nov 9, and 0 again from Tue Nov 10. The decorator reads this value through `Settings` at deploy time.
 3. `modal deploy -m src.api.modal_app` from the repo root.
+   - The deploy asserts the Secret's `required_keys` (`MODEL_API_KEY`, `FAL_KEY`, `ACCESS_CODE`) when it hydrates the Secret; a failure naming one of them means the Secret in this Environment lacks it. Recreate it with `--force` and deploy again.
    - The default `--strategy rolling` lets old containers finish their in-flight inputs while new ones start.
    - `--strategy recreate` kills them, and Modal retries their inputs on the new containers. That would restart a running build, so do not use it while a build is in flight.
 4. The deploy output prints the permanent URL, `https://<workspace>--keyframe-web.modal.run`, with no `-dev`. If the default Environment has a web suffix, the source part reads `<workspace>-<suffix>`. That URL goes in the submission.

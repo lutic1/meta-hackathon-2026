@@ -52,6 +52,7 @@ class Spies:
         self.concurrent: list[dict[str, Any]] = []
         self.env: list[dict[str, Any]] = []
         self.local_dirs: list[tuple[str, str]] = []
+        self.secrets: list[tuple[str, dict[str, Any]]] = []
 
 
 @pytest.fixture
@@ -62,6 +63,7 @@ def spies(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Spies]:
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     found = Spies()
     function, concurrent, env, add_local_dir = modal.App.function, modal.concurrent, modal.Image.env, modal.Image.add_local_dir
+    from_name = modal.Secret.from_name
 
     def spy_function(self: modal.App, **kwargs: Any) -> Any:
         found.function.append(kwargs)
@@ -85,7 +87,12 @@ def spies(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Spies]:
         found.local_dirs.append((local_path, remote_path))
         return add_local_dir(self, local_path, remote_path)
 
+    def spy_from_name(name: str, **kwargs: Any) -> Any:
+        found.secrets.append((name, kwargs))
+        return from_name(name, **kwargs)
+
     monkeypatch.setattr(modal.App, "function", spy_function)
+    monkeypatch.setattr(modal.Secret, "from_name", spy_from_name)
     monkeypatch.setattr(modal, "concurrent", spy_concurrent)
     monkeypatch.setattr(modal.Image, "env", spy_env)
     monkeypatch.setattr(modal.Image, "add_local_dir", spy_add_local_dir)
@@ -138,6 +145,14 @@ def test_run_build_and_the_cron_functions_carry_the_keyframe_secret_and_the_volu
         assert [repr(secret) for secret in spec.secrets] == ["modal.Secret.from_name('keyframe')"]
         assert {path: repr(volume) for path, volume in spec.volumes.items()} == {"/data": "modal.Volume.from_name('keyframe-data')"}
         assert spec.gpus is None
+
+
+def test_the_secret_declares_the_hosted_keys_so_a_deploy_without_one_fails_before_a_build_does(spies: Spies):
+    """The Meta adapter runs keyless (AD-14), so only the Secret's `required_keys` can refuse a missing `MODEL_API_KEY`."""
+    module = load()
+    assert spies.secrets == [("keyframe", {"required_keys": ["MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"]})]
+    assert module.SECRET_KEYS == ["MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"]
+    assert not module.secret._is_hydrated
 
 
 def test_the_decorators_stack_function_over_concurrent_over_asgi_app():

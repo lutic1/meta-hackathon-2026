@@ -7,7 +7,8 @@ container `Settings` selects the hosted adapters and the verbatim Guide;
 it carries `proposals/` when the folder exists, so `DEMO_TRICKSTER=scripted`
 or `authored` has its source in the container (FR-31, AD-15);
 the `keyframe` Secret carries the keys `Settings` reads, `SPEND_CAP_USD`
-(the hosted allocation) among them. `web` serves `web/dist` at `/` and the
+(the hosted allocation) among them, and must carry `SECRET_KEYS`, which the
+deploy asserts. `web` serves `web/dist` at `/` and the
 API under `/api/` from one origin with no CORS, in one container
 (`max_containers=1`, AD-9) taking up to 20 requests at once, with no GPU.
 `MIN_CONTAINERS` is read through `Settings` when the module is imported,
@@ -59,6 +60,10 @@ if TYPE_CHECKING:
 APP_NAME = "keyframe"
 SECRET = "keyframe"
 """The one Secret (AD-14), attached at the App level."""
+SECRET_KEYS = ["MODEL_API_KEY", "FAL_KEY", "ACCESS_CODE"]
+"""The keys the Secret must carry: Modal asserts them when the Secret hydrates at deploy, so a Secret
+missing one fails `modal deploy` by name instead of serving and failing the first Build (the Meta
+adapter itself runs keyless, AD-14)."""
 WEB_DIST = "/root/web/dist"
 """Where the image puts `web/dist`: beside `/root/src`, where `src/api/app.py` looks for it."""
 PROPOSALS_DIR = "/root/proposals"
@@ -88,7 +93,7 @@ image = (
 )
 if Path("proposals").is_dir():  # not committed yet; a missing folder would fail the deploy
     image = image.add_local_dir("proposals", PROPOSALS_DIR)
-secret = modal.Secret.from_name(SECRET)
+secret = modal.Secret.from_name(SECRET, required_keys=SECRET_KEYS)
 volume = modal.Volume.from_name(VOLUME, create_if_missing=True)
 jobs = modal.Dict.from_name(JOBS_DICT, create_if_missing=True)
 sessions = modal.Dict.from_name(SESSIONS_DICT, create_if_missing=True)
