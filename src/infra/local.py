@@ -23,8 +23,11 @@ spend. The file holds two kinds of line: an entry, and the epoch marker
 marker) and `entries` returns the current epoch's entries in append order,
 so `SpendLedger` counts exactly what the store returns. `export_ledger`
 writes the current epoch's entries and totals to `spend/exports/ledger-<date>.json`,
-the committed daily record of spend; `scripts/ledger.py export` wraps it and
-API wiring calls it at startup and after every build. `DiskCache` keeps
+the committed daily record of spend; given a `HostedSnapshot` (the latest
+`spend/hosted-<date>.jsonl` from the Volume, read by `scripts/ledger.py export`)
+it merges that snapshot's current-epoch entries in, each identical entry
+once. API wiring calls it at startup and after every build, with no
+snapshot. `DiskCache` keeps
 one JSON file per key under `.cache/`, written whole and renamed into
 place.
 """
@@ -38,6 +41,7 @@ import tempfile
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any, TextIO
@@ -239,8 +243,16 @@ class JsonlLedgerStore:
             file.write(json.dumps({"epoch": epoch}) + "\n")
 
 
+@dataclass(frozen=True)
+class HostedSnapshot:
+    """A daily hosted ledger snapshot: its Volume path (`spend/hosted-<date>.jsonl`) and every entry it holds."""
+
+    path: str
+    entries: list[LedgerEntry]
+
+
 class LedgerExport(Model):
-    """One day's record of spend: the current epoch's entries and the totals read against the combined ceiling."""
+    """One day's record of spend: the current epoch's local and hosted entries and the totals read against the combined ceiling."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -249,9 +261,12 @@ class LedgerExport(Model):
     entries: list[LedgerEntry]
     local_total_usd: float = Field(ge=0)
     hosted_total_usd: float = Field(ge=0)
-    """0 until the hosted snapshot merge lands (7.9)."""
+    """The merged snapshot's current-epoch total; 0 when no snapshot was merged."""
     total_usd: float = Field(ge=0)
+    """The running total of the merged entries, each `call_` id counted once."""
     ceiling_usd: float = Field(ge=0)
+    hosted_snapshot: str | None = None
+    """The Volume path of the merged hosted snapshot; `None` when none was merged."""
 
 
 def export_path(exports_root: Path, today: date) -> Path:
@@ -259,21 +274,29 @@ def export_path(exports_root: Path, today: date) -> Path:
     return exports_root / f"ledger-{today.isoformat()}.json"
 
 
-def export_ledger(store: JsonlLedgerStore, exports_root: Path, today: date, ceiling_usd: float) -> LedgerExport:
-    """Write today's export from the store's current epoch and return it; an empty ledger exports a total of 0.
+def export_ledger(
+    store: JsonlLedgerStore, exports_root: Path, today: date, ceiling_usd: float, hosted: HostedSnapshot | None = None
+) -> LedgerExport:
+    """Write today's export from the store's current epoch, merged with `hosted`'s entries of that epoch, and return it.
 
-    The file is replaced whole, so a reader (or `git add`) never sees a partial export.
+    Local entries come first, then the snapshot's; an entry present in both
+    appears once. An empty ledger with no snapshot exports a total of 0. The
+    file is replaced whole, so a reader (or `git add`) never sees a partial
+    export.
     """
-    entries = store.entries()
-    local_total = running_total_usd(entries)
+    epoch = store.epoch()
+    local = store.entries()
+    remote = [entry for entry in hosted.entries if entry.epoch == epoch] if hosted else []
+    entries = list(dict.fromkeys([*local, *remote]))
     export = LedgerExport(
         date=today.isoformat(),
-        epoch=store.epoch(),
+        epoch=epoch,
         entries=entries,
-        local_total_usd=local_total,
-        hosted_total_usd=0.0,
-        total_usd=local_total,
+        local_total_usd=running_total_usd(local),
+        hosted_total_usd=running_total_usd(remote),
+        total_usd=running_total_usd(entries),
         ceiling_usd=ceiling_usd,
+        hosted_snapshot=hosted.path if hosted else None,
     )
     _replace(export_path(exports_root, today), (export.model_dump_json(indent=2) + "\n").encode())
     return export

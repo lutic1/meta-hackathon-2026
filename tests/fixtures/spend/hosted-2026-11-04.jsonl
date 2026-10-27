@@ -1,0 +1,3 @@
+{"call_id":"call_01KA5H00000000000000000001","kind":"vision","status":"settled","usd":0.5,"epoch":null,"job_id":null,"stage":null,"session_id":null}
+{"call_id":"call_01KA5H00000000000000000002","kind":"riddler","status":"settled","usd":1.25,"epoch":null,"job_id":null,"stage":null,"session_id":null}
+{"call_id":"call_01KA5H00000000000000000003","kind":"dryrun","status":"settled","usd":0.03,"epoch":null,"job_id":null,"stage":null,"session_id":null}

@@ -30,6 +30,7 @@ from src.infra.local import (
     LEDGER_PATH,
     DiskArtifactStore,
     DiskCache,
+    HostedSnapshot,
     JsonJobStore,
     JsonlLedgerStore,
     JsonSessionStore,
@@ -499,6 +500,25 @@ def test_the_export_after_a_reset_holds_only_the_new_epoch_and_the_earlier_expor
     assert earlier.total_usd == 30.0 and [e.epoch for e in earlier.entries] == [None]
     assert (root / EXPORTS_ROOT / "ledger-2026-11-04.json").read_bytes() == earlier_bytes
 
+
+
+def test_a_hosted_snapshot_merges_its_current_epoch_entries_once_each_after_the_local_ones(root):
+    store = ledger_store(root)
+    store.start_epoch("2026-11-05")
+    local, shared = settled(0.5), settled(0.25, "sam")
+    store.append(local)
+    store.append(shared)
+    stamped = store.entries()
+    hosted_only = settled(1.0, "riddler").model_copy(update={"epoch": "2026-11-05"})
+    stale = settled(9.0, "riddler")  # the epoch before the reset
+    snapshot = HostedSnapshot(path="spend/hosted-2026-11-05.jsonl", entries=[stale, stamped[1], hosted_only])
+
+    export = export_ledger(store, root / EXPORTS_ROOT, date(2026, 11, 5), ceiling_usd=25, hosted=snapshot)
+
+    assert export.entries == [*stamped, hosted_only]
+    assert (export.local_total_usd, export.hosted_total_usd, export.total_usd) == (0.75, 1.25, 1.75)
+    assert export.hosted_snapshot == "spend/hosted-2026-11-05.jsonl"
+    assert LedgerExport.model_validate_json(export_path(root / EXPORTS_ROOT, date(2026, 11, 5)).read_text()) == export
 
 # --- The total survives a restart ---------------------------------------------
 
