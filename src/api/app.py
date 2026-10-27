@@ -932,8 +932,14 @@ def session_routes(
 
     @router.get("/{session_id}/room")
     def get_session_room(session_id: str) -> PlayView:
-        """The Effective room as `PlayView`: accepted edits folded in, any Decoy an unflagged evidence card (AD-3, AD-12)."""
+        """The Effective room as `PlayView`: accepted edits folded in, any Decoy an unflagged evidence card (AD-3, AD-12).
+
+        A Judge room deleted while its session is still open here answers
+        `RoomDeleted`, so the client shows its room-gone card (AD-9).
+        """
         session = open_sessions.get(session_id)
+        if session.judge_room and (gone := missing_room(store, session.machine.room.id)) is not None:
+            raise gone
         return to_play_view(effective_room(session.machine.room, events(session_id)))
 
     @router.get("/{session_id}/result")

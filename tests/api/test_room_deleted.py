@@ -131,6 +131,17 @@ def test_a_record_that_names_no_job_still_answers_410_for_its_room_id(tmp_path: 
     assert found == dict.fromkeys(found, (410, ROOM_DELETED))
 
 
+def test_a_session_still_open_on_a_deleted_judge_room_answers_410_on_its_room_read(tmp_path: Path, four_lock_room: Room, code_and_find_room: Room):
+    scene = Scene(tmp_path, four_lock_room, code_and_find_room)
+    started = scene.client.post("/api/sessions", json={"room_id": scene.judge_room_id})
+    assert started.status_code == 200, started.text
+    session_id = started.json()["id"]
+    assert scene.client.get(f"/api/sessions/{session_id}/room").status_code == 200
+    scene.delete_judge_room()
+    response = scene.client.get(f"/api/sessions/{session_id}/room")
+    assert (response.status_code, response.json()) == (410, ROOM_DELETED)
+
+
 # --- An id with no Room and no record: 404 -------------------------------------------------
 
 
