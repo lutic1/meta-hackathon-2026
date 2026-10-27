@@ -25,7 +25,7 @@ SCRIPT = REPO / "scripts/sit.py"
 CASES = REPO / "tests/sit"
 SHIPPED_CASES = [
     "test_00_cap_refusal", "test_01_cache_hit", "test_02_architect", "test_03_segment", "test_04_image", "test_05_fallback_chat",
-    "test_06_ollama_guide", "test_07_riddler", "test_08_dry_run", "test_09_full_build",
+    "test_06_ollama_guide", "test_07_riddler", "test_08_dry_run", "test_09_full_build", "test_10_trickster",
 ]
 CHAT = load("muse-spark-1.3/chat-three-objects")
 MESSAGES = [ChatMessage(role="user", content="Say ok.")]
@@ -377,6 +377,8 @@ class Vendors:
             return httpx.Response(200, json=self.riddler(_user_text(body)))
         if schema == "DryRunAnswers":
             return httpx.Response(200, json=self.dry_run(_user_text(body)))
+        if schema == "TricksterProposal":
+            return httpx.Response(200, json=load("muse-spark-1.3/chat-trickster").body)
         if schema == "ArchitectResponse" and _images(body) == BUILD_PHOTOS:
             return httpx.Response(200, json=_chat(json.dumps(BUILD_REPLY)))
         return httpx.Response(200, json=_chat(json.dumps(ARCHITECT_REPLY) if body.get("response_format") else "ok"))
@@ -437,6 +439,7 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
         "muse-spark-1.3/chat-full-build-riddler.json",
         "muse-spark-1.3/chat-riddler-author.json",
         "muse-spark-1.3/chat-sit-ok.json",
+        "muse-spark-1.3/chat-trickster.json",
         "muse-spark-open/chat-riddler-author.json",
         "sam-3.1/segment-absent-label.json",
         "sam-3.1/segment-present-label.json",
@@ -452,13 +455,15 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
         "api.meta.ai/v1/chat/completions",  # the Riddler
         "api.meta.ai/v1/chat/completions",  # the Dry run
         *BUILD_PATHS,
+        "api.meta.ai/v1/chat/completions",  # the Trickster
     ]
     entries = sit_script.JsonlLedgerStore(tmp_path / LEDGER_PATH).entries()
     kinds = [(e.kind, e.status) for e in entries]
     calls = ("vision", "vision", "sam", "sam", "image", "riddler", "riddler", "dryrun")
     assert kinds[: 2 * len(calls)] == [(k, s) for k in calls for s in ("reserved", "settled")]
     built = [e for e in entries[2 * len(calls):] if e.status == "settled"]
-    assert [e.kind for e in built if e.kind != "sam"] == ["vision", "riddler", "dryrun"] and len(built) == 3 + len(INTERACTABLES)
+    assert [e.kind for e in built if e.kind != "sam"] == ["vision", "riddler", "dryrun", "trickster"]
+    assert len(built) == 4 + len(INTERACTABLES)
     tagged = [(e.kind, e.stage) for e in built if e.job_id is not None]
     assert tagged == [("riddler", "author"), ("dryrun", "dryrun")]  # the Build's own calls, tagged for provenance
     for name in ("chat-architect-two-photos", "chat-sit-ok"):
@@ -477,6 +482,7 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     assert "billed 0.01 USD, recorded" in out.out
     assert "meta-models/muse-spark-open: 4 puzzles" in out.out
     assert "PASS test_06_ollama_guide: " in out.out and "21 tokens out in" in out.out and "decode 20 tok/s" in out.out
+    assert "PASS test_10_trickster: " in out.out and f"decoy on {PZ['shelf_order']}: accepted" in out.out
     assert "PASS test_07_riddler: " in out.out and "5 puzzles in" in out.out and "rules 8 of 8 passed; 3174 out" in out.out
     lines = {line.split(":")[0]: line for line in out.out.splitlines() if line.startswith("PASS")}
     assert "(reached 5 of 5 answers in " in lines["PASS test_08_dry_run"] and "; 10120 in, 2650 out)" in lines["PASS test_08_dry_run"]
@@ -496,4 +502,5 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
         "api.meta.ai/v1/chat/completions",
         "api.meta.ai/v1/chat/completions",
         *BUILD_PATHS,
+        "api.meta.ai/v1/chat/completions",  # the Trickster
     ]
