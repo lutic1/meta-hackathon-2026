@@ -15,6 +15,7 @@ import { liveRegion } from './live-region.ts'
 import { currentPlace, placeHref, type Route } from './router.ts'
 import { mountPlay } from './play.ts'
 import { getResults, watchResults } from './profile/index.ts'
+import { mountTriggersWindow } from './triggers-window.ts'
 import { strings } from './strings.ts'
 
 /** How long the server-unreachable state waits between attempts (UX-DR61). */
@@ -45,8 +46,10 @@ function refused(error: unknown): null {
  * `#/build/<job_id>/view` waits for `GET /builds/<job_id>/view` once and shows the Build view, ready, not ready or
  * failed (never the unreachable strip), with the `BuildView`'s own Disclosure list once it answered; only its body
  * scrolls, so the banner and the top bar stay pinned. `#/done/<session_id>` is the Completion screen over the
- * dimmed Play screen, its top bar inert and its Timer frozen. Below 1024 px the Narrow-screen message, a sibling of
- * `root`, replaces the whole app on every route; `root` is only hidden meanwhile, so its state survives the resize.
+ * dimmed Play screen, its top bar inert and its Timer frozen. `#/triggers/<session_id>` is cut 5's second window,
+ * the Triggers panel of that session with its Room's Disclosure lines. Below 1024 px the Narrow-screen message, a
+ * sibling of `root`, replaces the whole app on every route; `root` is only hidden meanwhile, so its state survives
+ * the resize.
  */
 export function startShell(root: HTMLElement): void {
   const metas = new Map<string, Meta>()
@@ -92,7 +95,7 @@ export function startShell(root: HTMLElement): void {
         else location.hash = placeHref({ route: { name: 'home' }, profile })
       }
       content = { name: 'view', state, meta, profile, onBack: back, onRetry: () => void render() }
-    } else if (place.route.name === 'play' || place.route.name === 'done') {
+    } else if (place.route.name === 'play' || place.route.name === 'done' || place.route.name === 'triggers') {
       const { name, sessionId } = place.route
       const state = await answered(mine, () => getSession(sessionId).catch(refused))
       if (state === undefined) return
@@ -150,7 +153,7 @@ interface Surface {
  */
 type Content =
   | ({ name: 'view'; state: BuildViewState } & BuildViewOptions)
-  | { name: 'play' | 'done'; session: SessionState; guide: Meta['guide']; mode: Meta['mode']; profile: string }
+  | { name: 'play' | 'done' | 'triggers'; session: SessionState; guide: Meta['guide']; mode: Meta['mode']; profile: string }
   | { name: 'rooms'; rooms: RoomSummary[]; profile: string; mode: Meta['mode']; retention: string }
   | { name: 'landing'; rooms: RoomSummary[] | null; profile: string; mode: Meta['mode']; onRetry: () => void }
   | { name: 'build'; jobId: string; profile: string; mode: Meta['mode']; retention: string }
@@ -163,7 +166,7 @@ type Content =
  */
 function timerOwner(route: Route): ((run: TimerRun) => boolean) | null {
   if (route.name === 'home') return null
-  if (route.name === 'view') return null
+  if (route.name === 'view' || route.name === 'triggers') return null
   if (route.name === 'build') return (run) => run.jobId === route.jobId
   return (run) => run.sessionId === route.sessionId
 }
@@ -205,6 +208,11 @@ function surface(content: Content, bar: TopBar): Surface {
     const build = buildScreen(content.jobId, content.profile, content.mode, content.retention)
     element.append(build.left, build.right)
     return { element, mount: build.mount }
+  }
+  if (content.name === 'triggers') {
+    element.classList.add('triggers-window')
+    const { session } = content
+    return { element, mount: () => mountTriggersWindow(element, session) }
   }
   element.classList.add('play-layout')
   const sceneColumn = document.createElement('section')

@@ -6,6 +6,7 @@ import { inventory } from './components/inventory.ts'
 import { noticeCard } from './components/notice-card.ts'
 import { playEnded } from './components/play-ended.ts'
 import { statusStrip } from './components/status-strip.ts'
+import { triggersPanel } from './components/triggers-panel.ts'
 import { OPEN_HOLD_MS, wizardNotes } from './components/wizard-notes.ts'
 import { mountLeaveRoom } from './leave-room.ts'
 import { lockOutcomes } from './lock-outcomes.ts'
@@ -93,9 +94,10 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * First-room welcome shows its card over the first Scene until "Begin", unless play has already begun; "Begin" keeps
  * the line as the first Guide line of the Hint area, pinned under the Wizard notes, and moves focus to the first
  * Hotspot. The top bar's "Show all objects" toggle outlines every Hotspot while pressed, across Scene changes, and
- * lock outcomes are announced in the live region. "Leave room" beside it, or the browser Back button, asks the Leave
- * room confirmation (see `mountLeaveRoom`), never over the First-room welcome; confirming goes to `#/` and records no
- * Room result. Once a state
+ * lock outcomes are announced in the live region. The Triggers toggle under the hint controls shows why each Rung
+ * arrived, its panel open from the start when the session loads with a Disclosure active. "Leave room" beside it, or
+ * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the First-room welcome;
+ * confirming goes to `#/` and records no Room result. Once a state
  * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
  * replacing the Play route and its Back guard in the history (`LeaveRoom.exit`); an Exit already open when the screen mounts has no Open state, so it routes
  * at once.
@@ -285,9 +287,15 @@ export function mountPlay(
       held.render(latest)
       notes.render(latest)
       hints = hintArea(view, play, frame.guide, notes.openedRungs)
+      const tray = hints.element
+      const triggers = triggersPanel(view, latest, currentPlace().profile, (open) => {
+        tray.classList.toggle('is-triggers-open', open)
+      })
+      hints.triggers.append(triggers.element)
       sideColumn.append(hints.element)
       holdInputs()
       parts.push(hints.render)
+      parts.push(triggers.render)
       const exit = view.puzzles.find((puzzle) => puzzle.is_exit)
       if (exit === undefined) return
       parts.push((state) => leaveOnExit(exit.id, state))

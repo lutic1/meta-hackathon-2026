@@ -46,6 +46,8 @@ export interface HintArea {
   render: (state: SessionState) => void
   /** After "Begin": the opening line as the first Guide line, never announced, unless a Rung line already shows. */
   opening: (line: string) => void
+  /** The slot under the helper line that holds the Triggers toggle and its panel. */
+  triggers: HTMLElement
 }
 
 /** `--motion-state` in ms as the page resolves it now ("200ms" or ".2s"): 200, or 0 under reduced motion. */
@@ -63,7 +65,9 @@ function paragraph(className: string): HTMLParagraphElement {
 /**
  * The Hint area (`{components.hint-area}`, FR-14, UX-DR30 to UX-DR32): a `chrome-raised` tray pinned under the Wizard
  * notes, up to `{spacing.hint-area-max}`, its upper part scrolling (the Rung line) over a lower part that never
- * scrolls: the hint field and "Ask the Guide", the permanent helper line, and the slot of the Triggers toggle (3.5).
+ * scrolls: the hint field and "Ask the Guide", the permanent helper line, and the slot of the Triggers toggle. While
+ * the Triggers panel is open (`is-triggers-open`) the tray may grow past its cap until the Wizard notes reach
+ * `{spacing.notes-min}`.
  *
  * Enter or the button posts exactly one `hint_request` with no `puzzle_id`: the server answers for the Active puzzle,
  * the entry marked "Current". The typed text is never read, so it leaves the browser in no body, query or header; it
@@ -127,7 +131,7 @@ export function hintArea(
   })
   ask.append(field, button)
   const triggers = document.createElement('div')
-  triggers.className = 'hint-triggers' // the Triggers toggle (3.5)
+  triggers.className = 'hint-triggers' // the Triggers toggle and its panel
   lower.append(ask, helper, triggers)
   element.append(upper, lower)
 
@@ -235,5 +239,5 @@ export function hintArea(
   else if (play.openingLine !== null) draw({ label: null, text: play.openingLine, shown: null })
   else think(false)
 
-  return { element, render, opening }
+  return { element, render, opening, triggers }
 }

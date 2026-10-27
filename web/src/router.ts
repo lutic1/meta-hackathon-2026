@@ -1,6 +1,6 @@
 // Hash routes (UX-DR8): `#/`, `#/build/<job_id>`, `#/build/<job_id>/view`, `#/play/<session_id>` and
-// `#/done/<session_id>`, each carrying
-// `?profile=` (AD-14).
+// `#/done/<session_id>`, plus `#/triggers/<session_id>`, the second window the Triggers panel opens in under cut 5,
+// each carrying `?profile=` (AD-14).
 
 export type Route =
   | { name: 'home' }
@@ -8,6 +8,7 @@ export type Route =
   | { name: 'view'; jobId: string }
   | { name: 'play'; sessionId: string }
   | { name: 'done'; sessionId: string }
+  | { name: 'triggers'; sessionId: string }
 
 export interface Place {
   route: Route
@@ -19,7 +20,10 @@ export const DEFAULT_PROFILE = 'dev'
 /** Cut 0 (FR-38, UX-DR84), the first cut taken: true drops every link to the Build view. */
 export const CUT_0: boolean = false
 
-const SESSION_ROUTE = /^\/(play|done)\/([\w-]+)$/ // session ids are `sess_` plus a ULID
+/** Cut 5 (UX-DR84): true opens the Triggers panel in a second window, `#/triggers/<session_id>`, instead of in place. */
+export const CUT_5: boolean = false
+
+const SESSION_ROUTE = /^\/(play|done|triggers)\/([\w-]+)$/ // session ids are `sess_` plus a ULID
 const BUILD_ROUTE = /^\/build\/([\w-]+)$/ // job ids are `job_` plus a ULID
 const BUILD_VIEW_ROUTE = /^\/build\/([\w-]+)\/view$/ // job ids are `job_` plus a ULID
 
@@ -36,8 +40,8 @@ export function parsePlace(hash: string, search: string, carried = DEFAULT_PROFI
   if (view !== null) return { route: { name: 'view', jobId: view[1] }, profile }
   const match = SESSION_ROUTE.exec(path)
   if (match === null) return { route: { name: 'home' }, profile }
-  const sessionId = match[2]
-  return { route: match[1] === 'play' ? { name: 'play', sessionId } : { name: 'done', sessionId }, profile }
+  const name = match[1] === 'play' ? 'play' : match[1] === 'done' ? 'done' : 'triggers'
+  return { route: { name, sessionId: match[2] }, profile }
 }
 
 /** The hash for `place`, always carrying its profile. */

@@ -14,6 +14,27 @@
   color: var(--text);
   transition: box-shadow var(--motion-hover) var(--motion-ease);
 }
+/* While the Triggers panel is open the tray may grow past its cap until the Wizard notes, above it in the side
+   column with one column gap between, reach notes-min. On a short window the upper part scrolls inside what is
+   left; only once it is spent does the lower part give way, its Triggers rows (then the panel) scrolling inside
+   themselves, so the pinned controls never leave the tray. */
+.hint-area.is-triggers-open {
+  max-height: calc(100% - var(--spacing-notes-min) - var(--spacing-5));
+}
+/* Shrink weights 1000 to 1: the lower part gives way only once the upper part is spent (a factor under 1 would
+   leave free space undistributed). */
+.hint-area.is-triggers-open .hint-upper {
+  flex-shrink: 1000;
+}
+.hint-area.is-triggers-open .hint-lower {
+  flex-shrink: 1;
+  min-height: 0;
+}
+.hint-triggers {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .hint-area.is-glowing {
   box-shadow: var(--elevation-lamp-glow);
 }

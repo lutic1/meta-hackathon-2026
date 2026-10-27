@@ -8,7 +8,9 @@
 // the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
 // Component Patterns, names its placeholders as that row does. The live-region lines for lock outcomes are worded
 // only in the Accessibility Floor, and the Narrow-screen message only in Responsive & Platform. The Leave room
-// confirmation's one line is its heading (the question) over its sentence.
+// confirmation's one line is its heading (the question) over its sentence. The Triggers header is its Voice and
+// Tone line split after "idle", where the threshold's 1× value goes at a Demo timescale above 1, as in "Nudge after
+// 15 s idle (90 s at 1×) …".
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -214,6 +216,18 @@ export const strings = {
   demoRoomPortraits: 'The Architect, the Riddler, the Guide and the Trickster',
   demoRoomsFailed: "Keyframe couldn't load the demo rooms.",
   noDemoRooms: 'No demo rooms are open right now. You can still build your own room with the access code.',
+  triggers: 'Triggers ({n})',
+  triggersNudge: 'Nudge after {threshold} s idle',
+  triggersSpacing: 'or 3 wrong attempts · next hint no sooner than {spacing} s',
+  atOneX: '({s} s at 1×)',
+  thresholdDerived: 'Set by how you played last time (kept in this browser)',
+  thresholdFresh: 'Default for a first room',
+  idleSeconds: 'Idle {s} s',
+  threeWrongAttempts: '3 wrong attempts',
+  loosenCard: 'Loosen card',
+  wordedOnThisMac: 'worded on this Mac · {s} s',
+  asWritten: 'as written',
+  noHintChanges: 'No hint changes yet.',
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

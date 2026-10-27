@@ -46,7 +46,7 @@ def test_meta_is_read_once_per_profile_and_the_profile_reaches_get_meta():
 def test_disclosure_lines_come_from_meta_on_home_and_from_session_state_on_play_and_done():
     shell = _ts("shell.ts")
     assert "let disclosure = meta.disclosure" in shell and "if (state !== null) disclosure = state.disclosure" in shell
-    assert "if (place.route.name === 'play' || place.route.name === 'done')" in shell
+    assert "if (place.route.name === 'play' || place.route.name === 'done' || place.route.name === 'triggers')" in shell
     # A 4xx is an answer, not an unreachable server: no retry, and no Room whose lines could be missing.
     assert "getSession(sessionId).catch(refused)" in shell
     assert "error instanceof RequestFailed && error.status !== null && error.status < 500" in shell
@@ -122,7 +122,7 @@ def test_play_layout_side_column_per_width_with_24px_margins_and_no_horizontal_s
 
 def test_hash_routes_resolve_and_carry_the_profile():
     router = _ts("router.ts")
-    assert r"const SESSION_ROUTE = /^\/(play|done)\/([\w-]+)$/" in router
+    assert r"const SESSION_ROUTE = /^\/(play|done|triggers)\/([\w-]+)$/" in router
     assert "{ route: { name: 'home' }, profile }" in router
     assert "`#${path}?profile=${encodeURIComponent(profile)}`" in router  # carried on every route
     assert "new URLSearchParams(query).get('profile') || new URLSearchParams(search).get('profile') || carried" in router

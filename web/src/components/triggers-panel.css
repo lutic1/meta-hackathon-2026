@@ -1,0 +1,62 @@
+/* {components.triggers-panel}: the toggle row (a secondary button whose count is mono-sm), then, open, a list on
+   chrome, rounded md, its foreground text-muted: one plain body-sm header line, then the rows, capped at
+   triggers-panel-max and scrolling, the newest row last and in text. */
+.triggers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-height: 0;
+  margin-top: var(--spacing-1);
+}
+.triggers-toggle {
+  flex: none;
+  align-self: flex-start;
+}
+.triggers-toggle .mono-sm {
+  color: inherit;
+}
+.triggers-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-height: 0;
+  overflow-y: auto; /* only when the Hint area has no room even for its header and one row */
+  padding: var(--spacing-3);
+  border-radius: var(--rounded-md);
+  background: var(--chrome);
+  color: var(--text-muted);
+}
+.triggers-panel[hidden] {
+  display: none;
+}
+.triggers-header,
+.triggers-empty {
+  flex: none;
+  margin: 0;
+}
+.triggers-source {
+  display: block;
+}
+.triggers-rows {
+  min-height: 20px; /* one body-sm line (14 px at 1.45), so the newest row outlasts a short Hint area */
+  max-height: var(--spacing-triggers-panel-max);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.triggers-rows[hidden] {
+  display: none;
+}
+.triggers-row {
+  color: var(--text-muted);
+}
+.triggers-row:last-child {
+  color: var(--text);
+}
+
+/* Cut 5's second window: the same panel alone in the page body, inside the frame margin. */
+.triggers-window {
+  padding: var(--spacing-frame-margin);
+  overflow-y: auto;
+}
