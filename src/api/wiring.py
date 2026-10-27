@@ -419,7 +419,15 @@ class Wiring:
     greets: bool
     """Whether a returning Derived block is greeted: Local mode only; every hosted start gets the welcome and `Derived.fresh()`."""
     trickster: ModelProvider
-    """The `trickster` role's provider the live source calls, over the same cache and `SpendLedger` as the Build's."""
+    """The `trickster` role's provider the live source calls, over the same `SpendLedger` as the Build's.
+
+    Locally it shares the Build's cache too. Hosted it runs with the cache
+    off (AD-6: guarded and priced, never stored): a live window on a Judge
+    room would otherwise write that room's ids into `/data/cache/` under a
+    key no `cache-keys.json` lists, which the Nov 10 purge never deletes
+    (AD-8). Nothing is lost, since the prompt's `elapsed_ms` makes a
+    window's key never repeat.
+    """
 
 
 def wire(
@@ -446,13 +454,17 @@ def wire(
                 "MODE=hosted runs on Modal: deploy src/api/modal_app.py, which passes the handles, run_build.spawn and the watchdog poll"
             )
         hosted = hosted_stores(handles, poll=handles.poll)
-        providers = model_providers(settings, hosted.cache, spend_ledger(settings, hosted.ledger))
+        ledger = spend_ledger(settings, hosted.ledger)
+        providers = model_providers(settings, hosted.cache, ledger)
         build = _build(settings, hosted.artifacts, hosted.jobs, providers, hosted.ledger, stages)
+        uncached = model_provider(
+            settings, "trickster", lambda host: GuardedCalls(hosted.cache, ledger, host=host, enabled=False)
+        )
         return Wiring(
             hosted.artifacts, hosted.jobs, hosted.sessions, build, ModalJobRunner(hosted.jobs, handles.spawn),
             on_terminal=do_nothing, startup=do_nothing,
             guard=access_guard(settings, hosted=True, attempts=hosted.attempts, now_ms=access_clock),
-            access_check=True, profiles=False, greets=False, trickster=providers["trickster"],
+            access_check=True, profiles=False, greets=False, trickster=uncached,
         )
     ledger = ledger_store(ledger_path)
     export = ledger_export(settings, ledger, exports_root, today)

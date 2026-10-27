@@ -2,13 +2,16 @@
 
 import json
 from datetime import date
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import BaseModel, ConfigDict
 
+from src.api import wiring
 from src.api.wiring import (
     ROLE_CALLS,
     ledger_store,
@@ -33,11 +36,14 @@ from src.domain.schema import Room, strict_schema
 from src.domain.session import TRICKSTER_CALLS_MAX
 from src.domain.validator import BOUNDS_RULE, RULES
 from src.infra.local import CACHE_ROOT, LEDGER_PATH
+from src.infra.modal import CACHE_DIR, hosted_stores
 from src.providers.cache import GuardedCalls
 from src.providers.meta_api import MetaModelProvider
 from src.providers.mock import MockProvider, MockScript
 from src.providers.openai_compatible import OpenAICompatibleProvider
 from src.providers.spend import SpendLedger
+from tests.api.hosted import hosted_handles, hosted_settings, make_hosted_app
+from tests.api.test_app import store_room
 from tests.api.test_sessions import Ticker, click, code, post, start
 from tests.api.test_trickster_route import (
     CLOSED,
@@ -200,6 +206,25 @@ def test_six_cards_open_no_window_and_the_live_source_makes_no_provider_call(
     assert state["trickster_window"] == CLOSED and state["trickster_calls"] == TRICKSTER_CALLS_MAX
     assert trickster(client, session_id) == state_of(client, session_id)
     assert provider.calls == []
+
+
+def test_a_hosted_live_window_on_a_judge_room_is_priced_but_leaves_no_cache_entry_the_purge_cannot_list(
+    tmp_path: Path, ticker: Ticker, four_lock_room: Room, monkeypatch: pytest.MonkeyPatch
+):
+    host = Host(httpx.Response(200, json=chat(FIRST)))
+    monkeypatch.setattr(
+        wiring, "MetaModelProvider", partial(MetaModelProvider, transport=httpx.MockTransport(host), sleep=lambda s: None)
+    )
+    handles = hosted_handles(tmp_path)
+    store_room(hosted_stores(handles).artifacts, four_lock_room)  # a Judge room, under rooms/judge/
+    settings = hosted_settings(PROVIDER_TRICKSTER="meta", MODEL_API_KEY="test-key")
+    assert (settings.demo_trickster, settings.cache) == ("live", "on")
+    client = TestClient(make_hosted_app(tmp_path, handles, settings=settings, clock=ticker))
+    session_id = start(client, four_lock_room)
+    open_window(client, ticker, session_id, click("key"), 0)
+    assert trickster(client, session_id)["cards"][0]["accepted"] and len(host.bodies) == 1
+    assert not (handles.root / CACHE_DIR).exists()  # only `cache-keys.json` names what the Nov 10 purge deletes (AD-8)
+    assert [entry for entry in handles.ledger if not entry.startswith("epoch")], "the call is still guarded and priced (AD-6)"
 
 
 # --- DEMO_TRICKSTER=record, then scripted (FR-25, AD-15) ----------------------------------
