@@ -3614,7 +3614,7 @@ _Covers FR-20, UX-DR20, UX-DR44, UX-DR84, AD-8. Owner: web. Depends on: 1.23, 2.
 **Given** cut 2 is taken
 **When** `web/profile` stores a result, recomputes the Derived block and starts a Session
 **Then** it reads and writes through `GET|PUT /profile/<name>` with the name from `?profile=` (default `dev`), opens no IndexedDB database, and treats a 404 as an empty profile that sends `Derived.fresh()`
-**And** `GET /profile/<name>` is called only after the player chooses "Open profile file" in this page load; until then the profile is empty and the Session start sends `Derived.fresh()`
+**And** `GET /profile/<name>` is called only after the player chooses "Open profile file" in this page load, or once immediately before the first write of this page load, so a write never drops results the file already holds; until then the profile is empty and the Session start sends `Derived.fresh()`
 **And** the 5.1 behavior tests pass against this backend, with one cut-2 exception: `GET|PUT /profile/<name>` to the local server carries the stored `RoomResult` entries and the Derived block, and `POST /sessions` still sends only `{room_id, derived}`
 
 **Given** the Capture screen's Retention summary (`{components.retention-summary}`, mockups/capture-screen.html) under cut 2

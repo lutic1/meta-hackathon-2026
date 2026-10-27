@@ -14,28 +14,34 @@ export interface FileStorage extends ProfileStorage {
 const notFound = (error: unknown): boolean => error instanceof RequestFailed && error.status === 404
 
 /**
- * The profile `name` as its file. Until a file is loaded in this page load, nothing is read: the profile is empty and
- * its Room results live in the page. Each result put writes the whole file, every Room result keyed by `room_id` plus
- * the Derived block recomputed from them; once a file is loaded, reads `GET` it, a 404 reading as an empty profile.
+ * The profile `name` as its file. Until a file is loaded in this page load, the profile reads as empty and its Room
+ * results live in the page; the file is still read once before the first write, so a write never drops the results it
+ * already holds. Each result put writes the whole file, every Room result keyed by `room_id` plus the Derived block
+ * recomputed from them; once a file is loaded, reads `GET` it. A 404 reads as an empty profile.
  */
 export function fileStorage(name: string): FileStorage {
   const results = new Map<string, RoomResult>()
   let loaded = false
   const profile = (): Profile => ({ results: Object.fromEntries(results), derived: derive([...results.values()]) })
+  /** Fills `results` from the file, a missing file being empty. */
+  const read = async (): Promise<void> => {
+    const stored = await getProfile(name).catch((error: unknown) => {
+      if (notFound(error)) return null
+      throw error
+    })
+    results.clear()
+    for (const result of Object.values(stored?.results ?? {})) results.set(result.room_id, result)
+    loaded = true
+  }
   return {
     getResults: async () => {
-      if (loaded) {
-        const stored = await getProfile(name).catch((error: unknown) => {
-          if (notFound(error)) return null
-          throw error
-        })
-        results.clear()
-        for (const result of Object.values(stored?.results ?? {})) results.set(result.room_id, result)
-      }
+      if (loaded) await read()
       return [...results.values()]
     },
     putResult: async (result) => {
+      if (!loaded) await read()
       const before = results.get(result.room_id)
+      if (result.demo && before?.demo === false) return // the file's counted result stays (the 5.1 rule)
       results.set(result.room_id, result)
       try {
         await putProfile(name, profile())

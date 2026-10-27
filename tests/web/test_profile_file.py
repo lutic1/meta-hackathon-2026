@@ -86,8 +86,9 @@ def test_until_a_file_is_opened_the_profile_is_empty_and_nothing_is_read(fresh_j
 def test_a_stored_result_writes_the_whole_profile_the_real_route_accepts(route: TestClient):
     replay = result(2, [puzzle(9, "order", rungs=2, first_hint_s=30, nudge=True)])
     out = run_profile([["put", "dev", ROOM_1], ["put", "dev", replay], ["derived", "dev"]])
-    assert _profile_requests(out["requests"]) == [("PUT", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE)]
-    first, second = (json.loads(r["body"]) for r in out["requests"])
+    # The first write of a page load reads the file once, so it never drops what the file already holds.
+    assert _profile_requests(out["requests"]) == [("GET", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE)]
+    first, second = (json.loads(r["body"]) for r in out["requests"][1:])
     # GET|PUT carries the stored RoomResult entries and the Derived block (the cut-2 exception), keyed by room_id.
     assert first == {"results": {ROOM_1["room_id"]: ROOM_1}, "derived": json.loads(Derived.model_validate(first["derived"]).model_dump_json())}
     assert second["results"] == {ROOM_1["room_id"]: ROOM_1, replay["room_id"]: replay} and second["derived"] == out["answers"][2]
@@ -107,6 +108,45 @@ def test_hosted_mode_sends_nothing_from_the_profile(fresh_json: dict[str, Any]):
     out = run_profile([["put", "dev", ROOM_1, "hosted"], ["results", "dev"], ["start", room_id(7), "dev", "hosted"]])
     assert out["requests"] == []  # no profile route in Hosted mode, so no RoomResult is ever sent there
     assert out["answers"][1] == [ROOM_1] and out["answers"][2] == {"room_id": room_id(7), "derived": fresh_json}
+
+
+# --- A fresh page load never drops what the file holds ----------------------------------------------------------------
+
+
+@needs_node
+def test_the_first_write_of_a_page_load_keeps_the_results_the_file_already_holds():
+    # Rooms 1 and 2 were played in an earlier page load; this one finishes Room 3 without "Open profile file".
+    room_3 = result(3, [puzzle(9, "order", rungs=2, first_hint_s=30, nudge=True)])
+    out = run_profile([["seed", "dev", profile_text(ROOM_1, FIXTURE[1], derived=json.loads(ON_DISK)["derived"])],
+                       ["put", "dev", room_3], ["results", "dev"]])
+    assert _profile_requests(out["requests"]) == [("GET", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE)]
+    written = json.loads(out["files"]["dev"])
+    assert written["results"] == {ROOM_1["room_id"]: ROOM_1, FIXTURE[1]["room_id"]: FIXTURE[1], room_3["room_id"]: room_3}
+    assert written["derived"] == run_profile([["derive", [ROOM_1, FIXTURE[1], room_3]]])["answers"][0]
+    assert out["answers"][2] == [room_3]  # the page's own view stays what this page load recorded (the cut-2 reading)
+
+
+@needs_node
+def test_a_reload_of_done_rewrites_the_file_with_the_same_contents():
+    on_disk = profile_text(ROOM_1, FIXTURE[1], derived=run_profile([["derive", [ROOM_1, FIXTURE[1]]]])["answers"][0])
+    out = run_profile([["seed", "dev", on_disk], ["put", "dev", FIXTURE[1]]])
+    assert json.loads(out["files"]["dev"]) == json.loads(on_disk)
+
+
+@needs_node
+def test_a_demo_result_never_replaces_the_counted_one_the_file_holds():
+    counted, demo = result(1, [puzzle(1, rungs=1)]), result(1, [puzzle(1, rungs=3)], demo=True)
+    out = run_profile([["seed", "dev", profile_text(counted, derived=json.loads(ON_DISK)["derived"])], ["put", "dev", demo]])
+    assert json.loads(out["files"]["dev"])["results"] == {counted["room_id"]: counted}
+    out = run_profile([["seed", "dev", profile_text(demo, derived=json.loads(ON_DISK)["derived"])], ["put", "dev", counted]])
+    assert json.loads(out["files"]["dev"])["results"] == {counted["room_id"]: counted}
+
+
+@needs_node
+def test_a_file_missing_at_the_first_write_is_an_empty_profile_that_is_written_whole():
+    out = run_profile([["put", "dev", ROOM_1]])
+    assert _profile_requests(out["requests"]) == [("GET", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE)]
+    assert json.loads(out["files"]["dev"])["results"] == {ROOM_1["room_id"]: ROOM_1}
 
 
 # --- "Open profile file" ---------------------------------------------------------------------------------------------
@@ -155,7 +195,7 @@ def test_a_refused_file_leaves_the_current_profile_unchanged(route: TestClient, 
     assert out["answers"][4] == [ROOM_1] and out["answers"][5] == out["answers"][2]
     assert out["answers"][6]["derived"] == out["answers"][2]  # no Session starts from the refused file
     assert out["heard"] == [1]
-    assert [r["method"] for r in out["requests"]] == ["PUT", "PUT"]  # nothing read after the refusal
+    assert [r["method"] for r in out["requests"]] == ["GET", "PUT", "PUT"]  # nothing read after the refusal
     assert json.loads(out["files"]["dev"])["results"] == {ROOM_1["room_id"]: ROOM_1}
 
 
