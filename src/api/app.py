@@ -121,9 +121,10 @@ Game-state summary; it mints the edit's `te_` id, judges the proposal live
 with `check_edit` (the bounds, then rules 1 to 9 over `apply_edit`) and
 appends one `trickster_card` carrying the full `TricksterEdit`, which
 closes the window. A source that yields no proposal (another Room, a
-used-up recording, no source under `live` until 4.8, or a proposals file
-that is missing or fails to load, which is logged) appends nothing; a
-`ProviderError` or `SpendCapExceeded` appends the skipped card
+used-up recording, or a proposals file that is missing or fails to load,
+which is logged) appends nothing; a `ProviderError` (the live source's
+call after the adapter's one retry, or a reply that is no proposal) or
+`SpendCapExceeded` appends the skipped card
 `{accepted: false, edit_id: null, reason: provider_unavailable}`, never a
 rejected card or the error envelope (AD-13). The reply is the session
 state, whose `cards` carry only the `TricksterCard` projection (AD-3).
@@ -946,7 +947,7 @@ def create_app(
             settings,
             demo=settings.demo_timescale > 1,
             greets=wired.greets,
-            trickster=trickster or trickster_source(settings, proposals_root),
+            trickster=trickster or trickster_source(settings, wired.trickster, proposals_root),
         )
     )
     app.include_router(unknown_api_routes())

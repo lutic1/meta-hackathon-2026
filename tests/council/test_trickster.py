@@ -187,7 +187,8 @@ def test_the_scripted_source_makes_no_model_call_and_writes_no_ledger_entry(tmp_
     imported = {
         node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module
     } | {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
-    assert not [name for name in imported if name.startswith(("src.providers", "src.infra", "src.pipeline", "src.api"))]
+    adapters = [name for name in imported if name.startswith(("src.providers", "src.infra", "src.pipeline", "src.api"))]
+    assert adapters == ["src.providers.base"]  # the port the live source calls (4.8); no adapter, cache or ledger
     assert list(inspect.signature(SOURCES["scripted"]).parameters) == ["root"]
 
     monkeypatch.chdir(tmp_path)

@@ -10,6 +10,11 @@ resolves the `HintPhraser` from `GUIDE` alone; no other setting selects a
 phraser, and the Ollama adapter is built only for `GUIDE=ollama`, at
 `OLLAMA_HOST`, over the verbatim adapter it falls back to (the hosted app
 never builds it: `Settings` refuses `MODE=hosted` with `GUIDE=ollama`).
+An `openai_compatible` role calls the model id its `MODEL_<ROLE>` names
+when that is set away from `muse-spark-1.3`, the Meta id no fallback host
+serves; left at it, the adapter's own default (Muse Spark Open on Baseten).
+So `PROVIDER_TRICKSTER=openai_compatible` on Fireworks takes the confirmed
+Fireworks id from `MODEL_TRICKSTER`, and no other role moves.
 
 `wire(settings)` is where `MODE` selects the adapters (AD-9) and the one
 mode branch in `src/api`: under `MODE=local` the disk adapters below; under
@@ -36,12 +41,15 @@ terminal Build (AD-9). `session_clock` is the one place `DEMO_TIMESCALE`
 reaches a clock and `build_clock` never sees it (AD-10).
 
 `trickster_source` resolves the Trickster's proposal source from
-`DEMO_TRICKSTER` through the source table in `src/council/trickster.py`
-(AD-15), over the root holding `proposals/` (the repo root, beside `src/`):
-`scripted` replays the recorded-proposals artifact and `authored` (cut 1)
-the pre-authored file, each read when a window asks; `live` and `record`
-resolve no source until the live source registers in 4.8, so their windows
-yield no proposal.
+`DEMO_TRICKSTER` through the source table `trickster_sources` (AD-15), over
+the root holding `proposals/` (the repo root, beside `src/`): `scripted`
+replays the recorded-proposals artifact and `authored` (cut 1) the
+pre-authored file, each read when a window asks; `live` is the live source
+on the `trickster` role's provider, and `record` the same source with the
+recorder behind it, writing each proposal into the recorded-proposals
+artifact (`Settings` refuses `record` in Hosted mode). `wire` builds the
+per-role providers once, over the process's one cache and `SpendLedger`, so
+the Build and the live Trickster share them.
 
 `access_guard` is the hosted access check on `POST /builds`,
 `GET /builds/<job_id>/room` and `POST /access/check` (AD-9): in hosted mode
@@ -86,8 +94,8 @@ import httpx
 from pydantic import ValidationError
 
 from src.api.errors import AccessDenied, TooManyAttempts
-from src.config import Settings
-from src.council.trickster import SOURCES, TricksterSource
+from src.config import MUSE_SPARK, Settings
+from src.council.trickster import RECORDED_PROPOSALS, SOURCES, LiveSource, TricksterSource
 from src.domain.ledger import CallKind
 from src.domain.schema import JobId, JobState, Role, Stage
 from src.infra.clocks import BuildClock, SessionClock
@@ -239,10 +247,12 @@ def model_provider(settings: Settings, role: Role, calls: Callable[[str], Guarde
         )
     if kind == "openai_compatible":
         base_url = settings.openai_compatible_base_url
+        model: str = getattr(settings, f"model_{role}")
         return OpenAICompatibleProvider(
             settings.openai_compatible_api_key,
             base_url,
             calls(httpx.URL(base_url).host if base_url else ""),
+            model=None if model == MUSE_SPARK else model,
             kind=chat_kind,
             budget_s=budget_s,
         )
@@ -349,11 +359,24 @@ def resume_jobs(jobs: JobStore, runner: JobRunner) -> list[JobId]:
     return left
 
 
-def trickster_source(settings: Settings, root: Path = PROPOSALS_ROOT) -> Callable[[], TricksterSource | None]:
-    """The source `DEMO_TRICKSTER` names in the source table, built over `root` each time a window asks; None while it has no entry (AD-15)."""
-    source = SOURCES.get(settings.demo_trickster)
-    if source is None:
-        return lambda: None  # `live` and `record` register with the live source in 4.8
+def trickster_sources(provider: ModelProvider) -> dict[str, Callable[[Path], TricksterSource]]:
+    """Every `DEMO_TRICKSTER` value to its source over a root: the replay values, then the live source on `provider` (AD-15).
+
+    `live` never records; `record` writes each live proposal into the
+    recorded-proposals artifact under the root, after the same call.
+    """
+    return {
+        **SOURCES,
+        "live": lambda root: LiveSource(provider),
+        "record": lambda root: LiveSource(provider, recording=root / RECORDED_PROPOSALS),
+    }
+
+
+def trickster_source(
+    settings: Settings, provider: ModelProvider, root: Path = PROPOSALS_ROOT
+) -> Callable[[], TricksterSource | None]:
+    """The source `DEMO_TRICKSTER` names in the source table, built over `root` each time a window asks (AD-15)."""
+    source = trickster_sources(provider)[settings.demo_trickster]
     return lambda: source(root)
 
 
@@ -395,6 +418,8 @@ class Wiring:
     """Whether `GET|PUT /profile/<name>` are served: Local mode, cut 2 only (AD-8)."""
     greets: bool
     """Whether a returning Derived block is greeted: Local mode only; every hosted start gets the welcome and `Derived.fresh()`."""
+    trickster: ModelProvider
+    """The `trickster` role's provider the live source calls, over the same cache and `SpendLedger` as the Build's."""
 
 
 def wire(
@@ -421,17 +446,19 @@ def wire(
                 "MODE=hosted runs on Modal: deploy src/api/modal_app.py, which passes the handles, run_build.spawn and the watchdog poll"
             )
         hosted = hosted_stores(handles, poll=handles.poll)
-        build = _build(settings, hosted.artifacts, hosted.jobs, hosted.cache, hosted.ledger, stages)
+        providers = model_providers(settings, hosted.cache, spend_ledger(settings, hosted.ledger))
+        build = _build(settings, hosted.artifacts, hosted.jobs, providers, hosted.ledger, stages)
         return Wiring(
             hosted.artifacts, hosted.jobs, hosted.sessions, build, ModalJobRunner(hosted.jobs, handles.spawn),
             on_terminal=do_nothing, startup=do_nothing,
             guard=access_guard(settings, hosted=True, attempts=hosted.attempts, now_ms=access_clock),
-            access_check=True, profiles=False, greets=False,
+            access_check=True, profiles=False, greets=False, trickster=providers["trickster"],
         )
     ledger = ledger_store(ledger_path)
     export = ledger_export(settings, ledger, exports_root, today)
     artifacts, jobs = artifact_store(rooms_root), job_store(rooms_root)
-    build = _build(settings, artifacts, jobs, model_cache(cache_root), ledger, stages)
+    providers = model_providers(settings, model_cache(cache_root), spend_ledger(settings, ledger))
+    build = _build(settings, artifacts, jobs, providers, ledger, stages)
     runner = job_runner(build, on_terminal=export)
 
     def startup() -> None:
@@ -442,6 +469,7 @@ def wire(
     return Wiring(
         artifacts, jobs, session_store(rooms_root), build, runner,
         on_terminal=export, startup=startup, guard=access_guard(settings, hosted=False), access_check=False, profiles=True, greets=True,
+        trickster=providers["trickster"],
     )
 
 
@@ -460,7 +488,8 @@ def run_hosted_build(
     if room_id is None:
         raise ValueError(f"job {job_id} names no room")
     keys = CacheKeyLog(stores.cache, stores.artifacts, room_id)
-    build = _build(settings, stores.artifacts, stores.jobs, keys, stores.ledger, stages)
+    providers = model_providers(settings, keys, spend_ledger(settings, stores.ledger))
+    build = _build(settings, stores.artifacts, stores.jobs, providers, stores.ledger, stages)
     return run_judge_build(build.run, job_id, keys=keys)
 
 
@@ -468,11 +497,10 @@ def _build(
     settings: Settings,
     artifacts: ArtifactStore,
     jobs: JobStore,
-    cache: Cache,
+    providers: Mapping[Role, ModelProvider],
     ledger: LedgerStore,
     stages: Mapping[Stage, StageFn] | None,
 ) -> Build:
     if stages is None:
-        providers = model_providers(settings, cache, spend_ledger(settings, ledger))
         stages = build_stages(providers, artifacts, ledger, dry_run=settings.dry_run == "on")
     return Build(jobs=jobs, artifacts=artifacts, clock=build_clock(), stages=stages, regen_max=settings.regen_max)

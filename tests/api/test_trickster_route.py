@@ -44,6 +44,7 @@ from src.domain.validator import RULES, validate
 from src.infra.local import CACHE_ROOT, LEDGER_PATH
 from src.pipeline.ports import room_key
 from src.providers.base import ProviderError
+from src.providers.mock import MockProvider
 from tests.api.test_app import make_app
 from tests.api.test_sessions import Ticker, click, code, post, start, stored
 from tests.domain.test_redact import json_keys
@@ -165,17 +166,12 @@ def test_wiring_resolves_the_scripted_and_authored_sources_over_proposals_under_
     recorded = proposals_root(tmp_path)
     authored = proposals_root(tmp_path, {**RECORDING, "proposals": [VALID_MERGE]}, AUTHORED_PROPOSALS)
     resolved = {
-        value: trickster_source(Settings.from_env({"DEMO_TRICKSTER": value}), recorded)()
+        value: trickster_source(Settings.from_env({"DEMO_TRICKSTER": value}), MockProvider("trickster"), recorded)()
         for value in ("scripted", "authored")
     }
     assert recorded == authored and all(isinstance(source, ScriptedSource) for source in resolved.values())
     assert [p.model_dump() for p in resolved["scripted"].recording.proposals] == RECORDING["proposals"]  # type: ignore[union-attr]
     assert [p.model_dump() for p in resolved["authored"].recording.proposals] == [VALID_MERGE]  # type: ignore[union-attr]
-
-
-@pytest.mark.parametrize("value", ["live", "record"])
-def test_live_and_record_resolve_no_source_until_the_live_source_registers(tmp_path: Path, value: str):
-    assert trickster_source(Settings.from_env({"DEMO_TRICKSTER": value}), proposals_root(tmp_path))() is None
 
 
 # --- Outside an open window -------------------------------------------------------------
