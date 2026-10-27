@@ -270,8 +270,8 @@ def test_422_codes_and_failures_map_to_their_banners_and_the_photos_stay():
     # Nothing in a refusal or failure touches the set.
     assert "photos =" not in submit and "photos =" not in _function(capture, "send")
     api = _ts("api/index.ts")
-    assert "if (!response.ok) throw new RequestFailed(path, response.status, await errorCode(response))" in api
-    assert "return ((await response.json()) as ErrorEnvelope).error.code" in api
+    assert "if (!response.ok) throw new RequestFailed(path, response.status, await errorDetail(response))" in api
+    assert "return ((await response.json()) as ErrorEnvelope).error ?? null" in api
 
 
 def test_banners_are_the_shared_error_banner_one_at_a_time_and_take_focus():

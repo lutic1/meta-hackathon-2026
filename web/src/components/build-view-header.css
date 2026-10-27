@@ -1,0 +1,45 @@
+/* {components.build-view-header}: a chrome row, the title and its lines left, "Back" right. */
+.build-view-header {
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-5);
+  padding: var(--spacing-4) var(--spacing-5);
+  border-radius: var(--rounded-md);
+  background: var(--chrome);
+}
+.build-view-header-text {
+  min-width: 0;
+}
+.build-view-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--spacing-3);
+}
+.build-view-title {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.build-view-time,
+.build-view-meta {
+  margin: 0;
+  color: var(--text-muted);
+}
+.build-view-meta {
+  margin-top: var(--spacing-2);
+}
+.build-view-meta .mono-sm {
+  color: var(--text);
+}
+.build-view-sent {
+  margin: 2px 0 0;
+  color: var(--text);
+}
+/* "Back" keeps the right end, also when it is alone in the row (the not-ready state). */
+.build-view-header > .button-secondary {
+  flex: none;
+  margin-left: auto;
+}

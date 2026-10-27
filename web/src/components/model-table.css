@@ -1,0 +1,62 @@
+/* {components.model-table}: a chrome panel; header cells in label text-muted over a hairline rule, a hairline between
+   roles, the caption under the table. Cells wrap at their spaces and hyphens (a wizard's name under its portrait when
+   the column is narrow), so the five columns fit the right third without horizontal scroll and the table stays above
+   the fold at 1440 x 900. */
+.model-table-panel {
+  box-sizing: border-box;
+  padding: var(--spacing-4);
+  border-radius: var(--rounded-md);
+  background: var(--chrome);
+}
+.model-table {
+  width: 100%;
+  border-collapse: collapse;
+  caption-side: bottom;
+  color: var(--text);
+}
+.model-table th,
+.model-table td {
+  padding: var(--spacing-2) 5px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+}
+.model-table th:first-child,
+.model-table td:first-child {
+  padding-left: 0;
+}
+.model-table th:last-child,
+.model-table td:last-child {
+  padding-right: 0;
+}
+.model-table thead th {
+  padding-top: 0;
+  vertical-align: bottom;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--hairline);
+}
+.model-table tbody tr.model-table-first:not(:first-child) > * {
+  border-top: 1px solid var(--hairline);
+}
+.model-table-role {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--text);
+}
+.model-table .model-table-id {
+  padding-top: 9px;
+}
+/* The role line runs full width under its wizard's rows, indented past the 24 px portrait and its 8 px gap. */
+.model-table .model-table-roleline td {
+  padding: 0 0 10px 32px;
+  color: var(--text-muted);
+}
+.model-table-caption {
+  margin-top: var(--spacing-2);
+  padding-top: 10px;
+  text-align: left;
+  color: var(--text-muted);
+  border-top: 1px solid var(--hairline);
+}

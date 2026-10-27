@@ -1,10 +1,11 @@
 // Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75);
-// "No rooms yet." is the one line EXPERIENCE.md gives only in Component Patterns (Stored Room row). EXPERIENCE.md
-// words no Scene loading line, no thumbnail name and no Timer end status, so the loading line reuses the "Setting
-// the scene" stage name, a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and
-// the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The speaker
-// prefixes are worded only in Component Patterns (Wizard portrait), and the Inventory and the Wizard notes take
-// their component names as their accessible names.
+// a few lines EXPERIENCE.md gives only in Component Patterns (the Stored Room row, the Wizard portrait's speaker
+// prefixes, the Build view rows) or State Patterns (the Build view states). EXPERIENCE.md words no Scene loading line,
+// no thumbnail name and no Timer end status, so the loading line reuses the "Setting the scene" stage name, a
+// thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and the end status after a
+// failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory and the Wizard notes take
+// their component names as their accessible names. A `{name}` placeholder stands where the source shows a
+// placeholder or an example value.
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -59,6 +60,43 @@ export const strings = {
   speakerRiddler: 'The Riddler:',
   speakerGuide: 'The Guide:',
   speakerTrickster: 'The Trickster:',
+  back: 'Back',
+  regenerations: 'Regenerations: {n} of {max}',
+  attemptSentBack: 'Attempt {k} sent back: {messages}',
+  buildNotReady: 'This room is still being built.',
+  buildLoadFailed: "Keyframe couldn't load how this room was built.",
+  modelRole: 'Role',
+  modelModel: 'Model',
+  modelHost: 'Where it ran',
+  modelWhat: 'What it did',
+  modelBilling: 'Cached or billed',
+  modelCaption: 'Cached means an identical earlier call was served from the cache, unbilled; billed means it ran live and was paid for.',
+  billed: '{n} billed',
+  cached: '{n} cached',
+  hostMeta: 'Meta Model API',
+  hostThisMac: 'this Mac',
+  hostOllama: 'Ollama on the Mac',
+  validator: 'Validator',
+  validatorModel: 'code, no model',
+  validatorDid: 'checked 8 rules',
+  dryRun: 'Dry run',
+  museImage: 'Muse Image',
+  museImageModel: 'muse-image-1.0',
+  museImageDid: 'painted the four portraits, once',
+  architect: 'The Architect',
+  architectRole: 'Reads your photos with muse-spark-1.3, names the objects, and draws their outlines with sam-3.1.',
+  riddler: 'The Riddler',
+  riddlerRole: 'Reads the objects; writes the puzzles with muse-spark-1.3, then a test run that never sees the answers checks each one can be solved.',
+  guide: 'The Guide',
+  guideRoleLocal: 'Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac.',
+  guideRoleWritten: 'Reads how you play; offers one hint at a time, never the answer, shown as written.',
+  guideModel: 'Llama 3.2 3B',
+  guideWritten: 'Hints are shown as written here. In Local mode, Llama 3.2 3B rewords them on the Mac.',
+  trickster: 'The Trickster',
+  tricksterRole: 'Reads the game state; proposes changes between puzzles with muse-spark-1.3, and the Validator checks each one.',
+  sourceLive: 'Source: live',
+  sourceScripted: 'Source: scripted',
+  sourceCut1: 'Source: written in advance',
 } as const
 
 /** `template` with each `{name}` replaced by `values[name]`. */

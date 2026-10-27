@@ -19,20 +19,36 @@ def _strings() -> dict[str, str]:
     return entries
 
 
-COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "speakerGuide", "speakerTrickster"}
+COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "speakerGuide", "speakerTrickster",
+                           "back", "regenerations", "attemptSentBack", "validatorDid", "museImage", "museImageModel",
+                           "museImageDid", "guideWritten", "trickster"}
 """Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list, the Wizard
-portrait's speaker prefixes)."""
+portrait's speaker prefixes, the Build view rows)."""
+
+STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed"}
+"""Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states)."""
+
 UNWORDED = {"photoThumbnail": "Remove photo {n}"}
 """Names EXPERIENCE.md never words, each derived from the Voice and Tone line given: the Thumbnail strip's
 "Photo {n}" is the photo tray's remove control without its verb."""
 
 
+def _section(name: str) -> str:
+    return EXPERIENCE.read_text().split(f"\n## {name}\n", 1)[1].split("\n## ", 1)[0]
+
+
 def _voice_and_tone() -> str:
-    return EXPERIENCE.read_text().split("\n## Voice and Tone\n", 1)[1].split("\n## Component Patterns\n", 1)[0]
+    return _section("Voice and Tone")
 
 
 def _component_patterns() -> str:
-    return EXPERIENCE.read_text().split("\n## Component Patterns\n", 1)[1].split("\n## ", 1)[0]
+    return _section("Component Patterns")
+
+
+def _verbatim(value: str, source: str) -> bool:
+    """`value` word for word in `source`, each `{name}` standing where the source shows a placeholder or an example."""
+    pattern = r"(?:\{[^}]+\}|\w+)".join(re.escape(part) for part in re.split(r"\{\w+\}", value))
+    return re.search(pattern, source) is not None
 
 
 def test_every_string_is_verbatim_from_voice_and_tone():
@@ -42,9 +58,18 @@ def test_every_string_is_verbatim_from_voice_and_tone():
             assert UNWORDED[key] in source and UNWORDED[key].removeprefix("Remove p") == value.removeprefix("P"), key
             continue
         if key in COMPONENT_PATTERNS_ONLY:
-            assert value in _component_patterns(), f"strings.{key} {value!r} is not verbatim in Component Patterns"
+            assert _verbatim(value, _component_patterns()), f"strings.{key} {value!r} is not verbatim in Component Patterns"
             continue
-        assert value in source, f"strings.{key} {value!r} is not verbatim in EXPERIENCE.md Voice and Tone"
+        if key in STATE_PATTERNS_ONLY:
+            assert _verbatim(value, _section("State Patterns")), f"strings.{key} {value!r} is not verbatim in State Patterns"
+            continue
+        assert _verbatim(value, source), f"strings.{key} {value!r} is not verbatim in EXPERIENCE.md Voice and Tone"
+
+
+def test_a_placeholder_stands_only_for_a_placeholder_or_an_example():
+    assert _verbatim("Regenerations: {n} of {max}", 'reads "Regenerations: n of {max}"')
+    assert _verbatim("{n} billed", 'for example "3 billed · 9 cached"')
+    assert not _verbatim("Regenerations: {n} of {max}", "Regenerations: none")
 
 
 def test_the_stored_room_strings_are_the_experience_lines():
@@ -82,6 +107,32 @@ def test_the_capture_strings_are_the_experience_lines():
     assert strings["uploadFailedBody"] == "Nothing was built. Check the connection and try again."
     assert strings["retentionHeading"] == "Where your photos go." and strings["playHistory"] == "Your play history"
     assert strings["privacyLine"] == "the player profile stays on your machine."  # verbatim, the Privacy line
+
+
+def test_the_build_view_strings_are_the_experience_lines():
+    strings = _strings()
+    assert strings["back"] == "Back"
+    assert strings["regenerations"].format(n=1, max=2) == "Regenerations: 1 of 2"
+    assert strings["attemptSentBack"].format(k=1, messages="A hint gives part of an answer away.") == (
+        "Attempt 1 sent back: A hint gives part of an answer away.")
+    assert strings["buildNotReady"] == "This room is still being built."
+    assert strings["buildLoadFailed"] == "Keyframe couldn't load how this room was built."
+    headers = [strings[k] for k in ("modelRole", "modelModel", "modelHost", "modelWhat", "modelBilling")]
+    assert headers == ["Role", "Model", "Where it ran", "What it did", "Cached or billed"]
+    assert strings["modelCaption"] == ("Cached means an identical earlier call was served from the cache, unbilled; "
+                                       "billed means it ran live and was paid for.")
+    mixed = strings["modeSeparator"].join([strings["billed"].format(n=3), strings["cached"].format(n=9)])
+    assert mixed == "3 billed · 9 cached"
+    assert (strings["hostMeta"], strings["hostThisMac"], strings["hostOllama"]) == ("Meta Model API", "this Mac", "Ollama on the Mac")
+    assert (strings["validator"], strings["validatorModel"], strings["validatorDid"]) == ("Validator", "code, no model", "checked 8 rules")
+    assert strings["dryRun"] == "Dry run"
+    assert (strings["museImage"], strings["museImageModel"]) == ("Muse Image", "muse-image-1.0")
+    assert strings["museImageDid"] == "painted the four portraits, once"
+    assert strings["guideWritten"] == "Hints are shown as written here. In Local mode, Llama 3.2 3B rewords them on the Mac."
+    assert (strings["sourceLive"], strings["sourceScripted"], strings["sourceCut1"]) == (
+        "Source: live", "Source: scripted", "Source: written in advance")
+    assert (strings["architect"], strings["riddler"], strings["guide"], strings["trickster"]) == (
+        "The Architect", "The Riddler", "The Guide", "The Trickster")
 
 
 def _code(text: str) -> str:

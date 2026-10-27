@@ -1,6 +1,8 @@
 // The HTTP client: every route under /api/ on the page's own origin (AD-9), typed by the generated web/types (AD-2).
 import type {
+  BuildView,
   Derived,
+  ErrorDetail,
   ErrorEnvelope,
   JobState,
   Meta,
@@ -11,22 +13,28 @@ import type {
   SessionState,
 } from '../../types'
 
-/** A request that got no answer, or an answer that was not a 2xx, with the AD-13 envelope's `code` when it carried one. */
+/**
+ * A request that got no answer, or an answer that was not a 2xx, with the AD-13 envelope's `code` when it carried
+ * one, and the job `status` that only `build_not_ready` carries.
+ */
 export class RequestFailed extends Error {
   readonly status: number | null
   readonly code: string | null
+  readonly jobStatus: JobState['status'] | null
 
-  constructor(path: string, status: number | null, code: string | null = null) {
+  constructor(path: string, status: number | null, detail: ErrorDetail | null = null) {
+    const code = detail?.code ?? null
     super(`${path}: ${status ?? 'no answer'}${code === null ? '' : ` ${code}`}`)
     this.status = status
     this.code = code
+    this.jobStatus = detail?.status ?? null
   }
 }
 
-/** The `error.code` of a refusal's envelope; null when the body is not one. */
-async function errorCode(response: Response): Promise<string | null> {
+/** The `error` of a refusal's envelope; null when the body is not one. */
+async function errorDetail(response: Response): Promise<ErrorDetail | null> {
   try {
-    return ((await response.json()) as ErrorEnvelope).error.code
+    return ((await response.json()) as ErrorEnvelope).error ?? null
   } catch {
     return null
   }
@@ -53,7 +61,7 @@ async function requestJson<T>(path: string, body?: unknown): Promise<T> {
   } catch {
     throw new RequestFailed(path, null)
   }
-  if (!response.ok) throw new RequestFailed(path, response.status, await errorCode(response))
+  if (!response.ok) throw new RequestFailed(path, response.status, await errorDetail(response))
   return (await response.json()) as T
 }
 
@@ -68,6 +76,11 @@ export function getMeta(profile: string): Promise<Meta> {
 /** `GET /sessions/<id>`: the replayed state, with the Room's own `disclosure` list (AD-4, AD-15). */
 export function getSession(sessionId: string): Promise<SessionState> {
   return getJson<SessionState>(`/sessions/${encodeURIComponent(sessionId)}`)
+}
+
+/** `GET /builds/<job_id>/view`: the solution-free `BuildView` of a `done` Build, open in both modes (AD-3). */
+export function getBuildView(jobId: string): Promise<BuildView> {
+  return getJson<BuildView>(`/builds/${encodeURIComponent(jobId)}/view`)
 }
 
 /** `GET /rooms`: one `RoomSummary` per stored Room, newest build first (AD-9); the browser keeps no list of its own. */

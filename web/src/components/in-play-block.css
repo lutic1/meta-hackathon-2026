@@ -1,0 +1,37 @@
+/* {components.in-play-block}: a chrome panel of two rows, each a 32 px portrait beside the name (label), the role
+   line (body-sm, text-muted) and the model or source line (body-sm, text), a hairline between them. */
+.in-play-block {
+  box-sizing: border-box;
+  padding: var(--spacing-4);
+  border-radius: var(--rounded-md);
+  background: var(--chrome);
+  color: var(--text);
+}
+.in-play-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: var(--spacing-3);
+  padding: var(--spacing-3) 0;
+}
+.in-play-row:first-child {
+  padding-top: 0;
+}
+.in-play-row:last-child {
+  padding-bottom: 0;
+}
+.in-play-row + .in-play-row {
+  border-top: 1px solid var(--hairline);
+}
+.in-play-name {
+  margin: 0;
+  padding-top: 6px;
+  color: var(--text);
+}
+.in-play-role {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+}
+.in-play-model {
+  margin: 6px 0 0;
+  color: var(--text);
+}
