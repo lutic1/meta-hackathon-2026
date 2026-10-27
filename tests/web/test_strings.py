@@ -21,9 +21,9 @@ def _strings() -> dict[str, str]:
 
 COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "speakerGuide", "speakerTrickster",
                            "back", "regenerations", "attemptSentBack", "validatorDid", "museImage", "museImageModel",
-                           "museImageDid", "guideWritten", "trickster"}
+                           "museImageDid", "guideWritten", "trickster", "submit"}
 """Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list, the Wizard
-portrait's speaker prefixes, the Build view rows)."""
+portrait's speaker prefixes, the Build view rows, the Code field's Submit)."""
 
 STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed"}
 """Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states)."""

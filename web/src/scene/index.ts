@@ -43,7 +43,9 @@ function firstPointerResponse(sessionId: string): void {
  * light), on a canvas sized to the photo contained in the frame; the photo's Hotspots lie over it in its own pixel
  * space. The frame shows its loading line until a photo and its Hotspots are live. A Hotspot click posts one `click`
  * naming its Interactable and nothing else; when the reply opened no lock, the click hit no target and the label
- * chip shows. Returns the teardown.
+ * chip shows ("{label} · in hand" on an Interactable the Inventory holds). The Hotspots of collected Interactables
+ * follow `inventory` in every state the server sends, so a solved `find` target's glow fades out. Returns the
+ * teardown.
  */
 export function mountScene(
   root: HTMLElement,
@@ -150,12 +152,17 @@ export function mountScene(
         onPointerEnter: () => firstPointerResponse(play.id),
       },
     )
+    layer.setCollected(play.state().inventory)
     photo.replaceChildren(renderer.domElement, ...layer.elements)
     frame.classList.remove('is-loading')
     loading.hidden = true
     photo.hidden = false
     render()
   }
+
+  play.onState((state) => {
+    if (mounted) layer?.setCollected(state.inventory)
+  })
 
   const observer = new ResizeObserver(render)
   observer.observe(ground)

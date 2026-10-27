@@ -1,0 +1,30 @@
+/* The Code field row in a Puzzle entry's lock slot: the field, Submit, then the feedback chip, 8 px apart. */
+.code-lock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+/* {components.code-field}: a 168 x 44 parchment-shade inset in mono-code (the class carries the type), rounded sm,
+   ink; no visible label or placeholder. The transparent edge keeps the size when the selected edge shows. */
+.code-field {
+  box-sizing: border-box;
+  width: 168px;
+  height: 44px;
+  margin: 0;
+  padding: 0 var(--spacing-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-sm);
+  background: var(--parchment-shade);
+  color: var(--ink);
+}
+/* Selected for retyping (after "Not this"): the lamp-ink-hover-fill tint over the shade and a 1 px lamp-ink edge,
+   in place of the browser's own selection color. */
+.code-field.is-selected {
+  border-color: var(--lamp-ink);
+  background: linear-gradient(var(--lamp-ink-hover-fill), var(--lamp-ink-hover-fill)), var(--parchment-shade);
+}
+.code-field.is-selected::selection {
+  background: transparent;
+  color: var(--ink);
+}

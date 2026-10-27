@@ -1,4 +1,5 @@
 import type { PlayInteractable } from '../../types'
+import { fill, strings } from '../strings.ts'
 import { hotspotPath, type Size, topLeft } from './geometry.ts'
 
 const SVG = 'http://www.w3.org/2000/svg'
@@ -18,8 +19,13 @@ export interface HotspotHandlers {
 export interface HotspotLayer {
   /** The overlay over the photo: the Hotspots' SVG and the label chip. */
   elements: [SVGSVGElement, HTMLElement]
-  /** Shows the Interactable's label on the chip until 2 s pass or the pointer leaves its Hotspot. */
+  /**
+   * Shows the Interactable's label on the chip until 2 s pass or the pointer leaves its Hotspot: "{label} · in hand"
+   * for an Interactable the Inventory holds.
+   */
   showLabel: (interactable: PlayInteractable) => void
+  /** Marks the Hotspots of the Interactables `inventory` holds: a collected one's glow fades out and stays out. */
+  setCollected: (inventory: readonly string[]) => void
 }
 
 function path(className: string, d: string): SVGPathElement {
@@ -34,7 +40,8 @@ function path(className: string, d: string): SVGPathElement {
  * `polygons` in the photo's own pixel space (the SVG `viewBox`), so the browser scales them to the rendered size.
  * Each is a focusable button named by the Interactable label whose id is the Interactable id; only its hit path
  * takes the pointer, so a click outside every polygon reaches no Hotspot. Invisible at rest; the reveal (outline,
- * halo and glow fill) shows on hover and on keyboard focus, never with a label.
+ * halo and glow fill) shows on hover and on keyboard focus, never with a label. A collected `find` target stays in
+ * the Scene, still a Hotspot, but its glow fill fades out over 200 ms and no longer shows (FR-12).
  */
 export function hotspotLayer(photo: Size, interactables: readonly PlayInteractable[], handlers: HotspotHandlers): HotspotLayer {
   const svg = document.createElementNS(SVG, 'svg')
@@ -57,7 +64,7 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     hotspot.setAttribute('tabindex', '0')
     const reveal = document.createElementNS(SVG, 'g')
     reveal.setAttribute('class', 'hotspot-reveal')
-    reveal.append(path('hotspot-halo', d), path('hotspot-outline', d))
+    reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))
     hotspot.append(reveal, path('hotspot-hit', d))
     hotspot.addEventListener('pointerenter', handlers.onPointerEnter)
     hotspot.addEventListener('click', () => handlers.onActivate(interactable))
@@ -69,6 +76,7 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
   }
 
   let hide: (() => void) | undefined
+  let collected: readonly string[] = []
 
   function showLabel(interactable: PlayInteractable): void {
     const hotspot = hotspots.get(interactable.id)
@@ -77,7 +85,8 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     const rendered = svg.getBoundingClientRect()
     const scale = rendered.width / photo.width
     const [left, top] = topLeft(interactable.polygons ?? [])
-    chip.textContent = interactable.label
+    const held = collected.includes(interactable.id)
+    chip.textContent = held ? fill(strings.inHand, { label: interactable.label }) : interactable.label
     chip.style.left = `${left * scale}px`
     // 8 px above the polygon, kept inside the photo when the polygon touches its top edge.
     const bottom = Math.min(rendered.height - top * scale + CHIP_OFFSET_PX, rendered.height - chip.offsetHeight)
@@ -94,5 +103,10 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     hide = done
   }
 
-  return { elements: [svg, chip], showLabel }
+  function setCollected(inventory: readonly string[]): void {
+    collected = inventory
+    for (const [id, hotspot] of hotspots) hotspot.classList.toggle('is-collected', inventory.includes(id))
+  }
+
+  return { elements: [svg, chip], showLabel, setCollected }
 }

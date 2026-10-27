@@ -1,11 +1,11 @@
 // Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75);
 // a few lines EXPERIENCE.md gives only in Component Patterns (the Stored Room row, the Wizard portrait's speaker
-// prefixes, the Build view rows) or State Patterns (the Build view states). EXPERIENCE.md words no Scene loading line,
-// no thumbnail name and no Timer end status, so the loading line reuses the "Setting the scene" stage name, a
-// thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and the end status after a
-// failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory and the Wizard notes take
-// their component names as their accessible names. A `{name}` placeholder stands where the source shows a
-// placeholder or an example value.
+// prefixes, the Build view rows, the Code field's Submit) or State Patterns (the Build view states). EXPERIENCE.md
+// words no Scene loading line, no thumbnail name and no Timer end status, so the loading line reuses the "Setting
+// the scene" stage name, a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and
+// the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory
+// and the Wizard notes take their component names as their accessible names. A `{name}` placeholder stands where
+// the source shows a placeholder or an example value.
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -56,6 +56,10 @@ export const strings = {
   evidenceCard: '1 evidence card',
   notThis: 'Not this · {n}',
   open: 'Open',
+  codeFor: 'Code for Puzzle {n}',
+  submit: 'Submit',
+  checking: 'Checking',
+  inHand: '{label} · in hand',
   speakerArchitect: 'The Architect:',
   speakerRiddler: 'The Riddler:',
   speakerGuide: 'The Guide:',

@@ -14,6 +14,8 @@ export interface PlaySession {
   state: () => SessionState
   /** Posts one event (never stamped by the client); every part redraws from the server's reply. */
   post: (body: PostedEvent) => Promise<SessionState>
+  /** Draws `render` with every later state the server sends, a poll or a reply. */
+  onState: (render: (state: SessionState) => void) => void
 }
 
 /**
@@ -45,6 +47,9 @@ export function mountPlay(sceneColumn: HTMLElement, sideColumn: HTMLElement, ses
       receive(reply)
       return reply
     },
+    onState: (render) => {
+      parts.push(render)
+    },
   }
 
   let polling = false
@@ -74,7 +79,7 @@ export function mountPlay(sceneColumn: HTMLElement, sideColumn: HTMLElement, ses
     .then((view) => {
       if (!mounted) return
       const held = inventory(view)
-      const notes = wizardNotes(view)
+      const notes = wizardNotes(view, play)
       stripRow.append(held.element)
       sideColumn.append(notes.element)
       parts.push(held.render, notes.render)

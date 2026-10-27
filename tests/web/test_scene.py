@@ -114,10 +114,12 @@ def test_hover_reveals_the_outline_halo_and_glow_within_150_ms_with_a_pointer_cu
     assert reveal["opacity"] == "0" and reveal["transition"] == "opacity var(--motion-hover) var(--motion-ease)"
     assert rules[".hotspot:hover .hotspot-reveal,\n.hotspot:focus-visible .hotspot-reveal"] == {"opacity": "1"}
     assert rules[".hotspot-outline"] == {"fill": "none", "stroke": "var(--hotspot-outline)", "stroke-width": "2px"}
-    halo = rules[".hotspot-halo"]
-    assert halo == {"fill": "var(--hotspot-glow)", "stroke": "var(--hotspot-halo)", "stroke-width": "4px"}
+    # Story 1.21: the glow fill is its own path under the halo, so a collected find target's glow alone can fade.
+    assert rules[".hotspot-glow"]["fill"] == "var(--hotspot-glow)"
+    assert rules[".hotspot-halo"] == {"fill": "none", "stroke": "var(--hotspot-halo)", "stroke-width": "4px"}
     assert rules[".hotspot-halo,\n.hotspot-outline"]["vector-effect"] == "non-scaling-stroke"
-    assert rules[".hotspot:hover .hotspot-halo"] == {"fill": "var(--hotspot-glow)"}
+    assert rules[".hotspot:hover .hotspot-glow"] == {"opacity": "1"}
+    assert "reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))" in _ts("scene/hotspots.ts")
     # No label on hover: the chip shows only after a click whose reply opened nothing.
     layer = _ts("scene/hotspots.ts")
     assert "pointerenter" in layer and "showLabel" not in layer.split("for (const interactable", 1)[1].split("let hide", 1)[0]
@@ -150,7 +152,7 @@ def test_a_non_target_click_shows_only_the_label_chip_8px_above_for_2s_or_until_
     assert "const opened = reply.locks_open.some((id) => !before.includes(id))" in activate
     assert "if (mounted && !opened) layer?.showLabel(interactable)" in activate
     assert "export const CHIP_OFFSET_PX = 8" in layer and "export const CHIP_MS = 2000" in layer
-    assert "chip.textContent = interactable.label" in layer
+    assert "chip.textContent = held ? fill(strings.inHand, { label: interactable.label }) : interactable.label" in layer
     assert "rendered.height - top * scale + CHIP_OFFSET_PX" in layer
     assert "setTimeout(() => hide?.(), CHIP_MS)" in layer
     assert "hotspot.addEventListener('pointerleave', done)" in layer
@@ -205,8 +207,8 @@ def test_every_hotspot_is_a_focusable_button_that_enter_activates_with_the_ring_
     assert "if (event.key === 'Enter') handlers.onActivate(interactable)" in layer
     rules = _rules("scene/scene.css")
     # Outside the edge: 2 px focus-ring-inner against the polygon, 2 px focus-ring beyond it, as on every element.
-    assert rules[".hotspot:focus-visible .hotspot-halo"] == {"fill": "none", "stroke": "var(--focus-ring)",
-                                                            "stroke-width": "8px"}
+    assert rules[".hotspot:focus-visible .hotspot-halo"] == {"stroke": "var(--focus-ring)", "stroke-width": "8px"}
+    assert rules[".hotspot:focus-visible .hotspot-glow"] == {"opacity": "0"}
     assert rules[".hotspot:focus-visible .hotspot-outline"] == {"stroke": "var(--focus-ring-inner)",
                                                                "stroke-width": "4px"}
 

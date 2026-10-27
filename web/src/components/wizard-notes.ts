@@ -1,8 +1,14 @@
 import './wizard-notes.css'
 import type { PlayPuzzle, PlayView, SessionState } from '../../types'
+import { fadeIn } from '../fade.ts'
+import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
 import { speakerPrefix, wizardPortrait } from '../wizards/portrait.ts'
+import { type CodeField, codeField } from './code-field.ts'
 import { evidenceCard } from './evidence-card.ts'
+
+/** UX-DR38: a lock the server opened shows "Open" this long before its entry collapses and the next one appears. */
+export const OPEN_HOLD_MS = 1200
 
 export interface WizardNotes {
   element: HTMLElement
@@ -12,7 +18,10 @@ export interface WizardNotes {
 
 interface Entry {
   element: HTMLElement
+  heading: HTMLHeadingElement
   update: (state: SessionState) => void
+  /** The lock just opened: the lock input gives way to the Open chip while the entry stays expanded. */
+  opening: () => void
 }
 
 /**
@@ -36,7 +45,7 @@ function paragraph(className: string, ...children: (Node | string)[]): HTMLParag
 }
 
 /** One Puzzle's entry, built once; `update` changes only what session state moves. */
-function entry(room: PlayView, puzzle: PlayPuzzle, n: number): Entry {
+function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession): Entry {
   const element = document.createElement('article')
   element.className = 'notes-entry'
 
@@ -47,6 +56,7 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number): Entry {
   const heading = document.createElement('h3')
   heading.className = 'notes-entry-heading display-sm'
   heading.textContent = fill(strings.puzzleHeading, { n })
+  heading.tabIndex = -1 // focus moves here when the lock before it opens
   const current = document.createElement('span')
   current.className = 'notes-current label'
   current.textContent = strings.current
@@ -80,6 +90,8 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number): Entry {
   lock.className = 'notes-lock' // the lock input (1.21, 1.26) and its feedback
   const wrong = document.createElement('span')
   wrong.className = 'chip chip-not-this label'
+  const code: CodeField | undefined = puzzle.lock_type === 'code' ? codeField(puzzle, n, play) : undefined
+  if (code !== undefined) lock.append(code.element)
   body.append(clue, evidence, lore, rungs, lock)
   element.append(head, body)
 
@@ -92,47 +104,100 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number): Entry {
     count.hidden = open
     opened.hidden = !open
     body.hidden = open
+    if (code !== undefined) {
+      code.update(state)
+      return
+    }
     const attempts = state.wrong_attempts[puzzle.id] ?? 0
     wrong.textContent = fill(strings.notThis, { n: attempts })
     if (attempts === 0) wrong.remove()
     else if (wrong.parentNode !== lock) lock.append(wrong)
   }
 
-  return { element, update }
+  function opening(): void {
+    const chip = opened.cloneNode(true) as HTMLElement
+    chip.hidden = false
+    lock.replaceChildren(chip)
+  }
+
+  return { element, heading, update, opening }
 }
 
 /**
  * The Wizard notes (`{components.wizard-notes}`, FR-11, UX-DR27): a parchment sheet scrolling inside the side
  * column with one entry per Puzzle whose prerequisites are open, in availability order, each headed "Puzzle {n}"
  * (n = its fixed place in the Room) with its evidence count at the right end, then the Riddler's portrait beside the
- * Clue, the Evidence cards in `PlayView` order, the Lore, the opened-Rungs slot and the lock-input slot. The Active
- * puzzle's entry carries the `{components.active-puzzle-marker}`, read from `active_puzzle_id` and never guessed; an
- * open entry collapses to its heading with the Open chip. Everything follows session state; nothing follows a click.
+ * Clue, the Evidence cards in `PlayView` order, the Lore, the opened-Rungs slot and the lock-input slot (the Code
+ * field of a `code` Puzzle). The Active puzzle's entry carries the `{components.active-puzzle-marker}`, read from
+ * `active_puzzle_id` and never guessed; an open entry collapses to its heading with the Open chip. When a state
+ * shows a lock newly open, "Open" takes the lock input's place for 1200 ms (UX-DR38), then the notes draw the latest
+ * state: the entry collapses, newly available entries fade in, and focus moves to the heading of the first of them,
+ * else of the Active puzzle. Everything follows session state; nothing follows a click.
  */
-export function wizardNotes(room: PlayView): WizardNotes {
+export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   const element = document.createElement('section')
   element.className = 'wizard-notes'
   element.setAttribute('aria-label', strings.wizardNotes)
   const entries = new Map<string, Entry>()
   let drawn: string | undefined
+  /** `locks_open` as last drawn; undefined before the first draw, which shows open locks collapsed at once. */
+  let drawnOpen: readonly string[] | undefined
+  let latest: SessionState | undefined
+  let holding = false
 
-  function render(state: SessionState): void {
-    const key = JSON.stringify([state.locks_open, state.active_puzzle_id, state.wrong_attempts])
-    if (key === drawn) return
-    drawn = key
+  function built(puzzle: PlayPuzzle): Entry {
+    let made = entries.get(puzzle.id)
+    if (made === undefined) {
+      made = entry(room, puzzle, room.puzzles.indexOf(puzzle) + 1, play)
+      entries.set(puzzle.id, made)
+    }
+    return made
+  }
+
+  function draw(state: SessionState, afterOpening: boolean): void {
+    drawn = JSON.stringify([state.locks_open, state.active_puzzle_id, state.wrong_attempts])
+    drawnOpen = state.locks_open
+    const before = new Set(element.children)
     const shown = availableInOrder(room.puzzles, state.locks_open).map((puzzle) => {
-      let built = entries.get(puzzle.id)
-      if (built === undefined) {
-        built = entry(room, puzzle, room.puzzles.indexOf(puzzle) + 1)
-        entries.set(puzzle.id, built)
-      }
-      built.update(state)
-      return built.element
+      const made = built(puzzle)
+      made.update(state)
+      return made
     })
     const children = [...element.children]
-    if (shown.length !== children.length || shown.some((child, index) => child !== children[index])) {
-      element.replaceChildren(...shown)
+    if (shown.length !== children.length || shown.some(({ element: child }, index) => child !== children[index])) {
+      element.replaceChildren(...shown.map((made) => made.element))
     }
+    const arrived = shown.filter((made) => !before.has(made.element))
+    if (before.size > 0) for (const made of arrived) fadeIn(made.element)
+    if (!afterOpening) return
+    const active = state.active_puzzle_id === null ? undefined : entries.get(state.active_puzzle_id)
+    const next = arrived[0] ?? (active !== undefined && active.element.isConnected ? active : undefined)
+    next?.heading.focus()
+  }
+
+  function render(state: SessionState): void {
+    latest = state
+    if (holding) return
+    const key = JSON.stringify([state.locks_open, state.active_puzzle_id, state.wrong_attempts])
+    if (key === drawn) return
+    const previous = drawnOpen
+    const opened =
+      previous === undefined
+        ? []
+        : state.locks_open.flatMap((id) => {
+            const made = entries.get(id)
+            return !previous.includes(id) && made?.element.isConnected ? [made] : []
+          })
+    if (opened.length === 0) {
+      draw(state, false)
+      return
+    }
+    holding = true
+    for (const made of opened) made.opening()
+    setTimeout(() => {
+      holding = false
+      if (latest !== undefined && element.isConnected) draw(latest, true)
+    }, OPEN_HOLD_MS)
   }
 
   return { element, render }

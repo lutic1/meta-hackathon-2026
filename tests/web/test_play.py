@@ -102,7 +102,7 @@ def test_the_wizard_notes_draw_one_entry_per_available_puzzle_in_availability_or
     assert ".sort((a, b) => a.since - b.since || a.place - b.place)" in order
     assert "availableInOrder(room.puzzles, state.locks_open)" in notes
     # n is the Puzzle's fixed place in the Room, never its place in the list.
-    assert "entry(room, puzzle, room.puzzles.indexOf(puzzle) + 1)" in notes
+    assert "entry(room, puzzle, room.puzzles.indexOf(puzzle) + 1, play)" in notes
     assert "heading.textContent = fill(strings.puzzleHeading, { n })" in notes
 
 

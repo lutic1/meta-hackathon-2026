@@ -37,7 +37,8 @@
 
 /* {components.hotspot}: invisible at rest, a pointer cursor on its polygons only. Hover reveals the 2 px lamp
    outline over a 1 px dark halo (a 4 px halo stroke under the 2 px outline) and the 35% glow fill, in 150 ms.
-   Strokes keep their pixel width at any rendered size. */
+   Strokes keep their pixel width at any rendered size. The glow fill is its own path, so a collected find target's
+   glow alone fades out (200 ms) while its outline still answers hover and focus. */
 .scene-hotspots {
   position: absolute;
   inset: 0;
@@ -65,8 +66,12 @@
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
-.hotspot-halo {
+.hotspot-glow {
   fill: var(--hotspot-glow);
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+.hotspot-halo {
+  fill: none;
   stroke: var(--hotspot-halo);
   stroke-width: 4px;
 }
@@ -80,8 +85,10 @@
 .hotspot:focus-visible {
   outline-color: transparent;
 }
+.hotspot:focus-visible .hotspot-glow {
+  opacity: 0;
+}
 .hotspot:focus-visible .hotspot-halo {
-  fill: none;
   stroke: var(--focus-ring);
   stroke-width: 8px;
 }
@@ -89,8 +96,12 @@
   stroke: var(--focus-ring-inner);
   stroke-width: 4px;
 }
-.hotspot:hover .hotspot-halo {
-  fill: var(--hotspot-glow);
+.hotspot:hover .hotspot-glow {
+  opacity: 1;
+}
+/* Collected: no longer a target, so its glow fades out and stays out under hover and focus. */
+.hotspot.is-collected .hotspot-glow {
+  opacity: 0;
 }
 
 /* {components.hotspot-label-chip}: parchment, label type, 8 px above the polygon (placed by the Scene); it fades. */
