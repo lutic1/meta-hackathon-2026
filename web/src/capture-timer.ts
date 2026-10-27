@@ -17,6 +17,10 @@ export interface TimerRun {
   stoppedAt: number | null
   /** The end status beside the frozen digits; null while it counts and once frozen at T1. */
   status: string | null
+  /** Hosted: the Build's last poll read `queued`, so "queued" stands in place of the digits (absent on older runs). */
+  queued?: boolean
+  /** Hosted: T0 to the first poll that read the Build no longer `queued`, once it was seen queued; else absent. */
+  queueMs?: number
 }
 
 const STORAGE_KEY = 'keyframe-capture-timer'
@@ -61,6 +65,23 @@ export function buildAccepted(jobId: string): void {
   if (current !== null && current.jobId === null) save({ ...current, jobId })
 }
 
+/** A poll read the Build `jobId` `queued` (Hosted): its run shows "queued" in place of the digits, still counting. */
+export function buildQueued(jobId: string): void {
+  const current = counting()
+  if (current !== null && current.jobId === jobId && current.queued !== true) save({ ...current, queued: true })
+}
+
+/**
+ * A poll read the Build `jobId` past `queued`: the digits return, and a run that was shown queued records its time
+ * in the queue, T0 to now, measured by the client.
+ */
+export function buildDequeued(jobId: string): void {
+  const current = counting()
+  if (current !== null && current.jobId === jobId && current.queued === true) {
+    save({ ...current, queued: false, queueMs: Date.now() - current.t0 })
+  }
+}
+
 /** The Build opened `sessionId` on the Play screen: that Session shows the run until T1, and frozen after it. */
 export function sessionOpened(jobId: string, sessionId: string): void {
   const current = counting()
@@ -103,8 +124,8 @@ export function mountTimer(slot: HTMLElement, belongs: (run: TimerRun) => boolea
       slot.replaceChildren()
     } else {
       const elapsedMs = (shown.stoppedAt ?? Date.now()) - shown.t0
-      if (shown.stoppedAt === null) view.render({ kind: 'running', elapsedMs })
-      else if (shown.status === null) view.render({ kind: 'playable', elapsedMs })
+      if (shown.stoppedAt === null) view.render({ kind: 'running', elapsedMs, queued: shown.queued === true })
+      else if (shown.status === null) view.render({ kind: 'playable', elapsedMs, queueMs: shown.queueMs ?? null })
       else view.render({ kind: 'ended', elapsedMs, status: shown.status })
       if (!view.element.isConnected) slot.replaceChildren(view.element)
     }

@@ -1,6 +1,7 @@
 import './landing.css'
 import type { Meta, RoomSummary } from '../types'
 import { getBuildView } from './api/index.ts'
+import { accessCodeBuild } from './components/access-code-build.ts'
 import { secondaryButton, secondaryLink } from './components/button.ts'
 import { type DemoRoomCard, demoRoomCard } from './components/demo-room-card.ts'
 import { bannerSlot } from './components/error-banner.ts'
@@ -48,16 +49,18 @@ function titleBlock(first: RoomSummary | undefined, profile: string): HTMLElemen
 
 /**
  * The Hosted landing (UX-DR57, UX-DR68): the title block across the top, then the left area, with the banner slot at
- * its top and the Demo room cards three across from `rooms` in served order, beside the 400 px right column the
- * Access-code build fills (7.17). `rooms` is null when `GET /rooms` failed: the plain failed line with "Try again"
- * (`onRetry`) stands in place of the cards. An empty list shows the no-demo-rooms line. A card starts a Session
- * through `roomStarter`, so a refused start shows the session-start-refused banner in the slot, focused.
+ * its top and the Demo room cards three across from `rooms` in served order, beside the 400 px right column that
+ * holds the Access-code build, whose accepted code calls `onAccepted` with the builds left. `rooms` is null when
+ * `GET /rooms` failed: the plain failed line with "Try again" (`onRetry`) stands in place of the cards. An empty list
+ * shows the no-demo-rooms line. In every case the Access-code build stays usable. A card starts a Session through
+ * `roomStarter`, so a refused start shows the session-start-refused banner in the slot, focused.
  */
 export function hostedLanding(
   rooms: readonly RoomSummary[] | null,
   profile: string,
   mode: Meta['mode'],
   onRetry: () => void,
+  onAccepted: (buildsLeft: number) => void,
 ): HostedLanding {
   const banners = bannerSlot()
   const left = document.createElement('section')
@@ -65,6 +68,7 @@ export function hostedLanding(
   left.append(banners)
   const right = document.createElement('aside')
   right.className = 'landing-right'
+  right.append(accessCodeBuild(onAccepted))
   const block = titleBlock(rooms?.[0], profile)
 
   if (rooms === null) {

@@ -234,6 +234,20 @@ export const strings = {
   wordedOnThisMac: 'worded on this Mac · {s} s',
   asWritten: 'as written',
   noHintChanges: 'No hint changes yet.',
+  buildYourOwnRoom: 'Build your own room',
+  accessCode: 'Access code',
+  checkCode: 'Check code',
+  accessCodeEmpty: 'Enter the access code from the submission.',
+  accessCodeRefused: "That access code isn't right. No photos were sent.",
+  tooManyTries: 'Too many tries. Wait a moment, then check the code again.',
+  buildsLeft: '{n} of 20 builds left',
+  buildQuota: 'All 20 judge builds have been used. The demo rooms are still open.',
+  queued: 'Another room is being built. Yours is in line and will start on its own.',
+  timerQueued: 'queued',
+  queueNote: 'includes {m}:{ss} in the queue',
+  ownLink: 'This build has its own link; close this tab or play a demo room meanwhile.',
+  targetMeasured: 'The two-minute build target is measured in Local mode on the Mac; here the timer also counts any time in the queue.',
+  judgeBuildRetry: 'Trying again uses one of the remaining judge builds.',
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

@@ -70,7 +70,7 @@ def test_the_build_route_is_the_capture_layout_with_the_stage_list_in_place_of_t
     assert "const build = buildScreen(content.jobId, content.profile, content.mode, content.retention)" in shell
     assert "element.append(build.left, build.right)" in shell and "mount: build.mount" in shell
     screen = _code("build-progress.ts")
-    assert "left.append(banners, stages.element, actions, maskSlot, traySlot, picker)" in screen
+    assert "left.append(banners, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), actions, maskSlot, traySlot, picker)" in screen
     assert "right: captureColumn(retention, profile, mode, banners)" in screen
     assert "captureDropzone" not in screen and "storedRooms" not in screen
     capture = _code("capture.ts")

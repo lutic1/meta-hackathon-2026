@@ -1,5 +1,6 @@
 /* {components.timer}: the label in text-muted, the static 6 px lamp dot while it runs, the mono-timer digits in
-   text, or in success once frozen at T1; an end status in text-muted after the frozen digits. Nothing blinks. */
+   text, or in success once frozen at T1; an end status, or the Hosted queue note, in text-muted after the frozen
+   digits. Hosted, while queued: the word "queued" in label type in place of the digits. Nothing blinks. */
 .timer {
   display: flex;
   align-items: center;

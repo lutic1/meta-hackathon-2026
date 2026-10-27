@@ -1,7 +1,9 @@
 import type { Meta, RoomSummary } from '../types'
+import { accessCode } from './access-code.ts'
 import { postBuild, RequestFailed, type UploadPhoto } from './api/index.ts'
 import { holdPhotos, takeCarriedPhotos } from './build-photos.ts'
 import { buildAccepted, mountTimer, startTimer, stopTimer } from './capture-timer.ts'
+import { accessRefused, buildQuota, buildsLeftLine, tooManyTries } from './components/access-code-build.ts'
 import { primaryButton } from './components/button.ts'
 import { captureDropzone } from './components/capture-dropzone.ts'
 import { type BannerState, bannerSlot, showBanner } from './components/error-banner.ts'
@@ -33,6 +35,13 @@ interface ChosenPhoto {
 
 /** The ingest refusals that mean the set breaks FR-1, answered with the same banner as the client's own check. */
 const FR1_CODES = new Set(['unsupported_image', 'photo_count'])
+
+/** Hosted mode's refusals of `POST /builds` (AD-9): a wrong code, too many attempts, every judge build used. */
+const HOSTED_REFUSALS: ReadonlyMap<string, BannerState> = new Map([
+  ['access_denied', accessRefused],
+  ['too_many_attempts', tooManyTries],
+  ['build_quota_exceeded', buildQuota],
+])
 
 function line(text: string): HTMLParagraphElement {
   const element = document.createElement('p')
@@ -82,14 +91,18 @@ export function captureColumn(retention: string, profile: string, mode: Meta['mo
 }
 
 /**
- * The Capture screen before a Build (Local `#/`, UX-DR62). Right: the Input requirement standing alone, the iPhone
- * tip, the faces, documents and belongings reminder, then the Retention summary, all there before any photo is
- * chosen. Left: the banner slot, the dropzone, the Photo tray, Upload and the Stored Rooms list.
+ * The Capture screen before a Build (Local `#/`, UX-DR62; Hosted `#/` once an Access code is accepted). Right: the
+ * Input requirement standing alone, the iPhone tip, the faces, documents and belongings reminder, then the Retention
+ * summary as `GET /meta` serves it for the mode, all there before any photo is chosen. Left: the banner slot, the
+ * dropzone, the Photo tray, Upload and, under it, `below`: the Stored Rooms list in Local mode, or in Hosted mode,
+ * which has no Stored Rooms list, the accepted check's status line "{n} of 20 builds left".
  *
  * Every addition or removal re-validates the whole set (FR-1): a refused set shows the FR-1 banner and keeps Upload
  * disabled, so nothing is sent; a valid set clears it and enables Upload. Upload downscales each photo and posts
- * them all with their originals in one `POST /builds`; its pending label is the ingest stage name, the step the
- * server runs before it answers. A refused or failed upload keeps the photos and shows its banner; an accepted one
+ * them all with their originals in one `POST /builds`, with the Access code this tab holds as `X-Access-Code` (Hosted);
+ * its pending label is the ingest stage name, the step the server runs before it answers. A refused or failed upload
+ * keeps the photos and shows its banner (Hosted: a wrong code the compact error, too many attempts the compact
+ * warning, and `build_quota_exceeded`, a quota reached since the check, the Build quota warning); an accepted one
  * starts the Build: everything but the Retention summary and the banners is disabled, the photos and their
  * downscales are handed to `build-photos.ts`, and `#/build/<job_id>` opens with the profile carried.
  *
@@ -101,7 +114,7 @@ export function captureColumn(retention: string, profile: string, mode: Meta['mo
  * records its job id, so `#/build/<job_id>` resumes the run after a reload.
  */
 export function captureScreen(
-  rooms: readonly RoomSummary[],
+  below: readonly RoomSummary[] | number,
   profile: string,
   mode: Meta['mode'],
   retention: string,
@@ -125,7 +138,12 @@ export function captureScreen(
   // One fieldset holds every control below the banners, so a Build disables them all at once.
   const controls = document.createElement('fieldset')
   controls.className = 'capture-controls'
-  controls.append(dropzone.element, tray, actions, storedRooms(rooms, profile, mode, banners))
+  controls.append(
+    dropzone.element,
+    tray,
+    actions,
+    typeof below === 'number' ? buildsLeftLine(below) : storedRooms(below, profile, mode, banners),
+  )
   const left = document.createElement('section')
   left.className = 'capture-left'
   left.append(banners, controls)
@@ -203,7 +221,7 @@ export function captureScreen(
       return unreadable
     }
     try {
-      const job = await postBuild(pairs)
+      const job = await postBuild(pairs, accessCode())
       buildAccepted(job.id)
       accepted = job.id
       holdPhotos({
@@ -214,6 +232,8 @@ export function captureScreen(
       })
       return null
     } catch (error) {
+      const hosted = error instanceof RequestFailed && error.code !== null ? HOSTED_REFUSALS.get(error.code) : undefined
+      if (hosted !== undefined) return hosted
       const code = error instanceof RequestFailed && error.status === 422 ? error.code : null
       if (code !== null && FR1_CODES.has(code)) return refused
       return code === 'bad_downscale' ? unreadable : failed

@@ -1,13 +1,14 @@
 import type { JobState, Meta } from '../types'
+import { accessCode } from './access-code.ts'
 import { getBuild, photoUrl, postBuild, RequestFailed, startSession } from './api/index.ts'
 import { type EndAction, buildEnd } from './build-end.ts'
 import { carryPhotos, heldPhotos, passPhotos, releasePhotos } from './build-photos.ts'
 import { stageRows } from './build-stages.ts'
 import { buildViewLink } from './build-view.ts'
 import { captureColumn } from './capture.ts'
-import { buildAccepted, buildEnded, sessionOpened, startTimer } from './capture-timer.ts'
+import { buildAccepted, buildDequeued, buildEnded, buildQueued, sessionOpened, startTimer } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
-import { type BannerAction, bannerSlot, showBanner } from './components/error-banner.ts'
+import { type BannerAction, type BannerState, bannerSlot, showBanner } from './components/error-banner.ts'
 import { reveal } from './components/fade.ts'
 import { fitChips, maskPreview, type TilePhoto } from './components/mask-preview.ts'
 import { compactPhotoTray } from './components/photo-tray.ts'
@@ -30,6 +31,22 @@ export interface BuildScreen {
   right: HTMLElement
   /** Runs once the screen is in the page: starts polling; returns the teardown that stops it. */
   mount: () => () => void
+}
+
+/** The warning a `queued` Build shows (Hosted): it waits in line and starts on its own, so it offers no action. */
+const QUEUED: BannerState = { variant: 'warning', heading: strings.queued, actions: [] }
+
+/** The two plain `body-sm` lines under the Stage list in Hosted mode, from Upload on (UX-DR18). */
+function hostedLines(): HTMLElement {
+  const lines = document.createElement('div')
+  lines.className = 'build-hosted-lines'
+  for (const text of [strings.ownLink, strings.targetMeasured]) {
+    const line = document.createElement('p')
+    line.className = 'build-hosted-line body-sm'
+    line.textContent = text
+    lines.append(line)
+  }
+  return lines
 }
 
 /** The pixel size of the photo at `url` once it decodes; null when it does not. */
@@ -60,9 +77,14 @@ async function photoSize(url: string): Promise<Size | null> {
  * refused session start shows the session-start-refused banner, whose "Try again" posts it again; the Timer keeps
  * running toward T1.
  *
+ * Hosted mode adds two plain lines under the Stage list (the Build's own link, where the two-minute target is
+ * measured), since a reopened `#/build/<job_id>` resumes polling with no Access code. A poll that reads `queued`
+ * shows the queued warning, which takes focus once, and the Timer reads "queued" in place of the digits; the first
+ * poll past it clears that warning and records the client-measured time in the queue for the frozen Timer's note.
+ *
  * A Build that ends without a Room (`build-end.ts`) stops its Timer beside the status, marks the row it stopped at
  * failed, keeps its photos in the tray and shows one banner, which takes focus, its actions next in Tab order:
- * "Try again" posts the held photos as a new Build and opens its route; "Add photos" opens the picker and carries
+ * "Try again" posts the held photos as a new Build, with this tab's Access code in Hosted mode, and opens its route; "Add photos" opens the picker and carries
  * the set plus the new files, up to 10 in all, to the Capture screen, whose next Upload is a new Build; "Start
  * over" opens the empty Capture screen. A page that holds no photos (reloaded) cannot post or extend the set, so
  * "Start over" takes the place of both. Two consecutive missed polls put the reconnecting strip at the top of the
@@ -88,7 +110,7 @@ export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], 
   const strip = statusStrip(strings.reconnectingBuild)
   const left = document.createElement('section')
   left.className = 'capture-left'
-  left.append(banners, stages.element, actions, maskSlot, traySlot, picker)
+  left.append(banners, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), actions, maskSlot, traySlot, picker)
 
   return {
     left,
@@ -104,6 +126,8 @@ export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], 
       let ended = false
       let retrying = false
       let missed = 0
+      /** The queued warning while it is the banner shown. */
+      let queuedBanner: HTMLElement | null = null
 
       /** The photo at `index`: this page's downscale, else, once the Room exists, the one the server stores. */
       function photo(job: JobState, index: number): string | null {
@@ -182,7 +206,7 @@ export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], 
         retrying = true
         const t0 = Date.now()
         try {
-          const job = await postBuild(held.uploads)
+          const job = await postBuild(held.uploads, accessCode())
           startTimer(t0)
           buildAccepted(job.id)
           passPhotos(jobId, job.id)
@@ -217,7 +241,7 @@ export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], 
       function end(job: JobState): void {
         if (ended) return
         const photos = held?.uploads.length ?? job.stages?.find((record) => record.stage === 'ingest')?.count ?? 0
-        const state = buildEnd(job, photos)
+        const state = buildEnd(job, photos, mode)
         if (state === null) return
         ended = true
         buildEnded(jobId, state.status)
@@ -226,7 +250,20 @@ export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], 
         showBanner(banners, { variant, heading, sentence, actions: [...kinds].map(action) })
       }
 
+      /** `queued` shows its warning once; the first poll past it clears that warning and ends the Timer's queue. */
+      function queue(job: JobState): void {
+        if (job.status === 'queued') {
+          buildQueued(jobId)
+          if (queuedBanner === null) queuedBanner = showBanner(banners, QUEUED)
+          return
+        }
+        buildDequeued(jobId)
+        if (queuedBanner?.isConnected === true) showBanner(banners, null)
+        queuedBanner = null
+      }
+
       function apply(job: JobState): void {
+        queue(job)
         stages.update(stageRows(job))
         if (!masked && (job.mask_preview ?? []).length > 0) {
           masked = true

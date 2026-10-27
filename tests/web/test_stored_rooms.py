@@ -82,7 +82,7 @@ def test_a_refused_start_shows_the_session_start_refused_banner_whose_try_again_
     # The banner slot sits at the top of the left area, above the list; showBanner moves focus to the banner.
     capture = _ts("capture.ts")
     assert "left.append(banners, controls)" in capture
-    assert "storedRooms(rooms, profile, mode, banners))" in capture
+    assert "storedRooms(below, profile, mode, banners)," in capture
     assert "const banners = bannerSlot()" in capture
 
 

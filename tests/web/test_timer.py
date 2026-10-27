@@ -75,7 +75,7 @@ def test_digits_are_m_ss_from_whole_seconds():
     ts = _code("components/timer.ts")
     assert "const seconds = Math.floor(Math.max(0, elapsedMs) / 1000)" in ts
     assert "`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`" in ts
-    assert "digits.textContent = formatElapsed(face.elapsedMs)" in ts
+    assert "digits.textContent = queued ? strings.timerQueued : formatElapsed(face.elapsedMs)" in ts
 
 
 # --- Real time, whatever the Demo timescale ----------------------------------------------------------------------
@@ -104,7 +104,7 @@ def test_the_timer_waits_on_no_request_so_missed_polls_never_stop_it():
 def test_an_accepted_upload_records_its_job_so_a_reload_of_the_build_route_resumes_from_t0():
     capture = _code("capture.ts")
     submit = _function(capture, "submit")
-    assert submit.index("const job = await postBuild(pairs)") < submit.index("buildAccepted(job.id)") < submit.index(
+    assert submit.index("const job = await postBuild(pairs, accessCode())") < submit.index("buildAccepted(job.id)") < submit.index(
         "return null")
     timer = _code("capture-timer.ts")
     assert "sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))" in timer
@@ -112,7 +112,7 @@ def test_an_accepted_upload_records_its_job_so_a_reload_of_the_build_route_resum
     assert "if (current !== null && current.jobId === null) save({ ...current, jobId })" in timer
     # The run keeps its T0 through every update: nothing but startTimer writes a new one.
     updates = re.findall(r"save\(\{ \.\.\.current, ([^}]*)\}\)", timer)
-    assert len(updates) == 3 and not any("t0" in update for update in updates)
+    assert len(updates) == 5 and not any(re.search(r"(?<![.\w])t0:", update) for update in updates)
     router = _code("router.ts")
     assert r"const BUILD_ROUTE = /^\/build\/([\w-]+)$/" in router
     assert "if (build !== null) return { route: { name: 'build', jobId: build[1] }, profile }" in router
@@ -153,13 +153,13 @@ def test_keyboard_focus_never_stops_it():
 
 def test_at_t1_it_reads_playable_in_with_success_digits_no_dot_and_stays_frozen():
     timer = _code("capture-timer.ts")
-    assert "else if (shown.status === null) view.render({ kind: 'playable', elapsedMs })" in timer
+    assert "else if (shown.status === null) view.render({ kind: 'playable', elapsedMs, queueMs: shown.queueMs ?? null })" in timer
     stop = _function(timer, "stopTimer")
     assert "const current = counting()" in stop and "save({ ...current, stoppedAt: Date.now(), status })" in stop
     assert "return run !== null && run.stoppedAt === null ? run : null" in timer  # a stopped run never moves again
     rules = _timer_rules()
     assert rules[".timer[data-state='playable'] .timer-digits"]["color"] == "var(--success)"
-    assert "element.dataset.state = face.kind" in _code("components/timer.ts")
+    assert "element.dataset.state = queued ? 'queued' : face.kind" in _code("components/timer.ts")
 
 
 def test_a_replayed_stored_room_never_shows_the_timer():
@@ -186,7 +186,7 @@ def test_a_failed_upload_freezes_the_digits_beside_its_status_and_the_next_uploa
     ts = _code("components/timer.ts")
     assert "status.className = 'timer-status label'" in ts
     assert "status.hidden = face.kind !== 'ended'" in ts
-    assert "status.textContent = face.kind === 'ended' ? face.status : ''" in ts
+    assert "if (face.kind === 'ended') status.textContent = face.status" in ts
     assert _timer_rules()[".timer-status"]["color"] == "var(--text-muted)"
     # "Try again" goes through Upload, so it is a new Upload click and a new T0.
     assert "actions: [{ label: strings.tryAgain, onActivate: () => upload.click() }]" in _code("capture.ts")

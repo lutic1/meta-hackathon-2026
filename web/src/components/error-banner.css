@@ -42,3 +42,13 @@
   display: flex;
   gap: var(--spacing-2);
 }
+.banner-actions:empty {
+  display: none;
+}
+/* The compact form (the Access-code build's refusals): a narrower padding and the parts stacked, to fit a column. */
+.banner-compact {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+}

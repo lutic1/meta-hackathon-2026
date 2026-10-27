@@ -87,7 +87,8 @@ def test_the_retention_summary_renders_the_served_text_then_the_privacy_line_nev
 
 def test_the_left_area_is_the_banner_slot_then_the_dropzone_the_tray_upload_and_the_stored_rooms():
     capture = _ts("capture.ts")
-    assert "controls.append(dropzone.element, tray, actions, storedRooms(rooms, profile, mode, banners))" in capture
+    assert "controls.append(\n    dropzone.element,\n    tray,\n    actions,\n" in capture
+    assert "typeof below === 'number' ? buildsLeftLine(below) : storedRooms(below, profile, mode, banners)," in capture
     assert "left.append(banners, controls)" in capture
     assert "const controls = document.createElement('fieldset')" in capture
     rules = _css("shell.css")
@@ -225,11 +226,11 @@ def test_every_downscale_goes_with_its_original_in_one_multipart_post_builds():
     post = api.split("export function postBuild(", 1)[1]
     assert "const body = new FormData()" in post
     assert "body.append(DOWNSCALE, downscale, `${index}.jpg`)" in post and "body.append(ORIGINAL, original, original.name)" in post
-    assert "return postJson<JobState>('/builds', body)" in post
+    assert "return requestJson<JobState>('/builds', body, 'POST', accessCode === null ? {} : { [ACCESS_HEADER]: accessCode })" in post
     # FormData goes as is, so the browser writes the multipart boundary; JSON bodies keep their content type.
-    assert "body instanceof FormData" in api and "{ method: 'POST', headers: { Accept: 'application/json' }, body }" in api
+    assert "body instanceof FormData" in api and "{ method: 'POST', headers: { Accept: 'application/json', ...headers }, body }" in api
     assert "pairs.push({ downscale: await downscale(file), original: file })" in capture
-    assert capture.count("await postBuild(pairs)") == 1
+    assert capture.count("await postBuild(pairs, accessCode())") == 1
 
 
 def test_while_the_upload_is_pending_upload_shows_its_pending_label_and_the_dropzone_is_disabled():

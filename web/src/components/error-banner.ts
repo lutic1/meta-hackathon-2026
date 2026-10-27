@@ -13,11 +13,14 @@ export interface BannerState {
   /** One plain sentence; the FR-1 refusal has none, its verbatim string being the heading. */
   sentence?: string
   actions: readonly BannerAction[]
+  /** The compact form the Access-code build's refusals take: tighter padding, its parts stacked to fit a column. */
+  compact?: boolean
 }
 
-function banner({ variant, heading, sentence, actions }: BannerState): HTMLElement {
+function banner({ variant, heading, sentence, actions, compact = false }: BannerState): HTMLElement {
   const element = document.createElement('div')
   element.className = `banner banner-${variant}`
+  element.classList.toggle('banner-compact', compact)
   element.setAttribute('role', 'alert')
   element.tabIndex = -1
   const text = document.createElement('div')

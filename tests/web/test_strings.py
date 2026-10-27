@@ -185,6 +185,8 @@ def test_client_strings_live_only_in_the_strings_module():
             continue
         if key == "requiresNone":  # "none" is also the DataTransfer `dropEffect` keyword the drop zone sets
             continue
+        if key == "timerQueued":  # "queued" is also the job status the client reads from `GET /builds/<job_id>`
+            continue
         repeated = re.compile(rf"(?<!\w){re.escape(value)}(?!\w)")  # "Play" as a word, not inside `PlayView`
         for path, text in others.items():
             assert not repeated.search(text), f"{path} repeats {value!r}; import it from strings.ts"

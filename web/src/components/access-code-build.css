@@ -1,0 +1,45 @@
+/* The Access-code build (UX-DR59): a chrome-raised panel in the right column, the display-sm heading, the label in
+   text over the 44 px mono-code field on chrome beside "Check code", the compact banner slot, then the body-sm status
+   line in text, or in success once a code is accepted. */
+.access-build {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-5);
+  background: var(--chrome-raised);
+  border-radius: var(--rounded-lg);
+}
+.access-build-heading {
+  margin: 0 0 var(--spacing-1);
+  color: var(--text);
+}
+.access-build-label {
+  color: var(--text);
+}
+.access-build-row {
+  display: flex;
+  gap: var(--spacing-2);
+}
+/* {components.access-code-field}: chrome, text, mono-code (the class carries the type), 44 px, rounded md. */
+.access-build-field {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  padding: 0 var(--spacing-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-md);
+  background: var(--chrome);
+  color: var(--text);
+}
+.access-build-status {
+  margin: 0;
+  color: var(--text);
+}
+.access-build-status:empty {
+  display: none;
+}
+.access-build-status.is-accepted {
+  color: var(--success);
+}

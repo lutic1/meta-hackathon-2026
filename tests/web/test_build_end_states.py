@@ -46,7 +46,7 @@ def test_the_codes_the_client_maps_are_the_codes_the_server_writes():
     assert "const code = job.error?.code ?? null" in end
     assert "if (job.status === 'needs_more_photos' || code === 'too_few_interactables') {" in end
     assert "if (code === 'spend_cap_exceeded') {" in end
-    assert "sentence: code === 'provider_error' ? strings.providerCause : strings.unexpectedCause" in end
+    assert "const cause = code === 'provider_error' ? strings.providerCause : strings.unexpectedCause" in end
     assert "if (job.status !== 'failed') return null" in end
 
 
@@ -110,7 +110,7 @@ def test_try_again_posts_the_same_photos_as_a_new_build_and_nothing_offers_a_par
     screen = _code("build-progress.ts")
     retry = _function(screen, "retry")
     assert "if (held === null || retrying) return" in retry
-    assert "const job = await postBuild(held.uploads)" in retry
+    assert "const job = await postBuild(held.uploads, accessCode())" in retry
     order = ["startTimer(t0)", "buildAccepted(job.id)", "passPhotos(jobId, job.id)",
              "location.hash = captureHref(job.id, profile)"]
     assert [retry.index(step) for step in order] == sorted(retry.index(step) for step in order)

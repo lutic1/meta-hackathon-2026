@@ -282,7 +282,7 @@ def test_every_session_start_posts_the_profiles_session_start_body():
     assert calls["web/src/play.ts"] == ["await sessionStart(session.room_id, currentPlace().profile, frame.mode)"]
     # The mode each start follows is GET /meta's, passed down from the shell.
     shell = _code("shell.ts")
-    assert shell.count("mode: meta.mode") == 4 and "mode: content.mode" in shell
+    assert shell.count("mode: meta.mode") == 5 and "mode: content.mode" in shell
     # web/profile alone builds the body; no other module names a Derived block or the fresh one.
     for path, text in source_ts().items():
         if path.startswith("web/src/profile/"):

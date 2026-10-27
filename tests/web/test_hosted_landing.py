@@ -50,12 +50,12 @@ def test_hosted_home_reads_meta_then_rooms_and_shows_the_landing():
     assert render.index("getMeta(place.profile)") < render.index("await listRooms().catch(() => null)")
     assert "} else if (place.route.name === 'home' && meta.mode === 'local') {" in render
     assert "} else if (place.route.name === 'home') {" in render
-    assert "content = { name: 'landing', rooms, profile: place.profile, mode: meta.mode, onRetry: () => void render() }" in render
+    assert "content = { name: 'landing', rooms, profile: place.profile, mode: meta.mode, onRetry: () => void render(), onAccepted }" in render
     # The banner and the top bar come from the same `GET /meta`, as on every surface.
     assert "const banner = disclosureBanner(disclosure)" in render and "const bar = topBar(meta, played)" in render
     shell = _code("shell.ts")
     assert "element.classList.add('landing-layout')" in shell
-    assert "const landing = hostedLanding(content.rooms, content.profile, content.mode, content.onRetry)" in shell
+    assert "const landing = hostedLanding(content.rooms, content.profile, content.mode, content.onRetry, content.onAccepted)" in shell
     assert "element.append(...landing.children)" in shell and "mount: landing.mount" in shell
 
 

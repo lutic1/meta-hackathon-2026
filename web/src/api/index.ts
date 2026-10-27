@@ -1,5 +1,6 @@
 // The HTTP client: every route under /api/ on the page's own origin (AD-9), typed by the generated web/types (AD-2).
 import type {
+  AccessCheck,
   BuildView,
   ErrorDetail,
   ErrorEnvelope,
@@ -43,16 +44,21 @@ async function errorDetail(response: Response): Promise<ErrorDetail | null> {
 
 /**
  * A GET, a POST of a multipart `FormData` body (the browser writes its boundary), or a `method` (POST unless named) of a
- * `Blob` sent byte for byte as JSON (a chosen file) or of anything else as JSON; the parsed JSON answer of a 2xx, else
- * `RequestFailed`.
+ * `Blob` sent byte for byte as JSON (a chosen file) or of anything else as JSON, each with any extra `headers`; the
+ * parsed JSON answer of a 2xx, else `RequestFailed`.
  */
-async function requestJson<T>(path: string, body?: unknown, method: 'POST' | 'PUT' = 'POST'): Promise<T> {
-  const json = { Accept: 'application/json', 'Content-Type': 'application/json' }
+async function requestJson<T>(
+  path: string,
+  body?: unknown,
+  method: 'POST' | 'PUT' = 'POST',
+  headers: Record<string, string> = {},
+): Promise<T> {
+  const json = { Accept: 'application/json', 'Content-Type': 'application/json', ...headers }
   const init: RequestInit =
     body === undefined
-      ? { headers: { Accept: 'application/json' } }
+      ? { headers: { Accept: 'application/json', ...headers } }
       : body instanceof FormData
-        ? { method: 'POST', headers: { Accept: 'application/json' }, body }
+        ? { method: 'POST', headers: { Accept: 'application/json', ...headers }, body }
         : body instanceof Blob
           ? { method, headers: json, body }
           : { method, headers: json, body: JSON.stringify(body) }
@@ -128,14 +134,28 @@ export interface UploadPhoto {
 const DOWNSCALE = 'downscale'
 const ORIGINAL = 'original'
 
-/** `POST /builds`: every photo's downscale with its original, in upload order, in one multipart body (AD-7). */
-export function postBuild(photos: readonly UploadPhoto[]): Promise<JobState> {
+/** The header Hosted mode's guarded routes read the Access code from (src/api/wiring.py `ACCESS_HEADER`, AD-9). */
+const ACCESS_HEADER = 'X-Access-Code'
+
+/**
+ * `POST /builds`: every photo's downscale with its original, in upload order, in one multipart body (AD-7), with
+ * the Access code this tab holds as `X-Access-Code` (Hosted mode); with no code held (Local mode) no header is sent.
+ */
+export function postBuild(photos: readonly UploadPhoto[], accessCode: string | null): Promise<JobState> {
   const body = new FormData()
   photos.forEach(({ downscale, original }, index) => {
     body.append(DOWNSCALE, downscale, `${index}.jpg`)
     body.append(ORIGINAL, original, original.name)
   })
-  return postJson<JobState>('/builds', body)
+  return requestJson<JobState>('/builds', body, 'POST', accessCode === null ? {} : { [ACCESS_HEADER]: accessCode })
+}
+
+/**
+ * `POST /access/check {code}` (Hosted only, AD-9): `{ok, builds_left}` before any photo is chosen, starting no Build;
+ * a wrong code answers 200 `{ok: false, builds_left: null}`, and too many attempts 429 `too_many_attempts`.
+ */
+export function checkAccess(code: string): Promise<AccessCheck> {
+  return postJson<AccessCheck>('/access/check', { code })
 }
 
 /** `POST /sessions/<id>/events`: one posted event, never stamped by the client (the API stamps `t_ms`); the new state. */
