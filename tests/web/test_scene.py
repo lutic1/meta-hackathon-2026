@@ -38,8 +38,8 @@ def client(tmp_path: Path, four_lock_room: Room) -> TestClient:
 
 def test_the_play_route_mounts_the_scene_for_its_session_and_reads_the_room_from_get_rooms():
     shell, play, scene, api = _ts("shell.ts"), _ts("play.ts"), _ts("scene/index.ts"), _ts("api/index.ts")
-    assert "content = { name: 'play', session: state }" in shell
-    assert "mount: () => mountPlay(sceneColumn, sideColumn, content.session)" in shell
+    assert "content = { name: 'play', session: state, guide: meta.guide }" in shell
+    assert "mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame)" in shell
     # Story 1.20: the Play screen reads the Room once and shares it with the Scene, the Inventory and the notes.
     assert "const room: Promise<PlayView> = getRoom(session.room_id)" in play
     assert "mountScene(sceneColumn, stripRow, play, room)" in play and "rooms\n    .then((view) => {" in scene

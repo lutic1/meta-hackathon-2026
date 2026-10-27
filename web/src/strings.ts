@@ -5,7 +5,8 @@
 // the scene" stage name, a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and
 // the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory
 // and the Wizard notes take their component names as their accessible names. A `{name}` placeholder stands where
-// the source shows a placeholder or an example value.
+// the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
+// Component Patterns, names its placeholders as that row does.
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -125,9 +126,12 @@ export const strings = {
   graphNode: 'Puzzle {n}, {lockType}, requires {requires}, Dry run {verdict}',
   requiresNone: 'none',
   exit: 'Exit',
+  guideVoice: "Get stuck as often as you like. I'll help, a little at a time.",
+  begin: 'Begin',
+  guideIntroduction: 'The Guide. {role line} {opening line} {voice line}',
 } as const
 
-/** `template` with each `{name}` replaced by `values[name]`. */
+/** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */
 export function fill(template: string, values: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (match, name: string) => (name in values ? String(values[name]) : match))
+  return template.replace(/\{(\w+(?: \w+)*)\}/g, (match, name: string) => (name in values ? String(values[name]) : match))
 }

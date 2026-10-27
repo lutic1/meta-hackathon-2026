@@ -1,8 +1,9 @@
-import type { PlayView, PostedEvent, SessionState } from '../types'
+import type { Meta, PlayView, PostedEvent, SessionState } from '../types'
 import { getRoom, getSession, postEvent } from './api/index.ts'
 import { inventory } from './components/inventory.ts'
 import { wizardNotes } from './components/wizard-notes.ts'
 import { mountScene } from './scene/index.ts'
+import { mountWelcome, playHasBegun } from './welcome.ts'
 
 /** The Play screen reads `GET /sessions/<id>` this often while it is open, hidden tab included (AD-4, UX-DR65). */
 export const POLL_MS = 2000
@@ -16,6 +17,39 @@ export interface PlaySession {
   post: (body: PostedEvent) => Promise<SessionState>
   /** Draws `render` with every later state the server sends, a poll or a reply. */
   onState: (render: (state: SessionState) => void) => void
+  /**
+   * The First-room welcome once its card has closed (or when play had already begun): the first Guide line the Hint
+   * area shows (3.4), never announced again. null before "Begin" and for a session opened without a welcome.
+   */
+  openingLine: string | null
+}
+
+/**
+ * What the Play screen takes from the shell: the page body and the top bar, which the First-room welcome covers and
+ * holds inert, and the `guide` setting its role line names.
+ */
+export interface PlayFrame {
+  body: HTMLElement
+  topBar: HTMLElement
+  guide: Meta['guide']
+}
+
+/** Focuses the first Hotspot of the Scene in `sceneColumn`, once its photo is live. Returns the teardown. */
+function focusFirstHotspot(sceneColumn: HTMLElement): () => void {
+  const first = (): SVGElement | null => sceneColumn.querySelector<SVGElement>('.hotspot')
+  const hotspot = first()
+  if (hotspot !== null) {
+    hotspot.focus()
+    return () => undefined
+  }
+  const observer = new MutationObserver(() => {
+    const live = first()
+    if (live === null) return
+    observer.disconnect()
+    live.focus()
+  })
+  observer.observe(sceneColumn, { childList: true, subtree: true })
+  return () => observer.disconnect()
 }
 
 /**
@@ -23,9 +57,16 @@ export interface PlaySession {
  * the side column, over the session's Room from `GET /rooms/<room_id>`. The client polls `GET /sessions/<id>` every
  * 2000 ms, from a worker so the cadence holds while the tab is hidden, and every part draws open locks, the
  * Inventory and Wrong attempts from the latest state the server sent: a poll or the reply to a posted event, never
- * its own clicks. A poll sent before a reply that arrived first is stale and dropped. Returns the teardown.
+ * its own clicks. A poll sent before a reply that arrived first is stale and dropped. A session opened with a
+ * First-room welcome shows its card over the first Scene until "Begin", unless play has already begun; "Begin" keeps
+ * the line for the Hint area and moves focus to the first Hotspot. Returns the teardown.
  */
-export function mountPlay(sceneColumn: HTMLElement, sideColumn: HTMLElement, session: SessionState): () => void {
+export function mountPlay(
+  sceneColumn: HTMLElement,
+  sideColumn: HTMLElement,
+  session: SessionState,
+  frame: PlayFrame,
+): () => void {
   let mounted = true
   let latest = session
   let replies = 0
@@ -50,6 +91,7 @@ export function mountPlay(sceneColumn: HTMLElement, sideColumn: HTMLElement, ses
     onState: (render) => {
       parts.push(render)
     },
+    openingLine: null,
   }
 
   let polling = false
@@ -88,8 +130,24 @@ export function mountPlay(sceneColumn: HTMLElement, sideColumn: HTMLElement, ses
     })
     .catch(() => undefined) // the Scene keeps its loading line; the reconnecting state lands in 1.24
 
+  let unmountWelcome: (() => void) | undefined
+  let unfocus: (() => void) | undefined
+  const welcome = session.opening_line
+  if (welcome?.kind === 'welcome' && welcome.text !== null) {
+    const line = welcome.text
+    if (playHasBegun(session)) play.openingLine = line
+    else {
+      unmountWelcome = mountWelcome(session.id, frame.guide, line, frame.body, [frame.topBar, sceneColumn, sideColumn], () => {
+        play.openingLine = line
+        unfocus = focusFirstHotspot(sceneColumn)
+      })
+    }
+  }
+
   return () => {
     mounted = false
+    unmountWelcome?.()
+    unfocus?.()
     ticker.terminate()
     unmountScene()
     stripRow.remove()

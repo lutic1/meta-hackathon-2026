@@ -43,7 +43,7 @@ def test_local_home_is_the_capture_screen_built_from_the_same_get_meta():
     render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
     assert render.index("getMeta(place.profile)") < render.index("show(")
     assert "content = { name: 'rooms', rooms, profile: place.profile, retention: meta.retention }" in render
-    assert "const capture = captureScreen(content.rooms, content.profile, content.retention, timerSlot)" in shell
+    assert "const capture = captureScreen(content.rooms, content.profile, content.retention, bar.timer)" in shell
     assert "element.append(capture.left, capture.right)" in shell and "mount: capture.mount" in shell
     # While GET /meta fails the shell shows only the unreachable strip, retried every 2000 ms (1.17).
     assert "export const RETRY_MS = 2000" in shell and "show(unreachable())" in shell

@@ -9,8 +9,10 @@
   min-height: 0;
 }
 
-/* The Play layout: 24 px margins, the Scene column, and the side column at 400, 360 or 340 px. */
+/* The Play layout: 24 px margins, the Scene column, and the side column at 400, 360 or 340 px. It positions the
+   First-room welcome's scrim, which covers the body only. */
 .play-layout {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
   grid-template-rows: minmax(0, 1fr);

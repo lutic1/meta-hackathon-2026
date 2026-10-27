@@ -22,9 +22,10 @@ def _strings() -> dict[str, str]:
 COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "speakerGuide", "speakerTrickster",
                            "back", "regenerations", "attemptSentBack", "validatorDid", "museImage", "museImageModel",
                            "museImageDid", "guideWritten", "trickster", "submit", "graphNode", "requiresNone",
-                           "exit"}
+                           "exit", "guideIntroduction"}
 """Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list, the Wizard
-portrait's speaker prefixes, the Build view rows, the Code field's Submit, the puzzle graph node's name)."""
+portrait's speaker prefixes, the Build view rows, the Code field's Submit, the puzzle graph node's name, the
+First-room welcome's live-region text)."""
 
 STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed"}
 """Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states)."""
@@ -213,3 +214,14 @@ def test_the_wizard_introductions_and_the_architect_lines_are_the_experience_lin
     assert strings["testingLine"] == "Now we make sure every lock can actually be opened. Fair is fair."
     assert strings["sceneLine"] == "Hanging your room on the wall. Mind the frame."
     assert strings["regenerationLine"] == "The Riddler's draft didn't pass. Another go."
+
+
+def test_the_welcome_strings_are_the_experience_lines():
+    strings = _strings()
+    assert strings["guide"] == "The Guide" and strings["begin"] == "Begin"
+    assert strings["guideRoleLocal"] == (
+        "Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac."
+    )
+    assert strings["guideRoleWritten"] == "Reads how you play; offers one hint at a time, never the answer, shown as written."
+    assert strings["guideVoice"] == "Get stuck as often as you like. I'll help, a little at a time."
+    assert strings["guideIntroduction"] == "The Guide. {role line} {opening line} {voice line}"

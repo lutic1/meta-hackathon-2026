@@ -1,0 +1,55 @@
+/* {components.greeting-overlay}: the scrim covers the page body only (it starts below the top bar, so the
+   Disclosure banner and the Timer stay undimmed); the 560 px parchment card is centered on it. */
+.greeting-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-frame-margin);
+  background: var(--scrim);
+}
+.greeting-overlay {
+  box-sizing: border-box;
+  width: 560px;
+  max-width: 100%;
+  padding: var(--spacing-6);
+  background: var(--parchment);
+  color: var(--ink);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--elevation-overlay);
+  transition: opacity var(--motion-overlay) var(--motion-ease);
+}
+.greeting-overlay.is-arriving {
+  opacity: 0;
+}
+/* The Guide's introduction: the 96 px portrait beside the heading and the role line. */
+.greeting-intro {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  column-gap: var(--spacing-4);
+  align-items: center;
+}
+.greeting-heading {
+  margin: 0;
+  color: var(--ink);
+}
+.greeting-role {
+  margin: var(--spacing-1) 0 0;
+  color: var(--ink-muted);
+}
+.greeting-line {
+  margin: var(--spacing-5) 0 0;
+  color: var(--ink);
+}
+.greeting-voice {
+  margin: var(--spacing-3) 0 0;
+  color: var(--ink);
+}
+/* "Begin" sits left-aligned under the voice line. */
+.greeting-actions {
+  display: flex;
+  margin-top: var(--spacing-5);
+}

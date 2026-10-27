@@ -7,7 +7,8 @@ import { captureScreen } from './capture.ts'
 import { mountTimer, type TimerRun } from './capture-timer.ts'
 import { disclosureBanner } from './components/disclosure-banner.ts'
 import { statusStrip } from './components/status-strip.ts'
-import { topBar } from './components/top-bar.ts'
+import { type TopBar, topBar } from './components/top-bar.ts'
+import { liveRegion } from './live-region.ts'
 import { currentPlace, placeHref, type Route } from './router.ts'
 import { mountPlay } from './play.ts'
 import { strings } from './strings.ts'
@@ -87,7 +88,7 @@ export function startShell(root: HTMLElement): void {
       const state = await answered(mine, () => getSession(sessionId).catch(refused))
       if (state === undefined) return
       if (state !== null) disclosure = state.disclosure
-      if (name === 'play' && state !== null) content = { name: 'play', session: state }
+      if (name === 'play' && state !== null) content = { name: 'play', session: state, guide: meta.guide }
     } else if (place.route.name === 'build') {
       content = { name: 'build', jobId: place.route.jobId, profile: place.profile, retention: meta.retention }
     } else if (place.route.name === 'home' && meta.mode === 'local') {
@@ -98,7 +99,7 @@ export function startShell(root: HTMLElement): void {
     if (mine !== generation) return
     const banner = disclosureBanner(disclosure)
     const bar = topBar(meta)
-    const body = surface(content, bar.timer)
+    const body = surface(content, bar)
     show(...(banner === null ? [] : [banner]), bar.element, body.element)
     const unmountBody = body.mount?.()
     const owns = timerOwner(place.route)
@@ -112,6 +113,7 @@ export function startShell(root: HTMLElement): void {
   window.addEventListener('hashchange', () => {
     navigated = true
   })
+  liveRegion() // in the page before anything is written to it
   window.addEventListener('hashchange', () => void render())
   void render()
 }
@@ -128,7 +130,7 @@ interface Surface {
  */
 type Content =
   | ({ name: 'view'; state: BuildViewState } & BuildViewOptions)
-  | { name: 'play'; session: SessionState }
+  | { name: 'play'; session: SessionState; guide: Meta['guide'] }
   | { name: 'rooms'; rooms: RoomSummary[]; profile: string; retention: string }
   | { name: 'build'; jobId: string; profile: string; retention: string }
   | { name: 'empty' }
@@ -145,8 +147,11 @@ function timerOwner(route: Route): ((run: TimerRun) => boolean) | null {
   return (run) => run.sessionId === route.sessionId
 }
 
-/** The body for a route; each later surface story fills its own. `timerSlot` is the top bar's, for the Capture screen. */
-function surface(content: Content, timerSlot: HTMLElement): Surface {
+/**
+ * The body for a route; each later surface story fills its own. The Capture screen takes the top bar's Timer slot;
+ * the Play screen takes the whole bar, which its First-room welcome holds inert.
+ */
+function surface(content: Content, bar: TopBar): Surface {
   const element = document.createElement('main')
   element.className = 'shell-body'
   if (content.name === 'empty') return { element }
@@ -164,7 +169,7 @@ function surface(content: Content, timerSlot: HTMLElement): Surface {
   }
   if (content.name === 'rooms') {
     element.classList.add('capture-layout')
-    const capture = captureScreen(content.rooms, content.profile, content.retention, timerSlot)
+    const capture = captureScreen(content.rooms, content.profile, content.retention, bar.timer)
     element.append(capture.left, capture.right)
     return { element, mount: capture.mount }
   }
@@ -180,7 +185,8 @@ function surface(content: Content, timerSlot: HTMLElement): Surface {
   const sideColumn = document.createElement('aside')
   sideColumn.className = 'side-column'
   element.append(sceneColumn, sideColumn)
-  return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session) }
+  const frame = { body: element, topBar: bar.element, guide: content.guide }
+  return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame) }
 }
 
 /** The page body empty except the centered status strip (UX-DR61). */

@@ -104,7 +104,7 @@ def test_root_page_mounts_an_empty_three_scene_into_a_canvas():
     assert "startShell(document.querySelector<HTMLDivElement>('#app')!)" in (WEB / "src/main.ts").read_text()
     # Story 1.19: the Scene draws the session's photos into a canvas sized to the photo inside the Scene frame;
     # Story 1.20: the Play screen mounts it beside the Inventory and the Wizard notes.
-    assert "mount: () => mountPlay(sceneColumn, sideColumn, content.session)" in (WEB / "src/shell.ts").read_text()
+    assert "mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame)" in (WEB / "src/shell.ts").read_text()
     assert "mountScene(sceneColumn, stripRow, play, room)" in (WEB / "src/play.ts").read_text()
     scene = (WEB / "src/scene/index.ts").read_text()
     assert "from 'three'" in scene
