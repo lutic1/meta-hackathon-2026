@@ -69,8 +69,8 @@ function timeRows(result: RoomResult): HTMLTableRowElement[] {
  * "Hints used" (the Rungs used) and "Wrong attempts" three across in `mono-timer`, and the "Time per puzzle" table.
  * Until the result returns the stats show as pending; while the request fails a plain line says so and it is asked
  * again every 2000 ms. "Build another room", the one primary action, goes to `#/` and is there from the start. The
- * heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}". Returns the
- * teardown.
+ * heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}". The top bar's
+ * `controls` keep "Show all objects" in place, inert. Returns the teardown.
  */
 export function mountCompletion(
   body: HTMLElement,
@@ -78,10 +78,11 @@ export function mountCompletion(
   sideColumn: HTMLElement,
   session: SessionState,
   profile: string,
+  controls: HTMLElement,
 ): () => void {
   sceneColumn.inert = true
   sideColumn.inert = true
-  const unmountPlay = mountPlayBehind(sceneColumn, sideColumn, session)
+  const unmountPlay = mountPlayBehind(sceneColumn, sideColumn, session, controls)
 
   const scrim = document.createElement('div')
   scrim.className = 'completion-scrim'

@@ -57,7 +57,7 @@ def test_open_locks_the_inventory_and_wrong_attempts_render_only_from_server_sta
     assert "for (const render of parts) render(state)" in receive
     # Every state the parts draw is a poll or the server's reply to a posted event.
     assert play.count("receive(") == 3  # the definition, the reply and the poll, nothing else
-    assert "parts.push(held.render, notes.render)" in play
+    assert "parts.push(held.render, notes.render, lockOutcomes(view, latest))" in play
     inventory, notes = _ts("components/inventory.ts"), _ts("components/wizard-notes.ts")
     assert "state.inventory.flatMap(" in inventory
     assert "state.locks_open.includes(puzzle.id)" in notes and "state.wrong_attempts[puzzle.id] ?? 0" in notes

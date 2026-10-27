@@ -1,5 +1,6 @@
 /* {components.greeting-overlay}: the scrim covers the page body only (it starts below the top bar, so the
-   Disclosure banner and the Timer stay undimmed); the 560 px parchment card is centered on it. */
+   Disclosure banner and the Timer stay undimmed); the 560 px parchment card is centered on it, the First-room
+   welcome's tip 16 px under it. */
 .greeting-scrim {
   position: absolute;
   inset: 0;
@@ -8,6 +9,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--spacing-4);
   padding: var(--spacing-frame-margin);
   background: var(--scrim);
 }
@@ -52,4 +54,9 @@
 .greeting-actions {
   display: flex;
   margin-top: var(--spacing-5);
+}
+/* The First-room welcome's one plain tip, on the scrim under the card: body-sm in text-muted. */
+.greeting-tip {
+  margin: 0;
+  color: var(--text-muted);
 }

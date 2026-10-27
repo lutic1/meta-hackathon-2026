@@ -28,6 +28,37 @@ export function hotspotPath(polygons: readonly Polygon[]): string {
     .join(' ')
 }
 
+/**
+ * The area-weighted centroid of every polygon together, in photo pixels: where a Hotspot falls in the Tab order. A
+ * shape with no area (every polygon degenerate) falls back to the mean of its points.
+ */
+export function centroid(polygons: readonly Polygon[]): [number, number] {
+  let area = 0
+  let cx = 0
+  let cy = 0
+  for (const polygon of polygons) {
+    // Each polygon's moments taken with one winding, so instances wound either way add up.
+    const sign = signedArea(polygon) < 0 ? -1 : 1
+    polygon.forEach(([x, y], i) => {
+      const [nx, ny] = polygon[(i + 1) % polygon.length]
+      const cross = sign * (x * ny - nx * y)
+      area += cross
+      cx += (x + nx) * cross
+      cy += (y + ny) * cross
+    })
+  }
+  if (area !== 0) return [cx / (3 * area), cy / (3 * area)]
+  const points = polygons.flat()
+  return [points.reduce((sum, [x]) => sum + x, 0) / points.length, points.reduce((sum, [, y]) => sum + y, 0) / points.length]
+}
+
+/** Tab order over Hotspots: by centroid from top to bottom, then left to right. */
+export function readingOrder(a: readonly Polygon[], b: readonly Polygon[]): number {
+  const [ax, ay] = centroid(a)
+  const [bx, by] = centroid(b)
+  return ay - by || ax - bx
+}
+
 /** The top-left corner of the box around every polygon, in photo pixels: where the label chip is anchored. */
 export function topLeft(polygons: readonly Polygon[]): [number, number] {
   const points = polygons.flat()

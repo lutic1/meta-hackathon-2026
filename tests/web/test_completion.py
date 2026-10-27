@@ -78,7 +78,7 @@ def test_the_done_route_draws_the_completion_screen_from_the_session_state():
     shell = _code("shell.ts")
     assert "if (place.route.name === 'play' || place.route.name === 'done')" in shell
     assert "if (state !== null) content = { name, session: state, guide: meta.guide, profile: place.profile }" in shell
-    assert "mount: () => mountCompletion(element, sceneColumn, sideColumn, session, profile)" in shell
+    assert "mount: () => mountCompletion(element, sceneColumn, sideColumn, session, profile, bar.controls)" in shell
     assert "return getJson<RoomResult>(`/sessions/${encodeURIComponent(sessionId)}/result`)" in _code("api/index.ts")
 
 

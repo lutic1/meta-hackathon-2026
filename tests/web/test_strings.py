@@ -31,6 +31,9 @@ STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed", "resultLoadFailed"}
 """Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states, the Completion
 screen's error state)."""
 
+ACCESSIBILITY_FLOOR_ONLY = {"lockNotThis", "lockOpen"}
+"""Lines EXPERIENCE.md words only in the Accessibility Floor (the live-region lines for lock outcomes)."""
+
 UNWORDED = {"photoThumbnail": "Remove photo {n}"}
 """Names EXPERIENCE.md never words, each derived from the Voice and Tone line given: the Thumbnail strip's
 "Photo {n}" is the photo tray's remove control without its verb."""
@@ -66,6 +69,10 @@ def test_every_string_is_verbatim_from_voice_and_tone():
             continue
         if key in STATE_PATTERNS_ONLY:
             assert _verbatim(value, _section("State Patterns")), f"strings.{key} {value!r} is not verbatim in State Patterns"
+            continue
+        if key in ACCESSIBILITY_FLOOR_ONLY:
+            floor = _section("Accessibility Floor")
+            assert _verbatim(value, floor), f"strings.{key} {value!r} is not verbatim in the Accessibility Floor"
             continue
         assert _verbatim(value, source), f"strings.{key} {value!r} is not verbatim in EXPERIENCE.md Voice and Tone"
 

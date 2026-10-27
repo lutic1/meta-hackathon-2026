@@ -6,7 +6,8 @@
 // the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory
 // and the Wizard notes take their component names as their accessible names. A `{name}` placeholder stands where
 // the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
-// Component Patterns, names its placeholders as that row does.
+// Component Patterns, names its placeholders as that row does. The live-region lines for lock outcomes are worded
+// only in the Accessibility Floor.
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -152,6 +153,10 @@ export const strings = {
   recaptureBody: 'Try brighter, closer shots where labels and printed text are readable.',
   addPhotos: 'Add photos',
   startOver: 'Start over',
+  showAllObjects: 'Show all objects',
+  showAllTip: "Tip: 'Show all objects' in the top bar outlines everything you can click.",
+  lockNotThis: 'Puzzle {n}: not this, {count}.',
+  lockOpen: 'Puzzle {n}: open.',
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

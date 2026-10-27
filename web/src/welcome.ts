@@ -48,8 +48,9 @@ export function guideRoleLine(guide: Meta['guide']): string {
  * The First-room welcome over the first Scene (FR-21, UX-DR45, UX-DR64): `body` takes the scrim, every element in
  * `held` (the top bar, the Scene column, the side column) is inert while it shows, and focus is trapped on "Begin",
  * its only control and the only way to dismiss it: Escape and clicks anywhere do nothing, and Tab stays put. The
- * Guide's introduction, `line` and the voice line are written to the live region once. "Begin" records that play has
- * begun, closes the card and calls `onBegin`. Returns the teardown.
+ * Guide's introduction, `line` and the voice line are written to the live region once. The plain tip naming "Show all
+ * objects" sits on the scrim under the card. "Begin" records that play has begun, closes the card and calls
+ * `onBegin`. Returns the teardown.
  */
 export function mountWelcome(
   sessionId: string,
@@ -62,6 +63,10 @@ export function mountWelcome(
   const role = guideRoleLine(guide)
   const overlay = greetingOverlay(role, line)
   const { begin } = overlay
+  const tip = document.createElement('p')
+  tip.className = 'greeting-tip body-sm'
+  tip.textContent = strings.showAllTip
+  overlay.element.append(tip)
 
   /** No pointer press anywhere moves focus off "Begin"; a click on it still fires. */
   const keepFocus = (event: MouseEvent): void => event.preventDefault()

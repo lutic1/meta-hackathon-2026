@@ -11,8 +11,8 @@
   color: var(--ink);
   box-shadow: var(--elevation-paper);
 }
-/* Scrolling, the sheet is a Tab stop when it holds no control (Chrome); its focus ring keeps the inner ring over the
-   paper shadow. */
+/* The sheet is a Tab stop (after the Inventory) that the keyboard scrolls; its focus ring keeps the inner ring over
+   the paper shadow. */
 .wizard-notes:focus-visible {
   box-shadow:
     0 0 0 2px var(--focus-ring-inner),

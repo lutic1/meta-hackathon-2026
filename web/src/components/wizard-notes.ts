@@ -138,6 +138,7 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   const element = document.createElement('section')
   element.className = 'wizard-notes'
   element.setAttribute('aria-label', strings.wizardNotes)
+  element.tabIndex = 0 // its place in the Tab order, after the Inventory, and scrolled by the keyboard (UX-DR71)
   const entries = new Map<string, Entry>()
   let drawn: string | undefined
   /** `locks_open` as last drawn; undefined before the first draw, which shows open locks collapsed at once. */

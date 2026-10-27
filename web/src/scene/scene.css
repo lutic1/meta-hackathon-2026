@@ -80,6 +80,19 @@
   stroke: var(--hotspot-outline);
   stroke-width: 2px;
 }
+/* "Show all objects" (NFR-14, UX-DR69): while the toggle is pressed, every Hotspot at rest shows the 2 px dashed
+   hotspot-show-all outline over its dark halo, with no fill and no label; hover and focus keep their own looks. The
+   class sits on the Scene column, so it holds across Scene changes until the toggle is released. */
+.is-showing-all .hotspot:not(:hover, :focus-visible) .hotspot-reveal {
+  opacity: 1;
+}
+.is-showing-all .hotspot:not(:hover, :focus-visible) .hotspot-glow {
+  opacity: 0;
+}
+.is-showing-all .hotspot:not(:hover, :focus-visible) .hotspot-outline {
+  stroke: var(--hotspot-show-all);
+  stroke-dasharray: 6px 4px;
+}
 /* Keyboard focus: the two-tone focus ring traced along the polygon in place of the box around it (DESIGN.md):
    outside the edge, 2 px focus-ring-inner against it and 2 px focus-ring beyond (strokes straddle the edge). */
 .hotspot:focus-visible {

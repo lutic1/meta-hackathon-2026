@@ -190,12 +190,12 @@ function surface(content: Content, bar: TopBar): Surface {
   sideColumn.className = 'side-column'
   element.append(sceneColumn, sideColumn)
   if (content.name === 'play') {
-    const frame = { body: element, topBar: bar.element, guide: content.guide }
+    const frame = { body: element, topBar: bar.element, controls: bar.controls, guide: content.guide }
     return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame) }
   }
   element.classList.add('completion-layout')
   const { session, profile } = content
-  return { element, mount: () => mountCompletion(element, sceneColumn, sideColumn, session, profile) }
+  return { element, mount: () => mountCompletion(element, sceneColumn, sideColumn, session, profile, bar.controls) }
 }
 
 /** The page body empty except the centered status strip (UX-DR61). */

@@ -93,7 +93,7 @@ def test_the_scene_frame_is_the_gilt_rule_the_chrome_mat_and_the_canvas_ground()
 def test_a_hotspot_is_the_union_of_its_polygons_in_photo_pixels_with_the_interactable_id():
     layer, geometry, scene = _ts("scene/hotspots.ts"), _ts("scene/geometry.ts"), _ts("scene/index.ts")
     assert "room.interactables.filter((interactable) => interactable.photo === index)" in scene
-    assert "const d = hotspotPath(interactable.polygons ?? [])" in layer
+    assert ".map((interactable) => ({ interactable, d: hotspotPath(interactable.polygons ?? []) }))" in layer
     assert "hotspot.id = interactable.id" in layer
     # The photo's own pixel space is the viewBox, so the browser scales every polygon to the rendered size.
     assert "svg.setAttribute('viewBox', `0 0 ${photo.width} ${photo.height}`)" in layer
@@ -120,9 +120,12 @@ def test_hover_reveals_the_outline_halo_and_glow_within_150_ms_with_a_pointer_cu
     assert rules[".hotspot-halo,\n.hotspot-outline"]["vector-effect"] == "non-scaling-stroke"
     assert rules[".hotspot:hover .hotspot-glow"] == {"opacity": "1"}
     assert "reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))" in _ts("scene/hotspots.ts")
-    # No label on hover: the chip shows only after a click whose reply opened nothing.
+    # No label on hover: the chip shows after a click whose reply opened nothing, or on keyboard focus (Story 1.25).
     layer = _ts("scene/hotspots.ts")
-    assert "pointerenter" in layer and "showLabel" not in layer.split("for (const interactable", 1)[1].split("let hide", 1)[0]
+    assert "hotspot.addEventListener('pointerenter', handlers.onPointerEnter)" in layer
+    loop = layer.split("for (const { interactable, d } of shown)", 1)[1].split("let hide", 1)[0]
+    assert "showLabel" not in loop and loop.count("showChip(") == 1
+    assert "if (hotspot.matches(':focus-visible')) showChip(interactable, interactable.label)" in loop
 
 
 def test_a_click_inside_a_polygon_posts_exactly_one_click_and_a_click_outside_posts_nothing():
@@ -152,7 +155,8 @@ def test_a_non_target_click_shows_only_the_label_chip_8px_above_for_2s_or_until_
     assert "const opened = reply.locks_open.some((id) => !before.includes(id))" in activate
     assert "if (mounted && !opened) layer?.showLabel(interactable)" in activate
     assert "export const CHIP_OFFSET_PX = 8" in layer and "export const CHIP_MS = 2000" in layer
-    assert "chip.textContent = held ? fill(strings.inHand, { label: interactable.label }) : interactable.label" in layer
+    assert "showChip(interactable, held ? fill(strings.inHand, { label: interactable.label }) : interactable.label)" in layer
+    assert "chip.textContent = text" in layer
     assert "rendered.height - top * scale + CHIP_OFFSET_PX" in layer
     assert "setTimeout(() => hide?.(), CHIP_MS)" in layer
     assert "hotspot.addEventListener('pointerleave', done)" in layer

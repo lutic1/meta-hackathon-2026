@@ -1,9 +1,12 @@
 import type { Meta, PlayView, PostedEvent, SessionState } from '../types'
 import { getRoom, getSession, postEvent } from './api/index.ts'
+import { toggleButton } from './components/button.ts'
 import { inventory } from './components/inventory.ts'
 import { OPEN_HOLD_MS, wizardNotes } from './components/wizard-notes.ts'
+import { lockOutcomes } from './lock-outcomes.ts'
 import { currentPlace, placeHref } from './router.ts'
 import { lastShownPhoto, mountScene } from './scene/index.ts'
+import { strings } from './strings.ts'
 import { mountWelcome, playHasBegun } from './welcome.ts'
 
 /** The Play screen reads `GET /sessions/<id>` this often while it is open, hidden tab included (AD-4, UX-DR65). */
@@ -27,11 +30,12 @@ export interface PlaySession {
 
 /**
  * What the Play screen takes from the shell: the page body and the top bar, which the First-room welcome covers and
- * holds inert, and the `guide` setting its role line names.
+ * holds inert, the top bar's controls slot, and the `guide` setting its role line names.
  */
 export interface PlayFrame {
   body: HTMLElement
   topBar: HTMLElement
+  controls: HTMLElement
   guide: Meta['guide']
 }
 
@@ -54,15 +58,29 @@ function focusFirstHotspot(sceneColumn: HTMLElement): () => void {
 }
 
 /**
+ * The top bar's "Show all objects" toggle: pressed, every Hotspot of every Scene in `sceneColumn` is outlined until it
+ * is released (NFR-14); the class lives on the column, so it outlives a photo switch.
+ */
+function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
+  return toggleButton({
+    label: strings.showAllObjects,
+    state: 'pressed',
+    onToggle: (on) => sceneColumn.classList.toggle('is-showing-all', on),
+  })
+}
+
+/**
  * The Play screen (FR-11): the Scene over the row of the Thumbnail strip and the Inventory, and the Wizard notes in
  * the side column, over the session's Room from `GET /rooms/<room_id>`. The client polls `GET /sessions/<id>` every
  * 2000 ms, from a worker so the cadence holds while the tab is hidden, and every part draws open locks, the
  * Inventory and Wrong attempts from the latest state the server sent: a poll or the reply to a posted event, never
  * its own clicks. A poll sent before a reply that arrived first is stale and dropped. A session opened with a
  * First-room welcome shows its card over the first Scene until "Begin", unless play has already begun; "Begin" keeps
- * the line for the Hint area and moves focus to the first Hotspot. Once a state shows the Exit puzzle open, its "Open"
- * state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`, replacing the Play route in the history;
- * an Exit already open when the screen mounts has no Open state, so it routes at once. Returns the teardown.
+ * the line for the Hint area and moves focus to the first Hotspot. The top bar's "Show all objects" toggle outlines
+ * every Hotspot while pressed, across Scene changes, and lock outcomes are announced in the live region. Once a state
+ * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
+ * replacing the Play route in the history; an Exit already open when the screen mounts has no Open state, so it routes
+ * at once. Returns the teardown.
  */
 export function mountPlay(
   sceneColumn: HTMLElement,
@@ -122,6 +140,9 @@ export function mountPlay(
     leaving = setTimeout(() => location.replace(done), session.locks_open.includes(exitId) ? 0 : OPEN_HOLD_MS)
   }
 
+  const showAll = showAllToggle(sceneColumn)
+  frame.controls.append(showAll)
+
   const room: Promise<PlayView> = getRoom(session.room_id)
   const stripRow = document.createElement('div')
   stripRow.className = 'scene-strip-row'
@@ -134,7 +155,7 @@ export function mountPlay(
       const notes = wizardNotes(view, play)
       stripRow.append(held.element)
       sideColumn.append(notes.element)
-      parts.push(held.render, notes.render)
+      parts.push(held.render, notes.render, lockOutcomes(view, latest))
       held.render(latest)
       notes.render(latest)
       const exit = view.puzzles.find((puzzle) => puzzle.is_exit)
@@ -164,6 +185,7 @@ export function mountPlay(
     unfocus?.()
     clearTimeout(leaving)
     ticker.terminate()
+    showAll.remove()
     unmountScene()
     stripRow.remove()
     sideColumn.replaceChildren()
@@ -172,11 +194,19 @@ export function mountPlay(
 
 /**
  * The Play screen as it stands under the Completion sheet: the Scene on the photo it last showed in this page (the
- * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session`. It never
- * polls and never posts; the shell holds both columns inert. Returns the teardown.
+ * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session`, and the
+ * "Show all objects" toggle in the top bar's `controls`, unpressed. It never polls and never posts; the shell holds
+ * both columns and the top bar inert. Returns the teardown.
  */
-export function mountPlayBehind(sceneColumn: HTMLElement, sideColumn: HTMLElement, session: SessionState): () => void {
+export function mountPlayBehind(
+  sceneColumn: HTMLElement,
+  sideColumn: HTMLElement,
+  session: SessionState,
+  controls: HTMLElement,
+): () => void {
   let mounted = true
+  const showAll = showAllToggle(sceneColumn)
+  controls.append(showAll)
   const play: PlaySession = {
     id: session.id,
     roomId: session.room_id,
@@ -204,6 +234,7 @@ export function mountPlayBehind(sceneColumn: HTMLElement, sideColumn: HTMLElemen
 
   return () => {
     mounted = false
+    showAll.remove()
     unmountScene()
     stripRow.remove()
     sideColumn.replaceChildren()
