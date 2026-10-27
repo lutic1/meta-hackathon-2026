@@ -141,8 +141,10 @@ def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_lock_outco
         "web/src/completion.ts",
         "web/src/lock-outcomes.ts",
         "web/src/build-progress.ts",  # the reconnecting line
+        "web/src/play.ts",  # the reconnecting line
     }
     assert "announce(strings.reconnectingBuild)" in sources["web/src/build-progress.ts"]
+    assert "announce(strings.reconnectingPlay)" in sources["web/src/play.ts"]
     # The sign-off is a Guide line, so it is heard with its speaker prefix.
     assert "announce(`${strings.speakerGuide} ${said}`)" in sources["web/src/completion.ts"]
     assert "parts.push(held.render, notes.render, lockOutcomes(view, latest))" in _ts("play.ts")
