@@ -1,0 +1,40 @@
+/* {components.leave-room-confirmation}: the scrim covers the page body only (it starts below the top bar, so the
+   Disclosure banner and the Timer stay undimmed); the plain 480 px chrome-raised card is centered on it. */
+.leave-room-scrim {
+  box-sizing: border-box;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--spacing-frame-margin);
+  background: var(--scrim);
+}
+.leave-room-confirmation {
+  box-sizing: border-box;
+  width: 480px;
+  max-width: 100%;
+  padding: var(--spacing-6);
+  background: var(--chrome-raised);
+  color: var(--text);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--elevation-overlay);
+  transition: opacity var(--motion-overlay) var(--motion-ease);
+}
+.leave-room-confirmation.is-arriving {
+  opacity: 0;
+}
+.leave-room-heading {
+  margin: 0;
+  color: var(--text);
+}
+.leave-room-sentence {
+  margin: var(--spacing-3) 0 0;
+}
+/* "Keep playing" then "Leave room", left-aligned under the sentence. */
+.leave-room-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-5);
+}

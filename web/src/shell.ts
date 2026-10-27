@@ -7,6 +7,7 @@ import { captureScreen } from './capture.ts'
 import { mountCompletion } from './completion.ts'
 import { mountTimer, type TimerRun } from './capture-timer.ts'
 import { disclosureBanner } from './components/disclosure-banner.ts'
+import { narrowScreenMessage } from './components/narrow-screen-message.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { type TopBar, topBar } from './components/top-bar.ts'
 import { liveRegion } from './live-region.ts'
@@ -39,7 +40,8 @@ function refused(error: unknown): null {
  * `#/build/<job_id>/view` waits for `GET /builds/<job_id>/view` once and shows the Build view, ready, not ready or
  * failed (never the unreachable strip), with the `BuildView`'s own Disclosure list once it answered; only its body
  * scrolls, so the banner and the top bar stay pinned. `#/done/<session_id>` is the Completion screen over the
- * dimmed Play screen, its top bar inert and its Timer frozen.
+ * dimmed Play screen, its top bar inert and its Timer frozen. Below 1024 px the Narrow-screen message, a sibling of
+ * `root`, replaces the whole app on every route; `root` is only hidden meanwhile, so its state survives the resize.
  */
 export function startShell(root: HTMLElement): void {
   const metas = new Map<string, Meta>()
@@ -117,6 +119,7 @@ export function startShell(root: HTMLElement): void {
   window.addEventListener('hashchange', () => {
     navigated = true
   })
+  root.after(narrowScreenMessage())
   liveRegion() // in the page before anything is written to it
   window.addEventListener('hashchange', () => void render())
   void render()

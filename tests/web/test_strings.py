@@ -34,6 +34,9 @@ screen's error state)."""
 ACCESSIBILITY_FLOOR_ONLY = {"lockNotThis", "lockOpen"}
 """Lines EXPERIENCE.md words only in the Accessibility Floor (the live-region lines for lock outcomes)."""
 
+RESPONSIVE_ONLY = {"narrowHeading", "narrowBody"}
+"""Lines EXPERIENCE.md words only in Responsive & Platform (the Narrow-screen message's heading and body)."""
+
 UNWORDED = {"photoThumbnail": "Remove photo {n}"}
 """Names EXPERIENCE.md never words, each derived from the Voice and Tone line given: the Thumbnail strip's
 "Photo {n}" is the photo tray's remove control without its verb."""
@@ -69,6 +72,9 @@ def test_every_string_is_verbatim_from_voice_and_tone():
             continue
         if key in STATE_PATTERNS_ONLY:
             assert _verbatim(value, _section("State Patterns")), f"strings.{key} {value!r} is not verbatim in State Patterns"
+            continue
+        if key in RESPONSIVE_ONLY:
+            assert _verbatim(value, _section("Responsive & Platform")), f"strings.{key} {value!r} is not verbatim there"
             continue
         if key in ACCESSIBILITY_FLOOR_ONLY:
             floor = _section("Accessibility Floor")
@@ -264,3 +270,15 @@ def test_the_reconnecting_session_gone_and_unknown_room_strings_are_the_experien
     assert strings["roomNotFound"] == "Keyframe can't find this room"
     assert strings["roomNotFoundBody"] == "Check the link, or start from the beginning."
     assert strings["buildARoom"] == "Build a room"
+
+
+def test_the_leave_room_and_narrow_screen_strings_are_the_experience_lines():
+    strings = _strings()
+    # The confirmation's one line is its heading (the question) over its sentence (UX-DR46).
+    question = f"{strings['leaveRoomQuestion']} {strings['leaveRoomBody']}"
+    assert question == "Leave this room? This play-through won't be recorded."
+    assert f'"{question}" Buttons "{strings["leaveRoom"]}" / "{strings["keepPlaying"]}"' in _voice_and_tone()
+    assert strings["narrowHeading"] == "Keyframe needs a bigger screen"
+    assert strings["narrowBody"] == "Open this page on a laptop or desktop browser to play."
+    responsive = _section("Responsive & Platform")
+    assert f'heading "{strings["narrowHeading"]}"' in responsive and f'body "{strings["narrowBody"]}"' in responsive

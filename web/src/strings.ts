@@ -7,7 +7,8 @@
 // the Wizard notes and the Hint area take their component names as their accessible names. A `{name}` placeholder stands where
 // the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
 // Component Patterns, names its placeholders as that row does. The live-region lines for lock outcomes are worded
-// only in the Accessibility Floor.
+// only in the Accessibility Floor, and the Narrow-screen message only in Responsive & Platform. The Leave room
+// confirmation's one line is its heading (the question) over its sentence.
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -197,6 +198,12 @@ export const strings = {
   rungNudge: 'Puzzle {n} · Nudge',
   rungDirection: 'Puzzle {n} · Direction',
   rungNearAnswer: 'Puzzle {n} · Near-answer',
+  leaveRoom: 'Leave room',
+  leaveRoomQuestion: 'Leave this room?',
+  leaveRoomBody: "This play-through won't be recorded.",
+  keepPlaying: 'Keep playing',
+  narrowHeading: 'Keyframe needs a bigger screen',
+  narrowBody: 'Open this page on a laptop or desktop browser to play.',
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

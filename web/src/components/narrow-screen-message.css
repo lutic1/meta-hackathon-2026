@@ -1,0 +1,37 @@
+/* {components.narrow-screen-message} (UX-DR60): drawn only below 1024 px, where it replaces #app (shell.css). The
+   canvas holds a centered plain chrome-raised card, never parchment, at most 480 px wide inside 16 px side gutters,
+   so nothing scrolls sideways at any width. */
+.narrow-screen {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .narrow-screen {
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+    min-height: 100%;
+    padding: var(--spacing-narrow-gutter);
+    background: var(--canvas);
+  }
+}
+.narrow-screen-message {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  padding: var(--spacing-6);
+  background: var(--chrome-raised);
+  color: var(--text);
+  border-radius: var(--rounded-lg);
+  overflow-wrap: break-word;
+}
+.narrow-screen-wordmark,
+.narrow-screen-heading {
+  margin: 0;
+  color: var(--text);
+}
+.narrow-screen-heading {
+  margin-top: var(--spacing-4);
+}
+.narrow-screen-sentence {
+  margin: var(--spacing-3) 0 0;
+}

@@ -1,12 +1,13 @@
 import type { Meta, PlayView, PostedEvent, SessionState } from '../types'
 import { freshDerived, getRoom, getSession, postEvent, RequestFailed, startSession } from './api/index.ts'
-import { toggleButton } from './components/button.ts'
+import { secondaryButton, toggleButton } from './components/button.ts'
 import { type HintArea, hintArea } from './components/hint-area.ts'
 import { inventory } from './components/inventory.ts'
 import { noticeCard } from './components/notice-card.ts'
 import { playEnded } from './components/play-ended.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { OPEN_HOLD_MS, wizardNotes } from './components/wizard-notes.ts'
+import { mountLeaveRoom } from './leave-room.ts'
 import { lockOutcomes } from './lock-outcomes.ts'
 import { announce } from './live-region.ts'
 import { currentPlace, placeHref } from './router.ts'
@@ -90,7 +91,9 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * First-room welcome shows its card over the first Scene until "Begin", unless play has already begun; "Begin" keeps
  * the line as the first Guide line of the Hint area, pinned under the Wizard notes, and moves focus to the first
  * Hotspot. The top bar's "Show all objects" toggle outlines every Hotspot while pressed, across Scene changes, and
- * lock outcomes are announced in the live region. Once a state
+ * lock outcomes are announced in the live region. "Leave room" beside it, or the browser Back button, asks the Leave
+ * room confirmation (see `mountLeaveRoom`), never over the First-room welcome; confirming goes to `#/` and records no
+ * Room result. Once a state
  * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
  * replacing the Play route in the history; an Exit already open when the screen mounts has no Open state, so it routes
  * at once.
@@ -222,6 +225,7 @@ export function mountPlay(
     ended = true
     ticker.terminate()
     unmountWelcome?.()
+    leaveRoom.unmount()
     const home = placeHref({ route: { name: 'home' }, profile: currentPlace().profile })
     const card = noticeCard({
       heading: strings.roomNotFound,
@@ -246,8 +250,22 @@ export function mountPlay(
     leaving = setTimeout(() => location.replace(done), session.locks_open.includes(exitId) ? 0 : OPEN_HOLD_MS)
   }
 
+  let welcoming = false
+  let unfocus: (() => void) | undefined
   const showAll = showAllToggle(sceneColumn)
-  frame.controls.append(showAll)
+  const leaveRoom = mountLeaveRoom({
+    body: frame.body,
+    held: [frame.topBar, sceneColumn, sideColumn],
+    modalOpen: () => welcoming,
+    focusScene: () => {
+      unfocus?.()
+      unfocus = focusFirstHotspot(sceneColumn)
+    },
+    leave: () => {
+      location.hash = placeHref({ route: { name: 'home' }, profile: currentPlace().profile })
+    },
+  })
+  frame.controls.append(showAll, leaveRoom.button)
 
   const room: Promise<PlayView> = getRoom(session.room_id)
   sceneColumn.append(stage, stripRow)
@@ -276,13 +294,14 @@ export function mountPlay(
       if (mounted && error instanceof RequestFailed && error.status === 404 && error.code === 'room_not_found') roomMissing()
     })
 
-  let unfocus: (() => void) | undefined
   const welcome = session.opening_line
   if (welcome?.kind === 'welcome' && welcome.text !== null) {
     const line = welcome.text
     if (playHasBegun(session)) play.openingLine = line
     else {
+      welcoming = true
       unmountWelcome = mountWelcome(session.id, frame.guide, line, frame.body, [frame.topBar, sceneColumn, sideColumn], () => {
+        welcoming = false
         play.openingLine = line
         hints?.opening(line)
         unfocus = focusFirstHotspot(sceneColumn)
@@ -293,6 +312,7 @@ export function mountPlay(
   return () => {
     mounted = false
     unmountWelcome?.()
+    leaveRoom.unmount()
     unfocus?.()
     clearTimeout(leaving)
     ticker.terminate()
@@ -308,7 +328,7 @@ export function mountPlay(
 /**
  * The Play screen as it stands under the Completion sheet: the Scene on the photo it last showed in this page (the
  * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session`, and the
- * "Show all objects" toggle in the top bar's `controls`, unpressed. It never polls and never posts; the shell holds
+ * "Show all objects" toggle, unpressed, and "Leave room" in the top bar's `controls`. It never polls and never posts; the shell holds
  * both columns and the top bar inert. Returns the teardown.
  */
 export function mountPlayBehind(
@@ -319,7 +339,8 @@ export function mountPlayBehind(
 ): () => void {
   let mounted = true
   const showAll = showAllToggle(sceneColumn)
-  controls.append(showAll)
+  const leave = secondaryButton({ label: strings.leaveRoom, onActivate: () => undefined }) // held inert with the bar
+  controls.append(showAll, leave)
   const play: PlaySession = {
     id: session.id,
     roomId: session.room_id,
@@ -350,6 +371,7 @@ export function mountPlayBehind(
     mounted = false
     play.useOn.dispose()
     showAll.remove()
+    leave.remove()
     unmountScene()
     stripRow.remove()
     sideColumn.replaceChildren()
