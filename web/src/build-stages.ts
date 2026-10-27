@@ -42,6 +42,13 @@ const KIND: Record<Stage, Kind> = {
 /** Whether the job is in a status that names the stage it stopped at. */
 const STOPPED = new Set<JobState['status']>(['failed', 'needs_more_photos', 'needs_recapture'])
 
+/**
+ * The row a status stops at whatever stage it names (EXPERIENCE.md Build job statuses): too few objects at "Finding
+ * objects", a re-capture at the last attempt's "Testing the room", the Validator being the gate of every attempt sent
+ * back, the author stage's own refusals included.
+ */
+const STOPPED_AT: Partial<Record<JobState['status'], Kind>> = { needs_more_photos: 'finding', needs_recapture: 'testing' }
+
 function key(kind: Kind, attempt: number): string {
   return kind === 'writing' || kind === 'testing' ? `${kind}-${attempt}` : kind
 }
@@ -68,8 +75,8 @@ export function maskPreviewLine(labels: readonly string[]): string | null {
  * The rows for `job` (null before the first poll answers: every row pending). Records split into attempts at each
  * author record; the job shows one attempt more than it has authored once its Regeneration count has risen past
  * them. The running row is the job's `stage` (author at the attempt the count names, validate and dry run at the
- * last authored attempt), a stopped job's `stage` row is failed, every other row with records is done, and `done`
- * makes every row done.
+ * last authored attempt), a stopped job's row is failed (the row its status stops at, else its `stage`'s), every
+ * other row with records is done, and `done` makes every row done.
  */
 export function stageRows(job: JobState | null): StageRow[] {
   const records = job?.stages ?? []
@@ -85,8 +92,8 @@ export function stageRows(job: JobState | null): StageRow[] {
   const attempts = Math.max(1, authored, regenerations + 1)
 
   let current: string | null = null
-  if (job !== null && job.stage != null && (job.status === 'running' || STOPPED.has(job.status))) {
-    const kind = KIND[job.stage]
+  const kind = job === null ? undefined : (STOPPED_AT[job.status] ?? (job.stage == null ? undefined : KIND[job.stage]))
+  if (job !== null && kind !== undefined && (job.status === 'running' || STOPPED.has(job.status))) {
     current = key(kind, kind === 'writing' ? regenerations : Math.max(authored - 1, 0))
   }
 

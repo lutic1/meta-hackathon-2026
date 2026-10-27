@@ -1,21 +1,27 @@
 import type { JobState } from '../types'
-import { freshDerived, getBuild, photoUrl, RequestFailed, startSession } from './api/index.ts'
-import { heldPhotos, releasePhotos } from './build-photos.ts'
+import { freshDerived, getBuild, photoUrl, postBuild, RequestFailed, startSession } from './api/index.ts'
+import { type EndAction, buildEnd } from './build-end.ts'
+import { carryPhotos, heldPhotos, passPhotos, releasePhotos } from './build-photos.ts'
 import { stageRows } from './build-stages.ts'
 import { captureColumn } from './capture.ts'
-import { sessionOpened } from './capture-timer.ts'
+import { buildAccepted, buildEnded, sessionOpened, startTimer } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
-import { bannerSlot, showBanner } from './components/error-banner.ts'
+import { type BannerAction, bannerSlot, showBanner } from './components/error-banner.ts'
 import { reveal } from './components/fade.ts'
 import { fitChips, maskPreview, type TilePhoto } from './components/mask-preview.ts'
 import { compactPhotoTray } from './components/photo-tray.ts'
 import { stageList } from './components/stage-list.ts'
-import { placeHref } from './router.ts'
+import { statusStrip } from './components/status-strip.ts'
+import { announce } from './live-region.ts'
+import { MAX_PHOTOS } from './photos.ts'
+import { captureHref, placeHref } from './router.ts'
 import type { Size } from './scene/geometry.ts'
 import { strings } from './strings.ts'
 
 /** How often `#/build/<job_id>` reads job state (UX-DR8, the session cadence). */
 export const BUILD_POLL_MS = 2000
+/** Consecutive missed polls that show the reconnecting strip (EXPERIENCE.md State Patterns, Reconnecting (Build)). */
+export const MISSED_POLLS = 2
 
 export interface BuildScreen {
   left: HTMLElement
@@ -49,6 +55,15 @@ async function photoSize(url: string): Promise<Size | null> {
  * A Build already `done` when the route opens shows "Play this room" instead, and the photos the server now serves
  * for its Room. A refused session start shows the session-start-refused banner, whose "Try again" posts it again;
  * the Timer keeps running toward T1.
+ *
+ * A Build that ends without a Room (`build-end.ts`) stops its Timer beside the status, marks the row it stopped at
+ * failed, keeps its photos in the tray and shows one banner, which takes focus, its actions next in Tab order:
+ * "Try again" posts the held photos as a new Build and opens its route; "Add photos" opens the picker and carries
+ * the set plus the new files, up to 10 in all, to the Capture screen, whose next Upload is a new Build; "Start
+ * over" opens the empty Capture screen. A page that holds no photos (reloaded) cannot post or extend the set, so
+ * "Start over" takes the place of both. Two consecutive missed polls put the reconnecting strip at the top of the
+ * left area, above any banner, written once to the live region and never focused; the Stage list, the Mask preview
+ * and the Timer go on as they were, and the next answered poll removes the strip and renders from job state.
  */
 export function buildScreen(jobId: string, profile: string, retention: string): BuildScreen {
   const held = heldPhotos(jobId)
@@ -61,9 +76,14 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
   const maskSlot = document.createElement('div')
   const traySlot = document.createElement('div')
   if (held !== null) traySlot.append(compactPhotoTray(held.thumbnails))
+  const picker = document.createElement('input')
+  picker.type = 'file'
+  picker.multiple = true
+  picker.hidden = true
+  const strip = statusStrip(strings.reconnectingBuild)
   const left = document.createElement('section')
   left.className = 'capture-left'
-  left.append(banners, stages.element, actions, maskSlot, traySlot)
+  left.append(banners, stages.element, actions, maskSlot, traySlot, picker)
 
   return {
     left,
@@ -76,6 +96,9 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
       let masked = false
       let starting = false
       let started = false
+      let ended = false
+      let retrying = false
+      let missed = 0
 
       /** The photo at `index`: this page's downscale, else, once the Room exists, the one the server stores. */
       function photo(job: JobState, index: number): string | null {
@@ -138,6 +161,61 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
         actions.hidden = false
       }
 
+      function startOver(): void {
+        releasePhotos()
+        location.hash = placeHref({ route: { name: 'home' }, profile })
+      }
+
+      /** "Try again": the held photos as a new Build, its Timer run from this click; a failed post says so. */
+      async function retry(): Promise<void> {
+        if (held === null || retrying) return
+        retrying = true
+        const t0 = Date.now()
+        try {
+          const job = await postBuild(held.uploads)
+          startTimer(t0)
+          buildAccepted(job.id)
+          passPhotos(jobId, job.id)
+          if (mounted) location.hash = captureHref(job.id, profile)
+        } catch {
+          showBanner(banners, {
+            variant: 'error',
+            heading: strings.uploadFailed,
+            sentence: strings.uploadFailedBody,
+            actions: [{ label: strings.tryAgain, onActivate: () => void retry() }],
+          })
+        } finally {
+          retrying = false
+        }
+      }
+
+      /** "Add photos": the held set plus the files picked, up to 10 in all, carried to the Capture screen. */
+      picker.addEventListener('change', () => {
+        const files = [...(picker.files ?? [])]
+        picker.value = ''
+        if (held === null || files.length === 0) return
+        carryPhotos([...held.uploads.map(({ original }) => original), ...files].slice(0, MAX_PHOTOS))
+        startOver()
+      })
+
+      function action(kind: EndAction): BannerAction {
+        if (kind === 'startOver') return { label: strings.startOver, onActivate: startOver }
+        if (kind === 'tryAgain') return { label: strings.tryAgain, onActivate: () => void retry() }
+        return { label: strings.addPhotos, onActivate: () => picker.click() }
+      }
+
+      function end(job: JobState): void {
+        if (ended) return
+        const photos = held?.uploads.length ?? job.stages?.find((record) => record.stage === 'ingest')?.count ?? 0
+        const state = buildEnd(job, photos)
+        if (state === null) return
+        ended = true
+        buildEnded(jobId, state.status)
+        const { variant, heading, sentence } = state
+        const kinds = new Set(state.actions.map((kind) => (held === null ? 'startOver' : kind)))
+        showBanner(banners, { variant, heading, sentence, actions: [...kinds].map(action) })
+      }
+
       function apply(job: JobState): void {
         stages.update(stageRows(job))
         if (!masked && (job.mask_preview ?? []).length > 0) {
@@ -146,6 +224,7 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
         }
         if (job.status !== 'done') live = true
         else if (job.room_id != null) done(job, job.room_id)
+        end(job)
       }
 
       async function poll(): Promise<void> {
@@ -154,10 +233,21 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
           job = await getBuild(jobId)
         } catch (error) {
           const refused = error instanceof RequestFailed && error.status !== null && error.status < 500
-          if (mounted && !refused) polling = setTimeout(() => void poll(), BUILD_POLL_MS)
+          if (!mounted || refused) return
+          missed += 1
+          if (missed === MISSED_POLLS) {
+            left.prepend(strip)
+            announce(strings.reconnectingBuild)
+          }
+          polling = setTimeout(() => void poll(), BUILD_POLL_MS)
           return
         }
         if (!mounted) return
+        missed = 0
+        if (strip.isConnected) {
+          strip.remove()
+          announce('')
+        }
         apply(job)
         if (job.status === 'queued' || job.status === 'running') polling = setTimeout(() => void poll(), BUILD_POLL_MS)
       }

@@ -226,3 +226,24 @@ def test_the_welcome_strings_are_the_experience_lines():
     assert strings["guideRoleWritten"] == "Reads how you play; offers one hint at a time, never the answer, shown as written."
     assert strings["guideVoice"] == "Get stuck as often as you like. I'll help, a little at a time."
     assert strings["guideIntroduction"] == "The Guide. {role line} {opening line} {voice line}"
+
+
+def test_the_build_end_state_strings_are_the_experience_lines():
+    strings = _strings()
+    source = _voice_and_tone()
+    assert strings["reconnectingBuild"] == (
+        "Reconnecting to Keyframe. Your build keeps going; this page catches up when it's back.")
+    assert strings["buildStopped"].format(stage="writing puzzles") == "The build stopped while writing puzzles."
+    assert '"The build stopped while {stage label, lowercased}."' in source
+    assert strings["providerCause"] == "A model service didn't answer."
+    assert strings["unexpectedCause"] == "The build stopped unexpectedly."
+    assert strings["spendCap"] == "Keyframe has reached its spending limit, so this room can't be built right now."
+    assert strings["spendCapBody"] == "Trying again won't help until the limit is raised; your photos are still here."
+    assert strings["tooFewObjects"] == "Keyframe found too few objects to build a room."
+    assert strings["tooFewObjectsBody"] == (
+        "Add a few more photos of this room, closer to shelves and tables, up to 10 in all.")
+    assert strings["tooFewObjectsFull"] == (
+        "You already have 10 photos. Start over with closer shots of shelves and tables.")
+    assert strings["recapture"] == "Keyframe couldn't build a fair room from these photos."
+    assert strings["recaptureBody"] == "Try brighter, closer shots where labels and printed text are readable."
+    assert (strings["addPhotos"], strings["startOver"], strings["tryAgain"]) == ("Add photos", "Start over", "Try again")

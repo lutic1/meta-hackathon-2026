@@ -70,7 +70,7 @@ def test_the_build_route_is_the_capture_layout_with_the_stage_list_in_place_of_t
     assert "const build = buildScreen(content.jobId, content.profile, content.retention)" in shell
     assert "element.append(build.left, build.right)" in shell and "mount: build.mount" in shell
     screen = _code("build-progress.ts")
-    assert "left.append(banners, stages.element, actions, maskSlot, traySlot)" in screen
+    assert "left.append(banners, stages.element, actions, maskSlot, traySlot, picker)" in screen
     assert "right: captureColumn(retention)" in screen
     assert "captureDropzone" not in screen and "storedRooms" not in screen
     capture = _code("capture.ts")
@@ -87,7 +87,8 @@ def test_it_polls_get_builds_every_2000_ms_while_the_build_is_queued_or_running(
             "BUILD_POLL_MS)") in poll
     # A missed poll is tried again on the same cadence; a refusal (4xx) ends polling with the list as last seen.
     assert "error instanceof RequestFailed && error.status !== null && error.status < 500" in poll
-    assert "if (mounted && !refused) polling = setTimeout(() => void poll(), BUILD_POLL_MS)" in poll
+    assert "if (!mounted || refused) return" in poll
+    assert poll.index("if (!mounted || refused) return") < poll.index("polling = setTimeout(() => void poll(), BUILD_POLL_MS)")
     assert "clearTimeout(polling)" in screen
     api = _code("api/index.ts")
     assert "return getJson<JobState>(`/builds/${encodeURIComponent(jobId)}`)" in api

@@ -1,6 +1,6 @@
 import type { RoomSummary } from '../types'
 import { postBuild, RequestFailed, type UploadPhoto } from './api/index.ts'
-import { holdPhotos } from './build-photos.ts'
+import { holdPhotos, takeCarriedPhotos } from './build-photos.ts'
 import { buildAccepted, mountTimer, startTimer, stopTimer } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
 import { captureDropzone } from './components/capture-dropzone.ts'
@@ -66,6 +66,9 @@ export function captureColumn(retention: string): HTMLElement {
  * starts the Build: everything but the Retention summary and the banners is disabled, the photos and their
  * downscales are handed to `build-photos.ts`, and `#/build/<job_id>` opens with the profile carried.
  *
+ * Photos "Add photos" carried here from a Build that ended `needs_more_photos` fill the tray at mount, re-validated
+ * like any chosen set, so the next Upload is a new Build.
+ *
  * Each Upload click is T0 (FR-5): the top bar's `timerSlot` shows the run it starts, nothing before. An upload that
  * fails or is refused freezes the run beside its end status, and the next Upload starts a new T0; an accepted one
  * records its job id, so `#/build/<job_id>` resumes the run after a reload.
@@ -99,6 +102,7 @@ export function captureScreen(
   left.className = 'capture-left'
   left.append(banners, controls)
   const right = captureColumn(retention)
+  const carried = takeCarriedPhotos()
 
   const chooseAgain = { label: strings.choosePhotosAgain, onActivate: dropzone.chooseAgain }
   const refused: BannerState = { variant: 'error', heading: strings.photosRefused, actions: [chooseAgain] }
@@ -178,6 +182,7 @@ export function captureScreen(
         jobId: job.id,
         thumbnails: set.map(({ url }) => url),
         downscales: pairs.map(({ downscale }) => URL.createObjectURL(downscale)),
+        uploads: pairs,
       })
       return null
     } catch (error) {
@@ -192,6 +197,7 @@ export function captureScreen(
     right,
     mount: () => {
       dropzone.button.focus()
+      if (carried.length > 0) void choose(carried, true)
       const unmountTimer = mountTimer(timerSlot, (run) => run.t0 === t0)
       return () => {
         if (accepted === null) release(photos)

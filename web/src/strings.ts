@@ -139,6 +139,19 @@ export const strings = {
   timePerPuzzle: 'Time per puzzle',
   buildAnotherRoom: 'Build another room',
   resultLoadFailed: "Keyframe couldn't load the result. Retrying.",
+  reconnectingBuild: "Reconnecting to Keyframe. Your build keeps going; this page catches up when it's back.",
+  buildStopped: 'The build stopped while {stage}.',
+  providerCause: "A model service didn't answer.",
+  unexpectedCause: 'The build stopped unexpectedly.',
+  spendCap: "Keyframe has reached its spending limit, so this room can't be built right now.",
+  spendCapBody: "Trying again won't help until the limit is raised; your photos are still here.",
+  tooFewObjects: 'Keyframe found too few objects to build a room.',
+  tooFewObjectsBody: 'Add a few more photos of this room, closer to shelves and tables, up to 10 in all.',
+  tooFewObjectsFull: 'You already have 10 photos. Start over with closer shots of shelves and tables.',
+  recapture: "Keyframe couldn't build a fair room from these photos.",
+  recaptureBody: 'Try brighter, closer shots where labels and printed text are readable.',
+  addPhotos: 'Add photos',
+  startOver: 'Start over',
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

@@ -67,6 +67,14 @@ export function sessionOpened(jobId: string, sessionId: string): void {
   if (current !== null && current.jobId === jobId) save({ ...current, sessionId })
 }
 
+/**
+ * The Build `jobId` ended without a Room (`failed`, `needs_more_photos`, `needs_recapture`): its run stops beside
+ * `status`; a run of another Build is left as it is.
+ */
+export function buildEnded(jobId: string, status: string): void {
+  if (counting()?.jobId === jobId) stopTimer(status)
+}
+
 /** Stops the counting run: at T1 when `status` is null, else beside that end status. A stopped run stays frozen. */
 export function stopTimer(status: string | null): void {
   const current = counting()
