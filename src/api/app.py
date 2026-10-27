@@ -106,7 +106,8 @@ one past it answers 429 `too_many_attempts` with `Retry-After` before the
 code is compared (AD-9). `GET /builds/<job_id>/view` serves the
 `BuildView` (`to_build_view`) of a `done` job to anyone with the link, never
 behind the guard, with its `disclosure` composed by `disclosure_lines` for
-the Room and its job record (AD-15); a known job not yet `done` answers 409
+the Room and its job record under the same earlier-session rule as a session
+start, read from the stored session headers (AD-15); a known job not yet `done` answers 409
 `build_not_ready` with the job `status` in the envelope, and an unknown one
 404 (AD-3, AD-13). A room id or job id that a deletion record names
 (`ArtifactStore.deleted_room`, hosted under `rooms/deleted/`) answers 410
@@ -539,20 +540,32 @@ def build_routes(
     return router
 
 
-def build_view_routes(jobs: JobStore, store: ArtifactStore, settings: Settings) -> APIRouter:
+def stored_session_on(sessions: SessionStore, room_id: RoomId) -> bool:
+    """Whether a stored session header names this Room: a session this process or an earlier one started."""
+    for session_id in sessions.list_ids():
+        try:
+            if sessions.read_header(session_id).room_id == room_id:
+                return True
+        except KeyError:
+            continue
+    return False
+
+
+def build_view_routes(jobs: JobStore, store: ArtifactStore, sessions: SessionStore, settings: Settings) -> APIRouter:
     """The Build view: open in both modes, so it takes no access guard (AD-3)."""
     router = APIRouter(prefix="/api/builds", tags=["builds"])
 
     @router.get("/{job_id}/view")
     def get_build_view(job_id: str) -> BuildView:
-        """The `done` job's `BuildView` with the Room's Disclosure list; never a solution, a pairing or a Dry run answer."""
+        """The `done` job's `BuildView` with the Room's Disclosure list, the earlier-session rule included; never a solution, a pairing or a Dry run answer."""
         state = read_job(jobs, store, job_id)
         if state.status != "done":
             raise BuildNotReady(job_id, state.status)
         if state.room_id is None:
             raise RoomNotFound(job_id)
         room = load_room(store, state.room_id)
-        return to_build_view(room, state, disclosure=disclosure_lines(settings, room, state))
+        disclosure = disclosure_lines(settings, room, state, earlier_session=stored_session_on(sessions, room.id))
+        return to_build_view(room, state, disclosure=disclosure)
 
     return router
 
@@ -744,15 +757,7 @@ def session_routes(
 
     def earlier_session(room_id: RoomId) -> bool:
         """Whether a session on this Room has started: in this process, or stored by an earlier one."""
-        if open_sessions.any_on(room_id):
-            return True
-        for session_id in sessions.list_ids():
-            try:
-                if sessions.read_header(session_id).room_id == room_id:
-                    return True
-            except KeyError:
-                continue
-        return False
+        return open_sessions.any_on(room_id) or stored_session_on(sessions, room_id)
 
     open_sessions = OpenSessions(reopen)
 
@@ -1032,7 +1037,7 @@ def create_app(
     app.include_router(
         build_routes(wired.build, wired.jobs, wired.artifacts, wired.runner, on_terminal=wired.on_terminal, guard=wired.guard)
     )
-    app.include_router(build_view_routes(wired.jobs, wired.artifacts, settings))
+    app.include_router(build_view_routes(wired.jobs, wired.artifacts, wired.sessions, settings))
     app.include_router(room_routes(wired.artifacts, wired.jobs))
     if wired.profiles:
         app.include_router(profile_routes(wired.artifacts))

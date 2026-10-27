@@ -199,6 +199,19 @@ def test_the_build_views_disclosure_is_the_list_the_function_composes_for_the_ro
     assert _callers("to_build_view") == {"api/app.py"}
 
 
+def test_the_build_view_carries_the_earlier_builds_line_once_a_session_has_started_on_the_room(tmp_path: Path, built_room: Room):
+    """The Build view opened from the Completion screen keeps the Disclosure the session showed (EXPERIENCE.md, Disclosure banner)."""
+    job_state = job(built_room, call(1, cached=False))
+    client = TestClient(app_over(tmp_path, built_room, job_state, {"CACHE": "off"}))
+    assert client.get(f"/api/builds/{JOB}/view").json()["disclosure"] == []
+    start(client, built_room)
+    view = client.get(f"/api/builds/{JOB}/view")
+    assert view.status_code == 200, view.text
+    assert view.json()["disclosure"] == [EARLIER]
+    assert view.json()["disclosure"] == disclosure_lines(settings(), built_room, job_state, earlier_session=True)
+    assert client.get("/api/meta").json()["disclosure"] == []
+
+
 # --- No Room content in any line, no sentinel in any response -----------------------
 
 
