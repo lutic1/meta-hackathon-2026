@@ -129,7 +129,7 @@ development_status:
   epic-4-retrospective: optional
 
   epic-5: in-progress
-  5-1-player-profile-module-room-results-the-derived-block-and-the: backlog
+  5-1-player-profile-module-room-results-the-derived-block-and-the: done
   5-2-indexeddb-backend-for-the-player-profile: backlog
   5-3-local-profile-file-route-cut-2: done
   5-4-profile-file-backend-and-its-controls-cut-2: backlog
