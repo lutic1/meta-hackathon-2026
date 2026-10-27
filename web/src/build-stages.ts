@@ -162,9 +162,9 @@ export function stageRows(job: JobState | null): StageRow[] {
   function line(kind: Kind, attempt: number): string {
     const reading = fill(strings.readingLine, { n: photos ?? 0 })
     if (kind === 'reading') return reading
-    // The preview arrives with segment's record; until then the Finding objects row keeps the reading line. Known gap
-    // against AC4 and UJ-1 step 4: Build.run moves the job to author in the very next store write, so a 2000 ms poll
-    // almost never reads a running segment row that holds the preview. When the line shows awaits bmad-correct-course.
+    // The preview arrives with segment's record; until then the Finding objects row keeps the reading line. Build.run
+    // moves the job to author in the very next store write, so `build-progress.ts` replays segment's frame for one
+    // poll once a poll past it carries the preview (AC4, UJ-1 step 4).
     if (kind === 'finding') return maskPreviewLine((job?.mask_preview ?? []).map((tile) => tile.label)) ?? reading
     if (kind === 'writing') return attempt === 0 ? strings.writingLine : strings.regenerationLine
     if (kind === 'testing') return strings.testingLine

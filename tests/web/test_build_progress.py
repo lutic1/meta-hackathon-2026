@@ -272,6 +272,24 @@ def test_the_mask_preview_appears_once_job_state_carries_it_on_this_pages_own_do
     assert "return job.status === 'done' && job.room_id != null ? photoUrl(job.room_id, index) : null" in photo
 
 
+def test_the_first_poll_past_segment_with_the_preview_shows_segments_own_frame_for_one_poll():
+    """Build.run moves the job to author in the write after segment's, so the running "Finding objects" row with the
+    preview (AC4, UJ-1 step 4) is a persisted state a 2000 ms poll almost never reads: the first poll past segment
+    that carries the preview replays that frame, and the next poll reads on."""
+    screen = _code("build-progress.ts")
+    frame = _function(screen, "segmentFrame")
+    assert "if (masked || job.status !== 'running' || job.stage === 'segment' || (job.mask_preview ?? []).length === 0) return null" in frame
+    assert "const at = records.findIndex((record) => record.stage === 'segment')" in frame
+    assert "if (at < 0) return null" in frame
+    # The frame is the job as segment's own write left it: nothing past its record, and no Regeneration yet.
+    assert "return { ...job, stage: 'segment', stages: records.slice(0, at + 1), regeneration_count: 0 }" in frame
+    apply = _function(screen, "apply")
+    assert "stages.update(stageRows(segmentFrame(job) ?? job))" in apply
+    assert apply.index("stages.update(stageRows(segmentFrame(job) ?? job))") < apply.index("masked = true")
+    # A done or stopped job, or one reread while segment runs, renders as read.
+    assert "job.status !== 'running'" in frame and "job.stage === 'segment'" in frame
+
+
 def test_the_mask_preview_has_no_heading_and_no_interaction():
     ts = _code("components/mask-preview.ts")
     assert not re.search(r"addEventListener|tabIndex|tabindex|button|role=|<h\d|'h\d'|aria-label", ts)
