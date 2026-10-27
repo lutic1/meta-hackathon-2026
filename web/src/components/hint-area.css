@@ -27,6 +27,11 @@
 .hint-area.is-triggers-open .hint-upper {
   flex-shrink: 1000;
 }
+/* While a Card is stacked the upper part never gives way below the Card's portrait height, so its first lines stay
+   in view; the Triggers panel scrolls inside what is left. */
+.hint-area.is-triggers-open .hint-upper:has(> .hint-cards:not([hidden])) {
+  min-height: var(--spacing-7);
+}
 .hint-area.is-triggers-open .hint-lower {
   flex-shrink: 1;
   min-height: 0;

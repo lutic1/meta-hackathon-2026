@@ -206,6 +206,19 @@ def test_at_most_two_cards_stack_newest_on_top_above_the_rung_line_the_rest_behi
     assert rules[".hint-more"]["color"] == "var(--text-muted)"
 
 
+def test_with_the_triggers_panel_open_a_stacked_card_keeps_its_first_lines_in_view():
+    rules = _rules("components/hint-area.css")
+    # The open panel lets the upper part give way first, but never below the Card's portrait height while a Card is
+    # stacked; the panel then scrolls inside what is left.
+    assert rules[".hint-area.is-triggers-open .hint-upper"] == {"flex-shrink": "1000"}
+    held = rules[".hint-area.is-triggers-open .hint-upper:has(> .hint-cards:not([hidden]))"]
+    assert held == {"min-height": "var(--spacing-7)"}
+    assert "--spacing-7: 48px;" in _ts("tokens.css")
+    assert _rules("components/trickster-card.css")[".trickster-card"]["grid-template-columns"] == "48px minmax(0, 1fr)"
+    panel = _rules("components/triggers-panel.css")[".triggers-panel"]
+    assert panel["min-height"] == "0" and panel["overflow-y"] == "auto"
+
+
 def test_a_new_card_enters_after_the_lock_open_state_and_is_announced_once():
     hint = _code(_ts("components/hint-area.ts"))
     received = _function(hint, "receiveCards")
