@@ -17,7 +17,10 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from modal.exception import NotFoundError
 
+from src.api import wiring
+from src.config import Settings
 from src.domain.ledger import LedgerEntry, SpendCapExceeded
 from src.infra.local import EXPORTS_ROOT, LEDGER_PATH, JsonlLedgerStore
 from src.infra.modal import (
@@ -338,6 +341,46 @@ def test_a_merged_sum_at_or_above_the_ceiling_is_a_warning_and_changes_no_store(
     assert "WARNING: the sum 21.78 USD is at or above the 21.00 USD combined ceiling" in capsys.readouterr().err
     assert ((root / LEDGER_PATH).read_bytes(), (hosted.volume.root / snapshot_path(NOV_4)).read_bytes()) == before
     assert hosted.ledger == {}
+
+
+@pytest.mark.parametrize("missing", [FileNotFoundError("/spend"), NotFoundError("No such file or directory: spend")])
+def test_a_volume_with_no_spend_folder_holds_no_snapshot(root, hosted, monkeypatch, capsys, missing):
+    def listdir(path: str):
+        raise missing
+
+    monkeypatch.setattr(hosted.volume, "listdir", listdir)
+
+    assert ledger.main(["export"], root=root, today=NOV_5) == 0
+    assert capsys.readouterr().out.splitlines()[-1] == "no hosted snapshot merged: spend/ on keyframe-data in main holds no hosted-<date>.jsonl"
+    assert ledger.main(["reset"], root=root, today=NOV_5) == 0
+
+
+def test_the_api_export_after_a_build_keeps_the_snapshot_todays_export_merged(root, hosted):
+    store(root).append(settled(0.5))
+    hosted.snapshot("2026-11-04")
+    assert ledger.main(["export"], root=root, today=NOV_5) == 0
+    merged = json.loads(export_file(root, NOV_5).read_text())
+    api_export = wiring.ledger_export(Settings.from_env(), store(root), root / EXPORTS_ROOT, lambda: NOV_5)
+
+    store(root).append(settled(0.25, "sam"))  # a build finishing while the API runs
+    api_export()
+
+    written = json.loads(export_file(root, NOV_5).read_text())
+    assert (written["hosted_snapshot"], written["hosted_total_usd"]) == ("spend/hosted-2026-11-04.jsonl", pytest.approx(1.78))
+    assert written["entries"] == merged["entries"][:1] + [store(root).entries()[1].model_dump(mode="json")] + merged["entries"][1:]
+    assert (written["local_total_usd"], written["total_usd"]) == (0.75, pytest.approx(2.53))
+    assert ledger.main(["reset"], root=root, today=NOV_5) == 0
+
+
+def test_the_api_export_after_the_reset_keeps_no_snapshot_of_the_earlier_epoch(root, hosted):
+    hosted.snapshot("2026-11-04")
+    assert ledger.main(["export"], root=root, today=NOV_5) == 0
+    assert ledger.main(["reset"], root=root, today=NOV_5) == 0
+
+    wiring.ledger_export(Settings.from_env(), store(root), root / EXPORTS_ROOT, lambda: NOV_5)()
+
+    written = json.loads(export_file(root, NOV_5).read_text())
+    assert (written["epoch"], written["entries"], written["hosted_snapshot"], written["hosted_total_usd"]) == ("2026-11-05", [], None, 0.0)
 
 
 # --- 7.9: the reset of both stores ----------------------------------------------

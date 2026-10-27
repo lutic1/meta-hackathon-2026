@@ -27,7 +27,9 @@ the committed daily record of spend; given a `HostedSnapshot` (the latest
 `spend/hosted-<date>.jsonl` from the Volume, read by `scripts/ledger.py export`)
 it merges that snapshot's current-epoch entries in, each identical entry
 once. API wiring calls it at startup and after every build, with no
-snapshot. `DiskCache` keeps
+snapshot; such an export keeps the snapshot today's export already merged
+for the same epoch, so a build finishing after `scripts/ledger.py export`
+never drops the hosted spend from the committed record. `DiskCache` keeps
 one JSON file per key under `.cache/`, written whole and renamed into
 place.
 """
@@ -274,18 +276,33 @@ def export_path(exports_root: Path, today: date) -> Path:
     return exports_root / f"ledger-{today.isoformat()}.json"
 
 
+def _merged_snapshot(path: Path, epoch: str | None, local: list[LedgerEntry]) -> HostedSnapshot | None:
+    """The snapshot the export at `path` merged for `epoch`: its path and the entries it holds beyond `local`; `None` when it merged none."""
+    try:
+        prior = LedgerExport.model_validate_json(path.read_bytes())
+    except (FileNotFoundError, ValueError):
+        return None
+    if prior.hosted_snapshot is None or prior.epoch != epoch:
+        return None
+    own = set(local)
+    return HostedSnapshot(path=prior.hosted_snapshot, entries=[entry for entry in prior.entries if entry not in own])
+
+
 def export_ledger(
     store: JsonlLedgerStore, exports_root: Path, today: date, ceiling_usd: float, hosted: HostedSnapshot | None = None
 ) -> LedgerExport:
     """Write today's export from the store's current epoch, merged with `hosted`'s entries of that epoch, and return it.
 
     Local entries come first, then the snapshot's; an entry present in both
-    appears once. An empty ledger with no snapshot exports a total of 0. The
-    file is replaced whole, so a reader (or `git add`) never sees a partial
-    export.
+    appears once. With no `hosted`, the snapshot today's export already
+    merged for the same epoch is kept: its entries are the ones that export
+    holds beyond the local store. An empty ledger with no snapshot exports a
+    total of 0. The file is replaced whole, so a reader (or `git add`) never
+    sees a partial export.
     """
     epoch = store.epoch()
     local = store.entries()
+    hosted = hosted or _merged_snapshot(export_path(exports_root, today), epoch, local)
     remote = [entry for entry in hosted.entries if entry.epoch == epoch] if hosted else []
     entries = list(dict.fromkeys([*local, *remote]))
     export = LedgerExport(

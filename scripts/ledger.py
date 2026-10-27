@@ -26,7 +26,10 @@ Exits 1 on a refused reset, changing neither store: no export for today,
 today's export not holding the latest hosted snapshot, the hosted stores
 out of reach, or a second reset on the same date, whose marker would
 repeat the epoch and keep the entries appended since the first one
-counting. Every Dict and the Volume are resolved in the `--env` Modal
+counting. Should the local write fail after the Dict's, the two stores
+hold different epochs and every export merges no hosted entries; running
+`reset` again (the local epoch is not yet today) writes both markers anew.
+Every Dict and the Volume are resolved in the `--env` Modal
 Environment by `from_name(..., environment_name=...)`, never in the CLI's
 active one. Other scripts wrap their guarded calls in `exit_on_spend_cap`
 so a `SpendCapExceeded` exits non-zero naming the cap and the running total.
@@ -96,8 +99,14 @@ def exit_on_spend_cap() -> Iterator[None]:
 
 
 def latest_snapshot_path(volume: Volume) -> str | None:
-    """The Volume path of the hosted snapshot with the latest date under `spend/`; `None` when there is none."""
-    names = (PurePosixPath(entry.path).name for entry in volume.listdir(f"/{SPEND_DIR}"))
+    """The Volume path of the hosted snapshot with the latest date under `spend/`; `None` when there is none, `spend/` included."""
+    from modal.exception import NotFoundError
+
+    try:
+        listing = volume.listdir(f"/{SPEND_DIR}")
+    except (FileNotFoundError, NotFoundError):  # no daily snapshot has run yet
+        return None
+    names = (PurePosixPath(entry.path).name for entry in listing)
     days = [date.fromisoformat(match[1]) for name in names if (match := SNAPSHOT_NAME.fullmatch(name))]
     return snapshot_path(max(days)) if days else None
 
