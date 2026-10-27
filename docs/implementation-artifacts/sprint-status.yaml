@@ -135,7 +135,7 @@ development_status:
   5-4-profile-file-backend-and-its-controls-cut-2: done
   5-5-greeting-composer-over-the-derived-block: done
   5-6-greeting-path-on-session-start: done
-  5-7-greeting-card-and-adaptive-thresholds-in-play: backlog
+  5-7-greeting-card-and-adaptive-thresholds-in-play: done
   5-8-room-2-built-and-greeted-from-a-real-room-1-record: backlog
   epic-5-retrospective: optional
 
