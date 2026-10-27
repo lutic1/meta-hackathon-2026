@@ -316,7 +316,8 @@ def test_the_storage_interface_is_get_results_and_put_result_with_an_in_memory_b
     interface = profile.split("export interface ProfileStorage {", 1)[1].split("\n}", 1)[0]
     assert [line.strip() for line in interface.strip().splitlines()] == [
         "getResults(): Promise<RoomResult[]>", "putResult(result: RoomResult): Promise<void>"]
-    assert "const storage = memoryStorage()" in profile
+    # In memory where there is no IndexedDB, as under Node here; a browser opens the profile's database (5.2).
+    assert "const storage = typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name)" in profile
     assert "results.set(result.room_id, result)" in _function(profile, "memoryStorage")
 
 

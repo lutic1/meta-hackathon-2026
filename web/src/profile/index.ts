@@ -1,6 +1,7 @@
 // The Player profile (FR-20, FR-22, AD-8): the browser is its system of record and this module its only writer. Every
 // other module reads Room results and the Derived block through these exports; nothing here makes a request, and a
-// Session start carries only the Derived block. No DOM, so Node runs it as it ships.
+// Session start carries only the Derived block. Each profile lives in the IndexedDB database named after it; where
+// there is no IndexedDB (Node runs the tests on this module as it ships) it lives in memory.
 import type { Derived, Meta, RoomResult, SessionStart } from '../../types'
 import { derive, freshDerived } from './derive.ts'
 
@@ -21,6 +22,34 @@ export function memoryStorage(): ProfileStorage {
   }
 }
 
+/** The object store holding one profile's Room results, keyed by `room_id`. */
+const RESULTS = 'results'
+
+/** The IndexedDB backend: the Room results of profile `name` live in the database of that name, one per `room_id`. */
+function indexedDbStorage(name: string): ProfileStorage {
+  const database = new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(name, 1)
+    request.onupgradeneeded = () => request.result.createObjectStore(RESULTS, { keyPath: 'room_id' })
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+  /** Runs `step` in one transaction and answers its request's result once the transaction has committed. */
+  async function run<T>(mode: IDBTransactionMode, step: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+    const transaction = (await database).transaction(RESULTS, mode)
+    const request = step(transaction.objectStore(RESULTS))
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve(request.result)
+      transaction.onabort = () => reject(transaction.error)
+    })
+  }
+  return {
+    getResults: () => run('readonly', (store) => store.getAll()),
+    putResult: async (result) => {
+      await run('readwrite', (store) => store.put(result))
+    },
+  }
+}
+
 type Listener = (results: readonly RoomResult[]) => void
 
 interface Held {
@@ -36,11 +65,11 @@ interface Opened {
 
 const profiles = new Map<string, Opened>()
 
-/** The profile named `name` (the `?profile=` value), opened on first use. */
+/** The profile named `name` (the `?profile=` value), opened on first use: its IndexedDB database, else memory. */
 function open(name: string): Opened {
   let profile = profiles.get(name)
   if (profile === undefined) {
-    const storage = memoryStorage()
+    const storage = typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name)
     const held = storage.getResults().then((results) => ({
       results: new Map(results.map((result) => [result.room_id, result])),
       derived: derive(results),
