@@ -1,7 +1,8 @@
 """FR-20, FR-21, FR-22, FR-13, UX-DR12, UX-DR44, UX-DR82, AD-8: `web/profile`, the Player profile's only writer.
 
 The profile module and its Derived block have no DOM and no CSS, so Node (which strips the types) runs them as they
-ship, on its in-memory backend, against Room results built and validated by the server's pydantic models; the Derived
+ship, on the backend they ship with (cut 2's file backend, its `/api/profile/<name>` answered in the runner and every
+request it makes recorded), against Room results built and validated by the server's pydantic models; the Derived
 block it computes is validated by the server's `Derived`. The wiring around it (the Completion screen recording, the
 Session starts, the mode indicator) is checked by reading the TypeScript, as the other web tests do; `npm run build`
 and `tsc --noEmit` prove it compiles.
@@ -24,13 +25,44 @@ PROFILE = WEB_SRC / "profile"
 LOCK_TYPES = ("code", "order", "use_on", "find")
 
 # Runs one scenario against a fresh import of web/profile: each step is a call, and its answer is printed in order.
+# `fetch` answers `/api/profile/<name>` as the Local-mode route does, from the files `seed` puts there: a GET of no file
+# is 404 (after `lose`, every file is gone by the time a GET reads it), a PUT stores its body and echoes it unless the
+# `open` step names the status the real route gave that body.
+# A `put` is in Local mode unless it names the mode.
 RUNNER = """
 import { readFileSync } from 'node:fs'
+const files = new Map()
+const requests = []
+let verdict = 200
+let lost = false
+const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+const refusal = (status, code) => answer(status, { error: { code, message: code, stage: null } })
+globalThis.fetch = async (url, init = {}) => {
+  const method = init.method ?? 'GET'
+  const body = init.body === undefined ? null : init.body instanceof Blob ? await init.body.text() : init.body
+  requests.push({ url, method, body })
+  const name = decodeURIComponent(/^[/]api[/]profile[/]([^/?]+)$/.exec(url)?.[1] ?? '')
+  if (name === '') return refusal(404, 'not_found')
+  if (method === 'GET' && lost) files.delete(name)
+  if (method === 'GET') return files.has(name) ? answer(200, JSON.parse(files.get(name))) : refusal(404, 'profile_not_found')
+  const status = verdict
+  verdict = 200
+  if (status !== 200) return refusal(status, 'invalid_profile')
+  files.set(name, body)
+  return answer(200, JSON.parse(body))
+}
 const [profile, derive] = await Promise.all(process.argv.slice(1).map((url) => import(url)))
 const answers = []
 const heard = []
 for (const [call, ...args] of JSON.parse(readFileSync(0, 'utf8'))) {
-  if (call === 'put') answers.push(await profile.putResult(...args) ?? null)
+  if (call === 'put') answers.push(await profile.putResult(args[0], args[1], args[2] ?? 'local') ?? null)
+  else if (call === 'seed') answers.push(files.set(args[0], args[1]) && null)
+  else if (call === 'lose') answers.push((lost = true) && null)
+  else if (call === 'open') {
+    verdict = args[2] ?? 200
+    answers.push(await profile.openProfileFile(args[0], new Blob([args[1]])).then(() => null, (error) => error.status))
+  }
+  else if (call === 'file') answers.push(await profile.profileFile(...args))
   else if (call === 'results') answers.push(await profile.getResults(...args))
   else if (call === 'derived') answers.push(await profile.getDerived(...args))
   else if (call === 'start') answers.push(await profile.sessionStart(...args))
@@ -38,18 +70,23 @@ for (const [call, ...args] of JSON.parse(readFileSync(0, 'utf8'))) {
   else if (call === 'watch') answers.push(profile.watchResults(args[0], (results) => heard.push(results.length)) && null)
   else throw new Error(`unknown call ${call}`)
 }
-process.stdout.write(JSON.stringify({ answers, heard }))
+process.stdout.write(JSON.stringify({ answers, heard, requests, files: Object.fromEntries(files) }))
 """
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs web/profile as it ships")
 
 
-def _run(steps: list[list[Any]]) -> tuple[list[Any], list[int]]:
+def run_profile(steps: list[list[Any]]) -> dict[str, Any]:
+    """The scenario's `answers`, what the listeners `heard`, every request web/profile made and the `files` left."""
     modules = [(PROFILE / name).as_uri() for name in ("index.ts", "derive.ts")]
     result = subprocess.run(
         ["node", "--input-type=module", "-e", RUNNER, *modules],
         input=json.dumps(steps), cwd=REPO, capture_output=True, text=True, check=True,
     )
-    out = json.loads(result.stdout)
+    return json.loads(result.stdout)
+
+
+def _run(steps: list[list[Any]]) -> tuple[list[Any], list[int]]:
+    out = run_profile(steps)
     return out["answers"], out["heard"]
 
 
@@ -208,7 +245,8 @@ def test_a_profile_of_demo_results_only_gives_the_json_derived_fresh_serializes_
 def test_the_derived_block_is_computed_from_the_generated_types_only():
     derive, profile = (PROFILE / "derive.ts").read_text(), (PROFILE / "index.ts").read_text()
     assert "import type { Derived, PuzzleResult, RoomResult } from '../../types'" in derive
-    assert "import type { Derived, Meta, RoomResult, SessionStart } from '../../types'" in profile
+    assert "import type { Derived, Meta, Profile, RoomResult, SessionStart } from '../../types'" in profile
+    assert "import type { Profile, RoomResult } from '../../types'" in (PROFILE / "file.ts").read_text()
     for path, text in source_ts().items():
         assert not re.search(r"\b(interface|type)\s+(Derived|RoomResult|PuzzleResult)\b", text), path
 
@@ -253,17 +291,28 @@ def test_every_session_start_posts_the_profiles_session_start_body():
         assert not re.search(r"\bderived\b|freshDerived|\bderive\(", code), path
 
 
-def test_no_request_carries_a_room_result_or_anything_else_from_the_profile():
+def test_no_request_carries_a_room_result_or_anything_else_from_the_profile_but_the_cut_2_profile_file():
     api = _code("api/index.ts")
-    # The only body naming a profile type is the Session start; a RoomResult only ever arrives, by GET.
-    assert re.findall(r"export function (\w+)\([^)]*\bSessionStart\b", api) == ["startSession"]
+    # The bodies naming a profile type are the Session start and, cut 2's one exception, the whole profile file that
+    # `PUT /profile/<name>` writes to the local server; a RoomResult otherwise only ever arrives, by GET.
+    assert re.findall(r"export function (\w+)\([^)]*\b(?:SessionStart|Profile)\b", api) == ["startSession", "putProfile"]
     assert re.findall(r"\bRoomResult\b", api) == ["RoomResult", "RoomResult", "RoomResult"]  # import, return, getJson
     assert "return getJson<RoomResult>(`/sessions/${encodeURIComponent(sessionId)}/result`)" in api
-    # web/profile makes no request and imports nothing that does.
-    for name in ("profile/index.ts", "profile/derive.ts"):
-        code = _code(name)
-        assert not re.search(r"\bfetch\b|XMLHttpRequest|sendBeacon|WebSocket|/api", code), name
-        assert re.findall(r"^import (?!type )[^\n]*", code, flags=re.MULTILINE) in ([], ["import { derive, freshDerived } from './derive.ts'"])
+    assert "return getJson<Profile>(`/profile/${encodeURIComponent(name)}`)" in api
+    assert "return putJson<Profile>(`/profile/${encodeURIComponent(name)}`, body)" in api
+    # web/profile makes no request of its own: only its file backend calls the client, for the profile route alone.
+    for name in ("profile/index.ts", "profile/derive.ts", "profile/file.ts"):
+        assert not re.search(r"\bfetch\b|XMLHttpRequest|sendBeacon|WebSocket|['`]/api", _code(name)), name
+    imports = {name: re.findall(r"^import (?!type )[^\n]*", _code(name), flags=re.MULTILINE)
+               for name in ("profile/index.ts", "profile/derive.ts", "profile/file.ts")}
+    assert imports == {
+        "profile/index.ts": ["import { derive, freshDerived } from './derive.ts'", "import { type FileStorage, fileStorage } from './file.ts'"],
+        "profile/derive.ts": [],
+        "profile/file.ts": ["import { getProfile, putProfile, RequestFailed } from '../api/index.ts'", "import { derive } from './derive.ts'"],
+    }
+    for path in source_ts():
+        if path not in ("web/src/profile/file.ts", "web/src/api/index.ts"):
+            assert not re.search(r"\b(getProfile|putProfile)\b", _code(path.removeprefix("web/src/"))), path
 
 
 # --- The only writer --------------------------------------------------------------------------------------------------
@@ -281,7 +330,8 @@ def test_web_profile_is_the_only_writer_and_others_read_through_its_exports():
             users[path] = sorted(imported.group(1).split(", "))
     assert users == {
         "web/src/build-progress.ts": ["sessionStart"],
-        "web/src/completion.ts": ["putResult"],
+        "web/src/capture.ts": ["CUT_2", "openProfileFile"],
+        "web/src/completion.ts": ["CUT_2", "profileFile", "putResult"],
         "web/src/play.ts": ["sessionStart"],
         "web/src/shell.ts": ["getResults", "watchResults"],
         "web/src/stored-rooms.ts": ["sessionStart"],
@@ -292,7 +342,7 @@ def test_the_completion_screen_records_the_returned_result_once_and_nothing_whil
     load = _function(_code("completion.ts"), "load")
     failed, returned = load.split("} catch {", 1)[1].split("\n    }\n", 1)
     assert "putResult" not in failed and "retry = setTimeout(() => void load(), RESULT_RETRY_MS)" in failed
-    assert returned.count("putResult(") == 1 and "void putResult(profile, result)" in returned
+    assert returned.count("putResult(") == 1 and "const recorded = putResult(profile, result, mode)" in returned
     assert returned.index("if (!mounted) return") < returned.index("putResult(") < returned.index("show(result)")
 
 
@@ -301,14 +351,21 @@ def test_leaving_the_room_records_nothing():
         assert not re.search(r"putResult|getResult\b|/result", _code(name)), name
 
 
-def test_no_surface_offers_a_profile_viewer_export_or_delete_control():
+def test_no_surface_offers_a_profile_viewer_export_or_delete_control_beyond_cut_2s_open_and_save():
     profile_lines = {key for key, value in _strings().items() if "profile" in value.lower()}
-    assert profile_lines == {"modeProfile", "privacyLine"}
+    assert profile_lines == {"modeProfile", "privacyLine", "openProfileFile", "saveProfileFile", "profileFileLine", "profileFileRefused"}
+    # Cut 2's "Open profile file" and "Save profile file" are the only profile controls, in their component and the
+    # web/profile exports behind them; nothing anywhere views, exports, deletes, clears or resets the profile.
+    cut_2 = {"web/src/components/profile-file.ts", "web/src/profile/index.ts", "web/src/capture.ts", "web/src/completion.ts",
+             "web/src/strings.ts"}
     for path, text in {**source_ts(), "web/index.html": (REPO / "web/index.html").read_text()}.items():
         code = re.sub(r"/\*.*?\*/|//[^\n]*", "", text, flags=re.DOTALL)
-        assert not re.search(r"(export|delete|clear|reset|view|open|save)\w*\W{0,3}(the\W)?(player\W)?profile", code, re.IGNORECASE), path
+        assert not re.search(r"(export|delete|clear|reset|view)\w*\W{0,3}(the\W)?(player\W)?profile", code, re.IGNORECASE), path
+        if path not in cut_2:
+            assert not re.search(r"(open|save)\w*\W{0,3}(the\W)?(player\W)?profile", code, re.IGNORECASE), path
     exports = re.findall(r"^export (?:async )?(?:function|interface) (\w+)", (PROFILE / "index.ts").read_text(), re.MULTILINE)
-    assert exports == ["ProfileStorage", "memoryStorage", "getResults", "getDerived", "putResult", "watchResults", "sessionStart"]
+    assert exports == ["ProfileStorage", "memoryStorage", "getResults", "getDerived", "putResult", "openProfileFile",
+                       "profileFile", "watchResults", "sessionStart"]
 
 
 def test_the_storage_interface_is_get_results_and_put_result_with_an_in_memory_backend():
@@ -316,8 +373,11 @@ def test_the_storage_interface_is_get_results_and_put_result_with_an_in_memory_b
     interface = profile.split("export interface ProfileStorage {", 1)[1].split("\n}", 1)[0]
     assert [line.strip() for line in interface.strip().splitlines()] == [
         "getResults(): Promise<RoomResult[]>", "putResult(result: RoomResult): Promise<void>"]
-    # In memory where there is no IndexedDB, as under Node here; a browser opens the profile's database (5.2).
-    assert "const storage = typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name)" in profile
+    # Cut 2 puts its file backend behind the same interface; without it a browser opens the profile's IndexedDB
+    # database (5.2), and memory stands where there is no IndexedDB, as under Node here.
+    assert ("const file = CUT_2 ? fileStorage(name) : null\n    const storage = file ?? (typeof indexedDB === 'undefined'"
+            " ? memoryStorage() : indexedDbStorage(name))") in profile
+    assert "export interface FileStorage extends ProfileStorage {" in _code("profile/file.ts")
     assert "results.set(result.room_id, result)" in _function(profile, "memoryStorage")
 
 

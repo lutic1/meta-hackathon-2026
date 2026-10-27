@@ -71,11 +71,12 @@ def test_the_build_route_is_the_capture_layout_with_the_stage_list_in_place_of_t
     assert "element.append(build.left, build.right)" in shell and "mount: build.mount" in shell
     screen = _code("build-progress.ts")
     assert "left.append(banners, stages.element, actions, maskSlot, traySlot, picker)" in screen
-    assert "right: captureColumn(retention)" in screen
+    assert "right: captureColumn(retention, profile, mode, banners)" in screen
     assert "captureDropzone" not in screen and "storedRooms" not in screen
     capture = _code("capture.ts")
-    assert "export function captureColumn(retention: string): HTMLElement" in capture
-    assert "const right = captureColumn(retention)" in capture
+    assert ("export function captureColumn(retention: string, profile: string, mode: Meta['mode'], banners: HTMLElement): "
+            "HTMLElement") in capture
+    assert "const right = captureColumn(retention, profile, mode, banners)" in capture
 
 
 def test_it_polls_get_builds_every_2000_ms_while_the_build_is_queued_or_running():

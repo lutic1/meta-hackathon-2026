@@ -120,6 +120,9 @@ def _has_playwright() -> bool:
 needs_browser = pytest.mark.skipif(
     not _has_playwright(), reason="IndexedDB runs in headless Chromium through Playwright, which is not installed here",
 )
+# Cut 2 (5.4) puts the file backend in place of IndexedDB, so the browser runs only while it is not taken.
+cut_2_taken = "export const CUT_2: boolean = true" in (PROFILE / "index.ts").read_text()
+without_cut_2 = pytest.mark.skipif(cut_2_taken, reason="cut 2 is taken: the profile is a file, not an IndexedDB database")
 
 Steps = list[list[Any]]
 Visit = dict[str, Any]
@@ -170,6 +173,7 @@ BEHAVIOR: list[Callable[..., None]] = [
 
 
 @needs_browser
+@without_cut_2
 @pytest.mark.parametrize("test", BEHAVIOR, ids=lambda test: test.__name__.removeprefix("test_"))
 def test_the_5_1_behavior_tests_pass_unchanged_on_indexeddb(test: Callable[..., None], monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(behavior, "_run", _run_on_indexeddb)
@@ -181,6 +185,7 @@ def test_the_5_1_behavior_tests_pass_unchanged_on_indexeddb(test: Callable[..., 
 
 
 @needs_browser
+@without_cut_2
 def test_the_profile_opens_the_indexeddb_database_of_its_name_one_record_per_room_id():
     first, replay = FIXTURE[0], result(1, [puzzle(1, rungs=2)], elapsed_ms=300000)
     (visit,) = _browse([[["put", "playtest", first], ["put", "playtest", first], ["put", "playtest", replay],
@@ -192,6 +197,7 @@ def test_the_profile_opens_the_indexeddb_database_of_its_name_one_record_per_roo
 
 
 @needs_browser
+@without_cut_2
 def test_profiles_never_mix_across_a_reload():
     demo, room = [*FIXTURE, result(3, [puzzle(5)], demo=True)], room_id(7)
     looks = [["results", "{0}"], ["derived", "{0}"], ["start", room, "{0}", "local"]]
@@ -212,6 +218,7 @@ def test_profiles_never_mix_across_a_reload():
 
 
 @needs_browser
+@without_cut_2
 def test_a_recorded_result_and_its_derived_block_survive_a_reload_and_a_browser_restart():
     room, looks = room_id(7), [["results", "demo"], ["derived", "demo"], ["start", room_id(7), "demo", "local"]]
     visits = _browse([
@@ -245,6 +252,7 @@ REFUSALS = {
 
 
 @needs_browser
+@without_cut_2
 @pytest.mark.parametrize("refusal", REFUSALS.values(), ids=REFUSALS.keys())
 def test_a_database_that_will_not_open_leaves_the_profile_playing_in_memory(refusal: str):
     room, looks = room_id(7), [["results", "playtest"], ["derived", "playtest"], ["start", room_id(7), "playtest", "local"]]
@@ -262,7 +270,7 @@ def test_a_database_that_will_not_open_leaves_the_profile_playing_in_memory(refu
 
 def test_the_database_is_named_by_the_profile_and_opened_only_by_web_profile():
     profile = _code((PROFILE / "index.ts").read_text())
-    assert "const storage = typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name)" in profile
+    assert "const storage = file ?? (typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name))" in profile
     assert "indexedDB.open(name, 1)" in profile
     assert "createObjectStore(RESULTS, { keyPath: 'room_id' })" in profile
     assert "store.put(result)" in profile and "store.getAll()" in profile

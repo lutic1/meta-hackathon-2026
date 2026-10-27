@@ -226,7 +226,7 @@ def test_the_completion_sheet_links_the_build_view_of_the_rooms_job_on_parchment
     assert "const opened = sessionJob(session.id)" in job
     assert "(await listRooms()).find((room) => room.room_id === session.room_id)?.job_id ?? null" in job
     assert "buildViewLink(jobId, profile, true)" in completion
-    assert "if (mounted && link !== null) actions.append(link)" in completion
+    assert "if (mounted && link !== null) buildAnother.after(link)" in completion  # right after "Build another room"
     timer = _ts("capture-timer.ts")
     assert "return run !== null && run.sessionId === sessionId ? run.jobId : null" in timer
 

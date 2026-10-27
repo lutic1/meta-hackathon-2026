@@ -35,6 +35,13 @@ beside it.
 - **Tier 3 (stretch, never gating):** Gaussian-splatted photoreal
   shell.
 
+## Cuts shipped
+
+- **Cut 2, the Player profile as a file:** in Local mode the profile
+  is `rooms/profiles/<name>.json` on your computer, read only after
+  "Open profile file" and downloaded with "Save profile file".
+  In Hosted mode there is no `/profile/<name>` route, every Session start sends `Derived.fresh()`, and hosted rooms show the First-room welcome.
+
 ## This repo
 
 Model-access scaffold for the build. Model access lands at kickoff

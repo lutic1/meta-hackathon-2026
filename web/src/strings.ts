@@ -10,7 +10,9 @@
 // only in the Accessibility Floor, and the Narrow-screen message only in Responsive & Platform. The Leave room
 // confirmation's one line is its heading (the question) over its sentence. The Triggers header is its Voice and
 // Tone line split after "idle", where the threshold's 1× value goes at a Demo timescale above 1, as in "Nudge after
-// 15 s idle (90 s at 1×) …".
+// 15 s idle (90 s at 1×) …". The cut-2 controls and their line are worded only in the Information Architecture's
+// Cut 2 placeholder, and EXPERIENCE.md words no refusal of a profile file, so its banner heading follows the photos'
+// "Keyframe couldn't read these photos." for one file.
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -49,6 +51,10 @@ export const strings = {
   retentionHeading: 'Where your photos go.',
   playHistory: 'Your play history',
   privacyLine: 'the player profile stays on your machine.',
+  openProfileFile: 'Open profile file',
+  saveProfileFile: 'Save profile file',
+  profileFileLine: 'Your player profile is a file on this computer; Keyframe reads it only when you open it.',
+  profileFileRefused: "Keyframe couldn't read this profile file.",
   sceneLoading: 'Setting the scene',
   photoThumbnail: 'Photo {n}',
   photosToPlay: 'Photos to play',

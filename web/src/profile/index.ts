@@ -1,10 +1,18 @@
 // The Player profile (FR-20, FR-22, AD-8): the browser is its system of record and this module its only writer. Every
-// other module reads Room results and the Derived block through these exports; nothing here makes a request, and a
-// Session start carries only the Derived block. Each profile lives in the IndexedDB database named after it; where
-// there is no IndexedDB (Node runs the tests on this module as it ships), or it will not open (the browser blocks site
-// data), it lives in memory.
-import type { Derived, Meta, RoomResult, SessionStart } from '../../types'
+// other module reads Room results and the Derived block through these exports, and a Session start carries only the
+// Derived block. Under cut 2 the profile is a file on this computer, read and written by the file backend through the
+// Local-mode `GET|PUT /profile/<name>` alone. Without cut 2 nothing here makes a request: each profile lives in the
+// IndexedDB database named after it; where there is no IndexedDB (Node runs the tests on this module as it ships), or
+// it will not open (the browser blocks site data), it lives in memory.
+import type { Derived, Meta, Profile, RoomResult, SessionStart } from '../../types'
 import { derive, freshDerived } from './derive.ts'
+import { type FileStorage, fileStorage } from './file.ts'
+
+/**
+ * Cut 2 (FR-20, UX-DR84), taken: the Player profile is a file, opened with "Open profile file" and saved with "Save
+ * profile file"; false puts the IndexedDB backend back and drops both controls and their line.
+ */
+export const CUT_2: boolean = true
 
 /** Where one profile's Room results live, keyed by `room_id`; the backend can change behind it. */
 export interface ProfileStorage {
@@ -60,6 +68,8 @@ interface Held {
 }
 
 interface Opened {
+  /** The file backend under cut 2, which can load a chosen file; null without cut 2. */
+  file: FileStorage | null
   held: Promise<Held>
   listeners: Set<Listener>
 }
@@ -72,18 +82,19 @@ function hold(storage: ProfileStorage, results: RoomResult[]): Held {
 }
 
 /**
- * The profile named `name` (the `?profile=` value), opened on first use: its IndexedDB database, else memory. A
- * database that will not open leaves the profile in memory, so play goes on without persistence.
+ * The profile named `name` (the `?profile=` value), opened on first use: its file under cut 2, else its IndexedDB
+ * database, else memory. A backend that will not open leaves the profile in memory, so play goes on without persistence.
  */
 function open(name: string): Opened {
   let profile = profiles.get(name)
   if (profile === undefined) {
-    const storage = typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name)
+    const file = CUT_2 ? fileStorage(name) : null
+    const storage = file ?? (typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name))
     const held = storage.getResults().then(
       (results) => hold(storage, results),
       () => hold(memoryStorage(), []),
     )
-    profile = { held, listeners: new Set() }
+    profile = { file, held, listeners: new Set() }
     profiles.set(name, profile)
   }
   return profile
@@ -99,19 +110,47 @@ export async function getDerived(name: string): Promise<Derived> {
   return (await open(name).held).derived
 }
 
+/** Tells every listener of `profile` its Room results now. */
+function heard(profile: Opened, held: Held): void {
+  const results = [...held.results.values()]
+  for (const listener of profile.listeners) listener(results)
+}
+
 /**
  * Records `result` under its `room_id`, replacing the Room's earlier result unless that one counts and this one is
  * demo-flagged, and recomputes the Derived block in the same step. Putting the same result again changes nothing.
+ * Under cut 2 Hosted mode has no profile route, so there the result stays in the page and nothing is sent.
  */
-export async function putResult(name: string, result: RoomResult): Promise<void> {
+export async function putResult(name: string, result: RoomResult, mode: Meta['mode']): Promise<void> {
   const profile = open(name)
   const held = await profile.held
   if (result.demo && held.results.get(result.room_id)?.demo === false) return
-  await held.storage.putResult(result)
+  if (mode === 'local' || profile.file === null) await held.storage.putResult(result)
   held.results.set(result.room_id, result)
   held.derived = derive([...held.results.values()])
-  const results = [...held.results.values()]
-  for (const listener of profile.listeners) listener(results)
+  heard(profile, held)
+}
+
+/**
+ * Cut 2, Local mode: "Open profile file" loads the chosen `file` as the profile `name` through `PUT /profile/<name>`,
+ * then reads it back with `GET /profile/<name>` and recomputes the Derived block, every listener hearing at once. A
+ * refused file (422: it does not parse, or its Derived block is out of bounds) throws and the profile stays as it was.
+ */
+export async function openProfileFile(name: string, file: Blob): Promise<void> {
+  const profile = open(name)
+  if (profile.file === null) throw new Error('A profile file opens under cut 2 only')
+  const held = await profile.held
+  await profile.file.load(file)
+  const results = await profile.file.getResults()
+  held.results = new Map(results.map((result) => [result.room_id, result]))
+  held.derived = derive(results)
+  heard(profile, held)
+}
+
+/** Cut 2: the profile `name` as "Save profile file" downloads it, every Room result keyed by `room_id` plus the Derived block. */
+export async function profileFile(name: string): Promise<Profile> {
+  const held = await open(name).held
+  return { results: Object.fromEntries(held.results), derived: held.derived }
 }
 
 /** Calls `listener` with every Room result each time one is recorded in the profile. Returns the unsubscribe. */

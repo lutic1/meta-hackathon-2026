@@ -225,8 +225,8 @@ function surface(content: Content, bar: TopBar): Surface {
     return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame) }
   }
   element.classList.add('completion-layout')
-  const { session, profile } = content
-  return { element, mount: () => mountCompletion(element, sceneColumn, sideColumn, session, profile, bar.controls) }
+  const { session, profile, mode } = content
+  return { element, mount: () => mountCompletion(element, sceneColumn, sideColumn, session, profile, mode, bar.controls) }
 }
 
 /** The page body empty except the centered status strip (UX-DR61). */

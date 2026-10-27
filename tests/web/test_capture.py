@@ -51,8 +51,8 @@ def test_local_home_is_the_capture_screen_built_from_the_same_get_meta():
 
 def test_the_right_column_holds_the_three_lines_then_the_retention_summary_in_order():
     capture = _ts("capture.ts")
-    assert ("right.append(line(strings.inputRequirement), line(strings.iphoneTip), line(strings.reminder), "
-            "retentionSummary(retention))") in capture
+    assert "const summary = retentionSummary(retention, openProfile(profile, mode, banners))" in capture
+    assert "right.append(line(strings.inputRequirement), line(strings.iphoneTip), line(strings.reminder), summary)" in capture
     assert "element.className = 'capture-line body-md'" in capture
     # Built with the screen, before any photo is chosen: nothing in the right column waits on the set.
     assert capture.index("right.append(") < capture.index("function choose(")

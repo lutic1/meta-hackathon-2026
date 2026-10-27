@@ -7,6 +7,7 @@ import type {
   Meta,
   PlayView,
   PostedEvent,
+  Profile,
   RoomResult,
   RoomSummary,
   SessionStart,
@@ -41,20 +42,20 @@ async function errorDetail(response: Response): Promise<ErrorDetail | null> {
 }
 
 /**
- * A GET, a POST of `body` as JSON, or a POST of a multipart `FormData` body (the browser writes its boundary);
- * the parsed JSON answer of a 2xx, else `RequestFailed`.
+ * A GET, a POST of a multipart `FormData` body (the browser writes its boundary), or a `method` (POST unless named) of a
+ * `Blob` sent byte for byte as JSON (a chosen file) or of anything else as JSON; the parsed JSON answer of a 2xx, else
+ * `RequestFailed`.
  */
-async function requestJson<T>(path: string, body?: unknown): Promise<T> {
+async function requestJson<T>(path: string, body?: unknown, method: 'POST' | 'PUT' = 'POST'): Promise<T> {
+  const json = { Accept: 'application/json', 'Content-Type': 'application/json' }
   const init: RequestInit =
     body === undefined
       ? { headers: { Accept: 'application/json' } }
       : body instanceof FormData
         ? { method: 'POST', headers: { Accept: 'application/json' }, body }
-        : {
-            method: 'POST',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          }
+        : body instanceof Blob
+          ? { method, headers: json, body }
+          : { method, headers: json, body: JSON.stringify(body) }
   let response: Response
   try {
     response = await fetch(`/api${path}`, init)
@@ -67,6 +68,7 @@ async function requestJson<T>(path: string, body?: unknown): Promise<T> {
 
 const getJson = <T>(path: string): Promise<T> => requestJson<T>(path)
 const postJson = <T>(path: string, body: unknown): Promise<T> => requestJson<T>(path, body)
+const putJson = <T>(path: string, body: unknown): Promise<T> => requestJson<T>(path, body, 'PUT')
 
 /** `GET /meta` for the `?profile=` name in the URL (AD-14, AD-15). */
 export function getMeta(profile: string): Promise<Meta> {
@@ -139,4 +141,18 @@ export function postBuild(photos: readonly UploadPhoto[]): Promise<JobState> {
 /** `POST /sessions/<id>/events`: one posted event, never stamped by the client (the API stamps `t_ms`); the new state. */
 export function postEvent(sessionId: string, body: PostedEvent): Promise<SessionState> {
   return postJson<SessionState>(`/sessions/${encodeURIComponent(sessionId)}/events`, body)
+}
+
+/** `GET /profile/<name>` (Local mode, cut 2 only): the profile file `rooms/profiles/<name>.json`; 404 when there is none. */
+export function getProfile(name: string): Promise<Profile> {
+  return getJson<Profile>(`/profile/${encodeURIComponent(name)}`)
+}
+
+/**
+ * `PUT /profile/<name>` (Local mode, cut 2 only): writes the whole profile file, from web/profile's `Profile` or a
+ * chosen file's bytes as they are; a body that does not parse or is out of bounds is refused with 422, the file
+ * unchanged.
+ */
+export function putProfile(name: string, body: Profile | Blob): Promise<Profile> {
+  return putJson<Profile>(`/profile/${encodeURIComponent(name)}`, body)
 }

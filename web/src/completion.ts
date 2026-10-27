@@ -1,13 +1,14 @@
 import './completion.css'
-import type { RoomResult, SessionState } from '../types'
+import type { Meta, RoomResult, SessionState } from '../types'
 import { getResult, listRooms } from './api/index.ts'
 import { buildViewLink } from './build-view.ts'
 import { sessionJob } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
+import { saveProfileControl } from './components/profile-file.ts'
 import { formatElapsed } from './components/timer.ts'
 import { announce } from './live-region.ts'
 import { mountPlayBehind } from './play.ts'
-import { putResult } from './profile/index.ts'
+import { CUT_2, profileFile, putResult } from './profile/index.ts'
 import { placeHref } from './router.ts'
 import { fill, strings } from './strings.ts'
 import { speakerPrefix, wizardPortrait } from './wizards/portrait.ts'
@@ -88,7 +89,9 @@ async function roomJob(session: SessionState): Promise<string | null> {
  * again every 2000 ms, nothing recorded. The returned `RoomResult` is put into the `profile` once (web/profile keys it
  * by `room_id`, so a reload of this route records nothing new). "Build another room", the one primary action, goes to `#/` and is there from the start;
  * "How this room was built" (secondary) joins it once the Room's job is known, opening its Build view, and is absent
- * under cut 0. The heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}".
+ * under cut 0. Under cut 2 in Local mode, once the result is recorded, "Save profile file" (secondary) follows them,
+ * downloading the profile with that result, its plain line below the actions; a refused record offers no download.
+ * The heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}".
  * The top bar's `controls` keep "Show all objects" in place, inert. Returns the teardown.
  */
 export function mountCompletion(
@@ -97,6 +100,7 @@ export function mountCompletion(
   sideColumn: HTMLElement,
   session: SessionState,
   profile: string,
+  mode: Meta['mode'],
   controls: HTMLElement,
 ): () => void {
   sceneColumn.inert = true
@@ -151,15 +155,14 @@ export function mountCompletion(
 
   const actions = document.createElement('div')
   actions.className = 'completion-actions'
-  actions.append(
-    primaryButton({
-      label: strings.buildAnotherRoom,
-      pendingLabel: strings.buildAnotherRoom,
-      onActivate: async () => {
-        location.hash = placeHref({ route: { name: 'home' }, profile })
-      },
-    }),
-  )
+  const buildAnother = primaryButton({
+    label: strings.buildAnotherRoom,
+    pendingLabel: strings.buildAnotherRoom,
+    onActivate: async () => {
+      location.hash = placeHref({ route: { name: 'home' }, profile })
+    },
+  })
+  actions.append(buildAnother)
 
   sheet.append(heading, signature, stats, times, failed, actions)
   scrim.append(sheet)
@@ -193,13 +196,22 @@ export function mountCompletion(
       return
     }
     if (!mounted) return
-    void putResult(profile, result)
+    const recorded = putResult(profile, result, mode)
     show(result)
+    void recorded.then(offerSave, () => {}) // a refused record leaves the profile as it was, with nothing to save
+  }
+
+  /** Cut 2, Local mode: "Save profile file" after the actions, its plain line under them. */
+  function offerSave(): void {
+    if (!mounted || !CUT_2 || mode !== 'local') return
+    const save = saveProfileControl(profile, () => profileFile(profile))
+    actions.append(save.button)
+    actions.after(save.line)
   }
   void load()
   void roomJob(session).then((jobId) => {
     const link = jobId === null ? null : buildViewLink(jobId, profile, true)
-    if (mounted && link !== null) actions.append(link)
+    if (mounted && link !== null) buildAnother.after(link)
   })
 
   return () => {

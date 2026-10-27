@@ -3,10 +3,10 @@ import { strings } from '../strings.ts'
 
 /**
  * `{components.retention-summary}` (UX-DR20, FR-6): "Where your photos go.", the `GET /meta` `retention` text exactly
- * as served, then the label "Your play history" over the verbatim Privacy line. Always fully expanded: no control,
- * nothing collapsed or truncated.
+ * as served, then the label "Your play history" over the verbatim Privacy line, and below it, under cut 2 only, the
+ * `profileFile` control. Always fully expanded: nothing collapsed or truncated.
  */
-export function retentionSummary(retention: string): HTMLElement {
+export function retentionSummary(retention: string, profileFile: HTMLElement | null): HTMLElement {
   const summary = document.createElement('section')
   summary.className = 'retention-summary'
   const heading = document.createElement('h2')
@@ -22,5 +22,6 @@ export function retentionSummary(retention: string): HTMLElement {
   privacy.className = 'retention-privacy body-md'
   privacy.textContent = strings.privacyLine
   summary.append(heading, text, label, privacy)
+  if (profileFile !== null) summary.append(profileFile)
   return summary
 }

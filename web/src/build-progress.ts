@@ -92,7 +92,7 @@ export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], 
 
   return {
     left,
-    right: captureColumn(retention),
+    right: captureColumn(retention, profile, mode, banners),
     mount: () => {
       let mounted = true
       let polling: ReturnType<typeof setTimeout> | undefined

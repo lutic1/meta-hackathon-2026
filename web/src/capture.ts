@@ -6,8 +6,10 @@ import { primaryButton } from './components/button.ts'
 import { captureDropzone } from './components/capture-dropzone.ts'
 import { type BannerState, bannerSlot, showBanner } from './components/error-banner.ts'
 import { photoTray } from './components/photo-tray.ts'
+import { openProfileControl } from './components/profile-file.ts'
 import { retentionSummary } from './components/retention-summary.ts'
 import { downscale, isJpeg, isValidSet } from './photos.ts'
+import { CUT_2, openProfileFile } from './profile/index.ts'
 import { captureHref } from './router.ts'
 import { storedRooms } from './stored-rooms.ts'
 import { strings } from './strings.ts'
@@ -44,13 +46,38 @@ function release(photos: readonly ChosenPhoto[]): void {
 }
 
 /**
- * The Capture screen's right column, before and during a Build: the Input requirement standing alone, the iPhone
- * tip, the faces, documents and belongings reminder, then the Retention summary.
+ * Cut 2, Local mode only (Hosted mode has no profile route): "Open profile file" for the Retention summary. The chosen
+ * file becomes the profile through web/profile, and the mode indicator hears its count at once; a refused file leaves
+ * the profile as it was and shows the error banner in `banners`, which takes focus and offers "Open profile file"
+ * again. null without cut 2 or in Hosted mode.
  */
-export function captureColumn(retention: string): HTMLElement {
+function openProfile(profile: string, mode: Meta['mode'], banners: HTMLElement): HTMLElement | null {
+  if (!CUT_2 || mode !== 'local') return null
+  let refusal: HTMLElement | null = null
+  const control = openProfileControl((file) => {
+    void openProfileFile(profile, file).then(
+      () => {
+        if (refusal?.isConnected) showBanner(banners, null)
+      },
+      () => {
+        const action = { label: strings.openProfileFile, onActivate: control.choose }
+        refusal = showBanner(banners, { variant: 'error', heading: strings.profileFileRefused, actions: [action] })
+      },
+    )
+  })
+  return control.element
+}
+
+/**
+ * The Capture screen's right column, before and during a Build: the Input requirement standing alone, the iPhone
+ * tip, the faces, documents and belongings reminder, then the Retention summary, with "Open profile file" under cut 2
+ * in Local mode, its refusals shown in `banners`.
+ */
+export function captureColumn(retention: string, profile: string, mode: Meta['mode'], banners: HTMLElement): HTMLElement {
   const right = document.createElement('aside')
   right.className = 'capture-right'
-  right.append(line(strings.inputRequirement), line(strings.iphoneTip), line(strings.reminder), retentionSummary(retention))
+  const summary = retentionSummary(retention, openProfile(profile, mode, banners))
+  right.append(line(strings.inputRequirement), line(strings.iphoneTip), line(strings.reminder), summary)
   return right
 }
 
@@ -102,7 +129,7 @@ export function captureScreen(
   const left = document.createElement('section')
   left.className = 'capture-left'
   left.append(banners, controls)
-  const right = captureColumn(retention)
+  const right = captureColumn(retention, profile, mode, banners)
   const carried = takeCarriedPhotos()
 
   const chooseAgain = { label: strings.choosePhotosAgain, onActivate: dropzone.chooseAgain }

@@ -41,6 +41,14 @@ UNWORDED = {"photoThumbnail": "Remove photo {n}"}
 """Names EXPERIENCE.md never words, each derived from the Voice and Tone line given: the Thumbnail strip's
 "Photo {n}" is the photo tray's remove control without its verb."""
 
+CUT2_PLACEHOLDER_ONLY = {"openProfileFile", "saveProfileFile", "profileFileLine"}
+"""Lines EXPERIENCE.md words only in the Information Architecture's Cut 2 placeholder (the profile file controls and
+their plain line)."""
+
+UNWORDED_REFUSALS = {"profileFileRefused": ("Keyframe couldn't read these photos.", "these photos", "this profile file")}
+"""Refusals EXPERIENCE.md never words, each the Voice and Tone line given with one phrase swapped: a refused profile
+file (cut 2) reads as the unreadable photos' line for one file."""
+
 
 def _section(name: str) -> str:
     return EXPERIENCE.read_text().split(f"\n## {name}\n", 1)[1].split("\n## ", 1)[0]
@@ -66,6 +74,13 @@ def test_every_string_is_verbatim_from_voice_and_tone():
     for key, value in _strings().items():
         if key in UNWORDED:
             assert UNWORDED[key] in source and UNWORDED[key].removeprefix("Remove p") == value.removeprefix("P"), key
+            continue
+        if key in UNWORDED_REFUSALS:
+            line, phrase, swapped = UNWORDED_REFUSALS[key]
+            assert line in source and value == line.replace(phrase, swapped), key
+            continue
+        if key in CUT2_PLACEHOLDER_ONLY:
+            assert _verbatim(value, _section("Information Architecture")), f"strings.{key} {value!r} is not in the Cut 2 placeholder"
             continue
         if key in COMPONENT_PATTERNS_ONLY:
             assert _verbatim(value, _component_patterns()), f"strings.{key} {value!r} is not verbatim in Component Patterns"

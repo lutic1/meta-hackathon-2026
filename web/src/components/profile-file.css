@@ -1,0 +1,18 @@
+/* The cut-2 profile file controls (UX-DR20, UX-DR44, UX-DR84): "Open profile file" below the Privacy line in the
+   Retention summary (chrome-raised), "Save profile file" with the Completion sheet's actions (parchment); the plain
+   line in body-sm, text-muted on chrome-raised and ink-muted on parchment. Never clipped or truncated. */
+.profile-file {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-4);
+}
+.profile-file-line {
+  margin: 0;
+  color: var(--text-muted);
+}
+.profile-file-line.on-parchment {
+  margin-top: var(--spacing-3);
+  color: var(--ink-muted);
+}
