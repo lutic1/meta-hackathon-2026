@@ -148,7 +148,7 @@ def test_keyboard_focus_never_stops_it():
     assert not re.search(r"addEventListener\('(focus|focusin|keydown|keyup)', handlers\.onPointerEnter", hotspots)
     keydown = hotspots.split("addEventListener('keydown'", 1)[1].split("})", 1)[0]
     assert "onPointerEnter" not in keydown
-    assert "onPointerEnter: () => firstPointerResponse(session.id)" in _code("scene/index.ts")
+    assert "onPointerEnter: () => firstPointerResponse(play.id)" in _code("scene/index.ts")
 
 
 def test_at_t1_it_reads_playable_in_with_success_digits_no_dot_and_stays_frozen():
