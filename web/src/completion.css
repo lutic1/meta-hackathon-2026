@@ -1,0 +1,110 @@
+/* The Completion screen: the Play layout dimmed under the scrim, which covers the page body only (it starts below the
+   top bar, so the Disclosure banner and the Timer stay undimmed). */
+.completion-layout {
+  position: relative;
+}
+/* The sheet is centered on the scrim; when the body is shorter than the sheet the scrim scrolls, never the page. */
+.completion-scrim {
+  box-sizing: border-box;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: var(--spacing-frame-margin);
+  background: var(--scrim);
+}
+
+/* {components.completion-sheet}: 720 px parchment, 48 px padding, rounded lg, the overlay elevation. */
+.completion-sheet {
+  box-sizing: border-box;
+  flex: none;
+  width: 720px;
+  max-width: 100%;
+  margin: auto;
+  padding: var(--spacing-7);
+  background: var(--parchment);
+  color: var(--ink);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--elevation-overlay);
+}
+.completion-heading {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* The Guide's sign-off: the 48 px portrait beside one wizard-line line. */
+.completion-signoff {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  column-gap: var(--spacing-3);
+  align-items: center;
+  margin-top: var(--spacing-5);
+}
+.completion-signoff[hidden] {
+  display: none;
+}
+.completion-signoff p {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* Time, Hints used and Wrong attempts three across in mono-timer, under the parchment rule. */
+.completion-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: var(--spacing-5);
+  margin-top: var(--spacing-6);
+  padding-top: var(--spacing-5);
+  border-top: 1px solid var(--parchment-rule);
+}
+.completion-stat-label {
+  margin-bottom: var(--spacing-2);
+  color: var(--ink-muted);
+}
+.completion-stat-value {
+  color: var(--ink);
+}
+.completion-stat-value.is-pending {
+  color: var(--pending-ink);
+}
+
+/* Time per puzzle: "Puzzle {n}" in body-sm and its time in mono-sm, right-aligned; no header row. */
+.completion-times {
+  margin-top: var(--spacing-5);
+}
+.completion-times table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.completion-times th,
+.completion-times td {
+  padding: var(--spacing-2) 0;
+  border-top: 1px solid var(--parchment-rule);
+  color: var(--ink);
+}
+.completion-times th {
+  text-align: left;
+}
+.completion-times td {
+  text-align: right;
+}
+.completion-times tr:first-child th,
+.completion-times tr:first-child td {
+  border-top: 0;
+}
+
+/* The result failed: one plain line, retried every 2000 ms. */
+.completion-error {
+  margin: var(--spacing-5) 0 0;
+  color: var(--ink);
+}
+
+/* "Build another room", left-aligned under the content. */
+.completion-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  align-items: center;
+  margin-top: var(--spacing-6);
+}

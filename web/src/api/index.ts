@@ -8,6 +8,7 @@ import type {
   Meta,
   PlayView,
   PostedEvent,
+  RoomResult,
   RoomSummary,
   SessionStart,
   SessionState,
@@ -76,6 +77,11 @@ export function getMeta(profile: string): Promise<Meta> {
 /** `GET /sessions/<id>`: the replayed state, with the Room's own `disclosure` list (AD-4, AD-15). */
 export function getSession(sessionId: string): Promise<SessionState> {
   return getJson<SessionState>(`/sessions/${encodeURIComponent(sessionId)}`)
+}
+
+/** `GET /sessions/<id>/result`: the `RoomResult` the server computes from the session's Event log (AD-4). */
+export function getResult(sessionId: string): Promise<RoomResult> {
+  return getJson<RoomResult>(`/sessions/${encodeURIComponent(sessionId)}/result`)
 }
 
 /** `GET /builds/<job_id>/view`: the solution-free `BuildView` of a `done` Build, open in both modes (AD-3). */

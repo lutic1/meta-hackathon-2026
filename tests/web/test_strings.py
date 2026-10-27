@@ -27,8 +27,9 @@ COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "spe
 portrait's speaker prefixes, the Build view rows, the Code field's Submit, the puzzle graph node's name, the
 First-room welcome's live-region text)."""
 
-STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed"}
-"""Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states)."""
+STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed", "resultLoadFailed"}
+"""Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states, the Completion
+screen's error state)."""
 
 UNWORDED = {"photoThumbnail": "Remove photo {n}"}
 """Names EXPERIENCE.md never words, each derived from the Voice and Tone line given: the Thumbnail strip's

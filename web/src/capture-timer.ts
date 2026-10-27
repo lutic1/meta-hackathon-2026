@@ -77,9 +77,10 @@ export function stopTimer(status: string | null): void {
  * Shows the run in the top bar's Timer slot while `belongs(run)` holds, else leaves the slot empty: the Capture
  * screen shows the run it started, `#/build/<job_id>` the run of that Build, the Play and Completion screens the run
  * of the Session the Build opened, so a replayed stored Room never shows it. The run stops at T1 on the first Hotspot
- * pointer response of its Session (the 1.19 signal; keyboard focus never sends it). Returns the teardown.
+ * pointer response of its Session (the 1.19 signal; keyboard focus never sends it). `frozen` (the Completion screen)
+ * draws the run without ticking, so the digits never move there. Returns the teardown.
  */
-export function mountTimer(slot: HTMLElement, belongs: (run: TimerRun) => boolean): () => void {
+export function mountTimer(slot: HTMLElement, belongs: (run: TimerRun) => boolean, frozen = false): () => void {
   const view = timer()
   let ticking: ReturnType<typeof setInterval> | undefined
 
@@ -94,7 +95,7 @@ export function mountTimer(slot: HTMLElement, belongs: (run: TimerRun) => boolea
       else view.render({ kind: 'ended', elapsedMs, status: shown.status })
       if (!view.element.isConnected) slot.replaceChildren(view.element)
     }
-    if (shown?.stoppedAt === null) ticking ??= setInterval(render, TICK_MS)
+    if (shown?.stoppedAt === null && !frozen) ticking ??= setInterval(render, TICK_MS)
     else {
       clearInterval(ticking)
       ticking = undefined

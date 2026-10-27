@@ -1,8 +1,9 @@
 import type { Meta, PlayView, PostedEvent, SessionState } from '../types'
 import { getRoom, getSession, postEvent } from './api/index.ts'
 import { inventory } from './components/inventory.ts'
-import { wizardNotes } from './components/wizard-notes.ts'
-import { mountScene } from './scene/index.ts'
+import { OPEN_HOLD_MS, wizardNotes } from './components/wizard-notes.ts'
+import { currentPlace, placeHref } from './router.ts'
+import { lastShownPhoto, mountScene } from './scene/index.ts'
 import { mountWelcome, playHasBegun } from './welcome.ts'
 
 /** The Play screen reads `GET /sessions/<id>` this often while it is open, hidden tab included (AD-4, UX-DR65). */
@@ -59,7 +60,9 @@ function focusFirstHotspot(sceneColumn: HTMLElement): () => void {
  * Inventory and Wrong attempts from the latest state the server sent: a poll or the reply to a posted event, never
  * its own clicks. A poll sent before a reply that arrived first is stale and dropped. A session opened with a
  * First-room welcome shows its card over the first Scene until "Begin", unless play has already begun; "Begin" keeps
- * the line for the Hint area and moves focus to the first Hotspot. Returns the teardown.
+ * the line for the Hint area and moves focus to the first Hotspot. Once a state shows the Exit puzzle open, its "Open"
+ * state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`, replacing the Play route in the history;
+ * an Exit already open when the screen mounts has no Open state, so it routes at once. Returns the teardown.
  */
 export function mountPlay(
   sceneColumn: HTMLElement,
@@ -112,6 +115,13 @@ export function mountPlay(
   ticker.onmessage = () => void poll()
   ticker.postMessage(POLL_MS)
 
+  let leaving: ReturnType<typeof setTimeout> | undefined
+  function leaveOnExit(exitId: string, state: SessionState): void {
+    if (leaving !== undefined || !state.locks_open.includes(exitId)) return
+    const done = placeHref({ route: { name: 'done', sessionId: session.id }, profile: currentPlace().profile })
+    leaving = setTimeout(() => location.replace(done), session.locks_open.includes(exitId) ? 0 : OPEN_HOLD_MS)
+  }
+
   const room: Promise<PlayView> = getRoom(session.room_id)
   const stripRow = document.createElement('div')
   stripRow.className = 'scene-strip-row'
@@ -127,6 +137,10 @@ export function mountPlay(
       parts.push(held.render, notes.render)
       held.render(latest)
       notes.render(latest)
+      const exit = view.puzzles.find((puzzle) => puzzle.is_exit)
+      if (exit === undefined) return
+      parts.push((state) => leaveOnExit(exit.id, state))
+      leaveOnExit(exit.id, latest)
     })
     .catch(() => undefined) // the Scene keeps its loading line; the reconnecting state lands in 1.24
 
@@ -148,7 +162,48 @@ export function mountPlay(
     mounted = false
     unmountWelcome?.()
     unfocus?.()
+    clearTimeout(leaving)
     ticker.terminate()
+    unmountScene()
+    stripRow.remove()
+    sideColumn.replaceChildren()
+  }
+}
+
+/**
+ * The Play screen as it stands under the Completion sheet: the Scene on the photo it last showed in this page (the
+ * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session`. It never
+ * polls and never posts; the shell holds both columns inert. Returns the teardown.
+ */
+export function mountPlayBehind(sceneColumn: HTMLElement, sideColumn: HTMLElement, session: SessionState): () => void {
+  let mounted = true
+  const play: PlaySession = {
+    id: session.id,
+    roomId: session.room_id,
+    state: () => session,
+    post: () => Promise.reject(new Error('the play-through is over')),
+    onState: () => undefined,
+    openingLine: null,
+  }
+  const room: Promise<PlayView> = getRoom(session.room_id)
+  const stripRow = document.createElement('div')
+  stripRow.className = 'scene-strip-row'
+  const unmountScene = mountScene(sceneColumn, stripRow, play, room, lastShownPhoto(session.id))
+  sceneColumn.append(stripRow)
+  room
+    .then((view) => {
+      if (!mounted) return
+      const held = inventory(view)
+      const notes = wizardNotes(view, play)
+      stripRow.append(held.element)
+      sideColumn.append(notes.element)
+      held.render(session)
+      notes.render(session)
+    })
+    .catch(() => undefined) // the dimmed Scene keeps its loading line
+
+  return () => {
+    mounted = false
     unmountScene()
     stripRow.remove()
     sideColumn.replaceChildren()

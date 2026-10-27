@@ -1,7 +1,7 @@
 // Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75);
 // a few lines EXPERIENCE.md gives only in Component Patterns (the Stored Room row, the Wizard portrait's speaker
-// prefixes, the Build view rows, the Code field's Submit) or State Patterns (the Build view states). EXPERIENCE.md
-// words no Scene loading line, no thumbnail name and no Timer end status, so the loading line reuses the "Setting
+// prefixes, the Build view rows, the Code field's Submit) or State Patterns (the Build view states, the Completion
+// screen's error line). EXPERIENCE.md words no Scene loading line, no thumbnail name and no Timer end status, so the loading line reuses the "Setting
 // the scene" stage name, a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and
 // the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory
 // and the Wizard notes take their component names as their accessible names. A `{name}` placeholder stands where
@@ -129,6 +129,16 @@ export const strings = {
   guideVoice: "Get stuck as often as you like. I'll help, a little at a time.",
   begin: 'Begin',
   guideIntroduction: 'The Guide. {role line} {opening line} {voice line}',
+  roomOpen: 'The room is open.',
+  signOffNoHints: "Not a single hint. I'm almost offended.",
+  signOffSomeHints: 'You let me help a little. I enjoyed every word.',
+  signOffManyHints: "We solved it together, and I'd do it again.",
+  statTime: 'Time',
+  statHints: 'Hints used',
+  statWrong: 'Wrong attempts',
+  timePerPuzzle: 'Time per puzzle',
+  buildAnotherRoom: 'Build another room',
+  resultLoadFailed: "Keyframe couldn't load the result. Retrying.",
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

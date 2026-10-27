@@ -29,6 +29,13 @@ export interface FirstPointerResponseDetail {
 }
 
 const responded = new Set<string>()
+/** The photo each session's Scene last showed in this page, so the Completion screen dims the same one. */
+const shownPhoto = new Map<string, number>()
+
+/** The photo the Scene of `sessionId` last showed in this page; the first photo when it showed none (a reload). */
+export function lastShownPhoto(sessionId: string): number {
+  return shownPhoto.get(sessionId) ?? 0
+}
 
 function firstPointerResponse(sessionId: string): void {
   if (responded.has(sessionId)) return
@@ -44,14 +51,15 @@ function firstPointerResponse(sessionId: string): void {
  * space. The frame shows its loading line until a photo and its Hotspots are live. A Hotspot click posts one `click`
  * naming its Interactable and nothing else; when the reply opened no lock, the click hit no target and the label
  * chip shows ("{label} · in hand" on an Interactable the Inventory holds). The Hotspots of collected Interactables
- * follow `inventory` in every state the server sends, so a solved `find` target's glow fades out. Returns the
- * teardown.
+ * follow `inventory` in every state the server sends, so a solved `find` target's glow fades out. It opens on photo
+ * `first`. Returns the teardown.
  */
 export function mountScene(
   root: HTMLElement,
   stripRow: HTMLElement,
   play: PlaySession,
   rooms: Promise<PlayView>,
+  first = 0,
 ): () => void {
   const frame = document.createElement('div')
   frame.className = 'scene-frame is-loading'
@@ -123,6 +131,7 @@ export function mountScene(
   async function show(index: number): Promise<void> {
     if (room === undefined || index === current) return
     current = index
+    shownPhoto.set(play.id, index)
     strip?.setCurrent(index)
     frame.classList.add('is-loading')
     loading.hidden = false
@@ -173,7 +182,7 @@ export function mountScene(
       room = view
       strip = thumbnailStrip(play.roomId, view.photos.length, (index) => void show(index))
       stripRow.prepend(strip.element)
-      return show(0)
+      return show(first)
     })
     .catch(() => undefined)
 

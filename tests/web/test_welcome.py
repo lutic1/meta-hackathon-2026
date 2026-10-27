@@ -43,7 +43,7 @@ def test_the_play_screen_shows_the_card_for_a_served_welcome_until_play_has_begu
     assert "unmountWelcome?.()" in play
     # The shell hands the Play screen its body, the whole top bar and the `guide` setting of `GET /meta`.
     shell = _ts("shell.ts")
-    assert "content = { name: 'play', session: state, guide: meta.guide }" in shell
+    assert "content = { name, session: state, guide: meta.guide, profile: place.profile }" in shell
     assert "const frame = { body: element, topBar: bar.element, guide: content.guide }" in shell
 
 

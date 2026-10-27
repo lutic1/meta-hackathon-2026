@@ -216,7 +216,7 @@ def test_every_timer_color_pair_meets_aa_in_the_contrast_table():
 
 def test_the_timer_sits_in_the_top_bar_center_slot_on_every_route():
     shell = _code("shell.ts")
-    assert "const unmountTimer = owns === null ? undefined : mountTimer(bar.timer, owns)" in shell
+    assert "const unmountTimer = owns === null ? undefined : mountTimer(bar.timer, owns, done)" in shell
     assert "unmountTimer?.()" in shell
     assert "if (!view.element.isConnected) slot.replaceChildren(view.element)" in _code("capture-timer.ts")
     assert "white-space" in _timer_rules()[".timer"]

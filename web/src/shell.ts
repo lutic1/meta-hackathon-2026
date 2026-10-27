@@ -4,6 +4,7 @@ import { getMeta, getSession, listRooms, RequestFailed } from './api/index.ts'
 import { buildScreen } from './build-progress.ts'
 import { type BuildViewOptions, type BuildViewState, buildViewSurface, loadBuildView } from './build-view.ts'
 import { captureScreen } from './capture.ts'
+import { mountCompletion } from './completion.ts'
 import { mountTimer, type TimerRun } from './capture-timer.ts'
 import { disclosureBanner } from './components/disclosure-banner.ts'
 import { statusStrip } from './components/status-strip.ts'
@@ -37,7 +38,8 @@ function refused(error: unknown): null {
  * bar's Timer slot shows the run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
  * `#/build/<job_id>/view` waits for `GET /builds/<job_id>/view` once and shows the Build view, ready, not ready or
  * failed (never the unreachable strip), with the `BuildView`'s own Disclosure list once it answered; only its body
- * scrolls, so the banner and the top bar stay pinned.
+ * scrolls, so the banner and the top bar stay pinned. `#/done/<session_id>` is the Completion screen over the
+ * dimmed Play screen, its top bar inert and its Timer frozen.
  */
 export function startShell(root: HTMLElement): void {
   const metas = new Map<string, Meta>()
@@ -88,7 +90,7 @@ export function startShell(root: HTMLElement): void {
       const state = await answered(mine, () => getSession(sessionId).catch(refused))
       if (state === undefined) return
       if (state !== null) disclosure = state.disclosure
-      if (name === 'play' && state !== null) content = { name: 'play', session: state, guide: meta.guide }
+      if (state !== null) content = { name, session: state, guide: meta.guide, profile: place.profile }
     } else if (place.route.name === 'build') {
       content = { name: 'build', jobId: place.route.jobId, profile: place.profile, retention: meta.retention }
     } else if (place.route.name === 'home' && meta.mode === 'local') {
@@ -100,10 +102,12 @@ export function startShell(root: HTMLElement): void {
     const banner = disclosureBanner(disclosure)
     const bar = topBar(meta)
     const body = surface(content, bar)
+    const done = content.name === 'done'
+    bar.element.inert = done // the Play screen's controls stay in place, taking no input
     show(...(banner === null ? [] : [banner]), bar.element, body.element)
     const unmountBody = body.mount?.()
     const owns = timerOwner(place.route)
-    const unmountTimer = owns === null ? undefined : mountTimer(bar.timer, owns)
+    const unmountTimer = owns === null ? undefined : mountTimer(bar.timer, owns, done)
     unmount = () => {
       unmountBody?.()
       unmountTimer?.()
@@ -125,12 +129,12 @@ interface Surface {
 }
 
 /**
- * What a route's body holds: the Build view, the Play layout for a session, the Capture screen with the Stored Rooms
- * list (Local `#/`), the Capture screen during a Build (`#/build/<job_id>`) or nothing yet.
+ * What a route's body holds: the Build view, the Play layout for a session, the Completion screen over it, the Capture
+ * screen with the Stored Rooms list (Local `#/`), the Capture screen during a Build (`#/build/<job_id>`) or nothing yet.
  */
 type Content =
   | ({ name: 'view'; state: BuildViewState } & BuildViewOptions)
-  | { name: 'play'; session: SessionState; guide: Meta['guide'] }
+  | { name: 'play' | 'done'; session: SessionState; guide: Meta['guide']; profile: string }
   | { name: 'rooms'; rooms: RoomSummary[]; profile: string; retention: string }
   | { name: 'build'; jobId: string; profile: string; retention: string }
   | { name: 'empty' }
@@ -185,8 +189,13 @@ function surface(content: Content, bar: TopBar): Surface {
   const sideColumn = document.createElement('aside')
   sideColumn.className = 'side-column'
   element.append(sceneColumn, sideColumn)
-  const frame = { body: element, topBar: bar.element, guide: content.guide }
-  return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame) }
+  if (content.name === 'play') {
+    const frame = { body: element, topBar: bar.element, guide: content.guide }
+    return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame) }
+  }
+  element.classList.add('completion-layout')
+  const { session, profile } = content
+  return { element, mount: () => mountCompletion(element, sceneColumn, sideColumn, session, profile) }
 }
 
 /** The page body empty except the centered status strip (UX-DR61). */
