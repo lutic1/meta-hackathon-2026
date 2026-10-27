@@ -3,7 +3,9 @@ import { getBuildView, RequestFailed } from './api/index.ts'
 import { buildViewHeader } from './components/build-view-header.ts'
 import { secondaryButton } from './components/button.ts'
 import { inPlayBlock } from './components/in-play-block.ts'
+import { maskOverlays } from './components/mask-overlays.ts'
 import { modelTable } from './components/model-table.ts'
+import { puzzleGraph } from './components/puzzle-graph.ts'
 import { captureHref } from './router.ts'
 import { strings } from './strings.ts'
 
@@ -39,10 +41,12 @@ export interface BuildViewSurface {
 }
 
 /**
- * The Build view body (UX-DR67): the header row, then a left two-thirds column (the puzzle graph, the mask overlays
- * and the JSON pane join in 2.30 and 2.31) and a right third holding the Model table, then the In play block. Initial
- * focus goes to the title. Not ready: the header, then "This room is still being built." linking to the Build's
- * Capture screen, with no panels. Failed: the plain failed line with "Try again".
+ * The Build view body (UX-DR67): the header row, then a left two-thirds column (the puzzle graph over the mask
+ * overlays; the JSON pane joins in 2.31) and a right third holding the Model table, then the In play block. The right
+ * column comes first in the page, so Tab runs the title, "Back", the right column, then the graph nodes and the mask
+ * label chips (UX-DR71); the stylesheet places it on the right. Initial focus goes to the title. Not ready: the header,
+ * then "This room is still being built." linking to the Build's Capture screen, with no panels. Failed: the plain
+ * failed line with "Try again".
  */
 export function buildViewSurface(state: BuildViewState, { meta, profile, onBack, onRetry }: BuildViewOptions): BuildViewSurface {
   if (state.name === 'failed') {
@@ -70,11 +74,12 @@ export function buildViewSurface(state: BuildViewState, { meta, profile, onBack,
   const header = buildViewHeader(state.view, onBack)
   const left = document.createElement('section')
   left.className = 'build-view-left'
+  left.append(puzzleGraph(state.view), maskOverlays(state.view))
   const right = document.createElement('aside')
   right.className = 'build-view-right'
   right.append(modelTable(state.view), inPlayBlock(meta))
   const columns = document.createElement('div')
   columns.className = 'build-view-columns'
-  columns.append(left, right)
+  columns.append(right, left)
   return { children: [header.element, columns], focus: () => header.title?.focus() }
 }

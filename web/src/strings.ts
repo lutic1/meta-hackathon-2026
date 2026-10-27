@@ -122,6 +122,9 @@ export const strings = {
   sceneLine: 'Hanging your room on the wall. Mind the frame.',
   regenerationLine: "The Riddler's draft didn't pass. Another go.",
   playThisRoom: 'Play this room',
+  graphNode: 'Puzzle {n}, {lockType}, requires {requires}, Dry run {verdict}',
+  requiresNone: 'none',
+  exit: 'Exit',
 } as const
 
 /** `template` with each `{name}` replaced by `values[name]`. */

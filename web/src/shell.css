@@ -130,10 +130,18 @@
 }
 .build-view-left,
 .build-view-right {
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-5);
   min-width: 0;
+}
+/* The right column comes first in the page (Tab order, UX-DR71) and is placed in the right third. */
+.build-view-left {
+  grid-column: 1;
+}
+.build-view-right {
+  grid-column: 2;
 }
 /* Not ready and failed: one plain line (the not-ready one linking to the Build's Capture screen), no panels. */
 .build-view-state {

@@ -21,9 +21,10 @@ def _strings() -> dict[str, str]:
 
 COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "speakerGuide", "speakerTrickster",
                            "back", "regenerations", "attemptSentBack", "validatorDid", "museImage", "museImageModel",
-                           "museImageDid", "guideWritten", "trickster", "submit"}
+                           "museImageDid", "guideWritten", "trickster", "submit", "graphNode", "requiresNone",
+                           "exit"}
 """Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list, the Wizard
-portrait's speaker prefixes, the Build view rows, the Code field's Submit)."""
+portrait's speaker prefixes, the Build view rows, the Code field's Submit, the puzzle graph node's name)."""
 
 STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed"}
 """Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states)."""
@@ -135,6 +136,10 @@ def test_the_build_view_strings_are_the_experience_lines():
         "Source: live", "Source: scripted", "Source: written in advance")
     assert (strings["architect"], strings["riddler"], strings["guide"], strings["trickster"]) == (
         "The Architect", "The Riddler", "The Guide", "The Trickster")
+    name = strings["graphNode"].format(n=5, lockType="code", requires="Puzzle 3 and Puzzle 4", verdict="pass")
+    assert f"{name}, {strings['exit']}" == "Puzzle 5, code, requires Puzzle 3 and Puzzle 4, Dry run pass, Exit"
+    first = strings["graphNode"].format(n=1, lockType="find", requires=strings["requiresNone"], verdict="skipped")
+    assert first == "Puzzle 1, find, requires none, Dry run skipped"
 
 
 def _code(text: str) -> str:
@@ -146,6 +151,8 @@ def test_client_strings_live_only_in_the_strings_module():
     others = {path: _code(text) for path, text in source_ts().items() if not path.endswith("web/src/strings.ts")}
     for key, value in _strings().items():
         if key == "modeSeparator":  # " · " is punctuation, not a line
+            continue
+        if key == "requiresNone":  # "none" is also the DataTransfer `dropEffect` keyword the drop zone sets
             continue
         repeated = re.compile(rf"(?<!\w){re.escape(value)}(?!\w)")  # "Play" as a word, not inside `PlayView`
         for path, text in others.items():

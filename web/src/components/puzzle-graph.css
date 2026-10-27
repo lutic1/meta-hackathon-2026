@@ -1,0 +1,92 @@
+/* {components.graph-node} and {components.graph-edge}: a chrome panel holding the graph. Nodes are 168 x 64 parchment
+   cards placed by the layout; the Exit's 3 px lamp double ring sits 3 px outside it, and its focus ring outside that.
+   Edges are 1.5 px graph-edge lines with 8 px arrowheads, under the nodes. No motion. */
+.puzzle-graph {
+  box-sizing: border-box;
+  padding: var(--spacing-5);
+  border-radius: var(--rounded-md);
+  background: var(--chrome);
+}
+.puzzle-graph-stage {
+  position: relative;
+}
+.puzzle-graph-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+}
+.graph-edge {
+  fill: none;
+  stroke: var(--graph-edge);
+  stroke-width: 1.5px;
+}
+.graph-arrowhead {
+  fill: var(--graph-edge);
+}
+.graph-node {
+  position: absolute;
+  box-sizing: border-box;
+  width: 168px;
+  height: 64px;
+  padding: 10px var(--spacing-3);
+  border-radius: var(--rounded-md);
+  background: var(--graph-node);
+  color: var(--graph-node-ink);
+  box-shadow: var(--elevation-paper);
+}
+.graph-node-number {
+  font-weight: 500;
+}
+.graph-node-exit-label {
+  margin-left: var(--spacing-2);
+  color: var(--lamp-ink);
+}
+.graph-node-exit::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 3px double var(--graph-node-exit);
+  border-radius: calc(var(--rounded-md) + 6px);
+  pointer-events: none;
+}
+/* The focus ring keeps its inner ring over the paper shadow; on the Exit the outer ring clears the double ring, over
+   the dark chrome panel. */
+.graph-node:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--focus-ring-inner),
+    var(--elevation-paper);
+}
+.graph-node-exit:focus-visible {
+  outline-offset: 8px;
+}
+/* The Dry run marker: an 8 px dot and the verdict word in the node's top-right corner, in the ink color for paper. */
+.graph-dry-run {
+  position: absolute;
+  top: 10px;
+  right: var(--spacing-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.graph-dry-run::before {
+  content: '';
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--rounded-full);
+  background: currentColor;
+}
+.graph-dry-run-pass {
+  color: var(--success-ink);
+}
+.graph-dry-run-fail {
+  color: var(--wrong-ink);
+}
+.graph-dry-run-skipped {
+  color: var(--ink-muted);
+}
+.graph-dry-run-skipped::before {
+  border: 1.5px solid currentColor;
+  background: none;
+}
