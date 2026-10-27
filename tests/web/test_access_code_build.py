@@ -227,10 +227,17 @@ def test_the_two_hosted_lines_sit_under_the_stage_list_in_hosted_mode_only():
 
 def test_a_hosted_failed_build_names_the_judge_build_cost_beside_try_again():
     end = _code("build-end.ts")
-    assert "export function buildEnd(job: JobState, photos: number, mode: Meta['mode']): BuildEnd | null {" in end
-    assert "sentence: mode === 'hosted' ? `${cause} ${strings.judgeBuildRetry}` : cause," in end
+    assert "sentence: code === 'provider_error' ? strings.providerCause : strings.unexpectedCause," in end
     assert "actions: ['tryAgain']," in end
-    assert "const state = buildEnd(job, photos, mode)" in _code("build-progress.ts")
+    assert "judgeBuildRetry" not in end  # the job alone cannot say whether "Try again" is on screen
+    banner = _function(_code("build-progress.ts"), "end")
+    # The sentence goes only beside a "Try again" actually offered: a page holding no photos (a reloaded or reopened
+    # `#/build/<job_id>`) turns every action into "Start over", so it gets no judge-build sentence.
+    assert "const kinds = new Set(state.actions.map((kind) => (held === null ? 'startOver' : kind)))" in banner
+    assert "const retries = mode === 'hosted' && kinds.has('tryAgain')" in banner
+    assert "const sentence = retries ? `${state.sentence} ${strings.judgeBuildRetry}` : state.sentence" in banner
+    assert banner.index("const kinds =") < banner.index("const retries =") < banner.index("showBanner(banners,")
+    assert "showBanner(banners, { variant, heading, sentence, actions: [...kinds].map(action) })" in banner
 
 
 def test_the_spend_cap_keeps_its_warning_with_start_over_only():
@@ -288,10 +295,15 @@ def test_every_new_pair_is_in_the_contrast_table():
             for line in table.splitlines() if line.startswith("| `")]
     pairs = {("text", "chrome"), ("text", "chrome-raised"), ("success", "chrome-raised"), ("on-lamp", "lamp"),
              ("error-text", "error-surface"), ("warning-text", "warning-surface"), ("text-muted", "chrome"),
-             ("text", "canvas"), ("success", "chrome")}
+             ("text", "canvas")}
     for fg, bg in pairs:
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
     assert "accepted Access code status line" in table
+    # On the Capture screen the builds-left line keeps the panel's surface, so `success` sits on `chrome-raised` there
+    # too, never on the canvas.
+    assert "status.classList.add('access-build-left')" in _function(_panel(), "buildsLeftLine")
+    left = css_rules((WEB_SRC / "components/access-code-build.css").read_text())[".access-build-left"]
+    assert left["background"] == "var(--chrome-raised)"
 
 
 # --- The hosted app answers the panel and the Capture screen ------------------------------

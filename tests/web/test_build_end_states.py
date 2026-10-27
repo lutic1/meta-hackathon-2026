@@ -46,7 +46,7 @@ def test_the_codes_the_client_maps_are_the_codes_the_server_writes():
     assert "const code = job.error?.code ?? null" in end
     assert "if (job.status === 'needs_more_photos' || code === 'too_few_interactables') {" in end
     assert "if (code === 'spend_cap_exceeded') {" in end
-    assert "const cause = code === 'provider_error' ? strings.providerCause : strings.unexpectedCause" in end
+    assert "sentence: code === 'provider_error' ? strings.providerCause : strings.unexpectedCause" in end
     assert "if (job.status !== 'failed') return null" in end
 
 

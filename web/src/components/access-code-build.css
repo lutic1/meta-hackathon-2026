@@ -43,3 +43,11 @@
 .access-build-status.is-accepted {
   color: var(--success);
 }
+/* The builds-left line on the Capture screen keeps the panel's chrome-raised surface (DESIGN.md: success on
+   chrome-raised), sized to its text. */
+.access-build-left {
+  align-self: flex-start;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--chrome-raised);
+  border-radius: var(--rounded-md);
+}

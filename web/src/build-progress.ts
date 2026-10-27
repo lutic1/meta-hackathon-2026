@@ -241,12 +241,16 @@ export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], 
       function end(job: JobState): void {
         if (ended) return
         const photos = held?.uploads.length ?? job.stages?.find((record) => record.stage === 'ingest')?.count ?? 0
-        const state = buildEnd(job, photos, mode)
+        const state = buildEnd(job, photos)
         if (state === null) return
         ended = true
         buildEnded(jobId, state.status)
-        const { variant, heading, sentence } = state
+        const { variant, heading } = state
         const kinds = new Set(state.actions.map((kind) => (held === null ? 'startOver' : kind)))
+        // Hosted: a "Try again" on screen says it uses one of the remaining judge builds; a reopened tab holds no
+        // photos, so it offers only "Start over" and the sentence stays out.
+        const retries = mode === 'hosted' && kinds.has('tryAgain')
+        const sentence = retries ? `${state.sentence} ${strings.judgeBuildRetry}` : state.sentence
         showBanner(banners, { variant, heading, sentence, actions: [...kinds].map(action) })
       }
 

@@ -2,7 +2,7 @@
 // keys on, with the envelope codes mapped onto it (`too_few_interactables` asks for more photos, `spend_cap_exceeded`
 // is the Spend cap, `provider_error` names the model service), and the banner each one shows. Nothing offers a
 // partial Room: an end state's only ways on are a new Build or the Capture screen.
-import type { JobState, Meta } from '../types'
+import type { JobState } from '../types'
 import { stageRows } from './build-stages.ts'
 import { MAX_PHOTOS } from './photos.ts'
 import { fill, strings } from './strings.ts'
@@ -19,11 +19,8 @@ export interface BuildEnd {
   actions: readonly EndAction[]
 }
 
-/**
- * The end state of `job`, `photos` being how many photos its set holds; null while it runs or once it is done. In
- * Hosted `mode` a `failed` body adds that trying again uses one of the remaining judge builds.
- */
-export function buildEnd(job: JobState, photos: number, mode: Meta['mode']): BuildEnd | null {
+/** The end state of `job`, `photos` being how many photos its set holds; null while it runs or once it is done. */
+export function buildEnd(job: JobState, photos: number): BuildEnd | null {
   const code = job.error?.code ?? null
   if (job.status === 'needs_more_photos' || code === 'too_few_interactables') {
     const full = photos >= MAX_PHOTOS
@@ -51,12 +48,11 @@ export function buildEnd(job: JobState, photos: number, mode: Meta['mode']): Bui
   // The heading names the row the Stage list shows failed; a job failed before any stage ran names the first one left.
   const rows = stageRows(job)
   const stopped = rows.find((row) => row.state === 'failed') ?? rows.find((row) => row.state !== 'done')
-  const cause = code === 'provider_error' ? strings.providerCause : strings.unexpectedCause
   return {
     status: 'failed',
     variant: 'error',
     heading: fill(strings.buildStopped, { stage: (stopped?.name ?? strings.sceneLoading).toLowerCase() }),
-    sentence: mode === 'hosted' ? `${cause} ${strings.judgeBuildRetry}` : cause,
+    sentence: code === 'provider_error' ? strings.providerCause : strings.unexpectedCause,
     actions: ['tryAgain'],
   }
 }

@@ -30,9 +30,13 @@ function showStatus(status: HTMLElement, text: string, accepted = false): void {
   status.classList.toggle('is-accepted', accepted)
 }
 
-/** The accepted status line, "{n} of 20 builds left" in `success`, as the Capture screen keeps it under Upload. */
+/**
+ * The accepted status line, "{n} of 20 builds left" in `success`, as the Capture screen keeps it under Upload, on the
+ * panel's `chrome-raised` so it reads on the surface the contrast table names for it.
+ */
 export function buildsLeftLine(buildsLeft: number): HTMLParagraphElement {
   const status = statusLine()
+  status.classList.add('access-build-left')
   showStatus(status, fill(strings.buildsLeft, { n: buildsLeft }), true)
   return status
 }
