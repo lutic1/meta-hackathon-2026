@@ -34,8 +34,8 @@ export interface PlaySession {
   /** Draws `render` with every later state the server sends, a poll or a reply. */
   onState: (render: (state: SessionState) => void) => void
   /**
-   * The First-room welcome once its card has closed (or when play had already begun): the first Guide line the Hint
-   * area shows, never announced again. null before "Begin" and for a session opened without a welcome.
+   * The Greeting or First-room welcome once its card has closed (or when play had already begun): the first Guide line
+   * the Hint area shows, never announced again. null before "Begin" and for a session opened without an opening line.
    */
   openingLine: string | null
   /** The Inventory item a `use_on` is given with, selected or dragged: the Scene and the Inventory share it. */
@@ -91,12 +91,13 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * 2000 ms, from a worker so the cadence holds while the tab is hidden, and every part draws open locks, the
  * Inventory and Wrong attempts from the latest state the server sent: a poll or the reply to a posted event, never
  * its own clicks. A poll sent before a reply that arrived first is stale and dropped. A session opened with a
- * First-room welcome shows its card over the first Scene until "Begin", unless play has already begun; "Begin" keeps
- * the line as the first Guide line of the Hint area, pinned under the Wizard notes, and moves focus to the first
- * Hotspot. The top bar's "Show all objects" toggle outlines every Hotspot while pressed, across Scene changes, and
- * lock outcomes are announced in the live region. The Triggers toggle under the hint controls shows why each Rung
+ * Greeting or a First-room welcome shows its card over the first Scene until "Begin", unless play has already begun;
+ * a Greeting still being phrased (`opening_line.text` null) shows the Guide thinking until a polled state brings its
+ * line. "Begin" keeps the line as the first Guide line of the Hint area, pinned under the Wizard notes, and moves
+ * focus to the first Hotspot. The top bar's "Show all objects" toggle outlines every Hotspot while pressed, across
+ * Scene changes, and lock outcomes are announced in the live region. The Triggers toggle under the hint controls shows why each Rung
  * arrived, its panel open from the start when the session loads with a Disclosure active. "Leave room" beside it, or
- * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the First-room welcome;
+ * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
  * confirming goes to `#/` and records no Room result. Once a state
  * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
  * replacing the Play route and its Back guard in the history (`LeaveRoom.exit`); an Exit already open when the screen mounts has no Open state, so it routes
@@ -307,17 +308,22 @@ export function mountPlay(
       if (mounted && error instanceof RequestFailed && error.status === 404 && error.code === 'room_not_found') roomMissing()
     })
 
-  const welcome = session.opening_line
-  if (welcome?.kind === 'welcome' && welcome.text !== null) {
-    const line = welcome.text
-    if (playHasBegun(session)) play.openingLine = line
+  const opening = session.opening_line
+  if (opening !== null) {
+    if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text
     else {
       welcoming = true
-      unmountWelcome = mountWelcome(session.id, frame.guide, line, frame.body, [frame.topBar, sceneColumn, sideColumn], () => {
+      const welcome = mountWelcome(session.id, frame.guide, opening, frame.body, [frame.topBar, sceneColumn, sideColumn], (line) => {
         welcoming = false
         play.openingLine = line
         hints?.opening(line)
         unfocus = focusFirstHotspot(sceneColumn)
+      })
+      unmountWelcome = welcome.close
+      // A Greeting still being phrased: its line arrives with a later state the poll reads, phrased or the template.
+      if (opening.text === null) parts.push((state) => {
+        const line = state.opening_line?.text ?? null
+        if (line !== null) welcome.arrive(line)
       })
     }
   }

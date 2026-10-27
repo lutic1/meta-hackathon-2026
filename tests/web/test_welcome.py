@@ -37,10 +37,10 @@ def client(tmp_path: Path, four_lock_room: Room) -> TestClient:
 
 def test_the_play_screen_shows_the_card_for_a_served_welcome_until_play_has_begun():
     play = _ts("play.ts")
-    assert "if (welcome?.kind === 'welcome' && welcome.text !== null) {" in play
-    assert "if (playHasBegun(session)) play.openingLine = line" in play
-    assert "mountWelcome(session.id, frame.guide, line, frame.body, [frame.topBar, sceneColumn, sideColumn], () => {" in play
-    assert "unmountWelcome?.()" in play
+    assert "if (opening !== null) {" in play
+    assert "if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text" in play
+    assert "mountWelcome(session.id, frame.guide, opening, frame.body, [frame.topBar, sceneColumn, sideColumn], (line) => {" in play
+    assert "unmountWelcome = welcome.close" in play and "unmountWelcome?.()" in play
     # The shell hands the Play screen its body, the whole top bar, its controls slot (Story 1.25) and the `guide`
     # setting of `GET /meta`.
     shell = _ts("shell.ts")
@@ -75,7 +75,7 @@ def test_the_scrim_covers_the_body_only_so_the_top_bar_and_its_timer_stay_undimm
 
 def test_the_card_holds_the_guides_introduction_the_served_line_the_voice_line_and_begin():
     overlay = _ts("components/greeting-overlay.ts")
-    assert "intro.append(wizardPortrait('guide', 96), name)" in overlay
+    assert "const portrait = wizardPortrait('guide', 96)" in overlay and "intro.append(portrait, name)" in overlay
     assert "heading.className = 'greeting-heading display-sm'" in overlay and "heading.textContent = strings.guide" in overlay
     assert "paragraph('greeting-role body-sm', role)" in overlay
     assert "paragraph('greeting-line wizard-line-lg', speakerPrefix('guide'), line)" in overlay
@@ -100,10 +100,11 @@ def test_begin_is_the_only_control_and_the_only_way_out_with_focus_trapped_on_it
     assert overlay.count("document.createElement('button')") == 1
     assert "Escape" not in welcome and "Escape" not in overlay  # Escape does nothing
     assert "begin.focus()" in welcome
+    assert "const target = (): HTMLElement => (line === null ? heading : begin)" in welcome
     assert "document.addEventListener('mousedown', keepFocus, true)" in welcome  # a scrim click keeps focus on it
     assert "const keepFocus = (event: MouseEvent): void => event.preventDefault()" in welcome
     trap = welcome.split("const trap = ", 1)[1].split("\n  }\n", 1)[0]
-    assert "if (event.key !== 'Tab') return" in trap and "event.preventDefault()" in trap and "begin.focus()" in trap
+    assert "if (event.key !== 'Tab') return" in trap and "event.preventDefault()" in trap and "target().focus()" in trap
     # The only listener that closes the card is "Begin"'s click; teardown removes every document listener.
     assert welcome.count("    close()\n") == 1 and "begin.addEventListener('click', () => {" in welcome
     assert "document.removeEventListener('mousedown', keepFocus, true)" in welcome
@@ -126,7 +127,7 @@ def test_the_scene_hotspots_and_top_bar_are_inert_while_the_card_shows():
 def test_the_introduction_is_written_to_the_one_live_region_once():
     welcome, region, shell = _ts("welcome.ts"), _ts("live-region.ts"), _ts("shell.ts")
     assert _code(welcome).count("announce(") == 1
-    assert ("announce(fill(strings.guideIntroduction, { 'role line': role, 'opening line': line, "
+    assert ("announce(fill(strings.guideIntroduction, { 'role line': role, 'opening line': served, "
             "'voice line': strings.guideVoice }))") in welcome
     assert "region.setAttribute('aria-live', 'polite')" in region and "document.body.append(region)" in region
     assert "liveRegion() // in the page before anything is written to it" in shell
@@ -138,7 +139,7 @@ def test_the_introduction_is_written_to_the_one_live_region_once():
 
 def test_begin_keeps_the_line_for_the_hint_area_and_focuses_the_first_hotspot():
     play = _ts("play.ts")
-    begin = play.split("[frame.topBar, sceneColumn, sideColumn], () => {", 1)[1].split("\n      })", 1)[0]
+    begin = play.split("[frame.topBar, sceneColumn, sideColumn], (line) => {", 1)[1].split("\n      })", 1)[0]
     assert "play.openingLine = line" in begin and "unfocus = focusFirstHotspot(sceneColumn)" in begin
     assert "openingLine: null," in play and "openingLine: string | null" in play
     focus = play.split("function focusFirstHotspot(", 1)[1].split("\n}\n", 1)[0]

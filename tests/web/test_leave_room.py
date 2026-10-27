@@ -154,7 +154,7 @@ def test_modals_never_stack():
     assert "if (close !== undefined || frame.modalOpen()) return" in leave
     play = _code(_ts("play.ts"))
     assert "modalOpen: () => welcoming" in play
-    welcome = play.split("const welcome = session.opening_line", 1)[1]
+    welcome = play.split("const opening = session.opening_line", 1)[1]
     assert welcome.index("welcoming = true") < welcome.index("mountWelcome(") < welcome.index("welcoming = false")
     # Only the Play screen opens it: the Completion screen's "Leave room" is held inert with its top bar.
     users = {path for path, text in source_ts().items() if "mountLeaveRoom(" in _code(text)}

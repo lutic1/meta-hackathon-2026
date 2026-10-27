@@ -232,7 +232,7 @@ def test_the_first_state_is_only_read_so_a_reload_rebuilds_the_rungs_and_announc
 
 def test_the_opening_line_sits_as_the_first_guide_line_after_begin_never_announced():
     play, hint = _ts("play.ts"), _ts("components/hint-area.ts")
-    begin = play.split("[frame.topBar, sceneColumn, sideColumn], () => {", 1)[1].split("\n      })", 1)[0]
+    begin = play.split("[frame.topBar, sceneColumn, sideColumn], (line) => {", 1)[1].split("\n      })", 1)[0]
     assert "hints?.opening(line)" in begin
     opening = _function(hint, "opening")
     assert "if (rungLine.hidden) present({ label: null, text: line, shown: null }, false)" in opening

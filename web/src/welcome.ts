@@ -1,4 +1,4 @@
-import type { Meta, SessionState } from '../types'
+import type { Meta, OpeningLine, SessionState } from '../types'
 import { greetingOverlay } from './components/greeting-overlay.ts'
 import { announce } from './live-region.ts'
 import { fill, strings } from './strings.ts'
@@ -44,47 +44,70 @@ export function guideRoleLine(guide: Meta['guide']): string {
   return guide === 'ollama' ? strings.guideRoleLocal : strings.guideRoleWritten
 }
 
+export interface Welcome {
+  /** Brings the served line to a card still thinking: it shows, "Begin" takes focus, and it is announced once. */
+  arrive: (line: string) => void
+  /** Removes the card without "Begin" (the teardown). */
+  close: () => void
+}
+
 /**
- * The First-room welcome over the first Scene (FR-21, UX-DR45, UX-DR64): `body` takes the scrim, every element in
- * `held` (the top bar, the Scene column, the side column) is inert while it shows, and focus is trapped on "Begin",
- * its only control and the only way to dismiss it: Escape and clicks anywhere do nothing, and Tab stays put. The
- * Guide's introduction, `line` and the voice line are written to the live region once. The plain tip naming "Show all
- * objects" sits on the scrim under the card. "Begin" records that play has begun, closes the card and calls
- * `onBegin`. Returns the teardown.
+ * The Greeting or First-room welcome over the first Scene (FR-21, UX-DR45, UX-DR64): `body` takes the scrim, every
+ * element in `held` (the top bar, the Scene column, the side column) is inert while it shows, and focus is trapped in
+ * the card: on "Begin", its only control and the only way to dismiss it, or while a Local Greeting is still being
+ * phrased (`opening.text` null), on its heading, with no "Begin" yet and the Guide's static thinking state where the
+ * line will go. Escape and clicks anywhere do nothing, and Tab stays put. Once the line is in the card (served at once,
+ * or brought by `arrive` from a later state the Play screen's poll reads), "Begin" appears and takes focus, and the
+ * Guide's introduction, the line and the voice line are written to the live region once. A First-room welcome also
+ * shows the plain tip naming "Show all objects" on the scrim under the card; a Greeting has none. "Begin" records
+ * that play has begun, closes the card and calls `onBegin` with the line.
  */
 export function mountWelcome(
   sessionId: string,
   guide: Meta['guide'],
-  line: string,
+  opening: OpeningLine,
   body: HTMLElement,
   held: readonly HTMLElement[],
-  onBegin: () => void,
-): () => void {
+  onBegin: (line: string) => void,
+): Welcome {
   const role = guideRoleLine(guide)
-  const overlay = greetingOverlay(role, line)
-  const { begin } = overlay
-  const tip = document.createElement('p')
-  tip.className = 'greeting-tip body-sm'
-  tip.textContent = strings.showAllTip
-  overlay.element.append(tip)
+  const overlay = greetingOverlay(role)
+  const { begin, heading } = overlay
+  if (opening.kind === 'welcome') {
+    const tip = document.createElement('p')
+    tip.className = 'greeting-tip body-sm'
+    tip.textContent = strings.showAllTip
+    overlay.element.append(tip)
+  }
 
-  /** No pointer press anywhere moves focus off "Begin"; a click on it still fires. */
+  let open = true
+  let line: string | null = null
+  /** Where focus stays: the heading until the line and "Begin" arrive. */
+  const target = (): HTMLElement => (line === null ? heading : begin)
+  /** No pointer press anywhere moves focus off the card's target; a click on "Begin" still fires. */
   const keepFocus = (event: MouseEvent): void => event.preventDefault()
   const trap = (event: KeyboardEvent): void => {
     if (event.key !== 'Tab') return
     event.preventDefault()
+    target().focus()
+  }
+
+  function arrive(served: string): void {
+    if (!open || line !== null) return
+    line = served
+    overlay.arrive(served)
     begin.focus()
+    announce(fill(strings.guideIntroduction, { 'role line': role, 'opening line': served, 'voice line': strings.guideVoice }))
   }
 
   for (const element of held) element.inert = true
   body.append(overlay.element)
   document.addEventListener('mousedown', keepFocus, true)
   document.addEventListener('keydown', trap, true)
+  if (opening.text !== null) arrive(opening.text) // served at once, before the card is drawn: no thinking state
   overlay.show()
-  begin.focus()
-  announce(fill(strings.guideIntroduction, { 'role line': role, 'opening line': line, 'voice line': strings.guideVoice }))
+  if (line === null) heading.focus()
 
-  let open = true
   function close(): void {
     if (!open) return
     open = false
@@ -95,9 +118,10 @@ export function mountWelcome(
   }
 
   begin.addEventListener('click', () => {
+    if (line === null) return
     markBegun(sessionId)
     close()
-    onBegin()
+    onBegin(line)
   })
-  return close
+  return { arrive, close }
 }

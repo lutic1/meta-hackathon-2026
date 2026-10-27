@@ -257,7 +257,7 @@ def test_a_reload_rebuilds_the_play_screen_from_the_session_and_its_room_announc
     notes, held = _ts("components/wizard-notes.ts"), _ts("components/inventory.ts")
     assert "previous === undefined\n        ? []" in notes and "if (before.size > 0) for (const made of arrived) fadeIn(made.element)" in notes
     assert "if (before !== undefined && !before.has(interactable.id)) arrived.push(item)" in held
-    assert "if (playHasBegun(session)) play.openingLine = line" in play
+    assert "if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text" in play
     assert re.findall(r"announce\(([^)]*)\)", _code(play)) == ["strings.reconnectingPlay"]
 
 
