@@ -7,23 +7,17 @@ import { placeHref } from './router.ts'
 import { strings } from './strings.ts'
 
 /**
- * The Stored Rooms list (Local, UX-DR19): one row per `RoomSummary` exactly as `GET /rooms` served it, newest build
- * first, or "No rooms yet." when there are none. "Play" posts the session start, carrying the profile's Derived block
- * (`sessionStart`), and routes to `#/play/<session_id>`; a refused start shows the session-start-refused banner in `banners`, the
- * slot at the top of the left area, whose "Try again" posts the same start again. One start runs at a time.
+/**
+ * A session start over a stored Room, shared by the Stored Rooms list and the Demo room cards: it posts the start,
+ * carrying the profile's Derived block (`sessionStart`), and routes to `#/play/<session_id>`; a refused start shows the
+ * session-start-refused banner in `banners`, the slot at the top of the left area, whose "Try again" posts the same
+ * start again. One start runs at a time.
  */
-export function storedRooms(
-  rooms: readonly RoomSummary[],
+export function roomStarter(
   profile: string,
   mode: Meta['mode'],
   banners: HTMLElement,
-): HTMLElement {
-  if (rooms.length === 0) {
-    const empty = document.createElement('p')
-    empty.className = 'stored-room-empty body-sm'
-    empty.textContent = strings.noRooms
-    return empty
-  }
+): (room: RoomSummary) => Promise<void> {
   let starting = false
 
   async function start(room: RoomSummary): Promise<void> {
@@ -45,6 +39,27 @@ export function storedRooms(
     }
   }
 
+  return start
+}
+
+/**
+ * The Stored Rooms list (Local, UX-DR19): one row per `RoomSummary` exactly as `GET /rooms` served it, newest build
+ * first, or "No rooms yet." when there are none. "Play" starts a session through `roomStarter`, its refusal banner in
+ * `banners`.
+ */
+export function storedRooms(
+  rooms: readonly RoomSummary[],
+  profile: string,
+  mode: Meta['mode'],
+  banners: HTMLElement,
+): HTMLElement {
+  if (rooms.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'stored-room-empty body-sm'
+    empty.textContent = strings.noRooms
+    return empty
+  }
+  const start = roomStarter(profile, mode, banners)
   const list = document.createElement('ul')
   list.className = 'stored-room-list'
   list.append(...rooms.map((room) => storedRoomRow(room, profile, () => void start(room))))

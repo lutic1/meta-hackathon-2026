@@ -206,6 +206,14 @@ export const strings = {
   keepPlaying: 'Keep playing',
   narrowHeading: 'Keyframe needs a bigger screen',
   narrowBody: 'Open this page on a laptop or desktop browser to play.',
+  landingSubtitle: 'An escape room built from your own photos.',
+  pipelineLine: 'muse-spark-1.3 reads your photos and writes the puzzles, sam-3.1 outlines every object, a test run that never sees the answers checks each puzzle can be solved, and the Guide hands out hints one at a time.',
+  landingLeadIn: 'Short on time? See how a room is built and checked.',
+  howARoomIsBuilt: 'How a room is built',
+  demoRoomMeta: '{n} puzzles · 15 to 25 min',
+  demoRoomPortraits: 'The Architect, the Riddler, the Guide and the Trickster',
+  demoRoomsFailed: "Keyframe couldn't load the demo rooms.",
+  noDemoRooms: 'No demo rooms are open right now. You can still build your own room with the access code.',
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

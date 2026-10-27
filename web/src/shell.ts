@@ -10,6 +10,7 @@ import { disclosureBanner } from './components/disclosure-banner.ts'
 import { narrowScreenMessage } from './components/narrow-screen-message.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { type TopBar, topBar } from './components/top-bar.ts'
+import { hostedLanding } from './landing.ts'
 import { liveRegion } from './live-region.ts'
 import { currentPlace, placeHref, type Route } from './router.ts'
 import { mountPlay } from './play.ts'
@@ -36,7 +37,9 @@ function refused(error: unknown): null {
  * no Room, so its route shows the global lines with an empty body; its own states belong to later surfaces.
  * The top bar's mode indicator counts the Room results of the `?profile=` profile (web/profile) and is rewritten as
  * soon as one is recorded. In Local mode `#/` also waits for `GET /rooms`, read afresh on every visit: the browser keeps no list of its own;
- * it is the Capture screen, its Retention summary the `retention` text of the same `GET /meta`. `#/build/<job_id>`
+ * it is the Capture screen, its Retention summary the `retention` text of the same `GET /meta`. In Hosted mode `#/` is
+ * the Hosted landing: it reads `GET /rooms` once, and a failed read shows the landing's own failed state, never the
+ * unreachable strip, so the title block stays usable; its "Try again" renders the route afresh. `#/build/<job_id>`
  * holds the global lines, the Timer of that Build and the Capture screen during that Build, in both modes. The top
  * bar's Timer slot shows the run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
  * `#/build/<job_id>/view` waits for `GET /builds/<job_id>/view` once and shows the Build view, ready, not ready or
@@ -101,6 +104,9 @@ export function startShell(root: HTMLElement): void {
       const rooms = await answered(mine, listRooms)
       if (rooms === undefined) return
       content = { name: 'rooms', rooms, profile: place.profile, mode: meta.mode, retention: meta.retention }
+    } else if (place.route.name === 'home') {
+      const rooms = await listRooms().catch(() => null)
+      content = { name: 'landing', rooms, profile: place.profile, mode: meta.mode, onRetry: () => void render() }
     }
     const played = (await getResults(place.profile)).length
     if (mine !== generation) return
@@ -139,12 +145,14 @@ interface Surface {
 
 /**
  * What a route's body holds: the Build view, the Play layout for a session, the Completion screen over it, the Capture
- * screen with the Stored Rooms list (Local `#/`), the Capture screen during a Build (`#/build/<job_id>`) or nothing yet.
+ * screen with the Stored Rooms list (Local `#/`), the Hosted landing (Hosted `#/`, `rooms` null when `GET /rooms`
+ * failed), the Capture screen during a Build (`#/build/<job_id>`) or nothing yet.
  */
 type Content =
   | ({ name: 'view'; state: BuildViewState } & BuildViewOptions)
   | { name: 'play' | 'done'; session: SessionState; guide: Meta['guide']; mode: Meta['mode']; profile: string }
   | { name: 'rooms'; rooms: RoomSummary[]; profile: string; mode: Meta['mode']; retention: string }
+  | { name: 'landing'; rooms: RoomSummary[] | null; profile: string; mode: Meta['mode']; onRetry: () => void }
   | { name: 'build'; jobId: string; profile: string; mode: Meta['mode']; retention: string }
   | { name: 'empty' }
 
@@ -185,6 +193,12 @@ function surface(content: Content, bar: TopBar): Surface {
     const capture = captureScreen(content.rooms, content.profile, content.mode, content.retention, bar.timer)
     element.append(capture.left, capture.right)
     return { element, mount: capture.mount }
+  }
+  if (content.name === 'landing') {
+    element.classList.add('landing-layout')
+    const landing = hostedLanding(content.rooms, content.profile, content.mode, content.onRetry)
+    element.append(...landing.children)
+    return { element, mount: landing.mount }
   }
   if (content.name === 'build') {
     element.classList.add('capture-layout')

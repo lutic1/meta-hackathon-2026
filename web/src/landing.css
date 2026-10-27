@@ -1,0 +1,69 @@
+/* The Hosted landing (UX-DR57): the title block across the top, then the left area (the banner slot over the Demo
+   room cards) beside the right column at 400, 360 or 340 px, as on the Capture screen; the body scrolls. */
+.landing-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
+  grid-template-rows: auto auto;
+  column-gap: var(--spacing-column-gap);
+  row-gap: var(--spacing-6);
+  align-content: start;
+  align-items: start;
+  padding: var(--spacing-frame-margin);
+  overflow-y: auto;
+}
+@media (max-width: 1439px) {
+  .landing-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+@media (max-width: 1279px) {
+  .landing-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+.landing-title {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+.landing-heading,
+.landing-line {
+  margin: 0;
+  color: var(--text);
+}
+.landing-line {
+  max-width: 72ch;
+}
+/* The lead-in, text-muted, with "How a room is built" beside it. */
+.landing-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-2);
+}
+.landing-lead-in {
+  margin: 0;
+  color: var(--text-muted);
+}
+.landing-left,
+.landing-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+/* Failed or empty: one plain line on the canvas in place of the cards ("Try again" under the failed one). */
+.landing-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  margin: 0;
+  color: var(--text);
+}
+.landing-state p {
+  margin: 0;
+}
