@@ -1,0 +1,22 @@
+/* {components.evidence-card}: an inset parchment-shade row, rounded md: the 64 px crop at rounded sm beside the
+   label (label, ink) over the read attribute (body-sm, ink-muted). One state only. */
+.evidence-card {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  column-gap: var(--spacing-3);
+  align-items: center;
+  padding: var(--spacing-2);
+  border-radius: var(--rounded-md);
+  background: var(--parchment-shade);
+  color: var(--ink);
+}
+.evidence-card .crop {
+  border-radius: var(--rounded-sm);
+}
+.evidence-card-label,
+.evidence-card-attribute {
+  margin: 0;
+}
+.evidence-card-attribute {
+  color: var(--ink-muted);
+}

@@ -10,9 +10,10 @@ import {
   TextureLoader,
   WebGLRenderer,
 } from 'three'
-import type { PlayInteractable, PlayView, SessionState } from '../../types'
-import { getRoom, photoUrl, postEvent } from '../api/index.ts'
+import type { PlayInteractable, PlayView } from '../../types'
+import { photoUrl } from '../api/index.ts'
 import { type ThumbnailStrip, thumbnailStrip } from '../components/thumbnail-strip.ts'
+import type { PlaySession } from '../play.ts'
 import { strings } from '../strings.ts'
 import { contain, type Size } from './geometry.ts'
 import { type HotspotLayer, hotspotLayer } from './hotspots.ts'
@@ -36,14 +37,20 @@ function firstPointerResponse(sessionId: string): void {
 }
 
 /**
- * The Play screen's Scene column (FR-11, AD-11): the Scene frame over the Thumbnail strip, for the session's Room
- * from `GET /rooms/<room_id>`. Each photo from `GET /rooms/<room_id>/photos/<i>` is drawn as a three textured plane,
- * exactly as served (no tone mapping, no light), on a canvas sized to the photo contained in the frame; the photo's
- * Hotspots lie over it in its own pixel space. The frame shows its loading line until a photo and its Hotspots are
- * live. A Hotspot click posts one `click` naming its Interactable and nothing else; when the reply opened no lock,
- * the click hit no target and the label chip shows. Returns the teardown.
+ * The Play screen's Scene (FR-11, AD-11): the Scene frame in `root` and the Thumbnail strip at the start of
+ * `stripRow`, for the session's Room as `GET /rooms/<room_id>` serves it. Each photo from
+ * `GET /rooms/<room_id>/photos/<i>` is drawn as a three textured plane, exactly as served (no tone mapping, no
+ * light), on a canvas sized to the photo contained in the frame; the photo's Hotspots lie over it in its own pixel
+ * space. The frame shows its loading line until a photo and its Hotspots are live. A Hotspot click posts one `click`
+ * naming its Interactable and nothing else; when the reply opened no lock, the click hit no target and the label
+ * chip shows. Returns the teardown.
  */
-export function mountScene(root: HTMLElement, session: SessionState): () => void {
+export function mountScene(
+  root: HTMLElement,
+  stripRow: HTMLElement,
+  play: PlaySession,
+  rooms: Promise<PlayView>,
+): () => void {
   const frame = document.createElement('div')
   frame.className = 'scene-frame is-loading'
   const ground = document.createElement('div')
@@ -70,7 +77,6 @@ export function mountScene(root: HTMLElement, session: SessionState): () => void
   const loader = new TextureLoader()
   const textures = new Map<number, Promise<Texture<HTMLImageElement>>>()
   let mounted = true
-  let latest = session
   let room: PlayView | undefined
   let current = -1
   let size: Size | undefined
@@ -80,7 +86,7 @@ export function mountScene(root: HTMLElement, session: SessionState): () => void
   function texture(index: number): Promise<Texture<HTMLImageElement>> {
     let loaded = textures.get(index)
     if (loaded === undefined) {
-      loaded = loader.loadAsync(photoUrl(session.room_id, index)).then(
+      loaded = loader.loadAsync(photoUrl(play.roomId, index)).then(
         (map) => {
           map.colorSpace = SRGBColorSpace
           return map
@@ -106,9 +112,9 @@ export function mountScene(root: HTMLElement, session: SessionState): () => void
   }
 
   async function activate(interactable: PlayInteractable): Promise<void> {
-    const reply = await postEvent(session.id, { type: 'click', interactable_id: interactable.id })
-    const opened = reply.locks_open.some((id) => !latest.locks_open.includes(id))
-    latest = reply
+    const before = play.state().locks_open
+    const reply = await play.post({ type: 'click', interactable_id: interactable.id })
+    const opened = reply.locks_open.some((id) => !before.includes(id))
     if (mounted && !opened) layer?.showLabel(interactable)
   }
 
@@ -141,7 +147,7 @@ export function mountScene(root: HTMLElement, session: SessionState): () => void
       room.interactables.filter((interactable) => interactable.photo === index),
       {
         onActivate: (interactable) => void activate(interactable).catch(() => undefined),
-        onPointerEnter: () => firstPointerResponse(session.id),
+        onPointerEnter: () => firstPointerResponse(play.id),
       },
     )
     photo.replaceChildren(renderer.domElement, ...layer.elements)
@@ -154,12 +160,12 @@ export function mountScene(root: HTMLElement, session: SessionState): () => void
   const observer = new ResizeObserver(render)
   observer.observe(ground)
   // A failed room or photo request leaves the loading line; the reconnecting state lands in 1.24.
-  getRoom(session.room_id)
+  rooms
     .then((view) => {
       if (!mounted) return
       room = view
-      strip = thumbnailStrip(session.room_id, view.photos.length, (index) => void show(index))
-      root.append(strip.element)
+      strip = thumbnailStrip(play.roomId, view.photos.length, (index) => void show(index))
+      stripRow.prepend(strip.element)
       return show(0)
     })
     .catch(() => undefined)

@@ -13,6 +13,7 @@
 .play-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
+  grid-template-rows: minmax(0, 1fr);
   column-gap: var(--spacing-column-gap);
   padding: var(--spacing-frame-margin);
 }
@@ -26,7 +27,8 @@
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 }
-/* The Scene column: the Scene frame filling the height over the 88 px Thumbnail strip row, 24 px apart. */
+/* The Scene column: the Scene frame filling the height over the 88 px row of the Thumbnail strip (flexible, left)
+   and the Inventory (about 288 px, right, beside the Scene it drags onto), 24 px apart. */
 .scene-column {
   display: grid;
   grid-template-rows: minmax(0, 1fr) var(--spacing-thumbnail-strip);
@@ -34,7 +36,21 @@
   min-width: 0;
   min-height: 0;
 }
+.scene-strip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  column-gap: var(--spacing-5);
+  min-width: 0;
+  min-height: 0;
+}
+.scene-strip-row > .inventory {
+  grid-column: 2;
+}
+/* The side column: the Wizard notes on top, filling it and scrolling inside it. */
 .side-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
   min-width: 0;
   min-height: 0;
 }

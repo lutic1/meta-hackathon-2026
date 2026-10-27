@@ -7,7 +7,7 @@ import { disclosureBanner } from './components/disclosure-banner.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { topBar } from './components/top-bar.ts'
 import { currentPlace, type Route } from './router.ts'
-import { mountScene } from './scene/index.ts'
+import { mountPlay } from './play.ts'
 import { strings } from './strings.ts'
 
 /** How long the server-unreachable state waits between attempts (UX-DR61). */
@@ -135,7 +135,7 @@ function surface(content: Content, timerSlot: HTMLElement): Surface {
   const sideColumn = document.createElement('aside')
   sideColumn.className = 'side-column'
   element.append(sceneColumn, sideColumn)
-  return { element, mount: () => mountScene(sceneColumn, content.session) }
+  return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session) }
 }
 
 /** The page body empty except the centered status strip (UX-DR61). */

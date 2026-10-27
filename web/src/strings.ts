@@ -2,7 +2,9 @@
 // "No rooms yet." is the one line EXPERIENCE.md gives only in Component Patterns (Stored Room row). EXPERIENCE.md
 // words no Scene loading line, no thumbnail name and no Timer end status, so the loading line reuses the "Setting
 // the scene" stage name, a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and
-// the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment.
+// the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The speaker
+// prefixes are worded only in Component Patterns (Wizard portrait), and the Inventory and the Wizard notes take
+// their component names as their accessible names.
 // tests/web/test_strings.py checks each value against its source. Lines the server serves (Disclosure lines,
 // the Retention summary, opening lines) never live here: they are rendered exactly as received.
 
@@ -44,6 +46,19 @@ export const strings = {
   photosToPlay: 'Photos to play',
   playableIn: 'Playable in',
   uploadFailedStatus: 'Upload failed',
+  inventory: 'Inventory',
+  nothingInHand: 'Nothing in hand yet.',
+  wizardNotes: 'Wizard notes',
+  puzzleHeading: 'Puzzle {n}',
+  current: 'Current',
+  evidenceCards: '{k} evidence cards',
+  evidenceCard: '1 evidence card',
+  notThis: 'Not this · {n}',
+  open: 'Open',
+  speakerArchitect: 'The Architect:',
+  speakerRiddler: 'The Riddler:',
+  speakerGuide: 'The Guide:',
+  speakerTrickster: 'The Trickster:',
 } as const
 
 /** `template` with each `{name}` replaced by `values[name]`. */

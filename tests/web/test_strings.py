@@ -19,8 +19,9 @@ def _strings() -> dict[str, str]:
     return entries
 
 
-COMPONENT_PATTERNS_ONLY = {"noRooms"}
-"""Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list)."""
+COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "speakerGuide", "speakerTrickster"}
+"""Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list, the Wizard
+portrait's speaker prefixes)."""
 UNWORDED = {"photoThumbnail": "Remove photo {n}"}
 """Names EXPERIENCE.md never words, each derived from the Voice and Tone line given: the Thumbnail strip's
 "Photo {n}" is the photo tray's remove control without its verb."""

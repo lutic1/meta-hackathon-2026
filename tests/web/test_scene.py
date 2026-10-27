@@ -37,17 +37,19 @@ def client(tmp_path: Path, four_lock_room: Room) -> TestClient:
 
 
 def test_the_play_route_mounts_the_scene_for_its_session_and_reads_the_room_from_get_rooms():
-    shell, scene, api = _ts("shell.ts"), _ts("scene/index.ts"), _ts("api/index.ts")
+    shell, play, scene, api = _ts("shell.ts"), _ts("play.ts"), _ts("scene/index.ts"), _ts("api/index.ts")
     assert "content = { name: 'play', session: state }" in shell
-    assert "mount: () => mountScene(sceneColumn, content.session)" in shell
-    assert "getRoom(session.room_id)" in scene
+    assert "mount: () => mountPlay(sceneColumn, sideColumn, content.session)" in shell
+    # Story 1.20: the Play screen reads the Room once and shares it with the Scene, the Inventory and the notes.
+    assert "const room: Promise<PlayView> = getRoom(session.room_id)" in play
+    assert "mountScene(sceneColumn, stripRow, play, room)" in play and "rooms\n    .then((view) => {" in scene
     assert "return getJson<PlayView>(`/rooms/${encodeURIComponent(roomId)}`)" in api
     assert "`/api/rooms/${encodeURIComponent(roomId)}/photos/${index}`" in api
 
 
 def test_each_photo_is_a_textured_plane_drawn_as_served_and_contained():
     scene = _ts("scene/index.ts")
-    assert "loader.loadAsync(photoUrl(session.room_id, index))" in scene
+    assert "loader.loadAsync(photoUrl(play.roomId, index))" in scene
     assert "map.colorSpace = SRGBColorSpace" in scene
     # No light, no tone mapping, no tint: the photo's own pixels on a plane in its own pixel size.
     assert "new MeshBasicMaterial({ toneMapped: false })" in scene and "new PlaneGeometry(1, 1)" in scene
@@ -125,10 +127,12 @@ def test_a_click_inside_a_polygon_posts_exactly_one_click_and_a_click_outside_po
     layer, scene, api = _ts("scene/hotspots.ts"), _ts("scene/index.ts"), _ts("api/index.ts")
     assert layer.count("addEventListener('click'") == 1
     assert "hotspot.addEventListener('click', () => handlers.onActivate(interactable))" in layer
-    assert "postEvent(session.id, { type: 'click', interactable_id: interactable.id })" in scene
-    assert scene.count("postEvent(") == 1
+    assert "play.post({ type: 'click', interactable_id: interactable.id })" in scene
+    assert scene.count("play.post(") == 1 and "postEvent(" not in scene
+    play = _ts("play.ts")
+    assert "const reply = await postEvent(session.id, body)" in play and play.count("postEvent(") == 1
     assert "return postJson<SessionState>(`/sessions/${encodeURIComponent(sessionId)}/events`, body)" in api
-    for text in (layer, scene, api):
+    for text in (layer, scene, api, play):
         assert "t_ms" not in _code(text) and "Date.now" not in text and "performance.now" not in text
     # Only the hit paths take the pointer: the overlay, the reveal and the chip let it through to nothing.
     rules = _rules("scene/scene.css")
@@ -141,7 +145,9 @@ def test_a_click_inside_a_polygon_posts_exactly_one_click_and_a_click_outside_po
 def test_a_non_target_click_shows_only_the_label_chip_8px_above_for_2s_or_until_pointer_leave():
     scene, layer = _ts("scene/index.ts"), _ts("scene/hotspots.ts")
     activate = scene.split("async function activate(", 1)[1].split("\n  }\n", 1)[0]
-    assert "const opened = reply.locks_open.some((id) => !latest.locks_open.includes(id))" in activate
+    # Judged against the state before this click was posted, so a poll landing in between cannot hide the chip.
+    assert activate.index("const before = play.state().locks_open") < activate.index("await play.post(")
+    assert "const opened = reply.locks_open.some((id) => !before.includes(id))" in activate
     assert "if (mounted && !opened) layer?.showLabel(interactable)" in activate
     assert "export const CHIP_OFFSET_PX = 8" in layer and "export const CHIP_MS = 2000" in layer
     assert "chip.textContent = interactable.label" in layer
@@ -159,7 +165,7 @@ def test_a_non_target_click_shows_only_the_label_chip_8px_above_for_2s_or_until_
 
 def test_the_thumbnail_strip_has_one_96_by_72_button_per_photo_in_upload_order():
     strip, scene = _ts("components/thumbnail-strip.ts"), _ts("scene/index.ts")
-    assert "thumbnailStrip(session.room_id, view.photos.length, (index) => void show(index))" in scene
+    assert "thumbnailStrip(play.roomId, view.photos.length, (index) => void show(index))" in scene
     assert "Array.from({ length: count }, (_, index) => {" in strip
     assert "image.src = photoUrl(roomId, index)" in strip
     assert "image.alt = fill(strings.photoThumbnail, { n: index + 1 })" in strip
@@ -168,6 +174,7 @@ def test_the_thumbnail_strip_has_one_96_by_72_button_per_photo_in_upload_order()
     assert "thumbnail.addEventListener('click', () => onSelect(index))" in strip
     assert "thumbnail.setAttribute('aria-current', 'true')" in strip and "removeAttribute('aria-current')" in strip
     assert "strip?.setCurrent(index)" in scene and "import './thumbnail-strip.css'" in strip
+    assert "stripRow.prepend(strip.element)" in scene  # the row's left part; the Inventory is its right
     rules = _rules("components/thumbnail-strip.css")
     row = rules[".thumbnail-strip"]
     assert row["gap"] == "var(--spacing-2)" and row["overflow-x"] == "auto" and row["overflow-y"] == "hidden"
@@ -186,7 +193,7 @@ def test_the_first_pointer_response_is_signalled_once_per_session_and_never_by_t
     assert "if (responded.has(sessionId)) return" in once and "responded.add(sessionId)" in once
     assert "window.dispatchEvent(new CustomEvent<FirstPointerResponseDetail>(FIRST_POINTER_RESPONSE" in once
     assert "const responded = new Set<string>()" in scene  # module level: one signal per session, not per Scene
-    assert "onPointerEnter: () => firstPointerResponse(session.id)" in scene
+    assert "onPointerEnter: () => firstPointerResponse(play.id)" in scene
     assert "hotspot.addEventListener('pointerenter', handlers.onPointerEnter)" in layer
     assert scene.count("firstPointerResponse(") == 2 and layer.count("onPointerEnter") == 2
 

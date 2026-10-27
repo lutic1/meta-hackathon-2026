@@ -39,3 +39,29 @@ export function contain(photo: Size, frame: Size): Size {
   const scale = Math.min(frame.width / photo.width, frame.height / photo.height)
   return { width: Math.floor(photo.width * scale), height: Math.floor(photo.height * scale) }
 }
+
+export interface Rect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** The bounds of every polygon, in photo pixels: what an Inventory item or Evidence card crop is cut from. */
+export function bounds(polygons: readonly Polygon[]): Rect {
+  const [x, y] = topLeft(polygons)
+  const points = polygons.flat()
+  return { x, y, width: Math.max(...points.map(([px]) => px)) - x, height: Math.max(...points.map(([, py]) => py)) - y }
+}
+
+/** The square crop around `rect`: its longer side, centered on it and kept inside the photo. */
+export function squareAround(rect: Rect, photo: Size): Rect {
+  const side = Math.min(Math.max(rect.width, rect.height), photo.width, photo.height)
+  const clamp = (start: number, limit: number): number => Math.min(Math.max(start, 0), limit - side)
+  return {
+    x: clamp(rect.x + (rect.width - side) / 2, photo.width),
+    y: clamp(rect.y + (rect.height - side) / 2, photo.height),
+    width: side,
+    height: side,
+  }
+}
