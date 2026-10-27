@@ -68,7 +68,11 @@ def test_the_tray_is_chrome_raised_up_to_hint_area_max_pinned_under_the_wizard_n
     rules = _rules("components/hint-area.css")
     tray = rules[".hint-area"]
     assert tray["background"] == "var(--chrome-raised)" and tray["color"] == "var(--text)"
-    assert tray["max-height"] == "var(--spacing-hint-area-max)" and tray["flex"] == "none"
+    # Up to hint-area-max, and on a short window no further than leaves the Wizard notes notes-min.
+    assert tray["max-height"] == (
+        "min(var(--spacing-hint-area-max), calc(100% - var(--spacing-notes-min) - var(--spacing-5)))"
+    )
+    assert tray["flex"] == "none"
     assert tray["padding"] == "var(--spacing-4)" and tray["border-radius"] == "var(--rounded-lg)"
     assert "--spacing-hint-area-max: 320px;" in _ts("tokens.css")
     # The upper part scrolls inside the tray; the lower part, the hint controls, never does.

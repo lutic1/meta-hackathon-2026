@@ -1,13 +1,14 @@
 /* {components.hint-area}: a chrome-raised tray pinned under the Wizard notes, 16 px padding, rounded lg, up to
    hint-area-max; its upper part scrolls inside it, its lower part (the hint controls) never does. The arrival glow
-   lights its edge with the portrait's ring. */
+   lights its edge with the portrait's ring. On a short window it stops where the Wizard notes reach notes-min, so
+   its upper part scrolls (a Card is about as tall as the cap) and the pinned controls stay in view. */
 .hint-area {
   box-sizing: border-box;
   display: flex;
   flex: none;
   flex-direction: column;
   gap: var(--spacing-4);
-  max-height: var(--spacing-hint-area-max);
+  max-height: min(var(--spacing-hint-area-max), calc(100% - var(--spacing-notes-min) - var(--spacing-5)));
   padding: var(--spacing-4);
   border-radius: var(--rounded-lg);
   background: var(--chrome-raised);

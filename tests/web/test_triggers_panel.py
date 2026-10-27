@@ -69,7 +69,9 @@ def test_the_toggle_sits_under_the_hint_controls_collapsed_unless_a_disclosure_i
 
 def test_open_the_hint_area_may_grow_until_the_wizard_notes_reach_notes_min():
     rules = _rules("components/hint-area.css")
-    assert rules[".hint-area"]["max-height"] == "var(--spacing-hint-area-max)"
+    assert rules[".hint-area"]["max-height"] == (
+        "min(var(--spacing-hint-area-max), calc(100% - var(--spacing-notes-min) - var(--spacing-5)))"
+    )
     grown = rules[".hint-area.is-triggers-open"]
     assert grown == {"max-height": "calc(100% - var(--spacing-notes-min) - var(--spacing-5))"}
     assert _rules("shell.css")[".side-column"]["gap"] == "var(--spacing-5)"
