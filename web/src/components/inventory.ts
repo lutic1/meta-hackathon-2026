@@ -2,6 +2,7 @@ import './inventory.css'
 import type { PlayView, SessionState } from '../../types'
 import { fadeIn } from '../fade.ts'
 import { strings } from '../strings.ts'
+import { type UseOnSelection, useOnItem } from '../use-on.ts'
 import { crop } from './crop.ts'
 
 /** Three 64 px slots across the tray (UX-DR26). */
@@ -15,11 +16,10 @@ export interface InventoryTray {
   render: (state: SessionState) => void
 }
 
-function slot(): HTMLLIElement {
+function slot(well: HTMLElement = document.createElement('span')): HTMLLIElement {
   const element = document.createElement('li')
   element.className = 'inventory-slot'
-  const well = document.createElement('span')
-  well.className = 'inventory-well'
+  well.classList.add('inventory-well')
   element.append(well)
   return element
 }
@@ -29,15 +29,22 @@ function slot(): HTMLLIElement {
  * holding the Interactables `state.inventory` lists for the whole Session, each a 56 px crop with its label in
  * `caption` type, then dashed empty slots to the end of the row. Holding nothing, it shows one dashed slot and
  * "Nothing in hand yet." It redraws only when the held list changes; an item collected after the first draw fades in
- * over 200 ms, in step with its Hotspot's glow fading out (FR-12).
+ * over 200 ms, in step with its Hotspot's glow fading out (FR-12). Each item's well is a button named by its label and
+ * a `use_on` source (UX-DR26): pressed, with the 2 px lamp ring, while `selection` holds it.
  */
-export function inventory(room: PlayView): InventoryTray {
+export function inventory(room: PlayView, selection: UseOnSelection): InventoryTray {
   const element = document.createElement('ul')
   element.className = 'inventory'
   element.setAttribute('aria-label', strings.inventory)
   element.tabIndex = 0 // its place in the Play screen's Tab order, after the Thumbnail strip (UX-DR71)
   const interactables = new Map(room.interactables.map((interactable) => [interactable.id, interactable]))
   let drawn: string | undefined
+  let buttons: HTMLButtonElement[] = []
+
+  function markSelected(item: string | null): void {
+    for (const button of buttons) button.setAttribute('aria-pressed', String(button.dataset.item === item))
+  }
+  selection.onChange(markSelected)
 
   function render(state: SessionState): void {
     const held = state.inventory.flatMap((id) => interactables.get(id) ?? [])
@@ -52,14 +59,22 @@ export function inventory(room: PlayView): InventoryTray {
       const line = document.createElement('li')
       line.className = 'inventory-nothing body-sm'
       line.textContent = strings.nothingInHand
+      buttons = []
       element.replaceChildren(empty, line)
       return
     }
     const arrived: HTMLElement[] = []
+    buttons = []
     const items = held.map((interactable) => {
-      const item = slot()
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'inventory-item'
+      button.setAttribute('aria-label', interactable.label)
+      button.append(crop(room.id, interactable, ITEM_PX))
+      useOnItem(button, interactable, selection)
+      buttons.push(button)
+      const item = slot(button)
       if (before !== undefined && !before.has(interactable.id)) arrived.push(item)
-      item.firstElementChild?.append(crop(room.id, interactable, ITEM_PX))
       const caption = document.createElement('span')
       caption.className = 'inventory-caption caption'
       caption.textContent = interactable.label
@@ -73,6 +88,7 @@ export function inventory(room: PlayView): InventoryTray {
       return empty
     })
     element.replaceChildren(...items, ...free)
+    markSelected(selection.selected())
     for (const item of arrived) fadeIn(item)
   }
 

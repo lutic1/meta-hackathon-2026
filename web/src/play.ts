@@ -12,6 +12,7 @@ import { announce } from './live-region.ts'
 import { currentPlace, placeHref } from './router.ts'
 import { lastShownPhoto, mountScene } from './scene/index.ts'
 import { strings } from './strings.ts'
+import { type UseOnSelection, useOnSelection } from './use-on.ts'
 import { mountWelcome, playHasBegun } from './welcome.ts'
 
 /** The Play screen reads `GET /sessions/<id>` this often while it is open, hidden tab included (AD-4, UX-DR65). */
@@ -34,6 +35,8 @@ export interface PlaySession {
    * area shows, never announced again. null before "Begin" and for a session opened without a welcome.
    */
   openingLine: string | null
+  /** The Inventory item a `use_on` is given with, selected or dragged: the Scene and the Inventory share it. */
+  useOn: UseOnSelection
 }
 
 /**
@@ -167,6 +170,7 @@ export function mountPlay(
       parts.push(render)
     },
     openingLine: null,
+    useOn: useOnSelection(),
   }
 
   let polling = false
@@ -251,7 +255,7 @@ export function mountPlay(
   room
     .then((view) => {
       if (!mounted) return
-      const held = inventory(view)
+      const held = inventory(view, play.useOn)
       const notes = wizardNotes(view, play)
       stripRow.append(held.element)
       sideColumn.append(notes.element)
@@ -292,6 +296,7 @@ export function mountPlay(
     unfocus?.()
     clearTimeout(leaving)
     ticker.terminate()
+    play.useOn.dispose()
     showAll.remove()
     unmountScene()
     stage.remove()
@@ -322,6 +327,7 @@ export function mountPlayBehind(
     post: () => Promise.reject(new Error('the play-through is over')),
     onState: () => undefined,
     openingLine: null,
+    useOn: useOnSelection(),
   }
   const room: Promise<PlayView> = getRoom(session.room_id)
   const stripRow = document.createElement('div')
@@ -331,7 +337,7 @@ export function mountPlayBehind(
   room
     .then((view) => {
       if (!mounted) return
-      const held = inventory(view)
+      const held = inventory(view, play.useOn)
       const notes = wizardNotes(view, play)
       stripRow.append(held.element)
       sideColumn.append(notes.element)
@@ -342,6 +348,7 @@ export function mountPlayBehind(
 
   return () => {
     mounted = false
+    play.useOn.dispose()
     showAll.remove()
     unmountScene()
     stripRow.remove()

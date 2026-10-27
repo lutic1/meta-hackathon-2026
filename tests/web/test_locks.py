@@ -159,7 +159,8 @@ def test_open_is_held_1200_ms_then_the_entry_collapses_the_next_entry_fades_in_a
 
 def test_a_find_click_posts_only_the_click_and_the_collected_target_fades_into_the_inventory():
     scene, layer = _ts("scene/index.ts"), _ts("scene/hotspots.ts")
-    assert scene.count("play.post(") == 1 and "play.post({ type: 'click', interactable_id: interactable.id })" in scene
+    assert "play.post({ type: 'click', interactable_id: interactable.id })" in scene
+    assert scene.count("play.post(") == 2  # the click, and a `use_on` (Story 1.26), never both for one activation
     assert "layer?.setCollected(state.inventory)" in scene and "layer.setCollected(play.state().inventory)" in scene
     assert "onState: (render) => {\n      parts.push(render)" in _ts("play.ts")
     assert "hotspot.classList.toggle('is-collected', inventory.includes(id))" in layer

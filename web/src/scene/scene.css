@@ -1,6 +1,7 @@
 /* {components.scene-frame}: 1 px gilt rule, 12 px chrome mat carrying the vignette, canvas ground; the photo is
    contained inside it at rounded sm and letterboxed by the ground. While loading, the mat holds only its line. */
 .scene-frame {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -112,6 +113,19 @@
 .hotspot:hover .hotspot-glow {
   opacity: 1;
 }
+/* An Inventory item dragged over a Hotspot: the hover reveal, since the pointer's :hover does not apply mid-drag;
+   under "Show all objects" it drops the dashed outline for the hover one. */
+.hotspot.is-drop-target .hotspot-reveal,
+.hotspot.is-drop-target .hotspot-glow {
+  opacity: 1;
+}
+.is-showing-all .hotspot.is-drop-target:not(.is-collected) .hotspot-glow {
+  opacity: 1;
+}
+.is-showing-all .hotspot.is-drop-target .hotspot-outline {
+  stroke: var(--hotspot-outline);
+  stroke-dasharray: none;
+}
 /* Collected: no longer a target, so its glow fades out and stays out under hover and focus. */
 .hotspot.is-collected .hotspot-glow {
   opacity: 0;
@@ -120,6 +134,9 @@
 /* {components.hotspot-label-chip}: parchment, label type, 8 px above the polygon (placed by the Scene); it fades. */
 .hotspot-label-chip {
   position: absolute;
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--rounded-sm);
   background: var(--parchment);
@@ -131,4 +148,9 @@
 }
 .hotspot-label-chip.is-shown {
   opacity: 1;
+}
+/* A use_on waiting for its verdict: the "Checking" chip beside the label, sized to the label chip. */
+.hotspot-label-chip .chip-pending {
+  height: auto;
+  padding: 0 var(--spacing-1);
 }

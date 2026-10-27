@@ -15,6 +15,7 @@ import { photoUrl } from '../api/index.ts'
 import { type ThumbnailStrip, thumbnailStrip } from '../components/thumbnail-strip.ts'
 import type { PlaySession } from '../play.ts'
 import { strings } from '../strings.ts'
+import { useOnChip } from '../use-on.ts'
 import { contain, type Size } from './geometry.ts'
 import { type HotspotLayer, hotspotLayer } from './hotspots.ts'
 
@@ -51,8 +52,11 @@ function firstPointerResponse(sessionId: string): void {
  * space. The frame shows its loading line until a photo and its Hotspots are live. A Hotspot click posts one `click`
  * naming its Interactable and nothing else; when the reply opened no lock, the click hit no target and the label
  * chip shows ("{label} · in hand" on an Interactable the Inventory holds). The Hotspots of collected Interactables
- * follow `inventory` in every state the server sends, so a solved `find` target's glow fades out. It opens on photo
- * `first`. Returns the teardown.
+ * follow `inventory` in every state the server sends, so a solved `find` target's glow fades out. An Inventory item
+ * dropped on a Hotspot, or a Hotspot activated while an item is selected (whose "Using {item label}" chip is pinned
+ * to the frame's top-left), posts one `use_on` lock input naming the item and the Hotspot's Interactable, never a
+ * `click` and never a Puzzle (AD-4), and clears the selection; until the reply, the target's label chip shows with
+ * "Checking" beside it. The selection outlives photo switches. It opens on photo `first`. Returns the teardown.
  */
 export function mountScene(
   root: HTMLElement,
@@ -121,7 +125,21 @@ export function mountScene(
     renderer.render(scene, camera)
   }
 
+  /** Posts the `use_on` of `item` on `target`, the target's label chip and "Checking" showing until the reply. */
+  async function useOn(item: string, target: PlayInteractable): Promise<void> {
+    const pending = layer?.showPending(target)
+    const reply = play.post({ type: 'lock_input', input: { type: 'use_on', item, target: target.id } })
+    play.useOn.select(null)
+    try {
+      await reply
+    } finally {
+      pending?.()
+    }
+  }
+
   async function activate(interactable: PlayInteractable): Promise<void> {
+    const item = play.useOn.selected()
+    if (item !== null) return useOn(item, interactable)
     const before = play.state().locks_open
     const reply = await play.post({ type: 'click', interactable_id: interactable.id })
     const opened = reply.locks_open.some((id) => !before.includes(id))
@@ -159,6 +177,11 @@ export function mountScene(
       {
         onActivate: (interactable) => void activate(interactable).catch(() => undefined),
         onPointerEnter: () => firstPointerResponse(play.id),
+        canDrop: () => play.useOn.dragging() !== null,
+        onDrop: (interactable) => {
+          const item = play.useOn.dragging()
+          if (item !== null) void useOn(item, interactable).catch(() => undefined)
+        },
       },
     )
     layer.setCollected(play.state().inventory)
@@ -180,6 +203,7 @@ export function mountScene(
     .then((view) => {
       if (!mounted) return
       room = view
+      frame.prepend(useOnChip(new Map(view.interactables.map(({ id, label }) => [id, label])), play.useOn))
       strip = thumbnailStrip(play.roomId, view.photos.length, (index) => void show(index))
       stripRow.prepend(strip.element)
       return show(first)

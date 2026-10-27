@@ -1,0 +1,30 @@
+/* {components.order-progress} in a Puzzle entry's lock slot: the start control (secondary on parchment), the pips,
+   then the Not this chip, 8 px apart. */
+.order-lock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+.order-pips {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
+}
+/* A 10 px pip: empty is a 1.5 px ink-muted ring, filled is lamp-ink; a full-length mismatch holds every pip in
+   wrong-ink before they empty. The pips change at once: nothing animates. */
+.order-pip {
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--ink-muted);
+  border-radius: var(--rounded-full);
+}
+.order-pip.is-filled {
+  border-color: var(--lamp-ink);
+  background: var(--lamp-ink);
+}
+.order-pips.is-wrong .order-pip {
+  border-color: var(--wrong-ink);
+  background: var(--wrong-ink);
+}

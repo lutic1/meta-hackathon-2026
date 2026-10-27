@@ -7,6 +7,7 @@ import { speakerPrefix, wizardPortrait } from '../wizards/portrait.ts'
 import { type CodeField, codeField } from './code-field.ts'
 import { evidenceCard } from './evidence-card.ts'
 import { rungLabel } from './hint-area.ts'
+import { type OrderProgress, orderProgress } from './order-progress.ts'
 
 /** UX-DR38: a lock the server opened shows "Open" this long before its entry collapses and the next one appears. */
 export const OPEN_HOLD_MS = 1200
@@ -40,6 +41,11 @@ export function availableInOrder(puzzles: readonly PlayPuzzle[], locksOpen: read
     .filter(({ puzzle }) => puzzle.requires.every((id) => locksOpen.includes(id)))
     .sort((a, b) => a.since - b.since || a.place - b.place)
     .map(({ puzzle }) => puzzle)
+}
+
+/** What the notes draw from a state: a state with the same key redraws nothing. */
+function drawKey(state: SessionState): string {
+  return JSON.stringify([state.locks_open, state.active_puzzle_id, state.wrong_attempts, state.order_buffer])
 }
 
 function paragraph(className: string, ...children: (Node | string)[]): HTMLParagraphElement {
@@ -92,11 +98,13 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
   const rungs = document.createElement('div')
   rungs.className = 'notes-rungs' // the opened Rungs
   const lock = document.createElement('div')
-  lock.className = 'notes-lock' // the lock input (1.21, 1.26) and its feedback
+  lock.className = 'notes-lock' // the lock input (the Code field or Order click progress) and its feedback
   const wrong = document.createElement('span')
   wrong.className = 'chip chip-not-this label'
   const code: CodeField | undefined = puzzle.lock_type === 'code' ? codeField(puzzle, n, play) : undefined
   if (code !== undefined) lock.append(code.element)
+  const order: OrderProgress | undefined = puzzle.lock_type === 'order' ? orderProgress(puzzle, play) : undefined
+  if (order !== undefined) lock.append(order.element)
   body.append(clue, evidence, lore, rungs, lock)
   element.append(head, body)
 
@@ -111,6 +119,10 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
     body.hidden = open
     if (code !== undefined) {
       code.update(state)
+      return
+    }
+    if (order !== undefined) {
+      order.update(state)
       return
     }
     const attempts = state.wrong_attempts[puzzle.id] ?? 0
@@ -155,12 +167,13 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
  * (n = its fixed place in the Room) with its evidence count at the right end, then the Riddler's portrait beside the
  * Clue, the Evidence cards in `PlayView` order, the Lore, the opened Rungs (each a Rung the Hint area's Rung line
  * showed and gave up, with the Guide's 32 px portrait, its "Puzzle {n} · {Rung name}" label and its line, as
- * `rung_changes[]` carries it) and the lock-input slot (the Code field of a `code` Puzzle). The Active puzzle's
- * entry carries the `{components.active-puzzle-marker}`, read from `active_puzzle_id` and never guessed; an open entry
- * collapses to its heading with the Open chip. When a state shows a lock newly open, "Open" takes the lock input's
- * place for 1200 ms (UX-DR38), then the notes draw the latest state: the entry collapses, newly available entries
- * fade in, and focus moves to the heading of the first of them, else of the Active puzzle. Everything follows session
- * state; nothing follows a click.
+ * `rung_changes[]` carries it) and the lock-input slot (the Code field of a `code` Puzzle, the Order click progress
+ * of an `order` one, else the Not this chip a `use_on` verdict shows). The Active puzzle's entry carries the
+ * `{components.active-puzzle-marker}`, read from `active_puzzle_id` and never guessed; an open entry collapses to its
+ * heading with the Open chip. When a state shows a lock newly open, "Open" takes the lock input's place for 1200 ms
+ * (UX-DR38), then the notes draw the latest state: the entry collapses, newly available entries fade in, and focus
+ * moves to the heading of the first of them, else of the Active puzzle. Everything follows session state; nothing
+ * follows a click.
  */
 export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   const element = document.createElement('section')
@@ -186,7 +199,7 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   }
 
   function draw(state: SessionState, afterOpening: boolean): void {
-    drawn = JSON.stringify([state.locks_open, state.active_puzzle_id, state.wrong_attempts])
+    drawn = drawKey(state)
     drawnOpen = state.locks_open
     const before = new Set(element.children)
     const shown = availableInOrder(room.puzzles, state.locks_open).map((puzzle) => {
@@ -209,8 +222,7 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   function render(state: SessionState): void {
     latest = state
     if (holding) return
-    const key = JSON.stringify([state.locks_open, state.active_puzzle_id, state.wrong_attempts])
-    if (key === drawn) return
+    if (drawKey(state) === drawn) return
     const previous = drawnOpen
     const opened =
       previous === undefined

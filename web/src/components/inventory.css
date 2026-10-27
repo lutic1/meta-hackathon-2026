@@ -55,3 +55,18 @@
   align-self: center;
   color: var(--text-muted);
 }
+/* An item is a button over its well: a 2 px transparent edge that turns lamp while the item is selected for use_on
+   (the ring around the 56 px crop), and the item stays in place at 60% while it is dragged. */
+.inventory-item {
+  margin: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  background: none;
+  cursor: grab;
+}
+.inventory-item[aria-pressed='true'] {
+  border-color: var(--lamp);
+}
+.inventory-item.is-dragging {
+  opacity: 0.6;
+}

@@ -1,0 +1,35 @@
+/* {components.use-on-selected}: a parchment chip in ink, label type, pinned to the top-left of the Scene frame over
+   its mat, with Cancel (secondary on parchment). It fades in and out (200 ms) and takes no pointer while hidden. */
+.use-on-chip {
+  position: absolute;
+  top: var(--spacing-4);
+  left: var(--spacing-4);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-2) var(--spacing-3);
+  border-radius: var(--rounded-sm);
+  background: var(--parchment);
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+.use-on-chip.is-shown {
+  pointer-events: auto;
+  opacity: 1;
+}
+/* The drag image: the 64 px crop on the paper shadow, drawn off screen for the browser to copy. */
+.use-on-drag-image {
+  position: fixed;
+  top: -200px;
+  left: -200px;
+  padding: 16px;
+}
+.use-on-drag-image canvas {
+  display: block;
+  border-radius: var(--rounded-sm);
+  box-shadow: var(--elevation-paper);
+}

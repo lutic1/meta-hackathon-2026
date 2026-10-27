@@ -133,7 +133,8 @@ def test_a_click_inside_a_polygon_posts_exactly_one_click_and_a_click_outside_po
     assert layer.count("addEventListener('click'") == 1
     assert "hotspot.addEventListener('click', () => handlers.onActivate(interactable))" in layer
     assert "play.post({ type: 'click', interactable_id: interactable.id })" in scene
-    assert scene.count("play.post(") == 1 and "postEvent(" not in scene
+    # The one other post is a select-then-click's or a drop's `use_on` (Story 1.26), which never sends a click.
+    assert scene.count("play.post(") == 2 and "postEvent(" not in scene
     play = _ts("play.ts")
     assert "const reply = await postEvent(session.id, body)" in play and play.count("postEvent(") == 1
     assert "return postJson<SessionState>(`/sessions/${encodeURIComponent(sessionId)}/events`, body)" in api
