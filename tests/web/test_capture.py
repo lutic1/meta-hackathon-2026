@@ -42,8 +42,8 @@ def test_local_home_is_the_capture_screen_built_from_the_same_get_meta():
     shell = _ts("shell.ts")
     render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
     assert render.index("getMeta(place.profile)") < render.index("show(")
-    assert "content = { name: 'rooms', rooms, profile: place.profile, retention: meta.retention }" in render
-    assert "const capture = captureScreen(content.rooms, content.profile, content.retention, bar.timer)" in shell
+    assert "content = { name: 'rooms', rooms, profile: place.profile, mode: meta.mode, retention: meta.retention }" in render
+    assert "const capture = captureScreen(content.rooms, content.profile, content.mode, content.retention, bar.timer)" in shell
     assert "element.append(capture.left, capture.right)" in shell and "mount: capture.mount" in shell
     # While GET /meta fails the shell shows only the unreachable strip, retried every 2000 ms (1.17).
     assert "export const RETRY_MS = 2000" in shell and "show(unreachable())" in shell
@@ -87,7 +87,7 @@ def test_the_retention_summary_renders_the_served_text_then_the_privacy_line_nev
 
 def test_the_left_area_is_the_banner_slot_then_the_dropzone_the_tray_upload_and_the_stored_rooms():
     capture = _ts("capture.ts")
-    assert "controls.append(dropzone.element, tray, actions, storedRooms(rooms, profile, banners))" in capture
+    assert "controls.append(dropzone.element, tray, actions, storedRooms(rooms, profile, mode, banners))" in capture
     assert "left.append(banners, controls)" in capture
     assert "const controls = document.createElement('fieldset')" in capture
     rules = _css("shell.css")

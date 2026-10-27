@@ -78,7 +78,7 @@ def test_the_play_screen_routes_to_done_when_the_exit_puzzles_open_state_ends():
 def test_the_done_route_draws_the_completion_screen_from_the_session_state():
     shell = _code("shell.ts")
     assert "if (place.route.name === 'play' || place.route.name === 'done')" in shell
-    assert "if (state !== null) content = { name, session: state, guide: meta.guide, profile: place.profile }" in shell
+    assert "if (state !== null) content = { name, session: state, guide: meta.guide, mode: meta.mode, profile: place.profile }" in shell
     assert "mount: () => mountCompletion(element, sceneColumn, sideColumn, session, profile, bar.controls)" in shell
     assert "return getJson<RoomResult>(`/sessions/${encodeURIComponent(sessionId)}/result`)" in _code("api/index.ts")
 
@@ -183,7 +183,8 @@ def test_the_heading_takes_focus_and_the_sign_off_is_announced_once():
     show = _function(completion, "show")
     assert show.count("announce(") == 1 and "announce(`${strings.speakerGuide} ${said}`)" in show
     load = _function(completion, "load")
-    assert "if (mounted) show(result)" in load and load.count("show(") == 1  # drawn, and announced, once it returns
+    assert "if (!mounted) return\n    void putResult(profile, result)\n    show(result)" in load
+    assert load.count("show(") == 1  # drawn, and announced, once it returns
     # One polite live region for the page, outside #app so no route change replaces it.
     regions = [path for path, text in source_ts().items() if "aria-live" in text]
     assert regions == ["web/src/live-region.ts"]

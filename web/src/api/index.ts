@@ -1,7 +1,6 @@
 // The HTTP client: every route under /api/ on the page's own origin (AD-9), typed by the generated web/types (AD-2).
 import type {
   BuildView,
-  Derived,
   ErrorDetail,
   ErrorEnvelope,
   JobState,
@@ -104,12 +103,10 @@ export function photoUrl(roomId: string, index: number): string {
   return `/api/rooms/${encodeURIComponent(roomId)}/photos/${index}`
 }
 
-/** `Derived.fresh()` (AD-8): the block a session start carries when no profile exists. */
-export function freshDerived(): Derived {
-  return { sessions: 0, persistence: 0, time_to_first_hint_s: null, mean_rung_per_lock_type: {} }
-}
-
-/** `POST /sessions {room_id, derived}`: a fresh session over the stored Room, opened with its opening line (AD-4). */
+/**
+ * `POST /sessions {room_id, derived}`: a fresh session over the stored Room, opened with its opening line (AD-4); the
+ * body is web/profile's `sessionStart`, so nothing else from the Player profile is ever sent (AD-8).
+ */
 export function startSession(body: SessionStart): Promise<SessionState> {
   return postJson<SessionState>('/sessions', body)
 }

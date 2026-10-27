@@ -1,17 +1,23 @@
-import type { RoomSummary } from '../types'
-import { freshDerived, startSession } from './api/index.ts'
+import type { Meta, RoomSummary } from '../types'
+import { startSession } from './api/index.ts'
 import { showBanner } from './components/error-banner.ts'
 import { storedRoomRow } from './components/stored-room-row.ts'
+import { sessionStart } from './profile/index.ts'
 import { placeHref } from './router.ts'
 import { strings } from './strings.ts'
 
 /**
  * The Stored Rooms list (Local, UX-DR19): one row per `RoomSummary` exactly as `GET /rooms` served it, newest build
- * first, or "No rooms yet." when there are none. "Play" posts the session start with `Derived.fresh()` (until 5.1)
- * and routes to `#/play/<session_id>`; a refused start shows the session-start-refused banner in `banners`, the
+ * first, or "No rooms yet." when there are none. "Play" posts the session start, carrying the profile's Derived block
+ * (`sessionStart`), and routes to `#/play/<session_id>`; a refused start shows the session-start-refused banner in `banners`, the
  * slot at the top of the left area, whose "Try again" posts the same start again. One start runs at a time.
  */
-export function storedRooms(rooms: readonly RoomSummary[], profile: string, banners: HTMLElement): HTMLElement {
+export function storedRooms(
+  rooms: readonly RoomSummary[],
+  profile: string,
+  mode: Meta['mode'],
+  banners: HTMLElement,
+): HTMLElement {
   if (rooms.length === 0) {
     const empty = document.createElement('p')
     empty.className = 'stored-room-empty body-sm'
@@ -24,7 +30,7 @@ export function storedRooms(rooms: readonly RoomSummary[], profile: string, bann
     if (starting) return
     starting = true
     try {
-      const session = await startSession({ room_id: room.room_id, derived: freshDerived() })
+      const session = await startSession(await sessionStart(room.room_id, profile, mode))
       showBanner(banners, null)
       location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })
     } catch {

@@ -1,5 +1,5 @@
-import type { JobState } from '../types'
-import { freshDerived, getBuild, photoUrl, postBuild, RequestFailed, startSession } from './api/index.ts'
+import type { JobState, Meta } from '../types'
+import { getBuild, photoUrl, postBuild, RequestFailed, startSession } from './api/index.ts'
 import { type EndAction, buildEnd } from './build-end.ts'
 import { carryPhotos, heldPhotos, passPhotos, releasePhotos } from './build-photos.ts'
 import { stageRows } from './build-stages.ts'
@@ -15,6 +15,7 @@ import { stageList } from './components/stage-list.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { announce } from './live-region.ts'
 import { MAX_PHOTOS } from './photos.ts'
+import { sessionStart } from './profile/index.ts'
 import { captureHref, placeHref } from './router.ts'
 import type { Size } from './scene/geometry.ts'
 import { strings } from './strings.ts'
@@ -52,7 +53,7 @@ async function photoSize(url: string): Promise<Size | null> {
  *
  * The page that uploaded the Build holds its photos (`build-photos.ts`): the tray shows them and the Mask preview
  * draws on their downscales. When a poll reads `done` after this page saw the Build unfinished, or uploaded it, a
- * Session starts with `Derived.fresh()` (until 5.1) and the Play screen opens, the Timer passing to that Session.
+ * Session starts, carrying the profile's Derived block (`sessionStart`), and the Play screen opens, the Timer passing to that Session.
  * A Build already `done` when the route opens shows "Play this room" instead, and the photos the server now serves
  * for its Room. Either way a `done` Build shows "How this room was built", opening its Build view (absent under
  * cut 0), beside "Play this room" or alone while the Session starts, so a refused start still reaches it. A
@@ -69,7 +70,7 @@ async function photoSize(url: string): Promise<Size | null> {
  * and the Timer go on as they were, and the next answered poll removes the strip and renders from job state. A
  * refused poll, which ends the polling, removes it too.
  */
-export function buildScreen(jobId: string, profile: string, retention: string): BuildScreen {
+export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], retention: string): BuildScreen {
   const held = heldPhotos(jobId)
   const banners = bannerSlot()
   const stages = stageList()
@@ -131,7 +132,7 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
         if (starting || started) return
         starting = true
         try {
-          const session = await startSession({ room_id: roomId, derived: freshDerived() })
+          const session = await startSession(await sessionStart(roomId, profile, mode))
           started = true
           showBanner(banners, null)
           sessionOpened(jobId, session.id)

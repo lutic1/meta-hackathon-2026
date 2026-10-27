@@ -21,6 +21,8 @@ export const strings = {
   cacheOff: 'Cache off',
   modeProfile: 'profile {name}',
   modeSeparator: ' · ',
+  roomsPlayed: '{k} rooms played',
+  oneRoomPlayed: '1 room played',
   noRooms: 'No rooms yet.',
   puzzleCount: '{n} puzzles',
   play: 'Play',

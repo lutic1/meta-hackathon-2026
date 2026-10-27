@@ -7,6 +7,7 @@ import { primaryButton } from './components/button.ts'
 import { formatElapsed } from './components/timer.ts'
 import { announce } from './live-region.ts'
 import { mountPlayBehind } from './play.ts'
+import { putResult } from './profile/index.ts'
 import { placeHref } from './router.ts'
 import { fill, strings } from './strings.ts'
 import { speakerPrefix, wizardPortrait } from './wizards/portrait.ts'
@@ -84,7 +85,8 @@ async function roomJob(session: SessionState): Promise<string | null> {
  * `GET /sessions/<id>/result`: the heading "The room is open.", the Guide's sign-off beside its 48 px portrait, "Time",
  * "Hints used" (the Rungs used) and "Wrong attempts" three across in `mono-timer`, and the "Time per puzzle" table.
  * Until the result returns the stats show as pending; while the request fails a plain line says so and it is asked
- * again every 2000 ms. "Build another room", the one primary action, goes to `#/` and is there from the start;
+ * again every 2000 ms, nothing recorded. The returned `RoomResult` is put into the `profile` once (web/profile keys it
+ * by `room_id`, so a reload of this route records nothing new). "Build another room", the one primary action, goes to `#/` and is there from the start;
  * "How this room was built" (secondary) joins it once the Room's job is known, opening its Build view, and is absent
  * under cut 0. The heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}".
  * The top bar's `controls` keep "Show all objects" in place, inert. Returns the teardown.
@@ -190,7 +192,9 @@ export function mountCompletion(
       retry = setTimeout(() => void load(), RESULT_RETRY_MS)
       return
     }
-    if (mounted) show(result)
+    if (!mounted) return
+    void putResult(profile, result)
+    show(result)
   }
   void load()
   void roomJob(session).then((jobId) => {

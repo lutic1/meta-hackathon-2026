@@ -25,7 +25,7 @@ def test_the_list_comes_only_from_get_rooms_read_afresh_on_every_visit():
     render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
     assert "} else if (place.route.name === 'home' && meta.mode === 'local') {" in render
     assert render.index("await answered(mine, listRooms)") < render.index("show(")
-    assert "content = { name: 'rooms', rooms, profile: place.profile, retention: meta.retention }" in render
+    assert "content = { name: 'rooms', rooms, profile: place.profile, mode: meta.mode, retention: meta.retention }" in render
     # No room list of the browser's own: nothing cached across visits, and no browser storage anywhere but the
     # Capture Timer's one run (2.17) and the per-session mark that "Begin" was pressed (1.22).
     assert "listRooms" not in shell.split("async function render()", 1)[0].split("export function startShell", 1)[1]
@@ -56,9 +56,9 @@ def test_a_row_shows_the_cover_thumbnail_the_title_the_puzzle_count_and_play():
     assert "`/api/rooms/${encodeURIComponent(roomId)}/photos/${index}`" in _ts("api/index.ts")
 
 
-def test_play_posts_the_fresh_derived_block_and_routes_to_the_play_screen():
+def test_play_posts_the_profiles_session_start_and_routes_to_the_play_screen():
     ts, api = _ts("stored-rooms.ts"), _ts("api/index.ts")
-    assert "await startSession({ room_id: room.room_id, derived: freshDerived() })" in ts
+    assert "await startSession(await sessionStart(room.room_id, profile, mode))" in ts
     assert "location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })" in ts
     assert "return postJson<SessionState>('/sessions', body)" in api
     assert "method: 'POST'" in api and "body: JSON.stringify(body)" in api
@@ -66,8 +66,8 @@ def test_play_posts_the_fresh_derived_block_and_routes_to_the_play_screen():
 
 
 def test_the_client_fresh_block_is_the_server_derived_fresh():
-    api = _ts("api/index.ts")
-    literal = re.search(r"export function freshDerived\(\): Derived \{\n  return (\{.*?\})\n\}", api).group(1)
+    derive = _ts("profile/derive.ts")
+    literal = re.search(r"export function freshDerived\(\): Derived \{\n  return (\{.*?\})\n\}", derive).group(1)
     as_json = re.sub(r"(\w+):", r'"\1":', literal)
     assert json.loads(as_json) == Derived.fresh().model_dump(mode="json")
 
@@ -81,7 +81,7 @@ def test_a_refused_start_shows_the_session_start_refused_banner_whose_try_again_
     # The banner slot sits at the top of the left area, above the list; showBanner moves focus to the banner.
     capture = _ts("capture.ts")
     assert "left.append(banners, controls)" in capture
-    assert "storedRooms(rooms, profile, banners))" in capture
+    assert "storedRooms(rooms, profile, mode, banners))" in capture
     assert "const banners = bannerSlot()" in capture
 
 

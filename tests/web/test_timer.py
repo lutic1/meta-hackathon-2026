@@ -44,7 +44,7 @@ def test_the_upload_click_is_t0_and_the_capture_screen_shows_only_the_run_it_sta
     assert "mountTimer(timerSlot, (run) => run.t0 === t0)" in capture
     shell = _code("shell.ts")
     assert "const body = surface(content, bar)" in shell
-    assert "captureScreen(content.rooms, content.profile, content.retention, bar.timer)" in shell
+    assert "captureScreen(content.rooms, content.profile, content.mode, content.retention, bar.timer)" in shell
 
 
 def test_a_start_is_a_new_run_from_now_replacing_any_earlier_one():

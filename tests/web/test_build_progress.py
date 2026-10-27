@@ -65,9 +65,9 @@ def test_the_held_photos_live_in_memory_only_and_are_released_once_the_room_open
 
 def test_the_build_route_is_the_capture_layout_with_the_stage_list_in_place_of_the_dropzone():
     shell = _code("shell.ts")
-    assert ("content = { name: 'build', jobId: place.route.jobId, profile: place.profile, retention: meta.retention }"
+    assert ("content = { name: 'build', jobId: place.route.jobId, profile: place.profile, mode: meta.mode, retention: meta.retention }"
             in shell)
-    assert "const build = buildScreen(content.jobId, content.profile, content.retention)" in shell
+    assert "const build = buildScreen(content.jobId, content.profile, content.mode, content.retention)" in shell
     assert "element.append(build.left, build.right)" in shell and "mount: build.mount" in shell
     screen = _code("build-progress.ts")
     assert "left.append(banners, stages.element, actions, maskSlot, traySlot, picker)" in screen
@@ -290,7 +290,7 @@ def test_done_starts_a_session_and_opens_the_play_screen_with_the_timer_passing_
     live = done.split("if (live) {", 1)[1]
     assert live.index("void start(roomId)") < live.index("return") < live.index("primaryButton({")
     start = _function(screen, "start")
-    assert "const session = await startSession({ room_id: roomId, derived: freshDerived() })" in start
+    assert "const session = await startSession(await sessionStart(roomId, profile, mode))" in start
     assert start.index("sessionOpened(jobId, session.id)") < start.index(
         "location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })")
     assert "if (starting || started) return" in start

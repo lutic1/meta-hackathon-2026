@@ -13,6 +13,7 @@ import { type TopBar, topBar } from './components/top-bar.ts'
 import { liveRegion } from './live-region.ts'
 import { currentPlace, placeHref, type Route } from './router.ts'
 import { mountPlay } from './play.ts'
+import { getResults, watchResults } from './profile/index.ts'
 import { strings } from './strings.ts'
 
 /** How long the server-unreachable state waits between attempts (UX-DR61). */
@@ -33,7 +34,8 @@ function refused(error: unknown): null {
  * surface ever shows without its Disclosure lines. While a request fails the page body holds only the centered
  * status strip, retried every 2000 ms; nothing is guessed in the meantime. A session the server refuses (4xx) has
  * no Room, so its route shows the global lines with an empty body; its own states belong to later surfaces.
- * In Local mode `#/` also waits for `GET /rooms`, read afresh on every visit: the browser keeps no list of its own;
+ * The top bar's mode indicator counts the Room results of the `?profile=` profile (web/profile) and is rewritten as
+ * soon as one is recorded. In Local mode `#/` also waits for `GET /rooms`, read afresh on every visit: the browser keeps no list of its own;
  * it is the Capture screen, its Retention summary the `retention` text of the same `GET /meta`. `#/build/<job_id>`
  * holds the global lines, the Timer of that Build and the Capture screen during that Build, in both modes. The top
  * bar's Timer slot shows the run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
@@ -92,17 +94,18 @@ export function startShell(root: HTMLElement): void {
       const state = await answered(mine, () => getSession(sessionId).catch(refused))
       if (state === undefined) return
       if (state !== null) disclosure = state.disclosure
-      if (state !== null) content = { name, session: state, guide: meta.guide, profile: place.profile }
+      if (state !== null) content = { name, session: state, guide: meta.guide, mode: meta.mode, profile: place.profile }
     } else if (place.route.name === 'build') {
-      content = { name: 'build', jobId: place.route.jobId, profile: place.profile, retention: meta.retention }
+      content = { name: 'build', jobId: place.route.jobId, profile: place.profile, mode: meta.mode, retention: meta.retention }
     } else if (place.route.name === 'home' && meta.mode === 'local') {
       const rooms = await answered(mine, listRooms)
       if (rooms === undefined) return
-      content = { name: 'rooms', rooms, profile: place.profile, retention: meta.retention }
+      content = { name: 'rooms', rooms, profile: place.profile, mode: meta.mode, retention: meta.retention }
     }
+    const played = (await getResults(place.profile)).length
     if (mine !== generation) return
     const banner = disclosureBanner(disclosure)
-    const bar = topBar(meta)
+    const bar = topBar(meta, played)
     const body = surface(content, bar)
     const done = content.name === 'done'
     bar.element.inert = done // the Play screen's controls stay in place, taking no input
@@ -110,9 +113,12 @@ export function startShell(root: HTMLElement): void {
     const unmountBody = body.mount?.()
     const owns = timerOwner(place.route)
     const unmountTimer = owns === null ? undefined : mountTimer(bar.timer, owns, done)
+    // The mode indicator follows the profile at once: a Room result recorded on this surface rewrites its count.
+    const unwatch = watchResults(place.profile, (results) => bar.showPlayed(results.length))
     unmount = () => {
       unmountBody?.()
       unmountTimer?.()
+      unwatch()
     }
   }
 
@@ -137,9 +143,9 @@ interface Surface {
  */
 type Content =
   | ({ name: 'view'; state: BuildViewState } & BuildViewOptions)
-  | { name: 'play' | 'done'; session: SessionState; guide: Meta['guide']; profile: string }
-  | { name: 'rooms'; rooms: RoomSummary[]; profile: string; retention: string }
-  | { name: 'build'; jobId: string; profile: string; retention: string }
+  | { name: 'play' | 'done'; session: SessionState; guide: Meta['guide']; mode: Meta['mode']; profile: string }
+  | { name: 'rooms'; rooms: RoomSummary[]; profile: string; mode: Meta['mode']; retention: string }
+  | { name: 'build'; jobId: string; profile: string; mode: Meta['mode']; retention: string }
   | { name: 'empty' }
 
 /**
@@ -176,13 +182,13 @@ function surface(content: Content, bar: TopBar): Surface {
   }
   if (content.name === 'rooms') {
     element.classList.add('capture-layout')
-    const capture = captureScreen(content.rooms, content.profile, content.retention, bar.timer)
+    const capture = captureScreen(content.rooms, content.profile, content.mode, content.retention, bar.timer)
     element.append(capture.left, capture.right)
     return { element, mount: capture.mount }
   }
   if (content.name === 'build') {
     element.classList.add('capture-layout')
-    const build = buildScreen(content.jobId, content.profile, content.retention)
+    const build = buildScreen(content.jobId, content.profile, content.mode, content.retention)
     element.append(build.left, build.right)
     return { element, mount: build.mount }
   }
@@ -193,7 +199,7 @@ function surface(content: Content, bar: TopBar): Surface {
   sideColumn.className = 'side-column'
   element.append(sceneColumn, sideColumn)
   if (content.name === 'play') {
-    const frame = { body: element, topBar: bar.element, controls: bar.controls, guide: content.guide }
+    const frame = { body: element, topBar: bar.element, controls: bar.controls, guide: content.guide, mode: content.mode }
     return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame) }
   }
   element.classList.add('completion-layout')

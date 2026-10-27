@@ -51,7 +51,7 @@ def test_disclosure_lines_come_from_meta_on_home_and_from_session_state_on_play_
     assert "getSession(sessionId).catch(refused)" in shell
     assert "error instanceof RequestFailed && error.status !== null && error.status < 500" in shell
     # Banner first, then the top bar, then the body: part of the grid, above the top bar.
-    assert "const bar = topBar(meta)" in shell
+    assert "const bar = topBar(meta, played)" in shell
     assert "show(...(banner === null ? [] : [banner]), bar.element, body.element)" in shell
 
 
@@ -82,10 +82,10 @@ def test_top_bar_is_48px_chrome_with_wordmark_mode_indicator_and_centered_timer_
 
 def test_mode_indicator_is_plain_body_sm_text_not_focusable_and_not_a_disclosure():
     ts = (COMPONENTS / "top-bar.ts").read_text()
-    assert "mode.className = 'mode-indicator body-sm'" in ts and "mode.textContent = modeIndicatorText(meta)" in ts
+    assert "mode.className = 'mode-indicator body-sm'" in ts and "mode.textContent = modeIndicatorText(meta, played)" in ts
     assert "if (meta.mode === 'hosted') return strings.modeHosted" in ts
     assert "meta.cache === 'on' ? strings.cacheOn : strings.cacheOff" in ts
-    assert "fill(strings.modeProfile, { name: meta.profile })].join(strings.modeSeparator)" in ts
+    assert "fill(strings.modeProfile, { name: meta.profile }), rooms].join(strings.modeSeparator)" in ts
     assert not re.search(r"tabIndex|addEventListener|disclosure", ts)
     indicator = _css("components/top-bar.css")[".mode-indicator"]
     assert indicator["color"] == "var(--text-muted)" and not any("disclosure" in v for v in indicator.values())

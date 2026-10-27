@@ -307,7 +307,7 @@ def test_a_session_answered_404_dims_the_photo_under_the_session_gone_line_with_
     end = play.split("function endPlay(): void {", 1)[1].split("\n  }\n", 1)[0]
     assert "ticker.terminate()" in end and "stage.append(playEnded(() => void startAgain()))" in end and "holdInputs()" in end
     again = play.split("async function startAgain(): Promise<void> {", 1)[1].split("\n  }\n", 1)[0]
-    assert "startSession({ room_id: session.room_id, derived: freshDerived() })" in again
+    assert "startSession(await sessionStart(session.room_id, currentPlace().profile, frame.mode))" in again
     assert "route: { name: 'play', sessionId: next.id }" in again
     assert "line.textContent = strings.sessionGone" in ended and "line.className = 'play-ended-line body-md'" in ended
     assert "secondaryButton({ label: strings.startAgain, onActivate: onStartAgain })" in ended

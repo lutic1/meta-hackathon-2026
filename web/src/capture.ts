@@ -1,4 +1,4 @@
-import type { RoomSummary } from '../types'
+import type { Meta, RoomSummary } from '../types'
 import { postBuild, RequestFailed, type UploadPhoto } from './api/index.ts'
 import { holdPhotos, takeCarriedPhotos } from './build-photos.ts'
 import { buildAccepted, mountTimer, startTimer, stopTimer } from './capture-timer.ts'
@@ -76,6 +76,7 @@ export function captureColumn(retention: string): HTMLElement {
 export function captureScreen(
   rooms: readonly RoomSummary[],
   profile: string,
+  mode: Meta['mode'],
   retention: string,
   timerSlot: HTMLElement,
 ): CaptureScreen {
@@ -97,7 +98,7 @@ export function captureScreen(
   // One fieldset holds every control below the banners, so a Build disables them all at once.
   const controls = document.createElement('fieldset')
   controls.className = 'capture-controls'
-  controls.append(dropzone.element, tray, actions, storedRooms(rooms, profile, banners))
+  controls.append(dropzone.element, tray, actions, storedRooms(rooms, profile, mode, banners))
   const left = document.createElement('section')
   left.className = 'capture-left'
   left.append(banners, controls)

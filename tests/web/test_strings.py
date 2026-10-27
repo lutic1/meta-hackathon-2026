@@ -106,6 +106,7 @@ def test_the_shell_strings_are_the_experience_lines():
     assert (strings["cacheOn"], strings["cacheOff"], strings["modeProfile"]) == ("Cache on", "Cache off", "profile {name}")
     local = strings["modeSeparator"].join([strings["modeLocal"], strings["cacheOn"], strings["modeProfile"].format(name="dev")])
     assert local == "Local mode · Cache on · profile dev"
+    assert strings["roomsPlayed"].format(k=0) == "0 rooms played" and strings["oneRoomPlayed"] == "1 room played"
 
 
 def test_the_capture_strings_are_the_experience_lines():

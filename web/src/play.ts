@@ -1,5 +1,5 @@
 import type { Meta, PlayView, PostedEvent, SessionState } from '../types'
-import { freshDerived, getRoom, getSession, postEvent, RequestFailed, startSession } from './api/index.ts'
+import { getRoom, getSession, postEvent, RequestFailed, startSession } from './api/index.ts'
 import { secondaryButton, toggleButton } from './components/button.ts'
 import { type HintArea, hintArea } from './components/hint-area.ts'
 import { inventory } from './components/inventory.ts'
@@ -10,6 +10,7 @@ import { OPEN_HOLD_MS, wizardNotes } from './components/wizard-notes.ts'
 import { mountLeaveRoom } from './leave-room.ts'
 import { lockOutcomes } from './lock-outcomes.ts'
 import { announce } from './live-region.ts'
+import { sessionStart } from './profile/index.ts'
 import { currentPlace, placeHref } from './router.ts'
 import { lastShownPhoto, mountScene } from './scene/index.ts'
 import { strings } from './strings.ts'
@@ -42,14 +43,15 @@ export interface PlaySession {
 
 /**
  * What the Play screen takes from the shell: the page body and the top bar, which the First-room welcome covers and
- * holds inert, the top bar's controls slot, and the `guide` setting its role line names and the Hint area's thinking
- * state follows.
+ * holds inert, the top bar's controls slot, the `guide` setting its role line names and the Hint area's thinking
+ * state follows, and the `mode` that decides which Derived block "Start again" sends.
  */
 export interface PlayFrame {
   body: HTMLElement
   topBar: HTMLElement
   controls: HTMLElement
   guide: Meta['guide']
+  mode: Meta['mode']
 }
 
 /** Focuses the first Hotspot of the Scene in `sceneColumn`, once its photo is live. Returns the teardown. */
@@ -200,7 +202,7 @@ export function mountPlay(
     if (starting) return
     starting = true
     try {
-      const next = await startSession({ room_id: session.room_id, derived: freshDerived() })
+      const next = await startSession(await sessionStart(session.room_id, currentPlace().profile, frame.mode))
       location.hash = placeHref({ route: { name: 'play', sessionId: next.id }, profile: currentPlace().profile })
     } catch {
       // Nothing started; "Start again" stays for another try.
