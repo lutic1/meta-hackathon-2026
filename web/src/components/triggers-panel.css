@@ -20,7 +20,7 @@
   flex-direction: column;
   gap: var(--spacing-2);
   min-height: 0;
-  overflow-y: auto; /* only when the Hint area has no room even for its header and one row */
+  overflow-y: auto; /* only when the Hint area has no room for the header and the rows; it scrolls to the newest */
   padding: var(--spacing-3);
   border-radius: var(--rounded-md);
   background: var(--chrome);
@@ -38,7 +38,7 @@
   display: block;
 }
 .triggers-rows {
-  min-height: 20px; /* one body-sm line (14 px at 1.45), so the newest row outlasts a short Hint area */
+  flex: none; /* never squeezed below its rows, so a short Hint area cannot clip the newest one, wrapped or not */
   max-height: var(--spacing-triggers-panel-max);
   margin: 0;
   padding: 0;

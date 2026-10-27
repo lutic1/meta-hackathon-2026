@@ -73,12 +73,13 @@ def test_open_the_hint_area_may_grow_until_the_wizard_notes_reach_notes_min():
     grown = rules[".hint-area.is-triggers-open"]
     assert grown == {"max-height": "calc(100% - var(--spacing-notes-min) - var(--spacing-5))"}
     assert _rules("shell.css")[".side-column"]["gap"] == "var(--spacing-5)"
-    # Short of room the upper part scrolls first; the pinned controls never leave the tray, the rows give way last.
+    # Short of room the upper part scrolls first; the pinned controls never leave the tray; then the panel scrolls
+    # (to its newest row) and the rows are never squeezed, so a wrapped newest row stays whole.
     assert rules[".hint-area.is-triggers-open .hint-upper"] == {"flex-shrink": "1000"}
     assert rules[".hint-area.is-triggers-open .hint-lower"] == {"flex-shrink": "1", "min-height": "0"}
     panel = _rules("components/triggers-panel.css")
     assert panel[".triggers-toggle"]["flex"] == "none" and panel[".triggers-header,\n.triggers-empty"]["flex"] == "none"
-    assert panel[".triggers-rows"]["min-height"] == "20px"
+    assert panel[".triggers-rows"]["flex"] == "none" and "min-height" not in panel[".triggers-rows"]
     assert "--spacing-notes-min: 280px;" in _ts("tokens.css")
 
 
@@ -105,11 +106,13 @@ def test_no_web_module_computes_a_threshold_or_a_spacing():
 def test_the_cause_is_read_off_the_events_triggered_by_names():
     cause = _function(_ts(PANEL), "triggerCause")
     assert "change.triggered_by.map((position) => events[position])" in cause
-    assert "if (named.some((event) => event?.type === 'trickster_card')) return strings.loosenCard" in cause
-    assert "if (tick?.type === 'idle_tick' && named.length <= 2) {" in cause
+    # The shapes select_rung writes: 3 wrong attempts (plus the event that met the spacing), a lone Loosen card, or
+    # Idle as (event,) or (anchor, event), whatever type the event is; a card that only met the spacing is not a cause.
+    assert "if (named.length >= 3 || tick === undefined) return strings.threeWrongAttempts" in cause
+    assert "if (named.length === 1 && tick.type === 'trickster_card') return strings.loosenCard" in cause
+    assert "named.some(" not in cause
     assert "const from = named.length === 2 ? (named[0]?.t_ms ?? 0) : 0" in cause
-    assert "fill(strings.idleSeconds, { s: Math.round((tick.t_ms - from) / 1000) })" in cause
-    assert cause.rstrip().endswith("return strings.threeWrongAttempts")
+    assert cause.rstrip().endswith("return fill(strings.idleSeconds, { s: Math.round((tick.t_ms - from) / 1000) })")
 
 
 def test_each_row_names_the_puzzle_the_rung_the_cause_and_where_it_was_worded_never_its_text():
@@ -127,6 +130,11 @@ def test_rows_are_body_sm_with_mono_sm_numbers_newest_last_in_text_capped_and_ke
     assert "row.className = 'triggers-row body-sm'" in panel and "header.className = 'triggers-header body-sm'" in panel
     assert "...state.rung_changes.map((change) => {" in panel  # session order: newest last
     assert "rows.scrollTop = rows.scrollHeight" in panel and "if (on) list.reveal()" in panel
+    # Opened on load, the list is still detached when it first renders, so the Play screen reveals it once attached.
+    assert "return { element, render, reveal: list.reveal }" in panel
+    play = _ts("play.ts")
+    attached = play.index("sideColumn.append(hints.element)")
+    assert play.index("triggers.reveal()", attached) < play.index("holdInputs()", attached)
     assert "empty.textContent = strings.noHintChanges" in panel and "empty.hidden = drawn > 0" in panel
     rules = _rules("components/triggers-panel.css")
     assert rules[".triggers-rows"]["max-height"] == "var(--spacing-triggers-panel-max)"

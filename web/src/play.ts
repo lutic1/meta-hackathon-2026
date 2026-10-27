@@ -293,6 +293,7 @@ export function mountPlay(
       })
       hints.triggers.append(triggers.element)
       sideColumn.append(hints.element)
+      triggers.reveal() // opened on load with a Disclosure active: the newest row in view now the list can scroll
       holdInputs()
       parts.push(hints.render)
       parts.push(triggers.render)

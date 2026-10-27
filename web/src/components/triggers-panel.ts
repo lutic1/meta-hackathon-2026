@@ -40,20 +40,19 @@ export function triggersHeader(thresholds: Thresholds): [string, string] {
 }
 
 /**
- * Why a Rung arrived, from the logged events its `triggered_by` names (`trigger_events`, their type and `t_ms`):
- * "Loosen card" when one is a Trickster Card; "Idle {s} s" when an `idle_tick` triggered it, its `t_ms` minus the
- * `t_ms` of the other event named (the one Idle counts from), or minus 0 when none is; else "3 wrong attempts". Every
- * `t_ms` is the server's session clock, never scaled and never read from the browser.
+ * Why a Rung arrived, from the logged events its `triggered_by` names (`trigger_events`, their type and `t_ms`), read
+ * off the shapes the Rung selector writes: three or more name the wrong attempts, so "3 wrong attempts"; a lone
+ * Trickster Card is the Loosen card that opened the Rung; else it was Idle, "Idle {s} s" being the triggering event's
+ * `t_ms` minus the `t_ms` of the other event named (the one Idle counts from), or minus 0 when none is. Every `t_ms`
+ * is the server's session clock, never scaled and never read from the browser.
  */
 export function triggerCause(change: RungChangeEvent, events: SessionState['trigger_events'] = {}): string {
   const named = change.triggered_by.map((position) => events[position])
-  if (named.some((event) => event?.type === 'trickster_card')) return strings.loosenCard
   const tick = named.at(-1)
-  if (tick?.type === 'idle_tick' && named.length <= 2) {
-    const from = named.length === 2 ? (named[0]?.t_ms ?? 0) : 0
-    return fill(strings.idleSeconds, { s: Math.round((tick.t_ms - from) / 1000) })
-  }
-  return strings.threeWrongAttempts
+  if (named.length >= 3 || tick === undefined) return strings.threeWrongAttempts
+  if (named.length === 1 && tick.type === 'trickster_card') return strings.loosenCard
+  const from = named.length === 2 ? (named[0]?.t_ms ?? 0) : 0
+  return fill(strings.idleSeconds, { s: Math.round((tick.t_ms - from) / 1000) })
 }
 
 /** One row: "Puzzle {n} · {Rung name} · {cause} · worded on this Mac · {s} s" or "… · as written"; never Rung text. */
@@ -129,6 +128,8 @@ export function triggersList(room: PlayView): TriggersList {
 export interface TriggersPanel {
   element: HTMLElement
   render: (state: SessionState) => void
+  /** Scrolls the newest row into view; called once the panel is in the document, since a detached list cannot scroll. */
+  reveal: () => void
 }
 
 /**
@@ -175,5 +176,5 @@ export function triggersPanel(
 
   render(session)
   onOpen(open)
-  return { element, render }
+  return { element, render, reveal: list.reveal }
 }
