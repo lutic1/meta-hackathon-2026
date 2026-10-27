@@ -433,14 +433,15 @@ class DictJobStore:
 
     def list_ids(self) -> list[JobId]:
         """Every job id in the Dict or in a final record; any other key the hosted app adds to the Dict is not a `job_` id."""
-        keys = self.jobs.keys()  # `modal.Dict` offers `keys()`, not iteration
+        keys = list(self.jobs.keys())  # a snapshot: `modal.Dict` offers `keys()`, not iteration, and writes may land mid-read
         ids = {key for key in keys if isinstance(key, str) and key.startswith("job_")}
         return sorted(ids | {state.id for state in self._final_records()})
 
     def job_of(self, room_id: str) -> JobId | None:
         """The id of the job that built `room_id`, from the Dict or a final record; `None` when neither names the Room."""
-        keys = self.jobs.keys()  # `modal.Dict` offers `keys()`, not iteration
-        in_flight = [JobState.model_validate(self.jobs.get(key)) for key in keys if isinstance(key, str) and key.startswith("job_")]
+        keys = list(self.jobs.keys())  # a snapshot: `modal.Dict` offers `keys()`, not iteration, and writes may land mid-read
+        values = [self.jobs.get(key) for key in keys if isinstance(key, str) and key.startswith("job_")]
+        in_flight = [JobState.model_validate(value) for value in values if value is not None]  # a job may finish between keys() and get()
         return next((state.id for state in [*in_flight, *self._final_records()] if state.room_id == room_id), None)
 
     def reserve_build(self, job_id: JobId) -> None:
@@ -452,7 +453,7 @@ class DictJobStore:
 
     def builds_left(self) -> int:
         """`BUILD_QUOTA` minus the slots present in the Dict; reads only, so it claims nothing."""
-        keys = self.jobs.keys()  # `modal.Dict` offers `keys()`, not iteration
+        keys = list(self.jobs.keys())  # a snapshot: `modal.Dict` offers `keys()`, not iteration, and writes may land mid-read
         return BUILD_QUOTA - sum(1 for key in keys if key in SLOT_KEYS)
 
     def _final_records(self) -> list[JobState]:
@@ -579,7 +580,8 @@ class DictLedgerStore:
     def entries(self) -> list[LedgerEntry]:
         """The current epoch's entries in `call_` ULID order, which is the order they were minted in."""
         epoch = self.epoch()
-        rows = [LedgerEntry.model_validate(value) for key, value in self.ledger.items() if key != EPOCH_KEY]
+        items = list(self.ledger.items())  # a snapshot: another container's append may land mid-read
+        rows = [LedgerEntry.model_validate(value) for key, value in items if key != EPOCH_KEY]
         return sorted((row for row in rows if row.epoch == epoch), key=lambda row: row.call_id)
 
     def epoch(self) -> str | None:

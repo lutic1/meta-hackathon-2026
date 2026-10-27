@@ -372,6 +372,35 @@ def test_concurrent_appends_from_two_ledgers_lose_no_entry(handles):
     assert running_total_usd(entries) == pytest.approx(80 * 0.0025)
 
 
+def test_entries_read_a_snapshot_so_an_append_landing_mid_read_cannot_break_it(handles, monkeypatch):
+    store = DictLedgerStore(handles.ledger)
+    first = LedgerEntry(call_id="call_01ARZ3NDEKTSV4RRFFQ69G5FAV", kind="vision", status="settled", usd=0.03)
+    late = LedgerEntry(call_id="call_01BX5ZZKBKACTAV9WEVGEMMVRZ", kind="sam", status="reserved", usd=0.0025)
+    store.append(first)
+    validate = LedgerEntry.model_validate
+
+    def validate_while_another_container_appends(value: Any) -> LedgerEntry:
+        if late.call_id not in handles.ledger:
+            store.append(late)
+        return validate(value)
+
+    monkeypatch.setattr(modal_module.LedgerEntry, "model_validate", validate_while_another_container_appends)
+    assert [entry.call_id for entry in store.entries()] == [first.call_id]
+    monkeypatch.undo()
+    assert [entry.call_id for entry in store.entries()] == [first.call_id, late.call_id]
+
+
+def test_job_of_skips_a_job_that_finishes_between_listing_and_reading(handles):
+    class FinishingDict(RecordingDict):
+        def get(self, key: Any, default: Any = None) -> Any:
+            return None if key == JOB_B else super().get(key, default)  # dropped from the Dict after keys() listed it
+
+    store = DictJobStore(FinishingDict(), VolumeFiles(handles.volume, handles.root))
+    store.put(_job_state(JOB_A))
+    store.put(_job_state(JOB_B))
+    assert store.job_of(_job_state(JOB_A).room_id) == JOB_A
+
+
 def test_entries_follow_the_epoch_marker_and_the_store_keeps_no_state_or_lock_of_its_own(handles):
     store = DictLedgerStore(handles.ledger)
     before = LedgerEntry(call_id="call_01ARZ3NDEKTSV4RRFFQ69G5FAV", kind="vision", status="settled", usd=0.03)
