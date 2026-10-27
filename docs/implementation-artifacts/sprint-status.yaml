@@ -176,7 +176,7 @@ development_status:
   7-18-judge-room-deletion-records-and-the-session-sweep: done
   7-19-judge-data-purge-script: done
   7-20-deleted-rooms-answer-410-and-the-hourly-session-sweep-runs: done
-  7-21-deleted-judge-room-notice-and-the-deleted-tue-nov-10-strip: backlog
+  7-21-deleted-judge-room-notice-and-the-deleted-tue-nov-10-strip: done
   7-22-judge-ready-deployment-and-the-finals-plan: backlog
   7-23-hosted-parity-check-in-the-browser: backlog
   epic-7-retrospective: optional
