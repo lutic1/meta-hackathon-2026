@@ -111,6 +111,8 @@ def test_it_enters_with_a_300ms_fade_that_is_instant_under_reduced_motion():
     assert "show: () => fadeIn(dialog)" in _code(_ts("components/card-log.ts"))
     opened = _opened()
     assert opened.index("frame.body.append(dialog.element)") < opened.index("dialog.show()")
+    # No layout read between the append and the fade, or the dialog is drawn opaque and never fades: anchor first.
+    assert opened.index("anchor()") < opened.index("frame.body.append(dialog.element)")
     tokens = _ts("tokens.css")
     assert "--motion-overlay: 300ms;" in tokens and "--motion-overlay: 0ms;" in tokens
 

@@ -84,8 +84,8 @@ export function mountCardLog(frame: CardLogFrame): CardLog {
     }
 
     for (const element of frame.held) element.inert = true
+    anchor() // before the dialog enters the page, so no layout read draws it opaque ahead of the fade
     frame.body.append(dialog.element)
-    anchor()
     window.addEventListener('resize', anchor)
     document.addEventListener('mousedown', keepFocus, true)
     document.addEventListener('keydown', trap, true)
