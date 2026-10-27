@@ -271,7 +271,8 @@ def test_the_automatic_play_sends_a_fresh_derived_block_in_hosted_mode():
 def test_build_another_room_and_a_confirmed_leave_return_to_the_landing_recording_nothing():
     assert "location.hash = placeHref({ route: { name: 'home' }, profile })" in _code("completion.ts")
     play = _code("play.ts")
-    assert "const home = placeHref({ route: { name: 'home' }, profile: currentPlace().profile })" in play
+    assert "showRoomGone(frame.body, gone, frame.mode, currentPlace().profile)" in play
+    assert "location.hash = placeHref({ route: { name: 'home' }, profile })" in _code("room-gone.ts")
     assert "putResult" not in play and "putResult" not in _code("leave-room.ts")
     # A Hosted `#/` with no code just accepted renders the landing, the code still held or not.
     render = _code("shell.ts").split("async function render()", 1)[1]

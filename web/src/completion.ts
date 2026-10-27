@@ -4,12 +4,14 @@ import { getResult, listRooms } from './api/index.ts'
 import { buildViewLink } from './build-view.ts'
 import { sessionJob } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
+import { deletionLine } from './components/deletion-line.ts'
 import { saveProfileControl } from './components/profile-file.ts'
 import { formatElapsed } from './components/timer.ts'
 import { announce } from './live-region.ts'
 import { mountPlayBehind } from './play.ts'
 import { CUT_2, profileFile, putResult } from './profile/index.ts'
 import { placeHref } from './router.ts'
+import { showRoomGone } from './room-gone.ts'
 import { fill, strings } from './strings.ts'
 import { speakerPrefix, wizardPortrait } from './wizards/portrait.ts'
 
@@ -92,7 +94,10 @@ async function roomJob(session: SessionState): Promise<string | null> {
  * under cut 0. Under cut 2 in Local mode, once the result is recorded, "Save profile file" (secondary) follows them,
  * downloading the profile with that result, its plain line below the actions; a refused record offers no download.
  * The heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}".
- * The top bar's `controls` keep "Show all objects" in place, inert. Returns the teardown.
+ * A session state whose `judge_room` the server set (a Hosted Judge room, never a Demo or Local room) adds the
+ * "Deleted Tue Nov 10" deletion line directly below the sheet, on the scrim, off the paper; the client never infers it.
+ * The top bar's `controls` keep "Show all objects" in place, inert. A Room answered 410 `room_deleted` or 404
+ * `room_not_found` replaces the page body with its card (`showRoomGone`). Returns the teardown.
  */
 export function mountCompletion(
   body: HTMLElement,
@@ -105,7 +110,13 @@ export function mountCompletion(
 ): () => void {
   sceneColumn.inert = true
   sideColumn.inert = true
-  const unmountPlay = mountPlayBehind(sceneColumn, sideColumn, session, controls)
+  let mounted = true
+  let retry: ReturnType<typeof setTimeout> | undefined
+  const unmountPlay = mountPlayBehind(sceneColumn, sideColumn, session, controls, (gone) => {
+    mounted = false
+    clearTimeout(retry)
+    showRoomGone(body, gone, mode, profile)
+  })
 
   const scrim = document.createElement('div')
   scrim.className = 'completion-scrim'
@@ -166,6 +177,7 @@ export function mountCompletion(
 
   sheet.append(heading, signature, stats, times, failed, actions)
   scrim.append(sheet)
+  if (session.judge_room === true) scrim.append(deletionLine())
   body.append(scrim)
   heading.focus()
 
@@ -183,8 +195,6 @@ export function mountCompletion(
     announce(`${strings.speakerGuide} ${said}`)
   }
 
-  let mounted = true
-  let retry: ReturnType<typeof setTimeout> | undefined
   async function load(): Promise<void> {
     let result: RoomResult
     try {

@@ -9,21 +9,32 @@ import { modelTable } from './components/model-table.ts'
 import { puzzleGraph } from './components/puzzle-graph.ts'
 import { dryRunRows, verdictTable } from './components/verdict-table.ts'
 import { buildViewHref, captureHref, CUT_0 } from './router.ts'
+import { type RoomGone, roomGone } from './room-gone.ts'
 import { strings } from './strings.ts'
 
-/** What `GET /builds/<job_id>/view` answered: the `BuildView`, a Build not yet `done`, or no usable answer. */
-export type BuildViewState = { name: 'ready'; view: BuildView } | { name: 'not-ready'; jobId: string } | { name: 'failed' }
+/**
+ * What `GET /builds/<job_id>/view` answered: the `BuildView`, a Build not yet `done`, a Room that is gone, or no usable
+ * answer.
+ */
+export type BuildViewState =
+  | { name: 'ready'; view: BuildView }
+  | { name: 'not-ready'; jobId: string }
+  | { name: 'gone'; gone: RoomGone }
+  | { name: 'failed' }
 
 /**
  * Loads the Build view once. A not-done Build is the 409 `build_not_ready` answer, keyed on the job `status` its
- * envelope carries (AD-3, AD-13); any other refusal, and no answer at all, is a failed load.
+ * envelope carries (AD-3, AD-13); a deleted Judge room (410 `room_deleted`) or a missing Room (404 `room_not_found`)
+ * is gone, and the shell shows its card; any other refusal, and no answer at all, is a failed load.
  */
 export async function loadBuildView(jobId: string): Promise<BuildViewState> {
   try {
     return { name: 'ready', view: await getBuildView(jobId) }
   } catch (error) {
     const notReady = error instanceof RequestFailed && error.status === 409 && error.code === 'build_not_ready'
-    return notReady && error.jobStatus !== null ? { name: 'not-ready', jobId } : { name: 'failed' }
+    if (notReady && error.jobStatus !== null) return { name: 'not-ready', jobId }
+    const gone = roomGone(error)
+    return gone === null ? { name: 'failed' } : { name: 'gone', gone }
   }
 }
 
@@ -57,9 +68,13 @@ export interface BuildViewSurface {
  * Dry run rows. The right column comes first in the page, so Tab runs the title, "Back", the right column, then the
  * graph nodes, the mask label chips and the JSON toggle (UX-DR71); the stylesheet places it on the right. Initial
  * focus goes to the title. Not ready: the header, then "This room is still being built." linking to the Build's
- * Capture screen, with no panels. Failed: the plain failed line with "Try again".
+ * Capture screen, with no panels. Failed: the plain failed line with "Try again". A Room that is gone is the shell's
+ * card, never this surface.
  */
-export function buildViewSurface(state: BuildViewState, { meta, profile, onBack, onRetry }: BuildViewOptions): BuildViewSurface {
+export function buildViewSurface(
+  state: Exclude<BuildViewState, { name: 'gone' }>,
+  { meta, profile, onBack, onRetry }: BuildViewOptions,
+): BuildViewSurface {
   if (state.name === 'failed') {
     const failed = document.createElement('div')
     failed.className = 'build-view-state'

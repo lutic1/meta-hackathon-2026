@@ -316,12 +316,16 @@ def test_a_session_answered_404_dims_the_photo_under_the_session_gone_line_with_
 
 
 def test_a_room_answered_404_room_not_found_shows_the_centered_480px_card_focused_on_its_heading():
-    play, card = _ts("play.ts"), _ts("components/notice-card.ts")
-    assert "error.status === 404 && error.code === 'room_not_found') roomMissing()" in play
-    missing = play.split("function roomMissing(): void {", 1)[1].split("\n  }\n", 1)[0]
-    assert "heading: strings.roomNotFound" in missing and "sentence: strings.roomNotFoundBody" in missing
-    assert "label: strings.buildARoom" in missing and "route: { name: 'home' }" in missing
-    assert "frame.body.replaceChildren(card.element)" in missing and "card.heading.focus()" in missing
+    play, card, gone = _ts("play.ts"), _ts("components/notice-card.ts"), _ts("room-gone.ts")
+    assert "const gone = roomGone(error)\n      if (mounted && gone !== null) roomMissing(gone)" in play
+    assert "if (error.status === 404 && error.code === 'room_not_found') return 'room_not_found'" in gone
+    missing = play.split("function roomMissing(gone: RoomGone): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "showRoomGone(frame.body, gone, frame.mode, currentPlace().profile)" in missing
+    assert "heading: deleted ? strings.roomDeleted : strings.roomNotFound" in gone
+    assert "sentence: deleted ? strings.roomDeletedBody : strings.roomNotFoundBody" in gone
+    assert "label: deleted || mode === 'hosted' ? strings.goToDemoRooms : strings.buildARoom" in gone
+    assert "route: { name: 'home' }" in gone
+    assert "body.replaceChildren(card.element)\n  card.heading.focus()" in gone
     assert "heading.tabIndex = -1" in card and "heading.className = 'notice-card-heading display-sm'" in card
     assert "body.className = 'notice-card-sentence body-md'" in card and "primaryButton({" in card
     rules = _rules("components/notice-card.css")

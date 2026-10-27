@@ -99,7 +99,7 @@ def test_the_completion_top_bar_keeps_show_all_objects_and_leave_room_in_place_a
     assert "const showAll = showAllToggle(sceneColumn)" in behind and "controls.append(showAll, leave)" in behind
     assert "const leave = secondaryButton({ label: strings.leaveRoom, onActivate: () => undefined })" in behind
     assert "showAll.remove()" in behind and "leave.remove()" in behind
-    assert "mountPlayBehind(sceneColumn, sideColumn, session, controls)" in _ts("completion.ts")
+    assert "mountPlayBehind(sceneColumn, sideColumn, session, controls, (gone) => {" in _ts("completion.ts")
     assert "mountCompletion(element, sceneColumn, sideColumn, session, profile, mode, bar.controls)" in shell
     # Unpressed (the toggle's default) and taking no input: the shell holds the whole top bar inert on #/done.
     assert "on:" not in play.split("return toggleButton({", 1)[1].split("})", 1)[0]

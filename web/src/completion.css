@@ -29,6 +29,10 @@
   border-radius: var(--rounded-lg);
   box-shadow: var(--elevation-overlay);
 }
+/* A Judge room's deletion line sits directly below the sheet: the two are centered together on the scrim. */
+.completion-sheet:has(+ .deletion-line) {
+  margin-bottom: 0;
+}
 .completion-heading {
   margin: 0;
   color: var(--ink);

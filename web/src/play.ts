@@ -3,7 +3,6 @@ import { getRoom, getSession, postEvent, RequestFailed, startSession } from './a
 import { secondaryButton, toggleButton } from './components/button.ts'
 import { type HintArea, hintArea } from './components/hint-area.ts'
 import { inventory } from './components/inventory.ts'
-import { noticeCard } from './components/notice-card.ts'
 import { playEnded } from './components/play-ended.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { triggersPanel } from './components/triggers-panel.ts'
@@ -13,6 +12,7 @@ import { lockOutcomes } from './lock-outcomes.ts'
 import { announce } from './live-region.ts'
 import { sessionStart } from './profile/index.ts'
 import { currentPlace, placeHref } from './router.ts'
+import { type RoomGone, roomGone, showRoomGone } from './room-gone.ts'
 import { lastShownPhoto, mountScene } from './scene/index.ts'
 import { strings } from './strings.ts'
 import { type UseOnSelection, useOnSelection } from './use-on.ts'
@@ -110,8 +110,8 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * region once. An input posted meanwhile never reached the server and is dropped (the Code field keeps its value);
  * the next state the server sends re-renders everything and removes the strip. A poll answered 404 ends the
  * play-through: the photo dims under the Session-gone line, whose "Start again" starts a new Session on the same
- * Room. A Room answered 404 `room_not_found` replaces the page body with the unknown-room card, focused on its
- * heading, whose "Build a room" goes to `#/`. Returns the teardown.
+ * Room. A Room, or that start, answered 410 `room_deleted` or 404 `room_not_found` replaces the page body with the
+ * Deleted Judge room notice or the unknown-room card (`showRoomGone`), focused on its heading. Returns the teardown.
  */
 export function mountPlay(
   sceneColumn: HTMLElement,
@@ -207,8 +207,10 @@ export function mountPlay(
     try {
       const next = await startSession(await sessionStart(session.room_id, currentPlace().profile, frame.mode))
       location.hash = placeHref({ route: { name: 'play', sessionId: next.id }, profile: currentPlace().profile })
-    } catch {
-      // Nothing started; "Start again" stays for another try.
+    } catch (error) {
+      // Nothing started; "Start again" stays for another try, unless the Room itself is gone.
+      const gone = roomGone(error)
+      if (mounted && gone !== null) roomMissing(gone)
     } finally {
       starting = false
     }
@@ -225,26 +227,13 @@ export function mountPlay(
     holdInputs()
   }
 
-  /** The Room is gone (404 `room_not_found`): the page body holds only the unknown-room card. */
-  function roomMissing(): void {
+  /** The Room is gone (410 `room_deleted` or 404 `room_not_found`): the page body holds only its card. */
+  function roomMissing(gone: RoomGone): void {
     ended = true
     ticker.terminate()
     unmountWelcome?.()
     leaveRoom.unmount()
-    const home = placeHref({ route: { name: 'home' }, profile: currentPlace().profile })
-    const card = noticeCard({
-      heading: strings.roomNotFound,
-      sentence: strings.roomNotFoundBody,
-      action: {
-        label: strings.buildARoom,
-        onActivate: () => {
-          location.hash = home
-        },
-      },
-    })
-    frame.body.className = 'shell-body notice-layout'
-    frame.body.replaceChildren(card.element)
-    card.heading.focus()
+    showRoomGone(frame.body, gone, frame.mode, currentPlace().profile)
   }
 
   let hints: HintArea | undefined
@@ -305,7 +294,8 @@ export function mountPlay(
     })
     .catch((error: unknown) => {
       // Any other failure keeps the Scene's loading line.
-      if (mounted && error instanceof RequestFailed && error.status === 404 && error.code === 'room_not_found') roomMissing()
+      const gone = roomGone(error)
+      if (mounted && gone !== null) roomMissing(gone)
     })
 
   const opening = session.opening_line
@@ -348,13 +338,15 @@ export function mountPlay(
  * The Play screen as it stands under the Completion sheet: the Scene on the photo it last showed in this page (the
  * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session`, and the
  * "Show all objects" toggle, unpressed, and "Leave room" in the top bar's `controls`. It never polls and never posts; the shell holds
- * both columns and the top bar inert. Returns the teardown.
+ * both columns and the top bar inert. A Room answered 410 `room_deleted` or 404 `room_not_found` is handed to
+ * `onGone`. Returns the teardown.
  */
 export function mountPlayBehind(
   sceneColumn: HTMLElement,
   sideColumn: HTMLElement,
   session: SessionState,
   controls: HTMLElement,
+  onGone: (gone: RoomGone) => void,
 ): () => void {
   let mounted = true
   const showAll = showAllToggle(sceneColumn)
@@ -384,7 +376,11 @@ export function mountPlayBehind(
       held.render(session)
       notes.render(session)
     })
-    .catch(() => undefined) // the dimmed Scene keeps its loading line
+    .catch((error: unknown) => {
+      // Any other failure: the dimmed Scene keeps its loading line.
+      const gone = roomGone(error)
+      if (mounted && gone !== null) onGone(gone)
+    })
 
   return () => {
     mounted = false

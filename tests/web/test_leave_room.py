@@ -36,7 +36,7 @@ def test_leave_room_sits_right_of_show_all_objects_in_the_play_top_bar():
     assert "secondaryButton({ label: strings.leaveRoom, onActivate: () => open(() => button.focus()) })" in leave
     # Gone with the Play screen, and with a missing Room, whose card replaces the body.
     assert play.count("leaveRoom.unmount()") == 2
-    assert "leaveRoom.unmount()" in play.split("function roomMissing(): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "leaveRoom.unmount()" in play.split("function roomMissing(gone: RoomGone): void {", 1)[1].split("\n  }\n", 1)[0]
 
 
 def test_the_card_is_a_plain_480px_chrome_raised_sheet_over_the_scrim_that_fades_in_over_300ms():

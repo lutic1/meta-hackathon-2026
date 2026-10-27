@@ -14,6 +14,7 @@ import { hostedLanding } from './landing.ts'
 import { liveRegion } from './live-region.ts'
 import { currentPlace, placeHref, type Route } from './router.ts'
 import { mountPlay } from './play.ts'
+import { showRoomGone } from './room-gone.ts'
 import { getResults, watchResults } from './profile/index.ts'
 import { mountTriggersWindow } from './triggers-window.ts'
 import { strings } from './strings.ts'
@@ -47,7 +48,9 @@ function refused(error: unknown): null {
  * bar's Timer slot shows the run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
  * `#/build/<job_id>/view` waits for `GET /builds/<job_id>/view` once and shows the Build view, ready, not ready or
  * failed (never the unreachable strip), with the `BuildView`'s own Disclosure list once it answered; only its body
- * scrolls, so the banner and the top bar stay pinned. `#/done/<session_id>` is the Completion screen over the
+ * scrolls, so the banner and the top bar stay pinned. Either Build route whose job's Room is gone (410
+ * `room_deleted`, or 404 `room_not_found` on the view) holds only the Deleted Judge room notice or the unknown-room
+ * card in its body (`showRoomGone`). `#/done/<session_id>` is the Completion screen over the
  * dimmed Play screen, its top bar inert and its Timer frozen. `#/triggers/<session_id>` is cut 5's second window,
  * the Triggers panel of that session with its Room's Disclosure lines. Below 1024 px the Narrow-screen message, a
  * sibling of `root`, replaces the whole app on every route; `root` is only hidden meanwhile, so its state survives
@@ -200,8 +203,18 @@ function surface(content: Content, bar: TopBar): Surface {
   element.className = 'shell-body'
   if (content.name === 'empty') return { element }
   if (content.name === 'view') {
+    const { state, meta, profile } = content
+    if (state.name === 'gone') {
+      return {
+        element,
+        mount: () => {
+          showRoomGone(element, state.gone, meta.mode, profile)
+          return () => {}
+        },
+      }
+    }
     element.classList.add('build-view-layout')
-    const view = buildViewSurface(content.state, content)
+    const view = buildViewSurface(state, content)
     element.append(...view.children)
     return {
       element,
@@ -231,7 +244,8 @@ function surface(content: Content, bar: TopBar): Surface {
   }
   if (content.name === 'build') {
     element.classList.add('capture-layout')
-    const build = buildScreen(content.jobId, content.profile, content.mode, content.retention)
+    const { jobId, profile, mode, retention } = content
+    const build = buildScreen(jobId, profile, mode, retention, (gone) => showRoomGone(element, gone, mode, profile))
     element.append(build.left, build.right)
     return { element, mount: build.mount }
   }

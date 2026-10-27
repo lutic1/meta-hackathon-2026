@@ -18,6 +18,7 @@ import { announce } from './live-region.ts'
 import { MAX_PHOTOS } from './photos.ts'
 import { sessionStart } from './profile/index.ts'
 import { captureHref, placeHref } from './router.ts'
+import { type RoomGone, roomGone } from './room-gone.ts'
 import type { Size } from './scene/geometry.ts'
 import { strings } from './strings.ts'
 
@@ -91,8 +92,17 @@ async function photoSize(url: string): Promise<Size | null> {
  * left area, above any banner, written once to the live region and never focused; the Stage list, the Mask preview
  * and the Timer go on as they were, and the next answered poll removes the strip and renders from job state. A
  * refused poll, which ends the polling, removes it too.
+ *
+ * A poll refused with 410 `room_deleted` (the Build's Judge room was deleted), or a session start refused with it or
+ * with 404 `room_not_found`, is handed to `onGone`, which replaces the page body with that Room's card.
  */
-export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], retention: string): BuildScreen {
+export function buildScreen(
+  jobId: string,
+  profile: string,
+  mode: Meta['mode'],
+  retention: string,
+  onGone: (gone: RoomGone) => void,
+): BuildScreen {
   const held = heldPhotos(jobId)
   const banners = bannerSlot()
   const stages = stageList()
@@ -161,7 +171,12 @@ export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], 
           showBanner(banners, null)
           sessionOpened(jobId, session.id)
           location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })
-        } catch {
+        } catch (error) {
+          const gone = roomGone(error)
+          if (gone !== null) {
+            if (mounted) onGone(gone)
+            return
+          }
           showBanner(banners, {
             variant: 'error',
             heading: strings.sessionStartRefused,
@@ -293,6 +308,8 @@ export function buildScreen(jobId: string, profile: string, mode: Meta['mode'], 
           if (!mounted) return
           if (refused) {
             hideStrip() // polling ends here, so the strip's "catches up" line would no longer hold
+            const gone = roomGone(error)
+            if (gone !== null) onGone(gone)
             return
           }
           missed += 1

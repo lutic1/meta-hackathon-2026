@@ -67,7 +67,7 @@ def test_the_build_route_is_the_capture_layout_with_the_stage_list_in_place_of_t
     shell = _code("shell.ts")
     assert ("content = { name: 'build', jobId: place.route.jobId, profile: place.profile, mode: meta.mode, retention: meta.retention }"
             in shell)
-    assert "const build = buildScreen(content.jobId, content.profile, content.mode, content.retention)" in shell
+    assert "const build = buildScreen(jobId, profile, mode, retention, (gone) => showRoomGone(element, gone, mode, profile))" in shell
     assert "element.append(build.left, build.right)" in shell and "mount: build.mount" in shell
     screen = _code("build-progress.ts")
     assert "left.append(banners, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), actions, maskSlot, traySlot, picker)" in screen

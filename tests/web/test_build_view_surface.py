@@ -63,7 +63,8 @@ def test_not_ready_is_the_409_build_not_ready_keyed_on_the_job_status_and_anythi
     assert "this.jobStatus = detail?.status ?? null" in api
     load = view.split("export async function loadBuildView", 1)[1].split("\n}\n", 1)[0]
     assert "error.status === 409 && error.code === 'build_not_ready'" in load
-    assert "notReady && error.jobStatus !== null ? { name: 'not-ready', jobId } : { name: 'failed' }" in load
+    assert "if (notReady && error.jobStatus !== null) return { name: 'not-ready', jobId }" in load
+    assert "return gone === null ? { name: 'failed' } : { name: 'gone', gone }" in load
     assert BuildNotReady.status == 409 and BuildNotReady.code == "build_not_ready"
 
 

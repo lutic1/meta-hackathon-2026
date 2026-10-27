@@ -1,0 +1,13 @@
+/* {components.deletion-line}: a plain chrome-raised strip in body-sm, off the paper, directly below the Completion
+   sheet and as wide as it. */
+.deletion-line {
+  box-sizing: border-box;
+  flex: none;
+  width: 720px;
+  max-width: 100%;
+  margin: var(--spacing-3) auto auto;
+  padding: var(--spacing-3) var(--spacing-5);
+  background: var(--chrome-raised);
+  color: var(--text);
+  border-radius: var(--rounded-md);
+}
