@@ -142,7 +142,7 @@ development_status:
   epic-6: in-progress
   6-1-backup-video-v0-once-the-room-is-playable: backlog
   6-2-per-room-disclosure-lines-composed-on-the-server: done
-  6-3-room-bound-surfaces-show-their-room-s-disclosures: backlog
+  6-3-room-bound-surfaces-show-their-room-s-disclosures: done
   6-4-backup-video-v1-and-the-sun-nov-1-2-00-pm-backup: backlog
   6-5-playtest-by-a-non-builder-on-a-fresh-profile-or-a-disclosed: backlog
   6-6-final-videos-unedited-capture-proof-and-captioned-main-demo: backlog
