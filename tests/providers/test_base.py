@@ -1,6 +1,7 @@
 """Stories 2.1 and 3.2: `ModelProvider` declares exactly the Tier 1 signatures and `HintPhraser` is its own port (AD-5)."""
 
 import inspect
+from typing import get_type_hints
 
 import pytest
 
@@ -8,11 +9,13 @@ from src.domain.schema import Derived, GuideModel, Polygon
 from src.providers import base
 from src.providers.base import (
     REASONING_EFFORTS,
+    CallReceipt,
     ChatResponse,
     HintPhraser,
     ImageResponse,
     ModelProvider,
     PhraserResponse,
+    SegmentResponse,
     check_reasoning_effort,
 )
 
@@ -41,9 +44,12 @@ def test_chat_dropped_the_scaffold_arguments():
 
 
 def test_segment_signature():
+    """AD-5's `segment`, its polygons (or `None`) wrapped with the call's receipt, plus the ledger's `job_id` and `stage` tags (AD-16)."""
     params, returns = _params(ModelProvider.segment)
-    assert [(p.name, p.annotation) for p in params] == [("label", str), ("image", bytes)]
-    assert returns == list[Polygon] | None
+    assert [(p.name, p.annotation) for p in params[:2]] == [("label", str), ("image", bytes)]
+    assert [(p.name, p.kind, p.default) for p in params[2:]] == [("job_id", KEYWORD_ONLY, None), ("stage", KEYWORD_ONLY, None)]
+    assert returns is SegmentResponse
+    assert get_type_hints(SegmentResponse) == {"polygons": list[Polygon] | None, "receipt": CallReceipt | None}
 
 
 def test_generate_image_signature():

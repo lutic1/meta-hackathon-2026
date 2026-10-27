@@ -31,8 +31,8 @@ from src.council.dryrun import build_dry_run_prompt
 from src.domain.redact import to_prompt_view
 from src.domain.schema import DryRunAnswers, DryRunVerdict, JobState
 from src.domain.validator import check_dry_run
-from src.pipeline.author import assemble_room, call_row
-from src.pipeline.build import StageFn, StageResult
+from src.pipeline.author import assemble_room
+from src.pipeline.build import StageFn, StageResult, call_row
 from src.pipeline.ports import ArtifactStore, LedgerStore
 from src.pipeline.regenerate import FailedAttempt
 from src.providers.base import ModelProvider
@@ -65,7 +65,7 @@ def run_dry_run(state: JobState, *, provider: ModelProvider, artifacts: Artifact
         job_id=state.id,
         stage="dryrun",
     )
-    row = call_row(reply, provider, "dryrun")
+    row = call_row(reply.receipt, provider, "dryrun", reply.model)
     try:
         answers = DryRunAnswers.model_validate_json(reply.text)
     except pydantic.ValidationError:

@@ -13,8 +13,8 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
-from src.domain.schema import ArchitectResponse
-from src.providers.base import ChatMessage, ModelProvider, ReasoningEffort
+from src.domain.schema import ArchitectResponse, JobId, Stage
+from src.providers.base import ChatMessage, ChatResponse, ModelProvider, ReasoningEffort
 
 REASONING_EFFORT: ReasoningEffort = "low"
 
@@ -52,21 +52,25 @@ def prompt_hash() -> str:
 
 @dataclass(frozen=True)
 class ArchitectPrompt:
-    """The `chat` arguments of the one vision call; `send` makes it and parses the reply."""
+    """The `chat` arguments of the one vision call; `send` makes it and parses the reply, keeping the reply for its receipt."""
 
     messages: list[ChatMessage]
     images: list[bytes]
     response_schema: type[ArchitectResponse]
     reasoning_effort: ReasoningEffort
 
-    def send(self, provider: ModelProvider) -> ArchitectResponse:
+    def send(
+        self, provider: ModelProvider, *, job_id: JobId | None = None, stage: Stage | None = None
+    ) -> tuple[ArchitectResponse, ChatResponse]:
         reply = provider.chat(
             self.messages,
             images=self.images,
             response_schema=self.response_schema,
             reasoning_effort=self.reasoning_effort,
+            job_id=job_id,
+            stage=stage,
         )
-        return self.response_schema.model_validate_json(reply.text)
+        return self.response_schema.model_validate_json(reply.text), reply
 
 
 def build_architect_prompt(photos: list[bytes]) -> ArchitectPrompt:

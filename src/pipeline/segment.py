@@ -4,7 +4,8 @@
 `segment` call per candidate on that candidate's clearest photo through a
 thread pool of at most 12 workers, so never more than 12 calls are in
 flight; a candidate naming a photo index past the stored photos cannot be
-segmented and is dropped. A `ProviderError` from any call, after the
+segmented and is dropped. Each call's row comes from its receipt and its
+ledger entry names the job and this stage (AD-16). A `ProviderError` from any call, after the
 adapter's one retry, ends the Build failed at this stage (AD-13). The
 results go through `domain/masks.py`: the grid box becomes frame pixels
 of the stored downscale, the masks are selected against it (the box
@@ -27,9 +28,9 @@ from PIL import Image
 from pydantic import TypeAdapter
 
 from src.domain.masks import MAX_INTERACTABLES, Selection, box_to_frame, cap_by_confidence, select_instances
-from src.domain.schema import ArchitectCandidate, CallRow, Interactable, JobState, JobStatus, MaskPreview, Polygon, RoomId
+from src.domain.schema import ArchitectCandidate, Interactable, JobState, JobStatus, MaskPreview, Polygon, RoomId
 from src.pipeline.architect import read_architect
-from src.pipeline.build import StageFn, StageResult, StageStop, new_id
+from src.pipeline.build import StageFn, StageResult, StageStop, call_row, new_id
 from src.pipeline.ingest import read_photos
 from src.pipeline.ports import ArtifactStore
 from src.providers.base import ModelProvider
@@ -76,13 +77,10 @@ def run_segment(state: JobState, *, provider: ModelProvider, artifacts: Artifact
     sizes = {index: frame_size(jpeg) for index, jpeg in frames.items()}
 
     with ThreadPoolExecutor(max_workers=MAX_IN_FLIGHT) as pool:
-        masks = list(pool.map(lambda c: provider.segment(c.label, frames[c.photo]), candidates))
-    calls = [
-        CallRow(id=new_id("call"), role="architect", model=SEGMENT_MODEL, host=provider.name, cached=False, spend_usd=0.0)
-        for _ in candidates
-    ]
+        replies = list(pool.map(lambda c: provider.segment(c.label, frames[c.photo], job_id=state.id, stage="segment"), candidates))
+    calls = [call_row(reply.receipt, provider, "architect", SEGMENT_MODEL) for reply in replies]
 
-    selected = [_select(candidate, polygons, sizes[candidate.photo]) for candidate, polygons in zip(candidates, masks, strict=True)]
+    selected = [_select(candidate, reply.polygons, sizes[candidate.photo]) for candidate, reply in zip(candidates, replies, strict=True)]
     kept = cap_by_confidence(selected, lambda pair: pair[0].confidence)
     if len(kept) < MIN_INTERACTABLES:
         result = StageResult(count=len(kept), model=SEGMENT_MODEL, calls=calls)

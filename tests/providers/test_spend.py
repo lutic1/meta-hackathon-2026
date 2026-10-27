@@ -201,7 +201,7 @@ def test_the_mock_appends_no_entry_and_is_never_refused_even_past_the_cap(role):
         ledger.guard("riddler", job_id=JOB, stage="author")
     mock = MockProvider(role)
     assert mock.chat([ChatMessage(role="user", content="hi")]).text
-    assert mock.segment("lamp", b"jpeg")
+    assert mock.segment("lamp", b"jpeg").polygons
     assert mock.generate_image("a wizard").data
     assert len(store.rows) == 1 and len(mock.calls) == 3
     assert "ledger" not in inspect.signature(MockProvider.__init__).parameters

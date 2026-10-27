@@ -235,7 +235,7 @@ def test_the_mock_bypasses_the_cache_and_the_ledger_alike(role, enabled):
     guarded(store, cache, cap=60, enabled=enabled)
     mock = MockProvider(role)
     assert mock.chat([SYSTEM, USER], images=[PHOTO_A], reasoning_effort="medium").text
-    assert mock.segment("lamp", PHOTO_A) and mock.generate_image("a wizard").data
+    assert mock.segment("lamp", PHOTO_A).polygons and mock.generate_image("a wizard").data
     assert (cache.reads, cache.writes) == (0, 0) and len(store.rows) == 1 and len(mock.calls) == 3
     assert "cache" not in inspect.signature(MockProvider.__init__).parameters
     imports = _imports(REPO / "src" / "providers" / "mock.py", "src.providers.mock", REPO / "src")

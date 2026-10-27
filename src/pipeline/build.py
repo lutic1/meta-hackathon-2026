@@ -49,6 +49,7 @@ from src.domain.schema import (
     JobState,
     JobStatus,
     MaskPreview,
+    Role,
     RuleVerdict,
     Stage,
     StageRecord,
@@ -56,6 +57,7 @@ from src.domain.schema import (
 from src.pipeline.ingest import IngestRefused, Upload, store_upload, validate_upload
 from src.pipeline.ports import ArtifactStore, Clock, JobStore
 from src.pipeline.regenerate import FailedAttempt, rewriting, send_back
+from src.providers.base import CallReceipt, ModelProvider
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,13 @@ def new_id(prefix: str) -> str:
     """A fresh prefixed ULID (AD-18): 48 bits of Unix milliseconds then 80 random bits, Crockford base32."""
     value = (time.time_ns() // 1_000_000) << 80 | int.from_bytes(secrets.token_bytes(10))
     return f"{prefix}_" + "".join(CROCKFORD_BASE32[(value >> shift) & 31] for shift in range(125, -1, -5))
+
+
+def call_row(receipt: CallReceipt | None, provider: ModelProvider, role: Role, model: str) -> CallRow:
+    """The `role` call row from the call's receipt (AD-16); the mock has none, so its row is unbilled on the mock host."""
+    if receipt is None:
+        return CallRow(id=new_id("call"), role=role, model=model, host=provider.name, cached=False, spend_usd=0.0)
+    return CallRow(id=receipt.call_id, role=role, model=model, host=receipt.host, cached=receipt.cached, spend_usd=receipt.spend_usd)
 
 
 def error_code(exc: BaseException) -> str:

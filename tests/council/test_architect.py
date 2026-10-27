@@ -32,7 +32,7 @@ def photos(four_lock_room: Room) -> list[bytes]:
 def test_one_request_carries_every_photo_as_bytes_in_upload_order(photos):
     mock = MockProvider("architect", MockScript(chat=[json.dumps({"candidates": [CANDIDATE]})]))
     prompt = build_architect_prompt(photos)
-    assert prompt.send(mock) == ArchitectResponse(candidates=[ArchitectCandidate.model_validate(CANDIDATE)])
+    assert prompt.send(mock)[0] == ArchitectResponse(candidates=[ArchitectCandidate.model_validate(CANDIDATE)])
     assert len(mock.calls) == 1
     call = mock.calls[0]
     assert isinstance(call, ChatCall)

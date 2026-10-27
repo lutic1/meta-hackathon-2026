@@ -22,7 +22,7 @@ def run(sit: Sit) -> str:
     provider = sit.meta("vision", ARCHITECT_BUDGET_S, cache=False)
     prompt = build_architect_prompt(sit.photos(2))
     started = time.monotonic()
-    response = prompt.send(provider)
+    response, _ = prompt.send(provider)
     latency = time.monotonic() - started
     assert response.candidates, "the Architect listed no object"
     sit.record(FIXTURE, model=CHAT_MODEL)

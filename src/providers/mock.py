@@ -21,6 +21,7 @@ from .base import (
     ImageResponse,
     ModelProvider,
     ReasoningEffort,
+    SegmentResponse,
     check_reasoning_effort,
 )
 
@@ -100,11 +101,11 @@ class MockProvider(ModelProvider):
             raw={"provider": self.name, "role": self.role, "scripted": self._script is not None},
         )
 
-    def segment(self, label: str, image: bytes) -> list[Polygon] | None:
+    def segment(self, label: str, image: bytes, *, job_id: JobId | None = None, stage: Stage | None = None) -> SegmentResponse:
         self.calls.append(SegmentCall(label, image))
         if self._script is not None:
-            return self._next("segment", self._script.segment)
-        return [list(CANNED_POLYGON)]
+            return SegmentResponse(self._next("segment", self._script.segment))
+        return SegmentResponse([list(CANNED_POLYGON)])
 
     def generate_image(self, prompt: str) -> ImageResponse:
         self.calls.append(ImageCall(prompt))

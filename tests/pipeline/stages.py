@@ -9,13 +9,13 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from src.domain.schema import GridBox, Polygon
+from src.domain.schema import GridBox, JobId, Polygon, Stage
 from src.infra.clocks import BuildClock
 from src.pipeline.architect import architect_stage
 from src.pipeline.build import Build
 from src.pipeline.ports import ArtifactStore, JobStore
 from src.pipeline.segment import segment_stage
-from src.providers.base import ChatMessage, ChatResponse, ImageResponse, ModelProvider, ReasoningEffort
+from src.providers.base import ChatMessage, ChatResponse, ImageResponse, ModelProvider, ReasoningEffort, SegmentResponse
 from src.providers.mock import MockProvider, MockScript
 from tests.infra.test_clocks import Ticker
 from tests.pipeline.test_build import Doubles
@@ -86,7 +86,7 @@ class Segmenter(ModelProvider):
     ) -> ChatResponse:
         raise AssertionError("the segment stage makes no chat call")
 
-    def segment(self, label: str, image: bytes) -> list[Polygon] | None:
+    def segment(self, label: str, image: bytes, *, job_id: JobId | None = None, stage: Stage | None = None) -> SegmentResponse:
         with self._lock:
             self.calls.append((label, image))
             self.in_flight += 1
@@ -99,7 +99,7 @@ class Segmenter(ModelProvider):
             self._gate.wait(timeout=5)
             if label in self.raises:
                 raise self.raises[label]
-            return self.masks.get(label)
+            return SegmentResponse(self.masks.get(label))
         finally:
             with self._lock:
                 self.in_flight -= 1

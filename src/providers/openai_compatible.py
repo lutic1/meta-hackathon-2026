@@ -36,7 +36,7 @@ import httpx
 from pydantic import BaseModel
 
 from src.domain.ledger import CallKind, spark_cost_usd
-from src.domain.schema import JobId, Polygon, Stage, strict_schema
+from src.domain.schema import JobId, Stage, strict_schema
 
 from .base import (
     ChatMessage,
@@ -45,6 +45,7 @@ from .base import (
     ModelProvider,
     ProviderError,
     ReasoningEffort,
+    SegmentResponse,
     check_reasoning_effort,
 )
 from .cache import GuardedCalls, cache_key
@@ -259,7 +260,7 @@ class OpenAICompatibleProvider(ModelProvider):
         )
         return reply, spark_cost_usd(raw["usage"])
 
-    def segment(self, label: str, image: bytes) -> list[Polygon] | None:
+    def segment(self, label: str, image: bytes, *, job_id: JobId | None = None, stage: Stage | None = None) -> SegmentResponse:
         raise NotImplementedError("no fallback host serves segment; sam-3.1 runs on the meta adapter only")
 
     def generate_image(self, prompt: str) -> ImageResponse:

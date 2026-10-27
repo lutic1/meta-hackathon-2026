@@ -241,7 +241,7 @@ def test_segment_sends_one_noun_phrase_with_the_stored_bytes():
 
 
 def test_segment_decodes_each_mask_svg_path_into_a_frame_pixel_polygon():
-    polygons = Replay(SEGMENT).provider.segment("mug", PHOTOS[0])
+    polygons = Replay(SEGMENT).provider.segment("mug", PHOTOS[0]).polygons
     assert polygons is not None and len(polygons) == 2
     # The recorded boxes are 211..270 x 228..254 (a 60x27 mask) and 155..202 x 228..254 (48x27).
     for polygon, (left, top, right, bottom) in zip(polygons, [(211, 228, 271, 255), (155, 228, 203, 255)], strict=True):
@@ -263,7 +263,7 @@ def test_svg_path_rings_and_scaling_from_the_mask_raster_to_the_box():
 
 def test_segment_with_no_mask_returns_none():
     replay = Replay(NO_MASK)
-    assert replay.provider.segment("unicorn", PHOTOS[0]) is None
+    assert replay.provider.segment("unicorn", PHOTOS[0]).polygons is None
     assert len(replay.seen) == 1
 
 

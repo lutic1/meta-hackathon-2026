@@ -35,7 +35,7 @@ def test_each_role_answers_from_its_own_script(role, monkeypatch):
     mock = MockProvider(role, script)
     reply = mock.chat(HELLO)
     assert (reply.text, reply.model, reply.raw) == (f"{role} speaks", "mock-chat-1", {"provider": "mock", "role": role, "scripted": True})
-    assert mock.segment("lamp", b"jpeg") == [SQUARE]
+    assert mock.segment("lamp", b"jpeg").polygons == [SQUARE]
     image = mock.generate_image("a wizard")
     assert (image.data, image.model) == (f"mock://{role}.webp", "mock-image-1")
 
@@ -53,8 +53,8 @@ def test_scripted_replies_come_in_order_and_a_kind_runs_out_loudly():
 
 def test_a_segment_script_entry_of_none_stands_for_no_mask():
     mock = MockProvider("architect", MockScript(segment=[None, [SQUARE, SQUARE]]))
-    assert mock.segment("ghost", b"jpeg") is None
-    assert mock.segment("books", b"jpeg") == [SQUARE, SQUARE]
+    assert mock.segment("ghost", b"jpeg").polygons is None
+    assert mock.segment("books", b"jpeg").polygons == [SQUARE, SQUARE]
 
 
 def test_unscripted_mock_gives_canned_replies():
@@ -62,7 +62,7 @@ def test_unscripted_mock_gives_canned_replies():
     reply = mock.chat([ChatMessage(role="system", content="rules"), *HELLO])
     assert reply.text == "[mock dryrun] You said: 'hello'. This is a canned response."
     assert reply.raw == {"provider": "mock", "role": "dryrun", "scripted": False}
-    assert mock.segment("lamp", b"jpeg") == [CANNED_POLYGON]
+    assert mock.segment("lamp", b"jpeg").polygons == [CANNED_POLYGON]
     assert mock.generate_image("a red car on a road").data == "mock://image/a-red-car-on-a"
 
 

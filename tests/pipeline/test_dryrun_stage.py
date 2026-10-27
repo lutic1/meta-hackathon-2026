@@ -51,6 +51,7 @@ from src.providers.base import (
     ModelProvider,
     ProviderError,
     ReasoningEffort,
+    SegmentResponse,
 )
 from src.providers.cache import GuardedCalls
 from src.providers.meta_api import CHAT_MODEL, MetaModelProvider
@@ -121,7 +122,7 @@ class Solver(ModelProvider):
         answer = self.answering.pop(0) if self.answering else solved
         return ChatResponse(text=answer(puzzles), model="mock-chat-1")
 
-    def segment(self, label: str, image: bytes) -> None:
+    def segment(self, label: str, image: bytes, *, job_id: JobId | None = None, stage: Stage | None = None) -> SegmentResponse:
         raise AssertionError("the dryrun stage makes no segment call")
 
     def generate_image(self, prompt: str) -> ImageResponse:

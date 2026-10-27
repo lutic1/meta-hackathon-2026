@@ -465,7 +465,8 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     assert [e.kind for e in built if e.kind != "sam"] == ["vision", "riddler", "dryrun", "trickster"]
     assert len(built) == 4 + len(INTERACTABLES)
     tagged = [(e.kind, e.stage) for e in built if e.job_id is not None]
-    assert tagged == [("riddler", "author"), ("dryrun", "dryrun")]  # the Build's own calls, tagged for provenance
+    segment = [("sam", "segment")] * len(INTERACTABLES)
+    assert tagged == [("vision", "architect"), *segment, ("riddler", "author"), ("dryrun", "dryrun")]  # the Build's own calls, tagged for provenance
     for name in ("chat-architect-two-photos", "chat-sit-ok"):
         assert Fixture.model_validate_json((tmp_path / f"tests/fixtures/providers/muse-spark-1.3/{name}.json").read_bytes()).status == 200
     full_build = {

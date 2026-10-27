@@ -73,6 +73,14 @@ class ChatResponse:
 
 
 @dataclass
+class SegmentResponse:
+    polygons: list[Polygon] | None
+    """One polygon per instance of the label in frame pixels; `None` when there is no mask."""
+    receipt: CallReceipt | None = None
+    """How a hosted call went, for the stage's call row; `None` from the mock, which bypasses the cache and ledger."""
+
+
+@dataclass
 class ImageResponse:
     """Result of a text-to-image call (Muse Image).
 
@@ -115,8 +123,11 @@ class ModelProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def segment(self, label: str, image: bytes) -> list[Polygon] | None:
-        """One polygon per instance of `label` in frame pixels; `None` when there is no mask."""
+    def segment(self, label: str, image: bytes, *, job_id: JobId | None = None, stage: Stage | None = None) -> SegmentResponse:
+        """One polygon per instance of `label` in frame pixels, `None` when there is no mask, with the call's receipt.
+
+        `job_id` and `stage` tag the call's ledger entry, as on `chat` (AD-16).
+        """
         raise NotImplementedError
 
     @abstractmethod

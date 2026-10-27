@@ -43,7 +43,6 @@ from src.council import architect as architect_prompt
 from src.council.riddler import PUZZLE_KEYS, build_author_prompt
 from src.domain.ledger import LedgerEntry, fold
 from src.domain.schema import (
-    CallRow,
     FindSolution,
     Interactable,
     InteractableView,
@@ -64,12 +63,12 @@ from src.domain.schema import (
     ValidatorResult,
 )
 from src.domain.validator import BUILD_RULES, RULES, validate
-from src.pipeline.build import StageFn, StageResult, new_id
+from src.pipeline.build import StageFn, StageResult, call_row, new_id
 from src.pipeline.ingest import read_photos
 from src.pipeline.ports import ArtifactStore, LedgerStore
 from src.pipeline.regenerate import FailedAttempt, riddler_prompt
 from src.pipeline.segment import read_interactables
-from src.providers.base import ChatResponse, ModelProvider
+from src.providers.base import ModelProvider
 
 RIDDLER_BUDGET_MS = 45_000
 """`budgets.md`: the Riddler's 45 s, measured through the stage timing, never enforced."""
@@ -250,21 +249,6 @@ def assemble_room(state: JobState, artifacts: ArtifactStore, ledger: LedgerStore
     )
 
 
-def call_row(reply: ChatResponse, provider: ModelProvider, role: Role) -> CallRow:
-    """The `role` call row from the call's receipt; the mock has none, so its row is unbilled on the mock host."""
-    receipt = reply.receipt
-    if receipt is None:
-        return CallRow(id=new_id("call"), role=role, model=reply.model, host=provider.name, cached=False, spend_usd=0.0)
-    return CallRow(
-        id=receipt.call_id,
-        role=role,
-        model=reply.model,
-        host=receipt.host,
-        cached=receipt.cached,
-        spend_usd=receipt.spend_usd,
-    )
-
-
 def run_author(state: JobState, *, provider: ModelProvider, artifacts: ArtifactStore) -> StageResult:
     """One Riddler `chat` call at attempt = the Regeneration count; the `RoomDraft` and the mapped Puzzles persisted, one call row."""
     room_id = _room_id(state)
@@ -278,7 +262,7 @@ def run_author(state: JobState, *, provider: ModelProvider, artifacts: ArtifactS
         job_id=state.id,
         stage="author",
     )
-    row = call_row(reply, provider, "riddler")
+    row = call_row(reply.receipt, provider, "riddler", reply.model)
     try:
         draft = parse_draft(reply.text, prompt.response_schema)
         artifacts.put(draft_key(room_id), draft.model_dump_json().encode())

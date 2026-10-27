@@ -42,6 +42,7 @@ from .base import (
     ModelProvider,
     ProviderError,
     ReasoningEffort,
+    SegmentResponse,
     check_reasoning_effort,
 )
 from .cache import GuardedCalls, cache_key
@@ -329,7 +330,7 @@ class MetaModelProvider(ModelProvider):
         response, receipt = self._calls.chat(key, self.chat_kind, model=chat_model, call=call, job_id=job_id, stage=stage)
         return replace(response, receipt=receipt)
 
-    def segment(self, label: str, image: bytes) -> list[Polygon] | None:
+    def segment(self, label: str, image: bytes, *, job_id: JobId | None = None, stage: Stage | None = None) -> SegmentResponse:
         """One Responses request with one noun phrase and the stored bytes; polygons in frame pixels, `None` for no mask."""
         key = cache_key(SAM_MODEL, messages=[ChatMessage(role="user", content=label)], images=[image])
         body: Json = {
@@ -351,8 +352,8 @@ class MetaModelProvider(ModelProvider):
             )
             return polygons_from_result(_sam_result(raw)), sam_cost_usd(1)
 
-        polygons, _ = self._calls.segment(key, model=SAM_MODEL, call=call)
-        return polygons
+        polygons, receipt = self._calls.segment(key, model=SAM_MODEL, call=call, job_id=job_id, stage=stage)
+        return SegmentResponse(polygons, receipt)
 
     def generate_image(self, prompt: str) -> ImageResponse:
         key = cache_key(self.default_image_model, messages=[ChatMessage(role="user", content=prompt)])

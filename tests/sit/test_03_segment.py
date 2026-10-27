@@ -25,13 +25,13 @@ def run(sit: Sit) -> str:
     provider = sit.meta("vision", SEGMENT_BUDGET_S, cache=False)
 
     started = time.monotonic()
-    polygons = provider.segment(candidate.label, photo)
+    polygons = provider.segment(candidate.label, photo).polygons
     latency = time.monotonic() - started
     sit.record("segment-present-label", model=SAM_MODEL)
     assert polygons, f"no mask for the present label {candidate.label!r}"
     assert all(len(polygon) >= 3 and all(x >= 0 and y >= 0 for x, y in polygon) for polygon in polygons), "a polygon left the frame"
 
-    absent = provider.segment(ABSENT_LABEL, photo)
+    absent = provider.segment(ABSENT_LABEL, photo).polygons
     sit.record("segment-absent-label", model=SAM_MODEL)
     assert absent is None, f"{ABSENT_LABEL!r} gave {len(absent)} mask(s)"
     overrun = f"; over the {SEGMENT_BUDGET_S:.0f} s budget" if latency > SEGMENT_BUDGET_S else ""
