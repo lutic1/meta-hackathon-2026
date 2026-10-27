@@ -42,9 +42,8 @@ export function placeHref({ route, profile }: Place): string {
   const path =
     route.name === 'home'
       ? '/'
-      : route.name === 'view'
-        ? `/build/${route.jobId}/view`
-        : `/${route.name}/${route.name === 'build' ? route.jobId : route.sessionId}`
+      : route.name === 'view' ? `/build/${route.jobId}/view`
+      : `/${route.name}/${route.name === 'build' ? route.jobId : route.sessionId}`
   return `#${path}?profile=${encodeURIComponent(profile)}`
 }
 

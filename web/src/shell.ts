@@ -135,7 +135,8 @@ type Content =
  * screen shows only the run its own Upload starts.
  */
 function timerOwner(route: Route): ((run: TimerRun) => boolean) | null {
-  if (route.name === 'home' || route.name === 'view') return null
+  if (route.name === 'home') return null
+  if (route.name === 'view') return null
   if (route.name === 'build') return (run) => run.jobId === route.jobId
   return (run) => run.sessionId === route.sessionId
 }
