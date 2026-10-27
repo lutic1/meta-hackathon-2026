@@ -318,8 +318,21 @@ def room_summary(room: Room, job_id: JobId) -> RoomSummary:
 
 
 def jobs_by_room(jobs: JobStore) -> dict[RoomId, JobId]:
-    """The job record that names each Room; a job that has no Room yet names none."""
-    return {job.room_id: job.id for job in map(jobs.read, jobs.list_ids()) if job.room_id is not None}
+    """The job record that names each Room; a job that has no Room yet names none.
+
+    A job record that does not parse is logged and skipped, as `resume_jobs`
+    skips it at startup, so one corrupt record never hides every Room.
+    """
+    by_room: dict[RoomId, JobId] = {}
+    for job_id in jobs.list_ids():
+        try:
+            job = jobs.read(job_id)
+        except ValidationError as exc:
+            log.warning(json.dumps({"job_id": job_id, "event": "job_unreadable", "error": f"{exc.error_count()} errors"}))
+            continue
+        if job.room_id is not None:
+            by_room[job.room_id] = job.id
+    return by_room
 
 
 def room_job(jobs: JobStore, room_id: RoomId) -> JobState | None:

@@ -20,16 +20,19 @@ from src.api.meta import (
     disclosure_lines,
     meta,
 )
-from src.api.wiring import job_store
+from src.api.wiring import JOBS_DIR, job_store
 from src.config import Settings
 from src.domain.schema import API_MODELS, JobState, Meta, Room, RoomSummary
+from src.infra.modal import JOB_FILE
 from src.providers.ollama import DEFAULT_HOST
+from tests.api.hosted import hosted_handles, make_hosted_app
 from tests.api.test_app import make_app
 from tests.domain.test_redact import json_keys
 from tests.fixtures.rooms import IX
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 JOB_A, JOB_B = "job_01ARZ3NDEKTSV4RRFFQ69G5FAA", "job_01ARZ3NDEKTSV4RRFFQ69G5FAB"
+CORRUPT_JOB = "job_01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
 
 def settings(**env: str) -> Settings:
@@ -290,3 +293,44 @@ def test_a_stored_room_without_a_job_record_is_not_listed(tmp_path: Path, four_l
     job_store(tmp_path / "rooms").put(JobState(id=JOB_A, status="done", room_id=four_lock_room.id, regen_max=2))
     client = TestClient(app)
     assert [row["room_id"] for row in client.get("/api/rooms").json()] == [four_lock_room.id]
+
+
+def test_one_job_record_that_does_not_parse_is_skipped_and_every_other_room_is_still_listed(
+    tmp_path: Path, four_lock_room: Room, code_and_find_room: Room, caplog: pytest.LogCaptureFixture
+):
+    """A corrupt job file names only itself: the list, like `resume_jobs`, logs it and skips it rather than hiding every Room."""
+    app = make_app(tmp_path, four_lock_room, code_and_find_room, settings=settings())
+    jobs = job_store(tmp_path / "rooms")
+    jobs.put(JobState(id=JOB_A, status="done", room_id=four_lock_room.id, regen_max=2))
+    jobs.put(JobState(id=JOB_B, status="done", room_id=code_and_find_room.id, regen_max=2))
+    (tmp_path / "rooms" / JOBS_DIR / f"{CORRUPT_JOB}.json").write_text("{}")
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get("/api/rooms")
+
+    assert response.status_code == 200, response.text
+    assert sorted(row["room_id"] for row in response.json()) == sorted([four_lock_room.id, code_and_find_room.id])
+    assert CORRUPT_JOB in caplog.text and "job_unreadable" in caplog.text
+    assert client.post("/api/sessions", json={"room_id": four_lock_room.id}).status_code == 200
+    assert client.get(f"/api/builds/{CORRUPT_JOB}").status_code == 500  # the corrupt job's own route still fails
+
+
+def test_a_hosted_final_record_that_does_not_parse_is_skipped_and_the_demo_room_is_still_listed(
+    tmp_path: Path, four_lock_room: Room, caplog: pytest.LogCaptureFixture
+):
+    handles = hosted_handles(tmp_path)
+    app = make_hosted_app(tmp_path, handles, four_lock_room)
+    (handles.root / "rooms" / "demo" / four_lock_room.id / JOB_FILE).write_text(
+        JobState(id=JOB_A, status="done", room_id=four_lock_room.id, regen_max=2).model_dump_json()
+    )
+    corrupt = handles.root / "rooms" / "judge" / "room_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    corrupt.mkdir(parents=True)
+    (corrupt / JOB_FILE).write_text("{}")
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get("/api/rooms")
+
+    assert response.status_code == 200, response.text
+    assert [row["job_id"] for row in response.json()] == [JOB_A]
+    assert "job_unreadable" in caplog.text
+    assert client.post("/api/sessions", json={"room_id": four_lock_room.id}).status_code == 200

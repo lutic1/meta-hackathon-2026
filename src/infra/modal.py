@@ -101,6 +101,7 @@ JSON line each, to `/data/spend/hosted-<date>.jsonl` and commits (AD-9).
 from __future__ import annotations
 
 import json
+import logging
 import posixpath
 import re
 import shutil
@@ -113,7 +114,7 @@ from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol
 
-from pydantic import ConfigDict, TypeAdapter
+from pydantic import ConfigDict, TypeAdapter, ValidationError
 
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import (
@@ -141,6 +142,8 @@ from src.pipeline.ports import (
     Cache,
     room_key,
 )
+
+log = logging.getLogger("keyframe.hosted")
 
 JOBS_DICT = "keyframe-jobs"
 SESSIONS_DICT = "keyframe-sessions"
@@ -472,9 +475,19 @@ class DictJobStore:
         return BUILD_QUOTA - sum(1 for key in keys if key in SLOT_KEYS)
 
     def _final_records(self) -> list[JobState]:
-        """The final records of both partitions: the seeded Demo rooms' and the Judge builds'."""
+        """The final records of both partitions: the seeded Demo rooms' and the Judge builds'.
+
+        A record that does not parse is logged and skipped, so one corrupt
+        file on the Volume never hides every other job.
+        """
         patterns = [f"{ROOMS_DIR}/{partition}/*/{JOB_FILE}" for partition in (DEMO_PARTITION, JUDGE_PARTITION)]
-        return [JobState.model_validate_json(data) for data in self.files.read_glob(*patterns)]
+        records: list[JobState] = []
+        for data in self.files.read_glob(*patterns):
+            try:
+                records.append(JobState.model_validate_json(data))
+            except ValidationError as exc:
+                log.warning(json.dumps({"event": "job_unreadable", "error": f"{exc.error_count()} errors"}))
+        return records
 
     def _watch(self, state: JobState, poll: Poll) -> JobState:
         """Leave a live job as it is; mark one whose runner has ended, or that a backstop has caught, `failed` at the stage it reached."""
