@@ -63,7 +63,8 @@ async function photoSize(url: string): Promise<Size | null> {
  * over" opens the empty Capture screen. A page that holds no photos (reloaded) cannot post or extend the set, so
  * "Start over" takes the place of both. Two consecutive missed polls put the reconnecting strip at the top of the
  * left area, above any banner, written once to the live region and never focused; the Stage list, the Mask preview
- * and the Timer go on as they were, and the next answered poll removes the strip and renders from job state.
+ * and the Timer go on as they were, and the next answered poll removes the strip and renders from job state. A
+ * refused poll, which ends the polling, removes it too.
  */
 export function buildScreen(jobId: string, profile: string, retention: string): BuildScreen {
   const held = heldPhotos(jobId)
@@ -227,13 +228,23 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
         end(job)
       }
 
+      function hideStrip(): void {
+        if (!strip.isConnected) return
+        strip.remove()
+        announce('')
+      }
+
       async function poll(): Promise<void> {
         let job: JobState
         try {
           job = await getBuild(jobId)
         } catch (error) {
           const refused = error instanceof RequestFailed && error.status !== null && error.status < 500
-          if (!mounted || refused) return
+          if (!mounted) return
+          if (refused) {
+            hideStrip() // polling ends here, so the strip's "catches up" line would no longer hold
+            return
+          }
           missed += 1
           if (missed === MISSED_POLLS) {
             left.prepend(strip)
@@ -244,10 +255,7 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
         }
         if (!mounted) return
         missed = 0
-        if (strip.isConnected) {
-          strip.remove()
-          announce('')
-        }
+        hideStrip()
         apply(job)
         if (job.status === 'queued' || job.status === 'running') polling = setTimeout(() => void poll(), BUILD_POLL_MS)
       }

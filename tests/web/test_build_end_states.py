@@ -166,9 +166,19 @@ def test_two_missed_polls_show_the_reconnecting_strip_above_any_banner_once_and_
 
 
 def test_the_next_answered_poll_removes_the_strip_and_renders_from_job_state():
+    screen = _code("build-progress.ts")
+    poll = _function(screen, "poll")
+    answered = poll.split("        }\n        if (!mounted) return\n", 1)[1]
+    assert answered.index("missed = 0") < answered.index("hideStrip()") < answered.index("apply(job)")
+    hide = _function(screen, "hideStrip")
+    assert hide.lstrip().startswith("if (!strip.isConnected) return")
+    assert hide.index("strip.remove()") < hide.index("announce('')")
+
+
+def test_a_refused_poll_ends_polling_without_leaving_the_strip_up():
     poll = _function(_code("build-progress.ts"), "poll")
-    answered = poll.split("if (!mounted) return\n", 1)[1]
-    assert answered.index("missed = 0") < answered.index("strip.remove()") < answered.index("apply(job)")
+    refused = poll.split("if (refused) {", 1)[1].split("\n          }\n", 1)[0]
+    assert "hideStrip()" in refused and "return" in refused and "setTimeout" not in refused
 
 
 def test_the_live_region_is_one_polite_visually_hidden_region_in_the_page_from_the_start():
