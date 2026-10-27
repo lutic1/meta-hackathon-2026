@@ -1,7 +1,7 @@
 """The hosted entry (AD-9, AD-14): one Modal app that serves the same FastAPI app as Local mode.
 
 Deploy by hand from the repo root, after the web build:
-`modal deploy -m src.api.modal_app` (the keyframe-modal runbook). The image
+`modal deploy -m src.api.modal_app`. The image
 installs `uv.lock` and sets `MODE=hosted` and `GUIDE=verbatim`, so in the
 container `Settings` selects the hosted adapters and the verbatim Guide;
 the `keyframe` Secret carries the keys `Settings` reads, `SPEND_CAP_USD`
@@ -96,7 +96,7 @@ def handles() -> ModalHandles:
 
 
 def poll_call(call_id: str) -> RunnerState:
-    """The state of a spawned call, without waiting; the except order matters (keyframe-modal).
+    """The state of a spawned call, without waiting; the except order matters.
 
     The builtin `TimeoutError` means no output yet; Modal's own
     `TimeoutError` subclasses are the call's timeout and its expired result.

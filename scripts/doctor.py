@@ -119,7 +119,7 @@ def check_tools(root: Path, cloud: bool) -> None:
     want_major = nvmrc.read_text().strip().lstrip("v").split(".")[0] if nvmrc.exists() else "24"
     miss = "FAIL" if node_needed else "WARN"  # before the first web story nothing uses Node yet
     code, out = run("node", "--version")
-    hint = "source $NVM_DIR/nvm.sh --no-use && nvm install 24 (then rerun .claude/hooks/session-start.sh)" if cloud else "nvm use"
+    hint = "source $NVM_DIR/nvm.sh --no-use && nvm install 24 (then rerun the cloud session-start hook)" if cloud else "nvm use"
     if code != 0:
         report(miss, "node", f"missing; {hint}")
     else:

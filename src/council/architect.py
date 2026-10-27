@@ -4,7 +4,7 @@
 in upload order, so no Room, Clue or profile field exists to leak (AD-3), and
 the same bytes always render the same request, which the AD-6 cache key and
 the AD-16 prompt hash rely on. The photos travel as `images`, never inside a
-message, and the adapter owns the HTTP (keyframe-muse). Candidates come back
+message, and the adapter owns the HTTP. Candidates come back
 without ids, correlated by list position; the segment stage mints `ix_` ids.
 """
 

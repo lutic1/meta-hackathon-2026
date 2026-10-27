@@ -29,7 +29,7 @@ if [ -f src/api/modal_app.py ]; then
   uv run python -c 'import src.api.modal_app'
   ci_uv=$(sed -nE 's/^ *version: *"?([0-9.]+)"?.*/\1/p' .github/workflows/ci.yml | head -1)
   grep -q "\.uv_sync(uv_version=\"$ci_uv\"" src/api/modal_app.py \
-    || { echo "modal_app.py must install uv.lock with .uv_sync(uv_version=\"$ci_uv\", ...) (keyframe-modal)"; exit 1; }
+    || { echo "modal_app.py must install uv.lock with .uv_sync(uv_version=\"$ci_uv\", ...)"; exit 1; }
   if grep -q 'pip_install(' src/api/modal_app.py; then echo "modal_app.py has a pip_install list; uv.lock is the only package list"; exit 1; fi
   grep -q "python_version=\"$(cat .python-version)\"" src/api/modal_app.py \
     || { echo "modal_app.py python_version differs from .python-version"; exit 1; }
