@@ -887,12 +887,20 @@ def _named_ids(event: Event) -> set[str]:
     return set()
 
 
+def _on_room(sessions: DictSessionStore, session_id: SessionId, room_id: str) -> bool:
+    """Whether the Session's stored header names the Room; False when it has none (a start before headers were stored)."""
+    try:
+        return sessions.read_header(session_id).room_id == room_id
+    except KeyError:
+        return False
+
+
 def _delete_room_sessions(sessions: DictSessionStore, room: Room) -> None:
-    """Delete every Session whose events name one of the Room's interactables or puzzles, whatever its age."""
+    """Delete every Session whose header names the Room or whose events name one of its interactables or puzzles, whatever its age."""
     ids = {ix.id for ix in room.interactables} | {pz.id for pz in room.puzzles}
     for session_id in sessions.list_ids():
         with suppress(KeyError):  # another sweep may have deleted it meanwhile
-            if any(_named_ids(event) & ids for event in sessions.read_all(session_id)):
+            if _on_room(sessions, session_id, room.id) or any(_named_ids(event) & ids for event in sessions.read_all(session_id)):
                 sessions.delete(session_id)
 
 

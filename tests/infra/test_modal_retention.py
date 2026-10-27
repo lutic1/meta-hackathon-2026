@@ -28,11 +28,13 @@ from src.domain.schema import (
     OpeningLineEvent,
     Room,
 )
+from src.domain.session import SessionHeader
 from src.infra.local import DiskArtifactStore, DiskCache, JsonJobStore, JsonlLedgerStore
 from src.infra.modal import (
     CACHE_DIR,
     CACHE_KEYS_FILE,
     DEADLINE_S,
+    HEADER_SUFFIX,
     JOB_FILE,
     SESSION_TTL_MS,
     DeletionRecord,
@@ -395,6 +397,23 @@ def test_sessions_of_a_deleted_room_go_whatever_their_age_while_the_sweep_keeps_
 
     delete_judge_room(handles, scene.room_id, today=NOV_10)
     assert DictSessionStore(handles.sessions).list_ids() == [scene.demo_session]
+
+
+def test_a_session_whose_header_names_the_deleted_room_goes_with_it_header_included_even_when_its_events_name_nothing(handles, ticker, four_lock_room, code_and_find_room):
+    scene = Scene(handles, ticker, four_lock_room, code_and_find_room)
+    store = DictSessionStore(handles.sessions)
+    welcome_only = [OpeningLineEvent(type="opening_line", kind="welcome", text="Welcome.", t_ms=0), IdleTickEvent(type="idle_tick", t_ms=30_000)]
+    left_early = sess_at(wall_ms(NOW) - HOUR_MS)
+    store.put_header(left_early, SessionHeader(room_id=scene.room_id, opening="welcome", nudge_threshold_base_ms=90_000, earlier_session=True))
+    store_session(handles, left_early, welcome_only)
+    on_demo = sess_at(wall_ms(NOW) - HOUR_MS)
+    store.put_header(on_demo, SessionHeader(room_id=code_and_find_room.id, opening="welcome", nudge_threshold_base_ms=90_000, earlier_session=False))
+    store_session(handles, on_demo, welcome_only)
+
+    delete_judge_room(handles, scene.room_id, today=NOV_10)
+
+    assert store.list_ids() == sorted([scene.demo_session, on_demo])
+    assert left_early + HEADER_SUFFIX not in handles.sessions and on_demo + HEADER_SUFFIX in handles.sessions
 
 
 # --- Local mode deletes nothing but the one session file the port names ------------------
