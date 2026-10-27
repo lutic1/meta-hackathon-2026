@@ -2,8 +2,12 @@
 
 The profile module runs as it ships in headless Chromium (Node strips its types; the page is served by a request route,
 so nothing leaves the machine): the 5.1 behavior tests run there unchanged on IndexedDB in place of the in-memory
-backend, and the browser is reloaded and restarted on the same user data to show the results survive both. The
-wiring (the database name, who opens it) is checked by reading the TypeScript, as the other web tests do.
+backend, and the browser is reloaded and restarted on the same user data to show the results survive both; with
+IndexedDB made to refuse to open, the profile still answers from memory. The wiring (the database name, who opens it)
+is checked by reading the TypeScript, as the other web tests do.
+
+The browser tests need Playwright, which is not a web/ dependency: they run where it is installed (locally, through
+scripts/check.sh) and are skipped, with the reason shown under `pytest -rs`, where it is not, as in CI.
 """
 
 import inspect
@@ -32,7 +36,7 @@ const { tmpdir } = require('node:os')
 const path = require('node:path')
 
 const ORIGIN = 'http://keyframe.test'
-const [profileDir] = process.argv.slice(1)
+const [profileDir, init] = process.argv.slice(1)
 const modules = Object.fromEntries(['index.ts', 'derive.ts'].map((name) => [
   `/profile/${name}`, stripTypeScriptTypes(readFileSync(path.join(profileDir, name), 'utf8')),
 ]))
@@ -71,6 +75,7 @@ async function visit(steps) {
 
 async function launch(userData) {
   const context = await chromium.launchPersistentContext(userData)
+  if (init) await context.addInitScript({ content: init })
   await context.route(`${ORIGIN}/**`, (route) => {
     const { pathname } = new URL(route.request().url())
     if (pathname === '/') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>profile</title>' })
@@ -112,16 +117,21 @@ def _has_playwright() -> bool:
     return found.returncode == 0
 
 
-needs_browser = pytest.mark.skipif(not _has_playwright(), reason="headless Chromium through Playwright runs IndexedDB")
+needs_browser = pytest.mark.skipif(
+    not _has_playwright(), reason="IndexedDB runs in headless Chromium through Playwright, which is not installed here",
+)
 
 Steps = list[list[Any]]
 Visit = dict[str, Any]
 
 
-def _browse(plan: list[Steps | str]) -> list[Visit]:
-    """Runs each visit of `plan` in Chromium, with "reload" and "restart" between them, and answers every visit."""
+def _browse(plan: list[Steps | str], init: str = "") -> list[Visit]:
+    """
+    Runs each visit of `plan` in Chromium, with "reload" and "restart" between them, and answers every visit; `init`,
+    when given, runs in every page before anything else.
+    """
     out = subprocess.run(
-        ["node", "--no-warnings", "-e", BROWSER, str(PROFILE)],
+        ["node", "--no-warnings", "-e", BROWSER, str(PROFILE), init],
         input=json.dumps(plan), cwd=REPO, capture_output=True, text=True, check=True,
     )
     return json.loads(out.stdout)
@@ -217,6 +227,34 @@ def test_a_recorded_result_and_its_derived_block_survive_a_reload_and_a_browser_
     assert visits[1]["answers"][:3] == before and visits[1]["answers"][4:] == before
     assert visits[2]["answers"] == before
     assert all(_records(visit, "demo") == [FIXTURE[0]] for visit in visits)
+
+
+# --- A database that will not open -----------------------------------------------------------------------------------
+
+# How a browser that blocks site data refuses: Chromium fails the open request, Firefox throws from indexedDB.open.
+REFUSALS = {
+    "chromium": """IDBFactory.prototype.open = function () {
+  const request = { error: new DOMException('The user denied permission to access the database', 'UnknownError') }
+  setTimeout(() => request.onerror?.(new Event('error')))
+  return request
+}""",
+    "firefox": """IDBFactory.prototype.open = function () {
+  throw new DOMException('The operation is insecure.', 'SecurityError')
+}""",
+}
+
+
+@needs_browser
+@pytest.mark.parametrize("refusal", REFUSALS.values(), ids=REFUSALS.keys())
+def test_a_database_that_will_not_open_leaves_the_profile_playing_in_memory(refusal: str):
+    room, looks = room_id(7), [["results", "playtest"], ["derived", "playtest"], ["start", room_id(7), "playtest", "local"]]
+    (visit,) = _browse([[*looks, ["watch", "playtest"], ["put", "playtest", FIXTURE[0]], *looks]], init=refusal)
+    fresh, answers = Derived.fresh().model_dump(mode="json"), visit["answers"]
+    assert answers[:3] == [[], fresh, {"room_id": room, "derived": fresh}]
+    after = answers[5:]
+    assert after[0] == [FIXTURE[0]] and after[1]["sessions"] == 1 and after[2] == {"room_id": room, "derived": after[1]}
+    assert visit["heard"] == [1]
+    assert visit["databases"] == {}  # nothing persisted
 
 
 # --- The wiring -------------------------------------------------------------------------------------------------------

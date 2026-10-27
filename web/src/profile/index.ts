@@ -1,7 +1,8 @@
 // The Player profile (FR-20, FR-22, AD-8): the browser is its system of record and this module its only writer. Every
 // other module reads Room results and the Derived block through these exports; nothing here makes a request, and a
 // Session start carries only the Derived block. Each profile lives in the IndexedDB database named after it; where
-// there is no IndexedDB (Node runs the tests on this module as it ships) it lives in memory.
+// there is no IndexedDB (Node runs the tests on this module as it ships), or it will not open (the browser blocks site
+// data), it lives in memory.
 import type { Derived, Meta, RoomResult, SessionStart } from '../../types'
 import { derive, freshDerived } from './derive.ts'
 
@@ -53,28 +54,36 @@ function indexedDbStorage(name: string): ProfileStorage {
 type Listener = (results: readonly RoomResult[]) => void
 
 interface Held {
+  storage: ProfileStorage
   results: Map<string, RoomResult>
   derived: Derived
 }
 
 interface Opened {
-  storage: ProfileStorage
   held: Promise<Held>
   listeners: Set<Listener>
 }
 
 const profiles = new Map<string, Opened>()
 
-/** The profile named `name` (the `?profile=` value), opened on first use: its IndexedDB database, else memory. */
+/** One profile's Room results as loaded from `storage`, keyed by `room_id`, with their Derived block. */
+function hold(storage: ProfileStorage, results: RoomResult[]): Held {
+  return { storage, results: new Map(results.map((result) => [result.room_id, result])), derived: derive(results) }
+}
+
+/**
+ * The profile named `name` (the `?profile=` value), opened on first use: its IndexedDB database, else memory. A
+ * database that will not open leaves the profile in memory, so play goes on without persistence.
+ */
 function open(name: string): Opened {
   let profile = profiles.get(name)
   if (profile === undefined) {
     const storage = typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name)
-    const held = storage.getResults().then((results) => ({
-      results: new Map(results.map((result) => [result.room_id, result])),
-      derived: derive(results),
-    }))
-    profile = { storage, held, listeners: new Set() }
+    const held = storage.getResults().then(
+      (results) => hold(storage, results),
+      () => hold(memoryStorage(), []),
+    )
+    profile = { held, listeners: new Set() }
     profiles.set(name, profile)
   }
   return profile
@@ -98,7 +107,7 @@ export async function putResult(name: string, result: RoomResult): Promise<void>
   const profile = open(name)
   const held = await profile.held
   if (result.demo && held.results.get(result.room_id)?.demo === false) return
-  await profile.storage.putResult(result)
+  await held.storage.putResult(result)
   held.results.set(result.room_id, result)
   held.derived = derive([...held.results.values()])
   const results = [...held.results.values()]
