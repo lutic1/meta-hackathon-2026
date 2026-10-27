@@ -54,7 +54,8 @@ async function photoSize(url: string): Promise<Size | null> {
  * draws on their downscales. When a poll reads `done` after this page saw the Build unfinished, or uploaded it, a
  * Session starts with `Derived.fresh()` (until 5.1) and the Play screen opens, the Timer passing to that Session.
  * A Build already `done` when the route opens shows "Play this room" instead, and the photos the server now serves
- * for its Room, with "How this room was built" beside it opening the Build's Build view (absent under cut 0). A
+ * for its Room. Either way a `done` Build shows "How this room was built", opening its Build view (absent under
+ * cut 0), beside "Play this room" or alone while the Session starts, so a refused start still reaches it. A
  * refused session start shows the session-start-refused banner, whose "Try again" posts it again; the Timer keeps
  * running toward T1.
  *
@@ -148,7 +149,12 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
       }
 
       function done(job: JobState, roomId: string): void {
+        const link = buildViewLink(jobId, profile)
         if (live) {
+          if (link !== null) {
+            actions.replaceChildren(link)
+            actions.hidden = false
+          }
           void start(roomId)
           return
         }
@@ -160,7 +166,6 @@ export function buildScreen(jobId: string, profile: string, retention: string): 
           pendingLabel: strings.playThisRoom,
           onActivate: () => start(roomId),
         })
-        const link = buildViewLink(jobId, profile)
         actions.replaceChildren(play, ...(link === null ? [] : [link]))
         actions.hidden = false
       }

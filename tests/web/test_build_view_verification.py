@@ -210,11 +210,13 @@ def test_the_stored_room_row_links_its_summarys_job_after_play():
     assert "if (link !== null) row.append(link)" in row
 
 
-def test_a_reopened_done_build_shows_the_link_beside_play_this_room():
+def test_a_done_build_shows_the_link_live_or_reopened():
     done = _function(_code(_ts("build-progress.ts")), "done")
-    live = done.split("if (live) {", 1)[1].split("}", 1)[0]
-    assert "buildViewLink" not in live, "a live Build opens the Play screen at once"
-    assert "const link = buildViewLink(jobId, profile)" in done
+    assert done.index("const link = buildViewLink(jobId, profile)") < done.index("if (live) {")
+    live = done.split("if (live) {", 1)[1].split("void start(roomId)", 1)[0]
+    # A Build seen finishing shows the link while its Session starts, so a refused start still reaches the Build view.
+    assert "if (link !== null) {" in live and "actions.replaceChildren(link)" in live
+    assert "actions.hidden = false" in live
     assert "actions.replaceChildren(play, ...(link === null ? [] : [link]))" in done
 
 

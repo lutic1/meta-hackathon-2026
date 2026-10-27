@@ -287,7 +287,8 @@ def test_done_starts_a_session_and_opens_the_play_screen_with_the_timer_passing_
     assert "if (job.status !== 'done') live = true" in apply
     assert "else if (job.room_id != null) done(job, job.room_id)" in apply
     done = _function(screen, "done")
-    assert done.lstrip().startswith("if (live) {\n          void start(roomId)\n          return")
+    live = done.split("if (live) {", 1)[1]
+    assert live.index("void start(roomId)") < live.index("return") < live.index("primaryButton({")
     start = _function(screen, "start")
     assert "const session = await startSession({ room_id: roomId, derived: freshDerived() })" in start
     assert start.index("sessionOpened(jobId, session.id)") < start.index(
