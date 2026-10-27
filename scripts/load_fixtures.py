@@ -15,7 +15,10 @@ and the Build view read it: the record the mock build the Room's provenance
 describes leaves (stage records, one zero-spend call row per role on the
 mock host, the Validator's verdict on every rule, a Dry run pass per
 Puzzle) with `regen_max` from the settings. A Room already stored is left
-alone, so a second run stores no duplicate.
+alone, so a second run stores no duplicate; only its job record is
+rewritten, and only when it is missing or is the thin record loaders
+before this one wrote (no Validator verdicts or no call rows), so a
+`rooms/` loaded earlier shows a complete Build view after one more run.
 """
 
 from __future__ import annotations
@@ -57,6 +60,14 @@ def is_stored(store: ArtifactStore, room: Room) -> bool:
     except KeyError:
         return False
     return True
+
+
+def has_complete_job(jobs: JobStore, job_id: JobId) -> bool:
+    try:
+        job = jobs.read(job_id)
+    except KeyError:
+        return False
+    return bool(job.validator and job.calls)
 
 
 def done_job(room: Room, job_id: JobId, result: ValidatorResult, regen_max: int) -> JobState:
@@ -115,13 +126,15 @@ def store_room(store: ArtifactStore, room: Room) -> Room:
 
 
 def load_fixtures(store: ArtifactStore, jobs: JobStore, scenes_dir: Path, *, regen_max: int) -> list[Room]:
-    """Store every fixture room not stored yet, each once validated; returns the Rooms this run stored."""
+    """Store every fixture room not stored yet, each once validated, and complete a stored room's thin job record; returns the Rooms this run stored."""
     loaded: list[Room] = []
     for room in write_fixtures(scenes_dir):
         result = validate(room)
         if result.reasons:
             raise ValueError(f"fixture room {room.id} fails validation: " + "; ".join(r.message for r in result.reasons))
         if is_stored(store, room):
+            if not has_complete_job(jobs, JOB_IDS[room.id]):
+                jobs.put(done_job(room, JOB_IDS[room.id], result, regen_max))
             continue
         jobs.put(done_job(room, JOB_IDS[room.id], result, regen_max))
         loaded.append(store_room(store, room))

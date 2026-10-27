@@ -12,7 +12,7 @@ from src.api.app import create_app
 from src.api.wiring import JOBS_DIR, artifact_store, job_store
 from src.config import Settings
 from src.domain.redact import to_build_view
-from src.domain.schema import Room
+from src.domain.schema import JobState, Room
 from src.domain.validator import BUILD_RULES, RULES, validate
 from src.pipeline.build import STAGES
 from src.pipeline.ports import ArtifactStore, JobStore, photo_key, room_key
@@ -96,6 +96,23 @@ def test_a_second_run_stores_no_duplicate(stores, root: Path, tmp_path: Path):
     after = {path: path.stat().st_mtime_ns for path in root.rglob("*") if path.is_file()}
     assert after == before and len(first) == 2
     assert sorted(room.id for room in store.list_rooms()) == sorted(ROOM_IDS.values())
+
+
+def test_a_rerun_completes_a_thin_or_missing_job_record_beside_a_stored_room(stores, root: Path, tmp_path: Path):
+    store, jobs = stores
+    rooms = loader.load_fixtures(store, jobs, tmp_path / "scenes-1", regen_max=2)
+    thin, missing = (loader.JOB_IDS[room.id] for room in rooms)
+    # the record loaders before Fix F12 wrote; the other room has lost its record
+    jobs.put(JobState(id=thin, status="done", room_id=rooms[0].id, regen_max=0, build_time_ms=0))
+    (root / JOBS_DIR / f"{missing}.json").unlink()
+    rooms_before = {path: path.stat().st_mtime_ns for path in root.rglob("*") if path.is_file() and JOBS_DIR not in path.parts}
+    assert loader.load_fixtures(store, jobs, tmp_path / "scenes-2", regen_max=2) == []
+    for room in rooms:
+        view = to_build_view(room, jobs.read(loader.JOB_IDS[room.id]))
+        assert view.regen_max == 2
+        assert len(view.validator) == len(BUILD_RULES) == 8
+        assert [row.role for row in view.models] == ["architect", "riddler", "dryrun"]
+    assert {path: path.stat().st_mtime_ns for path in root.rglob("*") if path.is_file() and JOBS_DIR not in path.parts} == rooms_before
 
 
 def test_a_room_that_fails_validation_is_not_stored(stores, tmp_path: Path, monkeypatch):
