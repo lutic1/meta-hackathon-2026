@@ -36,7 +36,7 @@ export function triggersHeader(thresholds: Thresholds): [string, string] {
     thresholds.rung_spacing_ms,
     thresholds.rung_spacing_base_ms,
   )}`
-  return [timing, thresholds.source === 'derived' ? strings.thresholdDerived : strings.thresholdFresh]
+  return [timing, thresholds.source === 'fresh' ? strings.thresholdFresh : strings.thresholdDerived]
 }
 
 /**

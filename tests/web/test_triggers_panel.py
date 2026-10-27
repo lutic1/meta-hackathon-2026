@@ -89,7 +89,7 @@ def test_the_header_reads_the_servers_effective_values_with_their_1x_values_and_
     assert "oneX(thresholds.nudge_threshold_ms, thresholds.nudge_threshold_base_ms)" in header
     assert "oneX(\n    thresholds.rung_spacing_ms,\n    thresholds.rung_spacing_base_ms,\n  )" in header
     assert "(ms === base ? '' : ` ${fill(strings.atOneX, { s: seconds(base) })}`)" in header
-    assert "thresholds.source === 'derived' ? strings.thresholdDerived : strings.thresholdFresh" in header
+    assert "thresholds.source === 'fresh' ? strings.thresholdFresh : strings.thresholdDerived" in header
     assert "[timing.textContent, source.textContent] = triggersHeader(thresholds)" in _ts(PANEL)
 
 
