@@ -150,7 +150,8 @@ def test_an_accepted_code_opens_the_capture_screen_once_with_no_stored_rooms_lis
     screen = _code("capture.ts")
     assert "typeof below === 'number' ? buildsLeftLine(below) : storedRooms(below, profile, mode, banners)," in screen
     # The Retention summary is the mode's text exactly as GET /meta serves it.
-    assert "right.append(line(strings.inputRequirement), line(strings.iphoneTip), line(strings.reminder), retentionSummary(retention))" in screen
+    assert "const summary = retentionSummary(retention, openProfile(profile, mode, banners))" in screen
+    assert "right.append(line(strings.inputRequirement), line(strings.iphoneTip), line(strings.reminder), summary)" in screen
 
 
 def test_the_code_lives_in_memory_only_and_rides_only_on_post_builds():
