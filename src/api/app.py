@@ -138,7 +138,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date
@@ -226,6 +226,7 @@ from src.domain.schema import (
     TricksterCardEvent,
     TricksterEdit,
     TricksterWindow,
+    TriggerEvent,
     ValidatorResult,
 )
 from src.domain.session import SessionStateMachine, game_state_summary
@@ -613,6 +614,15 @@ def skipped_card(state: SessionState) -> Callable[[Milliseconds], Event]:
     )
 
 
+def trigger_events(state: SessionState, log_: Sequence[Event]) -> dict[int, TriggerEvent]:
+    """The type and `t_ms` of each logged event a Rung change in `state` names in `triggered_by`, by log position.
+
+    Served with the state for the Triggers panel, like the Disclosure list, so `apply` and replay never write it.
+    """
+    named = sorted({i for change in state.rung_changes for i in change.triggered_by})
+    return {i: TriggerEvent(type=log_[i].type, t_ms=log_[i].t_ms) for i in named}
+
+
 @dataclass(slots=True)
 class OpenSession:
     """One session's transient request state: its machine over the Effective room, its lock, its start, its Disclosure list and its Derived block."""
@@ -673,9 +683,9 @@ def session_routes(
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     open_sessions = OpenSessions()
 
-    def served(session: OpenSession, state: SessionState) -> SessionState:
-        """The state as the client sees it: with the Room's Disclosure list (AD-15)."""
-        return state.model_copy(update={"disclosure": list(session.disclosure)})
+    def served(session: OpenSession, state: SessionState, log_: Sequence[Event]) -> SessionState:
+        """The state as the client sees it: with the Room's Disclosure list (AD-15) and the events its Rungs name."""
+        return state.model_copy(update={"disclosure": list(session.disclosure), "trigger_events": trigger_events(state, log_)})
 
     def events(session_id: SessionId) -> list[Event]:
         """The session's log; a session that has appended nothing yet has none."""
@@ -707,9 +717,10 @@ def session_routes(
         for appended in (event, *selected):
             sessions.append(session_id, appended)
             log.info(json.dumps({"session_id": session_id, "event": appended.type, "duration_ms": clock.now_ms() - started}))
+        logged = [*log_, event, *selected]
         if selected:
-            state = session.machine.replay(session_id, [*log_, event, *selected])
-        return served(session, state)
+            state = session.machine.replay(session_id, logged)
+        return served(session, state, logged)
 
     def worded(session: OpenSession, change: RungChangeEvent) -> RungChangeEvent:
         """The selected Rung as shown: its verbatim text through the Guide port, with whether it was phrased and how long that took."""
@@ -769,7 +780,7 @@ def session_routes(
         session_id = new_session_id()
         session = open_sessions.open(session_id, machine, clock.now_ms(), disclosure, derived)
         if greeted:
-            state = served(session, machine.initial(session_id))
+            state = served(session, machine.initial(session_id), [])
             spawn(lambda: greet(session_id, session, derived))
             return state
         with session.lock:
@@ -786,7 +797,7 @@ def session_routes(
             last_ms = log_[-1].t_ms if log_ else 0
             if clock.now_ms() - session.started_ms - last_ms >= IDLE_TICK_MS:
                 return append(session_id, session, log_, lambda t_ms: IdleTickEvent(type="idle_tick", t_ms=t_ms))
-            return served(session, session.machine.replay(session_id, log_))
+            return served(session, session.machine.replay(session_id, log_), log_)
 
     @router.post("/{session_id}/events")
     def post_event(session_id: str, body: PostedEvent) -> SessionState:
@@ -810,9 +821,9 @@ def session_routes(
             state = session.machine.replay(session_id, log_)
             window = state.trickster_window
             if window.state != "open" or window.index is None:
-                return served(session, state)
+                return served(session, state, log_)
             pending = state.model_copy(update={"trickster_window": TricksterWindow(state="pending", index=window.index)})
-            session.pending = served(session, pending)
+            session.pending = served(session, pending, log_)
             try:
                 room = effective_room(session.machine.room, log_)
                 summary = game_state_summary(state, max(0, clock.now_ms() - session.started_ms))
@@ -829,7 +840,7 @@ def session_routes(
                     log.warning(json.dumps({"session_id": session_id, "event": "trickster_skipped", "error": type(exc).__name__}))
                     return append(session_id, session, log_, skipped_card(state))
                 if proposal is None:
-                    return served(session, state)
+                    return served(session, state, log_)
                 return append(session_id, session, log_, judged_card(room, pending, proposal))
             finally:
                 session.pending = None

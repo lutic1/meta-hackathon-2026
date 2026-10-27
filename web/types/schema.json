@@ -3089,6 +3089,13 @@
           ],
           "default": null
         },
+        "trigger_events": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TriggerEvent"
+          },
+          "title": "Trigger Events",
+          "type": "object"
+        },
         "hint_reply": {
           "anyOf": [
             {
@@ -3571,6 +3578,36 @@
         "state"
       ],
       "title": "TricksterWindow",
+      "type": "object"
+    },
+    "TriggerEvent": {
+      "additionalProperties": false,
+      "description": "One log event a `rung_change` names in `triggered_by`: its type and `t_ms`, never its payload (AD-3).",
+      "properties": {
+        "type": {
+          "enum": [
+            "click",
+            "lock_input",
+            "hint_request",
+            "idle_tick",
+            "opening_line",
+            "trickster_card",
+            "rung_change"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "t_ms": {
+          "minimum": 0,
+          "title": "T Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "t_ms"
+      ],
+      "title": "TriggerEvent",
       "type": "object"
     },
     "UseOnInput": {

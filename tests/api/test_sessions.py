@@ -15,7 +15,13 @@ from unittest.mock import ANY
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import FIRST_ROOM_WELCOME, IDLE_TICK_MS, OpenSessions, new_session_id
+from src.api.app import (
+    FIRST_ROOM_WELCOME,
+    IDLE_TICK_MS,
+    OpenSessions,
+    new_session_id,
+    trigger_events,
+)
 from src.api.wiring import session_store
 from src.config import Settings
 from src.domain.schema import (
@@ -254,7 +260,8 @@ def test_twenty_concurrent_events_all_land_in_append_order_with_strictly_increas
     assert sorted(reply["wrong_attempts"][PZ["clock_code"]] for reply in replies) == list(range(1, 21))
     final = TestClient(app).get(f"/api/sessions/{session_id}").json()
     assert final["wrong_attempts"][PZ["clock_code"]] == 20
-    assert final == welcomed(code_and_find_room).replay(session_id, log).model_dump(mode="json")
+    replayed = welcomed(code_and_find_room).replay(session_id, log)
+    assert final == replayed.model_copy(update={"trigger_events": trigger_events(replayed, log)}).model_dump(mode="json")
 
 
 def test_a_different_session_id_never_waits_on_this_sessions_lock(code_and_find_room: Room):
@@ -488,8 +495,9 @@ def test_at_timescale_6_with_the_2000_ms_poll_each_idle_rung_lands_on_the_first_
         ticker.advance(2_000)
         state = client.get(f"/api/sessions/{session_id}").json()
     assert stored(tmp_path, session_id) == log
-    replayed = SessionStateMachine(code_and_find_room, opening="welcome", thresholds=DEMO_6).replay(session_id, log).model_dump(mode="json")
-    assert {**state, "disclosure": []} == replayed  # the demo Disclosure line is served on top (AD-15)
+    replayed = SessionStateMachine(code_and_find_room, opening="welcome", thresholds=DEMO_6).replay(session_id, log)
+    # The demo Disclosure line (AD-15) and the events the Rungs name are served on top.
+    assert {**state, "disclosure": []} == replayed.model_copy(update={"trigger_events": trigger_events(replayed, log)}).model_dump(mode="json")
     assert state["rung_changes"] == [r.model_dump(mode="json") for r in rungs]
 
 

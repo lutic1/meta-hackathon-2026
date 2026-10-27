@@ -22,6 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
 from src.api import wiring
+from src.api.app import trigger_events
 from src.api.meta import HOSTED_LINE, RETENTION_HOSTED
 from src.api.wiring import hint_phraser
 from src.domain.schema import Derived, JobState, RungChangeEvent
@@ -210,7 +211,8 @@ def test_a_hosted_session_computes_every_threshold_from_fresh_and_shows_the_rung
     replayed = SessionStateMachine(code_and_find_room, opening="welcome", thresholds=FRESH_THRESHOLDS).replay(
         session_id, sessions.read_all(session_id)
     )
-    assert live == replayed.model_copy(update={"disclosure": [HOSTED_LINE]}).model_dump(mode="json")
+    served = {"disclosure": [HOSTED_LINE], "trigger_events": trigger_events(replayed, sessions.read_all(session_id))}
+    assert live == replayed.model_copy(update=served).model_dump(mode="json")
 
     stored = json.dumps(handles.sessions[session_id])
     assert not any(key in stored for key in ("derived", *Derived.model_fields))

@@ -679,6 +679,13 @@ class Thresholds(Model):
     source: Literal["derived", "fresh"]
 
 
+class TriggerEvent(Model):
+    """One log event a `rung_change` names in `triggered_by`: its type and `t_ms`, never its payload (AD-3)."""
+
+    type: Literal["click", "lock_input", "hint_request", "idle_tick", "opening_line", "trickster_card", "rung_change"]
+    t_ms: Milliseconds
+
+
 class HintReply(Model):
     """The answer to a `hint_request`: the current Rung through the Guide port, or the No-hint line at `rung` 0."""
 
@@ -712,6 +719,9 @@ class SessionState(Model):
     disclosure: list[str]
     judge_room: bool = False
     thresholds: Thresholds | None = None
+    trigger_events: dict[int, TriggerEvent] = Field(default_factory=dict)
+    """Each log event a `rung_changes[]` entry names in `triggered_by`, by its log position, for the Triggers panel;
+    served on top of the replayed state (`trigger_events` in the API), never written by `apply`."""
     hint_reply: HintReply | None = None
     """Set only on the reply to the `hint_request` it answers; never replayed."""
 
