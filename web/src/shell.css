@@ -157,6 +157,11 @@
   overflow-y: auto;
 }
 
+/* A session the server no longer holds: the play-through-ended box centered in the body, with no photo under it. */
+.session-gone-layout {
+  position: relative;
+}
+
 /* Server unreachable: the status strip centered, alone. */
 .shell-unreachable {
   display: grid;

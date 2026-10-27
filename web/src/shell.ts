@@ -8,6 +8,7 @@ import { mountCompletion } from './completion.ts'
 import { mountTimer, type TimerRun } from './capture-timer.ts'
 import { disclosureBanner } from './components/disclosure-banner.ts'
 import { narrowScreenMessage } from './components/narrow-screen-message.ts'
+import { playEnded } from './components/play-ended.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { type TopBar, topBar } from './components/top-bar.ts'
 import { hostedLanding } from './landing.ts'
@@ -36,7 +37,9 @@ function refused(error: unknown): null {
  * Nothing renders until `GET /meta` answers, and a Room-bound route also waits for its session state, so no
  * surface ever shows without its Disclosure lines. While a request fails the page body holds only the centered
  * status strip, retried every 2000 ms; nothing is guessed in the meantime. A session the server refuses (4xx) has
- * no Room, so its route shows the global lines with an empty body; its own states belong to later surfaces.
+ * no Room, so its route shows the global lines: `#/play/<session_id>` and `#/done/<session_id>` hold the Session-gone
+ * line with "Start again", which goes to `#/` since the refusal names no Room to start again; `#/triggers/<session_id>`
+ * holds an empty body.
  * The top bar's mode indicator counts the Room results of the `?profile=` profile (web/profile) and is rewritten as
  * soon as one is recorded. In Local mode `#/` also waits for `GET /rooms`, read afresh on every visit: the browser keeps no list of its own;
  * it is the Capture screen, its Retention summary the `retention` text of the same `GET /meta`. In Hosted mode `#/` is
@@ -108,6 +111,7 @@ export function startShell(root: HTMLElement): void {
       if (state === undefined) return
       if (state !== null) disclosure = state.disclosure
       if (state !== null) content = { name, session: state, guide: meta.guide, mode: meta.mode, profile: place.profile }
+      else if (name !== 'triggers') content = { name: 'gone', profile: place.profile }
     } else if (place.route.name === 'build') {
       content = { name: 'build', jobId: place.route.jobId, profile: place.profile, mode: meta.mode, retention: meta.retention }
     } else if (place.route.name === 'home' && meta.mode === 'local') {
@@ -164,7 +168,7 @@ interface Surface {
  * What a route's body holds: the Build view, the Play layout for a session, the Completion screen over it, the Capture
  * screen with the Stored Rooms list (Local `#/`), the Hosted landing (Hosted `#/`, `rooms` null when `GET /rooms`
  * failed), the Capture screen once its Access code is accepted (Hosted `#/`), the Capture screen during a Build
- * (`#/build/<job_id>`) or nothing yet.
+ * (`#/build/<job_id>`), the Session-gone state of a session the server refused, or nothing yet.
  */
 type Content =
   | ({ name: 'view'; state: BuildViewState } & BuildViewOptions)
@@ -180,6 +184,7 @@ type Content =
     }
   | { name: 'capture'; buildsLeft: number; profile: string; mode: Meta['mode']; retention: string }
   | { name: 'build'; jobId: string; profile: string; mode: Meta['mode']; retention: string }
+  | { name: 'gone'; profile: string }
   | { name: 'empty' }
 
 /**
@@ -202,6 +207,16 @@ function surface(content: Content, bar: TopBar): Surface {
   const element = document.createElement('main')
   element.className = 'shell-body'
   if (content.name === 'empty') return { element }
+  if (content.name === 'gone') {
+    const { profile } = content
+    element.classList.add('session-gone-layout')
+    element.append(
+      playEnded(() => {
+        location.hash = placeHref({ route: { name: 'home' }, profile })
+      }),
+    )
+    return { element }
+  }
   if (content.name === 'view') {
     const { state, meta, profile } = content
     if (state.name === 'gone') {

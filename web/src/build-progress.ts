@@ -94,7 +94,8 @@ async function photoSize(url: string): Promise<Size | null> {
  * refused poll, which ends the polling, removes it too.
  *
  * A poll refused with 410 `room_deleted` (the Build's Judge room was deleted), or a session start refused with it or
- * with 404 `room_not_found`, is handed to `onGone`, which replaces the page body with that Room's card.
+ * with 404 `room_not_found`, is handed to `onGone`, which replaces the page body with that Room's card; a poll refused
+ * with 404 `job_not_found` (a link no Build has) is handed to it as `room_not_found`, the unknown-room card.
  */
 export function buildScreen(
   jobId: string,
@@ -310,6 +311,7 @@ export function buildScreen(
             hideStrip() // polling ends here, so the strip's "catches up" line would no longer hold
             const gone = roomGone(error)
             if (gone !== null) onGone(gone)
+            else if (error instanceof RequestFailed && error.code === 'job_not_found') onGone('room_not_found')
             return
           }
           missed += 1

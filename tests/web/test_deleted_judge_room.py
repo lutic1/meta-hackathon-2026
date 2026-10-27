@@ -153,3 +153,31 @@ def test_every_pair_the_cards_and_the_strip_draw_is_in_the_contrast_table_and_pa
     assert contrast(_hex(PROPS["on-lamp"])[0], _hex(PROPS["lamp"])[0]) >= 4.5
     # The two-tone ring around "Go to the demo rooms" sits on chrome-raised: 3:1 for non-text.
     assert contrast(_hex(PROPS["focus-ring"])[0], _hex(PROPS["chrome-raised"])[0]) >= 3
+
+
+# --- Gone sessions and unknown builds ---------------------------------------------------------------------------------
+
+
+def test_an_unknown_build_shows_the_unknown_room_card():
+    from src.api.errors import JobNotFound
+
+    assert (JobNotFound.status, JobNotFound.code) == (404, "job_not_found")
+    progress = _code("build-progress.ts")
+    poll = progress.split("async function poll(): Promise<void> {", 1)[1].split("\n      }\n", 1)[0]
+    # #/build/<job_id> for an id no record names: the unknown-room card, never the pending Stage list left polling.
+    assert "else if (error instanceof RequestFailed && error.code === 'job_not_found') onGone('room_not_found')" in poll
+
+
+def test_a_session_the_server_no_longer_holds_shows_the_session_gone_state_with_start_again():
+    from src.api.errors import SessionNotFound
+
+    assert (SessionNotFound.status, SessionNotFound.code) == (404, "session_not_found")
+    shell = _code("shell.ts")
+    render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
+    # A cold load of #/play/<id> or #/done/<id> the server refuses: the Session-gone line with "Start again", which
+    # goes to #/ since the refusal names no Room to start again; the second Triggers window stays empty.
+    assert "else if (name !== 'triggers') content = { name: 'gone', profile: place.profile }" in render
+    body = shell.split("if (content.name === 'gone') {", 1)[1].split("\n  }\n", 1)[0]
+    assert "element.classList.add('session-gone-layout')" in body
+    assert "playEnded(() => {" in body and "location.hash = placeHref({ route: { name: 'home' }, profile })" in body
+    assert _rules("shell.css")[".session-gone-layout"]["position"] == "relative"
