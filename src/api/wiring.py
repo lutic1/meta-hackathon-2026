@@ -35,6 +35,14 @@ starts every job a stopped process left `queued` or `running`; and
 terminal Build (AD-9). `session_clock` is the one place `DEMO_TIMESCALE`
 reaches a clock and `build_clock` never sees it (AD-10).
 
+`trickster_source` resolves the Trickster's proposal source from
+`DEMO_TRICKSTER` through the source table in `src/council/trickster.py`
+(AD-15), over the root holding `proposals/` (the repo root, beside `src/`):
+`scripted` replays the recorded-proposals artifact and `authored` (cut 1)
+the pre-authored file, each read when a window asks; `live` and `record`
+resolve no source until the live source registers in 4.8, so their windows
+yield no proposal.
+
 `access_guard` is the hosted access check on `POST /builds`,
 `GET /builds/<job_id>/room` and `POST /access/check` (AD-9): in hosted mode
 it first counts the attempt against `ACCESS_ATTEMPTS`, refusing one past the
@@ -79,6 +87,7 @@ from pydantic import ValidationError
 
 from src.api.errors import AccessDenied, TooManyAttempts
 from src.config import Settings
+from src.council.trickster import SOURCES, TricksterSource
 from src.domain.ledger import CallKind
 from src.domain.schema import JobId, JobState, Role, Stage
 from src.infra.clocks import BuildClock, SessionClock
@@ -117,6 +126,8 @@ JOBS_DIR = "jobs"
 """Job records live under `rooms/jobs/` (AD-7)."""
 SESSIONS_DIR = "sessions"
 """Session logs live under `rooms/sessions/` (AD-9)."""
+PROPOSALS_ROOT = Path(__file__).resolve().parents[2]
+"""The root the Trickster source table reads `proposals/` under: the repo root, beside `src/`."""
 
 ROLES: tuple[Role, ...] = get_args(Role)
 ROLE_CALLS: dict[Role, tuple[CallKind, float]] = {
@@ -336,6 +347,14 @@ def resume_jobs(jobs: JobStore, runner: JobRunner) -> list[JobId]:
             runner.start(job_id)
             left.append(job_id)
     return left
+
+
+def trickster_source(settings: Settings, root: Path = PROPOSALS_ROOT) -> Callable[[], TricksterSource | None]:
+    """The source `DEMO_TRICKSTER` names in the source table, built over `root` each time a window asks; None while it has no entry (AD-15)."""
+    source = SOURCES.get(settings.demo_trickster)
+    if source is None:
+        return lambda: None  # `live` and `record` register with the live source in 4.8
+    return lambda: source(root)
 
 
 def session_clock(settings: Settings) -> SessionClock:

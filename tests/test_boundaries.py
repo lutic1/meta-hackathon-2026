@@ -321,7 +321,8 @@ def test_the_session_clock_scales_thresholds_and_never_t_ms():
 
 def test_demo_trickster_is_read_only_by_the_proposal_source_and_meta():
     reads = readers(REPO / "src", "demo_trickster")
-    assert "src.api.meta" in reads and set(reads) <= {"src.api.meta", "src.council.trickster"}
+    # Wiring resolves the proposal source from the source table (4.4); nothing else reads the flag.
+    assert "src.api.meta" in reads and set(reads) <= {"src.api.meta", "src.api.wiring", "src.council.trickster"}
 
 
 def test_a_second_demo_timescale_reader_is_named(tmp_path):

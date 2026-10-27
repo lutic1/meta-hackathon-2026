@@ -104,8 +104,31 @@ the three `/builds/<job_id>` reads, distinct from 404 `room_not_found` or
 `job_not_found` for an id no record names (AD-9); the record is read only
 after the Room or job is not found. Every other route is open in both modes. At
 startup the local app exports the ledger and restarts every job left
-`queued` or `running`; the runner exports again after each Build ends (AD-9). The
-Trickster route lands with its story.
+`queued` or `running`; the runner exports again after each Build ends (AD-9).
+
+`POST /sessions/<id>/trickster` runs the configured `TricksterSource`
+(wiring's `trickster_source`) inside an open window, under the session lock
+(AD-4, AD-12): outside an open window it answers 200 with the unchanged
+state, no source call and no event, and a request arriving while the
+source runs waits on the lock and is then served the closed window the
+first one left, so a window yields at most one source call and one card.
+While the source runs the window reads `pending` in the state the session
+serves (`OpenSession.pending`, a mark held with the lock, never an event,
+so replay is unchanged), and `GET /sessions/<id>` returns that state
+without waiting on the lock. The route hands the source the stored Room's
+id, the window index, the `RoomView` of the Effective room and the
+Game-state summary; it mints the edit's `te_` id, judges the proposal live
+with `check_edit` (the bounds, then rules 1 to 9 over `apply_edit`) and
+appends one `trickster_card` carrying the full `TricksterEdit`, which
+closes the window. A source that yields no proposal (another Room, a
+used-up recording, or no source under `live` until 4.8) appends nothing; a
+`ProviderError` or `SpendCapExceeded` appends the skipped card
+`{accepted: false, edit_id: null, reason: provider_unavailable}`, never a
+rejected card or the error envelope (AD-13). The reply is the session
+state, whose `cards` carry only the `TricksterCard` projection (AD-3).
+`GET /sessions/<id>/room` serves the `PlayView` of the session's Effective
+room, the stored Room with the accepted edits in the log folded in; the
+stored Room and `GET /rooms/<room_id>` never change (AD-12).
 """
 
 from __future__ import annotations
@@ -147,10 +170,21 @@ from src.api.errors import (
     handle_validation_error,
 )
 from src.api.meta import disclosure_lines, meta
-from src.api.wiring import ACCESS_HEADER, AccessGuard, hint_phraser, session_clock, wire
+from src.api.wiring import (
+    ACCESS_HEADER,
+    PROPOSALS_ROOT,
+    AccessGuard,
+    hint_phraser,
+    session_clock,
+    trickster_source,
+    wire,
+)
 from src.config import Settings
 from src.council.greeting import Greeting, compose_greeting
-from src.domain.redact import to_build_view, to_play_view
+from src.council.trickster import TricksterProposal, TricksterSource
+from src.domain.edits import check_edit, effective_room
+from src.domain.ledger import SpendCapExceeded
+from src.domain.redact import to_build_view, to_play_view, to_prompt_view
 from src.domain.rungs import (
     RUNG_SPACING_MS,
     TRICKSTER_WINDOW_MS,
@@ -187,8 +221,12 @@ from src.domain.schema import (
     SessionState,
     Stage,
     Thresholds,
+    TricksterCardEvent,
+    TricksterEdit,
+    TricksterWindow,
+    ValidatorResult,
 )
-from src.domain.session import SessionStateMachine
+from src.domain.session import SessionStateMachine, game_state_summary
 from src.infra.clocks import SessionClock
 from src.infra.local import CACHE_ROOT, EXPORTS_ROOT, LEDGER_PATH, ROOMS_ROOT
 from src.infra.modal import ModalHandles, wall_ms
@@ -204,7 +242,7 @@ from src.pipeline.ports import (
     photo_key,
     room_key,
 )
-from src.providers.base import HintPhraser
+from src.providers.base import HintPhraser, ProviderError
 from src.providers.spend import new_ulid
 from src.providers.verbatim import greeting_template
 
@@ -228,6 +266,11 @@ EVENT = TypeAdapter(Event)
 
 Spawn = Callable[[Callable[[], None]], None]
 """Runs a task off the request; the Greeting composer runs through it so the start reply never waits on the Guide model."""
+Sources = Callable[[], TricksterSource | None]
+"""The Trickster source a window asks, as wiring's `trickster_source` resolves it; None while there is none."""
+
+UNCHECKED = ValidatorResult(ok=False, reasons=[])
+"""The verdict a minted edit carries until `check_edit` has judged it."""
 
 log = logging.getLogger("keyframe.sessions")
 
@@ -529,6 +572,45 @@ def new_session_id() -> SessionId:
     return f"sess_{new_ulid()}"
 
 
+def new_edit_id() -> str:
+    """A fresh `te_` ULID, minted in server code whatever the source supplied (AD-18)."""
+    return f"te_{new_ulid()}"
+
+
+def judged_card(room: Room, state: SessionState, proposal: TricksterProposal) -> Callable[[Milliseconds], Event]:
+    """The `trickster_card` for a proposal in `state`'s window, judged live over the Effective `room` (AD-12).
+
+    The edit gets a fresh `te_` id and the verdict `check_edit` computes; an
+    accepted card raises `room_revision` by one, a rejected one carries its
+    first failing rule in `reason`.
+    """
+    window = state.trickster_window.index or 0
+    draft = TricksterEdit(
+        id=new_edit_id(), type=proposal.type, puzzle=proposal.puzzle, payload=proposal.payload,
+        validator_result=UNCHECKED, accepted=False, window=window,
+    )
+    result = check_edit(room, state, draft)
+    edit = draft.model_copy(update={"validator_result": result, "accepted": result.ok})
+    return lambda t_ms: TricksterCardEvent(
+        type="trickster_card",
+        edit_id=edit.id,
+        edit=edit,
+        puzzle_id=edit.puzzle,
+        accepted=result.ok,
+        reason=None if result.ok else result.reasons[0].rule,
+        room_revision=state.room_revision + int(result.ok),
+        t_ms=t_ms,
+    )
+
+
+def skipped_card(state: SessionState) -> Callable[[Milliseconds], Event]:
+    """The card a provider error or the Spend cap leaves: no edit, `provider_unavailable`, `room_revision` unchanged (AD-4)."""
+    return lambda t_ms: TricksterCardEvent(
+        type="trickster_card", edit_id=None, edit=None, puzzle_id=None, accepted=False,
+        reason="provider_unavailable", room_revision=state.room_revision, t_ms=t_ms,
+    )
+
+
 @dataclass(slots=True)
 class OpenSession:
     """One session's transient request state: its machine over the Effective room, its lock, its start, its Disclosure list and its Derived block."""
@@ -541,6 +623,8 @@ class OpenSession:
     """The Room's Disclosure list, composed when the session started (AD-15)."""
     derived: Derived
     """The block the thresholds came from (`Derived.fresh()` unless greeted), the Guide port's one input beside a Rung."""
+    pending: SessionState | None = None
+    """The state served while the Trickster source runs, its window `pending`; set and cleared under the lock, never logged."""
 
 
 class OpenSessions:
@@ -582,6 +666,7 @@ def session_routes(
     *,
     demo: bool,
     greets: bool,
+    trickster: Sources = lambda: None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     open_sessions = OpenSessions()
@@ -690,7 +775,10 @@ def session_routes(
 
     @router.get("/{session_id}")
     def get_session(session_id: str) -> SessionState:
+        """The replayed state, with an `idle_tick` once due; while the Trickster source runs, its `pending` state without waiting."""
         session = open_sessions.get(session_id)
+        if (pending := session.pending) is not None:
+            return pending
         with session.lock:
             log_ = events(session_id)
             last_ms = log_[-1].t_ms if log_ else 0
@@ -710,6 +798,41 @@ def session_routes(
             log_ = events(session_id)
             state = append(session_id, session, log_, lambda t_ms: EVENT.validate_python({**body.model_dump(), "t_ms": t_ms}))
             return state.model_copy(update={"hint_reply": hint_reply(session, state)}) if hint else state
+
+    @router.post("/{session_id}/trickster")
+    def post_trickster(session_id: str) -> SessionState:
+        """One source call and one card per open window, under the session lock; outside one, the unchanged state."""
+        session = open_sessions.get(session_id)
+        with session.lock:
+            log_ = events(session_id)
+            state = session.machine.replay(session_id, log_)
+            window = state.trickster_window
+            if window.state != "open" or window.index is None:
+                return served(session, state)
+            pending = state.model_copy(update={"trickster_window": TricksterWindow(state="pending", index=window.index)})
+            session.pending = served(session, pending)
+            try:
+                room = effective_room(session.machine.room, log_)
+                summary = game_state_summary(state, max(0, clock.now_ms() - session.started_ms))
+                source = trickster()
+                try:
+                    proposal = None if source is None else source.propose(
+                        session.machine.room.id, window.index, to_prompt_view(room), summary
+                    )
+                except (ProviderError, SpendCapExceeded) as exc:
+                    log.warning(json.dumps({"session_id": session_id, "event": "trickster_skipped", "error": type(exc).__name__}))
+                    return append(session_id, session, log_, skipped_card(state))
+                if proposal is None:
+                    return served(session, state)
+                return append(session_id, session, log_, judged_card(room, pending, proposal))
+            finally:
+                session.pending = None
+
+    @router.get("/{session_id}/room")
+    def get_session_room(session_id: str) -> PlayView:
+        """The Effective room as `PlayView`: accepted edits folded in, any Decoy an unflagged evidence card (AD-3, AD-12)."""
+        session = open_sessions.get(session_id)
+        return to_play_view(effective_room(session.machine.room, events(session_id)))
 
     @router.get("/{session_id}/result")
     def get_result(session_id: str) -> RoomResult:
@@ -748,6 +871,8 @@ def create_app(
     exports_root: Path = EXPORTS_ROOT,
     cache_root: Path = CACHE_ROOT,
     today: Callable[[], date] = date.today,
+    proposals_root: Path = PROPOSALS_ROOT,
+    trickster: Sources | None = None,
 ) -> FastAPI:
     """The app over the adapters `wire` selects; routes are registered before the static mount so `/api/` wins.
 
@@ -761,7 +886,9 @@ def create_app(
     functions wiring builds over the per-role providers (tests pass
     doubles); `access_clock`, Unix milliseconds, times the hosted access
     attempts; the paths and `today` let tests keep the ledger, its exports
-    and the cache out of the repo.
+    and the cache out of the repo. `proposals_root` is where the Trickster
+    source table reads `proposals/`, and `trickster` replaces the source
+    wiring resolves from `DEMO_TRICKSTER` (tests pass doubles).
     """
     wired = wire(
         settings,
@@ -814,6 +941,7 @@ def create_app(
             settings,
             demo=settings.demo_timescale > 1,
             greets=wired.greets,
+            trickster=trickster or trickster_source(settings, proposals_root),
         )
     )
     app.include_router(unknown_api_routes())

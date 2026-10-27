@@ -308,6 +308,7 @@ def test_no_route_or_settings_flag_injects_play_or_build_output(tmp_path: Path, 
         "/api/meta": ["get"], "/api/schema": ["get"], "/api/rooms": ["get"], "/api/rooms/{room_id}": ["get"],
         "/api/rooms/{room_id}/photos/{index}": ["get"], "/api/profile/{name}": ["get", "put"], "/api/sessions": ["post"],
         "/api/sessions/{session_id}": ["get"], "/api/sessions/{session_id}/events": ["post"], "/api/sessions/{session_id}/result": ["get"],
+        "/api/sessions/{session_id}/trickster": ["post"], "/api/sessions/{session_id}/room": ["get"],
         "/api/builds": ["post"], "/api/builds/{job_id}": ["get"], "/api/builds/{job_id}/room": ["get"],
         "/api/builds/{job_id}/view": ["get"],
     }
