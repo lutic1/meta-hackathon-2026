@@ -6,6 +6,9 @@ the same bytes always render the same request, which the AD-6 cache key and
 the AD-16 prompt hash rely on. The photos travel as `images`, never inside a
 message, and the adapter owns the HTTP. Candidates come back
 without ids, correlated by list position; the segment stage mints `ix_` ids.
+A reply off the response shape is a `malformed` `ProviderError` (AD-13) with
+a fixed message, so a Build ends `failed` with code `provider_error` and
+`validation_error` keeps its meaning: a draft the Validator sent back.
 """
 
 from __future__ import annotations
@@ -13,8 +16,10 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
+import pydantic
+
 from src.domain.schema import ArchitectResponse, JobId, Stage
-from src.providers.base import ChatMessage, ChatResponse, ModelProvider, ReasoningEffort
+from src.providers.base import ChatMessage, ChatResponse, ModelProvider, ProviderError, ReasoningEffort
 
 REASONING_EFFORT: ReasoningEffort = "low"
 
@@ -52,7 +57,11 @@ def prompt_hash() -> str:
 
 @dataclass(frozen=True)
 class ArchitectPrompt:
-    """The `chat` arguments of the one vision call; `send` makes it and parses the reply, keeping the reply for its receipt."""
+    """The `chat` arguments of the one vision call; `send` makes it and parses the reply, keeping the reply for its receipt.
+
+    A reply that does not parse as the response schema raises `ProviderError(200, "malformed", ...)`
+    quoting nothing from the reply, as `meta_api.py` does for a malformed sam-3.1 reply.
+    """
 
     messages: list[ChatMessage]
     images: list[bytes]
@@ -70,7 +79,11 @@ class ArchitectPrompt:
             job_id=job_id,
             stage=stage,
         )
-        return self.response_schema.model_validate_json(reply.text), reply
+        try:
+            response = self.response_schema.model_validate_json(reply.text)
+        except pydantic.ValidationError:
+            raise ProviderError(200, "malformed", "the Architect reply did not follow the response shape") from None
+        return response, reply
 
 
 def build_architect_prompt(photos: list[bytes]) -> ArchitectPrompt:

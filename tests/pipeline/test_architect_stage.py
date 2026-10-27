@@ -74,6 +74,27 @@ def test_a_provider_error_ends_the_build_failed_at_architect(jobs, artifacts, ti
         read_architect(failed.room_id, artifacts)
 
 
+NO_CONFIDENCE = {k: v for k, v in candidate("brass key").items() if k != "confidence"}
+BAD_REPLIES = {
+    "missing_field": json.dumps({"candidates": [NO_CONFIDENCE, *labels(5)]}),
+    "out_of_range": json.dumps({"candidates": [candidate("brass key", confidence=1.5), *labels(5)]}),
+    "not_json": "Here are the objects I found: a brass key and a row of books.",
+}
+
+
+@pytest.mark.parametrize("reply", BAD_REPLIES.values(), ids=BAD_REPLIES.keys())
+def test_a_reply_off_the_response_shape_ends_the_build_failed_at_architect_as_a_provider_error(jobs, artifacts, ticker, doubles, uploads, reply):
+    architect = MockProvider("architect", MockScript(chat=[reply]))
+    build = build_over(jobs, artifacts, ticker, doubles, architect=architect, segmenter=Segmenter(MASKS))
+    failed = build.run(build.submit(uploads).id)
+    assert (failed.status, failed.stage, failed.error.code) == ("failed", "architect", "provider_error")
+    assert failed.error.message == "200 malformed: the Architect reply did not follow the response shape"
+    assert "input_value" not in failed.error.message and "brass key" not in failed.error.message
+    assert doubles.calls == [] and [r.stage for r in failed.stages] == ["ingest"]
+    with pytest.raises(KeyError):
+        read_architect(failed.room_id, artifacts)
+
+
 def test_the_15_s_budget_is_measured_from_the_build_clock_and_never_enforced(jobs, artifacts, ticker, doubles, uploads):
     class Slow(MockProvider):
         def chat(self, *args, **kwargs):
