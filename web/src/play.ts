@@ -15,6 +15,7 @@ import { currentPlace, placeHref } from './router.ts'
 import { type RoomGone, roomGone, showRoomGone } from './room-gone.ts'
 import { lastShownPhoto, mountScene } from './scene/index.ts'
 import { strings } from './strings.ts'
+import { tricksterRequest } from './trickster-request.ts'
 import { type UseOnSelection, useOnSelection } from './use-on.ts'
 import { mountWelcome, playHasBegun } from './welcome.ts'
 
@@ -98,7 +99,8 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * Scene changes, and lock outcomes are announced in the live region. The Triggers toggle under the hint controls shows why each Rung
  * arrived, its panel open from the start when the session loads with a Disclosure active. "Leave room" beside it, or
  * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
- * confirming goes to `#/` and records no Room result. Once a state
+ * confirming goes to `#/` and records no Room result. A state that shows a Trickster window open asks for its
+ * proposal once (`tricksterRequest`), and the Card arrives in the Hint area through the poll. Once a state
  * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
  * replacing the Play route and its Back guard in the history (`LeaveRoom.exit`); an Exit already open when the screen mounts has no Open state, so it routes
  * at once.
@@ -180,6 +182,8 @@ export function mountPlay(
     openingLine: null,
     useOn: useOnSelection(),
   }
+
+  parts.push(tricksterRequest(session.id, session))
 
   let polling = false
   async function poll(): Promise<void> {
@@ -277,10 +281,8 @@ export function mountPlay(
       held.render(latest)
       notes.render(latest)
       hints = hintArea(view, play, frame.guide, notes.openedRungs)
-      const tray = hints.element
-      const triggers = triggersPanel(view, latest, currentPlace().profile, (open) => {
-        tray.classList.toggle('is-triggers-open', open)
-      })
+      const area = hints
+      const triggers = triggersPanel(view, latest, currentPlace().profile, (open) => area.triggersOpen(open))
       hints.triggers.append(triggers.element)
       sideColumn.append(hints.element)
       triggers.reveal() // opened on load with a Disclosure active: the newest row in view now the list can scroll

@@ -176,3 +176,11 @@ export function getProfile(name: string): Promise<Profile> {
 export function putProfile(name: string, body: Profile | Blob): Promise<Profile> {
   return putJson<Profile>(`/profile/${encodeURIComponent(name)}`, body)
 }
+
+/**
+ * `POST /sessions/<id>/trickster`: asks for the open Trickster window's proposal, which the server judges and logs as
+ * a card (AD-4, AD-12); outside an open window it answers the unchanged state. The body is an empty object.
+ */
+export function postTrickster(sessionId: string): Promise<SessionState> {
+  return postJson<SessionState>(`/sessions/${encodeURIComponent(sessionId)}/trickster`, {})
+}

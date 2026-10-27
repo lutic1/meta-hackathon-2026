@@ -1,13 +1,13 @@
 // Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75);
 // a few lines EXPERIENCE.md gives only in Component Patterns (the Stored Room row, the Wizard portrait's speaker
-// prefixes, the Build view rows and its JSON toggle, the Code field's Submit) or State Patterns (the Build view states, the Completion
+// prefixes, the Build view rows and its JSON toggle, the Code field's Submit, a Trickster card's "Dismiss card") or State Patterns (the Build view states, the Completion
 // screen's error line). EXPERIENCE.md words no Scene loading line, no thumbnail name and no Timer end status, so the loading line reuses the "Setting
 // the scene" stage name, a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and
 // the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory,
 // the Wizard notes and the Hint area take their component names as their accessible names. A `{name}` placeholder stands where
 // the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
-// Component Patterns, names its placeholders as that row does. The live-region lines for lock outcomes are worded
-// only in the Accessibility Floor, and the Narrow-screen message only in Responsive & Platform. The Leave room
+// Component Patterns, names its placeholders as that row does. The live-region lines for lock outcomes and Cards are
+// worded only in the Accessibility Floor, and the Narrow-screen message only in Responsive & Platform. The Leave room
 // confirmation's one line is its heading (the question) over its sentence. The Triggers header is its Voice and
 // Tone line split after "idle", where the threshold's 1× value goes at a Demo timescale above 1, as in "Nudge after
 // 15 s idle (90 s at 1×) …". The cut-2 controls and their line are worded only in the Information Architecture's
@@ -252,6 +252,30 @@ export const strings = {
   ownLink: 'This build has its own link; close this tab or play a demo room meanwhile.',
   targetMeasured: 'The two-minute build target is measured in Local mode on the Mac; here the timer also counts any time in the queue.',
   judgeBuildRetry: 'Trying again uses one of the remaining judge builds.',
+  tricksterVoice: 'I like to move things around. The Validator keeps me honest, sadly.',
+  cardDecoy: 'A new evidence card has appeared. I do love a crowded desk.',
+  cardMerge: 'One puzzle now waits on another. Patience builds character; I build locks.',
+  cardLoosen: "The Guide is feeling generous: a hint just opened early. Don't tell anyone I allowed it.",
+  cardShortcut: 'One puzzle no longer waits on another, so it may turn up sooner. Solving it is still on you.',
+  cardRejected: "The Validator says that wouldn't be fair. Spoilsport.",
+  cardSkipped: "I'm keeping quiet this time. Enjoy it while it lasts.",
+  validatorPassed: 'Validator passed · {type} · Puzzle {n}',
+  validatorRefused: 'Validator refused · {type} · Puzzle {n}',
+  skipped: 'Skipped',
+  decoy: 'Decoy',
+  merge: 'Merge',
+  loosen: 'Loosen',
+  shortcut: 'Shortcut',
+  proposed: 'Proposed: {summary}',
+  proposedDecoy: 'a false evidence card for Puzzle {n}',
+  proposedMerge: 'Puzzle {n} waits on Puzzle {m}',
+  proposedLoosen: 'open the next hint on Puzzle {n} early',
+  proposedShortcut: 'Puzzle {n} stops waiting on Puzzle {m}',
+  changeRefused: 'That change was refused. {message}',
+  moreInCardLog: '{n} more in the Card log',
+  dismissCard: 'Dismiss card',
+  cardAnnouncement: 'The Trickster: {sentence} {outcome label}.',
+  firstCardAnnouncement: 'The Trickster. {role line} {voice line} {sentence} {outcome label}.',
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

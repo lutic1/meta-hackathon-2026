@@ -1,16 +1,21 @@
 import './hint-area.css'
-import type { HintReply, Meta, PlayView, RungChangeEvent, SessionState } from '../../types'
+import type { HintReply, Meta, PlayView, RungChangeEvent, SessionState, TricksterCard } from '../../types'
 import { fadeIn } from '../fade.ts'
 import { announce } from '../live-region.ts'
 import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
 import { speakerPrefix, wizardPortrait } from '../wizards/portrait.ts'
 import { primaryButton } from './button.ts'
+import { cardAnnouncement, cardText, tricksterCard } from './trickster-card.ts'
+import { OPEN_HOLD_MS } from './wizard-notes.ts'
 
 /** The arrival glow lights for this long and fades by `--motion-hover` each way: 300 ms in all (DESIGN.md Motion). */
 export const GLOW_MS = 150
 /** Under reduced motion the lit ring is held this long, with no animation (NFR-14). */
 export const GLOW_REDUCED_MS = 2000
+
+/** At most this many Cards stack in the Hint area; only the newest while the Triggers panel is open (UX-DR30). */
+export const CARDS_STACKED = 2
 
 /** The label of each Rung, by its number: 0 is the No-hint line, labelled with its Puzzle alone. */
 const RUNG_LABELS = [strings.puzzleHeading, strings.rungNudge, strings.rungDirection, strings.rungNearAnswer]
@@ -48,6 +53,8 @@ export interface HintArea {
   opening: (line: string) => void
   /** The slot under the helper line that holds the Triggers toggle and its panel. */
   triggers: HTMLElement
+  /** The Triggers panel opened or closed: the tray may grow past its cap, and only the newest Card stacks. */
+  triggersOpen: (open: boolean) => void
 }
 
 /** `--motion-state` in ms as the page resolves it now ("200ms" or ".2s"): 200, or 0 under reduced motion. */
@@ -83,6 +90,15 @@ function paragraph(className: string): HTMLParagraphElement {
  * a reply the player asked for never glows. The line the Rung line no longer shows moves into its Puzzle's opened
  * Rungs, through `onOpened`. The first state is only read: the latest `rung_change`, else the opening line, is drawn
  * without a fade, a glow or an announcement, so a reload rebuilds the Rungs and re-announces nothing.
+ *
+ * Trickster cards (FR-19, UX-DR40 to UX-DR42) stack above the Rung line, newest on top: at most `CARDS_STACKED`, only
+ * the newest while the Triggers panel is open, the rest behind "{n} more in the Card log". Each new entry of the
+ * state's `cards[]` (the `TricksterCard` projection) enters with a 200 ms fade once the lock-open state has played out
+ * (the Open chip's `OPEN_HOLD_MS`, then the entry collapse and the next Puzzle's fade-in; a collected item's fade-in
+ * starts with the state and ends sooner), and is written once to the live region. A Card stays until dismissed;
+ * dismissing it moves focus to the Card now in its place, else the one above, else the hint field. The Session's
+ * first Card carries the Trickster's introduction. Cards already in the first state are never stacked, so after a
+ * reload none is re-stacked or announced and the introduction never shows again.
  */
 export function hintArea(
   room: PlayView,
@@ -108,7 +124,12 @@ export function hintArea(
   const said = paragraph('rung-text wizard-line')
   words.append(label, thinking, said)
   rungLine.append(portrait, words)
-  upper.append(rungLine)
+  const stack = document.createElement('div')
+  stack.className = 'hint-cards'
+  stack.hidden = true
+  const more = paragraph('hint-more body-sm')
+  more.hidden = true
+  upper.append(stack, more, rungLine)
 
   const lower = document.createElement('div')
   lower.className = 'hint-lower'
@@ -144,6 +165,16 @@ export function hintArea(
   let heard = latest.rung_changes.length
   let version = 0
   let glowing: ReturnType<typeof setTimeout> | undefined
+  /** How many `cards` have arrived; only those after it are new, so the first state stacks none. */
+  let cardsHeard = latest.cards.length
+  /** How many locks were open; a newly open lock holds new Cards until its lock-open state has played out. */
+  let locksSeen = latest.locks_open.length
+  let holding: ReturnType<typeof setTimeout> | undefined
+  /** Cards that arrived while a lock-open state plays out, oldest first, each marked when it is the Session's first. */
+  const waiting: { card: TricksterCard; first: boolean }[] = []
+  /** The Cards in the Hint area, oldest first, each until it is dismissed. */
+  const held: HTMLElement[] = []
+  let triggersShown = false
 
   function changeLine(change: RungChangeEvent): Line {
     const n = place(change.puzzle_id)
@@ -217,8 +248,73 @@ export function hintArea(
     }
   }
 
+  /**
+   * Shows the newest held Cards, newest on top, and counts the rest behind "{n} more in the Card log". Only Cards
+   * that change place are inserted or removed, so a Card that keeps its place keeps focus.
+   */
+  function restack(): void {
+    const shown = held.slice(-(triggersShown ? 1 : CARDS_STACKED)).reverse()
+    shown.forEach((card, index) => {
+      if (stack.children[index] !== card) stack.insertBefore(card, stack.children[index] ?? null)
+    })
+    while (stack.children.length > shown.length) stack.lastElementChild?.remove()
+    stack.hidden = shown.length === 0
+    const rest = held.length - shown.length
+    more.textContent = fill(strings.moreInCardLog, { n: rest })
+    more.hidden = rest === 0
+  }
+
+  function dismiss(card: HTMLElement): void {
+    const at = [...stack.children].indexOf(card)
+    held.splice(held.indexOf(card), 1)
+    card.remove()
+    restack()
+    const next = stack.children[at] ?? stack.lastElementChild
+    if (next instanceof HTMLElement) next.focus()
+    else field.focus()
+  }
+
+  /** Stacks every waiting Card, each fading in and written once to the live region; nothing while a lock-open plays. */
+  function enter(): void {
+    if (holding !== undefined || waiting.length === 0) return
+    const arrived = waiting.splice(0).map(({ card, first }) => {
+      const text = cardText(room, card)
+      const made = tricksterCard(text, first, () => dismiss(made))
+      held.push(made)
+      return { made, line: cardAnnouncement(text, first) }
+    })
+    restack()
+    upper.scrollTop = 0 // the newest Card is on top
+    for (const { made } of arrived) if (made.isConnected) fadeIn(made)
+    announce(arrived.map(({ line }) => line).join(' '))
+  }
+
+  /** Holds new Cards for the lock-open state: the Open chip, then the entry collapse and the next Puzzle's fade-in. */
+  function hold(): void {
+    clearTimeout(holding)
+    holding = setTimeout(() => {
+      holding = undefined
+      if (element.isConnected) enter()
+    }, OPEN_HOLD_MS + stateFadeMs())
+  }
+
+  function receiveCards(state: SessionState): void {
+    if (state.locks_open.length > locksSeen) hold()
+    locksSeen = state.locks_open.length
+    state.cards.slice(cardsHeard).forEach((card, index) => waiting.push({ card, first: cardsHeard + index === 0 }))
+    cardsHeard = state.cards.length
+    enter()
+  }
+
+  function triggersOpen(open: boolean): void {
+    triggersShown = open
+    element.classList.toggle('is-triggers-open', open)
+    restack()
+  }
+
   function render(state: SessionState): void {
     latest = state
+    receiveCards(state)
     const n = place(state.active_puzzle_id)
     field.setAttribute('aria-label', n === null ? strings.askTheGuide : fill(strings.hintFieldLabel, { n }))
     const arrived = state.rung_changes.slice(heard)
@@ -239,5 +335,5 @@ export function hintArea(
   else if (play.openingLine !== null) draw({ label: null, text: play.openingLine, shown: null })
   else think(false)
 
-  return { element, render, opening, triggers }
+  return { element, render, opening, triggers, triggersOpen }
 }

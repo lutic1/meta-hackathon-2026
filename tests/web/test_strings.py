@@ -22,17 +22,17 @@ def _strings() -> dict[str, str]:
 COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "speakerGuide", "speakerTrickster",
                            "back", "regenerations", "attemptSentBack", "validatorDid", "museImage", "museImageModel",
                            "museImageDid", "guideWritten", "trickster", "submit", "graphNode", "requiresNone",
-                           "exit", "guideIntroduction", "showBuildJson"}
+                           "exit", "guideIntroduction", "showBuildJson", "dismissCard"}
 """Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list, the Wizard
 portrait's speaker prefixes, the Build view rows and its JSON toggle, the Code field's Submit, the puzzle graph node's name, the
-First-room welcome's live-region text)."""
+First-room welcome's live-region text, a Trickster card's dismiss control)."""
 
 STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed", "resultLoadFailed"}
 """Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states, the Completion
 screen's error state)."""
 
-ACCESSIBILITY_FLOOR_ONLY = {"lockNotThis", "lockOpen"}
-"""Lines EXPERIENCE.md words only in the Accessibility Floor (the live-region lines for lock outcomes)."""
+ACCESSIBILITY_FLOOR_ONLY = {"lockNotThis", "lockOpen", "cardAnnouncement", "firstCardAnnouncement"}
+"""Lines EXPERIENCE.md words only in the Accessibility Floor (the live-region lines for lock outcomes and Cards)."""
 
 RESPONSIVE_ONLY = {"narrowHeading", "narrowBody"}
 """Lines EXPERIENCE.md words only in Responsive & Platform (the Narrow-screen message's heading and body)."""

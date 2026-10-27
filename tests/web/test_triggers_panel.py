@@ -61,8 +61,8 @@ def test_the_toggle_sits_under_the_hint_controls_collapsed_unless_a_disclosure_i
     # In the Hint area's pinned lower part, after the helper line, drawn from every state the Play screen receives.
     assert "lower.append(ask, helper, triggers)" in _ts("components/hint-area.ts")
     assert "hints.triggers.append(triggers.element)" in play and "parts.push(triggers.render)" in play
-    assert "triggersPanel(view, latest, currentPlace().profile, (open) => {" in play
-    assert "tray.classList.toggle('is-triggers-open', open)" in play
+    assert "triggersPanel(view, latest, currentPlace().profile, (open) => area.triggersOpen(open))" in play
+    assert "element.classList.toggle('is-triggers-open', open)" in _ts("components/hint-area.ts")
     rules = _rules("components/triggers-panel.css")
     assert rules[".triggers-toggle"]["align-self"] == "flex-start"
 

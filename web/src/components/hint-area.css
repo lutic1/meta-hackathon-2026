@@ -131,3 +131,18 @@
 .hint-triggers:empty {
   display: none;
 }
+
+/* Trickster cards stack above the Rung line, newest on top; the count of older ones under them is plain. */
+.hint-cards {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+.hint-cards[hidden] {
+  display: none;
+}
+.hint-more {
+  margin: 0;
+  color: var(--text-muted);
+}
