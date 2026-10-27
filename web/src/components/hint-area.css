@@ -1,0 +1,112 @@
+/* {components.hint-area}: a chrome-raised tray pinned under the Wizard notes, 16 px padding, rounded lg, up to
+   hint-area-max; its upper part scrolls inside it, its lower part (the hint controls) never does. The arrival glow
+   lights its edge with the portrait's ring. */
+.hint-area {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  max-height: var(--spacing-hint-area-max);
+  padding: var(--spacing-4);
+  border-radius: var(--rounded-lg);
+  background: var(--chrome-raised);
+  color: var(--text);
+  transition: box-shadow var(--motion-hover) var(--motion-ease);
+}
+.hint-area.is-glowing {
+  box-shadow: var(--elevation-lamp-glow);
+}
+.hint-upper {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-height: 0;
+  overflow-y: auto;
+}
+.hint-upper:not(:has(> :not([hidden]))) {
+  display: none;
+}
+
+/* {components.rung-line}: the Guide portrait (48 px) left; the label in label lamp, the line in wizard-line text. */
+.rung-line {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  column-gap: var(--spacing-3);
+  align-items: start;
+}
+.rung-line[hidden] {
+  display: none;
+}
+.rung-line-words {
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+.rung-line-words.is-leaving,
+.rung-line-words.is-arriving {
+  opacity: 0;
+}
+.rung-label,
+.rung-thinking,
+.rung-text {
+  margin: 0;
+}
+.rung-label {
+  margin-bottom: 2px;
+  color: var(--lamp);
+}
+/* Guide thinking (Local only): the static lamp ring in place of the gilt one and the label in pending; no pulse. */
+.rung-thinking {
+  color: var(--pending);
+}
+.rung-line .wizard-portrait {
+  transition:
+    border-color var(--motion-hover) var(--motion-ease),
+    box-shadow var(--motion-hover) var(--motion-ease);
+}
+.rung-line.is-thinking .wizard-portrait {
+  border-color: var(--lamp);
+}
+.hint-area.is-glowing .rung-line .wizard-portrait {
+  border-color: var(--lamp);
+  box-shadow: var(--elevation-lamp-glow);
+}
+
+/* The pinned lower part: the field and "Ask the Guide" side by side, the helper line, then the Triggers slot. */
+.hint-lower {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.hint-ask {
+  display: flex;
+  gap: var(--spacing-2);
+}
+/* {components.hint-field}: 44 px on chrome, 1 px hairline, rounded md; its text and placeholder in body-sm. */
+.hint-field {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  padding: 0 var(--spacing-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-md);
+  background: var(--chrome);
+  color: var(--text);
+}
+.hint-field::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+.hint-ask > .button-primary {
+  flex: none;
+}
+.hint-helper {
+  margin: 0;
+  color: var(--text-muted);
+}
+.hint-triggers:empty {
+  display: none;
+}

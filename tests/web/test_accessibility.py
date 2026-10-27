@@ -132,7 +132,7 @@ def test_the_first_room_welcome_shows_its_plain_tip_on_the_scrim_under_the_card(
     assert "tip: '{typography.body-sm}'" in overlay and "tipColor: '{colors.text-muted}'" in overlay
 
 
-def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_lock_outcomes_and_reconnecting_line_write_to_it():
+def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_lock_outcomes_reconnecting_and_rung_lines_write_to_it():
     sources = {path: _code(text) for path, text in source_ts().items() if "/types/" not in path}
     assert sum(text.count("aria-live") for text in sources.values()) == 1
     writers = {path for path, text in sources.items() if "announce(" in text and not path.endswith("live-region.ts")}
@@ -142,6 +142,7 @@ def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_lock_outco
         "web/src/lock-outcomes.ts",
         "web/src/build-progress.ts",  # the reconnecting line
         "web/src/play.ts",  # the reconnecting line
+        "web/src/components/hint-area.ts",  # Rung and No-hint lines
     }
     assert "announce(strings.reconnectingBuild)" in sources["web/src/build-progress.ts"]
     assert "announce(strings.reconnectingPlay)" in sources["web/src/play.ts"]

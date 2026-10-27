@@ -3,8 +3,8 @@
 // prefixes, the Build view rows and its JSON toggle, the Code field's Submit) or State Patterns (the Build view states, the Completion
 // screen's error line). EXPERIENCE.md words no Scene loading line, no thumbnail name and no Timer end status, so the loading line reuses the "Setting
 // the scene" stage name, a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and
-// the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory
-// and the Wizard notes take their component names as their accessible names. A `{name}` placeholder stands where
+// the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory,
+// the Wizard notes and the Hint area take their component names as their accessible names. A `{name}` placeholder stands where
 // the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
 // Component Patterns, names its placeholders as that row does. The live-region lines for lock outcomes are worded
 // only in the Accessibility Floor.
@@ -182,6 +182,16 @@ export const strings = {
   roomNotFound: "Keyframe can't find this room",
   roomNotFoundBody: 'Check the link, or start from the beginning.',
   buildARoom: 'Build a room',
+  hintArea: 'Hint area',
+  hintPlaceholder: 'Stuck? Ask the Guide for a hint',
+  askTheGuide: 'Ask the Guide',
+  hintFieldLabel: 'Ask the Guide for a hint on Puzzle {n}',
+  hintHelper: 'Your words stay in this browser. The Guide only hears that you asked.',
+  asking: 'Asking',
+  thinkingOnThisMac: 'thinking on this Mac',
+  rungNudge: 'Puzzle {n} · Nudge',
+  rungDirection: 'Puzzle {n} · Direction',
+  rungNearAnswer: 'Puzzle {n} · Near-answer',
 } as const
 
 /** `template` with each `{name}` (words and spaces, as in `{role line}`) replaced by `values[name]`. */

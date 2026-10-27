@@ -1,11 +1,12 @@
 import './wizard-notes.css'
-import type { PlayPuzzle, PlayView, SessionState } from '../../types'
+import type { PlayPuzzle, PlayView, RungChangeEvent, SessionState } from '../../types'
 import { fadeIn } from '../fade.ts'
 import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
 import { speakerPrefix, wizardPortrait } from '../wizards/portrait.ts'
 import { type CodeField, codeField } from './code-field.ts'
 import { evidenceCard } from './evidence-card.ts'
+import { rungLabel } from './hint-area.ts'
 
 /** UX-DR38: a lock the server opened shows "Open" this long before its entry collapses and the next one appears. */
 export const OPEN_HOLD_MS = 1200
@@ -14,6 +15,8 @@ export interface WizardNotes {
   element: HTMLElement
   /** Draws the notes for `state`: which entries show, their order, the Current marker, open locks, Wrong attempts. */
   render: (state: SessionState) => void
+  /** Draws each Puzzle's opened Rungs: the `rung_changes` the Hint area's Rung line no longer shows (3.4). */
+  openedRungs: (lines: readonly RungChangeEvent[]) => void
 }
 
 interface Entry {
@@ -22,6 +25,8 @@ interface Entry {
   update: (state: SessionState) => void
   /** The lock just opened: the lock input gives way to the Open chip while the entry stays expanded. */
   opening: () => void
+  /** Draws the entry's opened Rungs from all the opened Rungs of the Room. */
+  rungs: (lines: readonly RungChangeEvent[]) => void
 }
 
 /**
@@ -85,7 +90,7 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
   evidence.append(...cards)
   const lore = paragraph('notes-lore lore', speakerPrefix('riddler'), puzzle.lore)
   const rungs = document.createElement('div')
-  rungs.className = 'notes-rungs' // the opened Rungs (3.4)
+  rungs.className = 'notes-rungs' // the opened Rungs
   const lock = document.createElement('div')
   lock.className = 'notes-lock' // the lock input (1.21, 1.26) and its feedback
   const wrong = document.createElement('span')
@@ -120,19 +125,42 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
     lock.replaceChildren(chip)
   }
 
-  return { element, heading, update, opening }
+  let drawnRungs = ''
+  function drawRungs(lines: readonly RungChangeEvent[]): void {
+    const mine = lines.filter((line) => line.puzzle_id === puzzle.id)
+    const key = JSON.stringify(mine.map((line) => [line.rung, line.text]))
+    if (key === drawnRungs) return
+    drawnRungs = key
+    rungs.replaceChildren(
+      ...mine.map((line) => {
+        const opened = document.createElement('div')
+        opened.className = 'notes-rung'
+        const words = document.createElement('div')
+        words.append(
+          paragraph('notes-rung-label label', rungLabel(n, line.rung)),
+          paragraph('wizard-line', speakerPrefix('guide'), line.text),
+        )
+        opened.append(wizardPortrait('guide', 32), words)
+        return opened
+      }),
+    )
+  }
+
+  return { element, heading, update, opening, rungs: drawRungs }
 }
 
 /**
  * The Wizard notes (`{components.wizard-notes}`, FR-11, UX-DR27): a parchment sheet scrolling inside the side
  * column with one entry per Puzzle whose prerequisites are open, in availability order, each headed "Puzzle {n}"
  * (n = its fixed place in the Room) with its evidence count at the right end, then the Riddler's portrait beside the
- * Clue, the Evidence cards in `PlayView` order, the Lore, the opened-Rungs slot and the lock-input slot (the Code
- * field of a `code` Puzzle). The Active puzzle's entry carries the `{components.active-puzzle-marker}`, read from
- * `active_puzzle_id` and never guessed; an open entry collapses to its heading with the Open chip. When a state
- * shows a lock newly open, "Open" takes the lock input's place for 1200 ms (UX-DR38), then the notes draw the latest
- * state: the entry collapses, newly available entries fade in, and focus moves to the heading of the first of them,
- * else of the Active puzzle. Everything follows session state; nothing follows a click.
+ * Clue, the Evidence cards in `PlayView` order, the Lore, the opened Rungs (each a Rung the Hint area's Rung line
+ * showed and gave up, with the Guide's 32 px portrait, its "Puzzle {n} · {Rung name}" label and its line, as
+ * `rung_changes[]` carries it) and the lock-input slot (the Code field of a `code` Puzzle). The Active puzzle's
+ * entry carries the `{components.active-puzzle-marker}`, read from `active_puzzle_id` and never guessed; an open entry
+ * collapses to its heading with the Open chip. When a state shows a lock newly open, "Open" takes the lock input's
+ * place for 1200 ms (UX-DR38), then the notes draw the latest state: the entry collapses, newly available entries
+ * fade in, and focus moves to the heading of the first of them, else of the Active puzzle. Everything follows session
+ * state; nothing follows a click.
  */
 export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   const element = document.createElement('section')
@@ -145,11 +173,13 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   let drawnOpen: readonly string[] | undefined
   let latest: SessionState | undefined
   let holding = false
+  let opened: readonly RungChangeEvent[] = []
 
   function built(puzzle: PlayPuzzle): Entry {
     let made = entries.get(puzzle.id)
     if (made === undefined) {
       made = entry(room, puzzle, room.puzzles.indexOf(puzzle) + 1, play)
+      made.rungs(opened)
       entries.set(puzzle.id, made)
     }
     return made
@@ -201,5 +231,10 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
     }, OPEN_HOLD_MS)
   }
 
-  return { element, render }
+  function openedRungs(lines: readonly RungChangeEvent[]): void {
+    opened = lines
+    for (const made of entries.values()) made.rungs(lines)
+  }
+
+  return { element, render, openedRungs }
 }

@@ -185,7 +185,9 @@ def test_the_live_region_is_one_polite_visually_hidden_region_in_the_page_from_t
     region = _code("live-region.ts")
     assert "region.setAttribute('aria-live', 'polite')" in region
     assert "region.className = 'visually-hidden'" in region and "document.body.append(region)" in region
-    assert "liveRegion().textContent = text" in _function(region, "announce")
+    # Lines written while one state is drawn are heard together, so none overwrites another.
+    assert "liveRegion().textContent = queued.join(' ')" in _function(region, "announce")
+    assert "queueMicrotask(" in _function(region, "announce")
     assert "liveRegion()" in _code("shell.ts")  # inserted by the shell before anything is written to it
     others = [path for path in WEB_SRC.rglob("*.ts") if path.name != "live-region.ts" and "aria-live" in path.read_text()]
     assert others == []

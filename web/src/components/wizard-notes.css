@@ -103,6 +103,25 @@
 .notes-lock:empty {
   display: none;
 }
+/* The opened Rungs: each with the Guide's 32 px portrait beside its label in label ink-muted and its line in
+   wizard-line ink, 8 px apart, like the Clue. */
+.notes-rungs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+.notes-rung {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: var(--spacing-2);
+  align-items: start;
+}
+.notes-rung p {
+  margin: 0;
+}
+.notes-rung-label {
+  color: var(--ink-muted);
+}
 .notes-lock {
   display: flex;
   flex-wrap: wrap;

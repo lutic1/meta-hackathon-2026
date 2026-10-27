@@ -1,6 +1,7 @@
 import type { Meta, PlayView, PostedEvent, SessionState } from '../types'
 import { freshDerived, getRoom, getSession, postEvent, RequestFailed, startSession } from './api/index.ts'
 import { toggleButton } from './components/button.ts'
+import { type HintArea, hintArea } from './components/hint-area.ts'
 import { inventory } from './components/inventory.ts'
 import { noticeCard } from './components/notice-card.ts'
 import { playEnded } from './components/play-ended.ts'
@@ -30,14 +31,15 @@ export interface PlaySession {
   onState: (render: (state: SessionState) => void) => void
   /**
    * The First-room welcome once its card has closed (or when play had already begun): the first Guide line the Hint
-   * area shows (3.4), never announced again. null before "Begin" and for a session opened without a welcome.
+   * area shows, never announced again. null before "Begin" and for a session opened without a welcome.
    */
   openingLine: string | null
 }
 
 /**
  * What the Play screen takes from the shell: the page body and the top bar, which the First-room welcome covers and
- * holds inert, the top bar's controls slot, and the `guide` setting its role line names.
+ * holds inert, the top bar's controls slot, and the `guide` setting its role line names and the Hint area's thinking
+ * state follows.
  */
 export interface PlayFrame {
   body: HTMLElement
@@ -83,8 +85,9 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * Inventory and Wrong attempts from the latest state the server sent: a poll or the reply to a posted event, never
  * its own clicks. A poll sent before a reply that arrived first is stale and dropped. A session opened with a
  * First-room welcome shows its card over the first Scene until "Begin", unless play has already begun; "Begin" keeps
- * the line for the Hint area and moves focus to the first Hotspot. The top bar's "Show all objects" toggle outlines
- * every Hotspot while pressed, across Scene changes, and lock outcomes are announced in the live region. Once a state
+ * the line as the first Guide line of the Hint area, pinned under the Wizard notes, and moves focus to the first
+ * Hotspot. The top bar's "Show all objects" toggle outlines every Hotspot while pressed, across Scene changes, and
+ * lock outcomes are announced in the live region. Once a state
  * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
  * replacing the Play route in the history; an Exit already open when the screen mounts has no Open state, so it routes
  * at once.
@@ -231,6 +234,7 @@ export function mountPlay(
     card.heading.focus()
   }
 
+  let hints: HintArea | undefined
   let leaving: ReturnType<typeof setTimeout> | undefined
   function leaveOnExit(exitId: string, state: SessionState): void {
     if (leaving !== undefined || !state.locks_open.includes(exitId)) return
@@ -251,10 +255,13 @@ export function mountPlay(
       const notes = wizardNotes(view, play)
       stripRow.append(held.element)
       sideColumn.append(notes.element)
-      holdInputs()
       parts.push(held.render, notes.render, lockOutcomes(view, latest))
       held.render(latest)
       notes.render(latest)
+      hints = hintArea(view, play, frame.guide, notes.openedRungs)
+      sideColumn.append(hints.element)
+      holdInputs()
+      parts.push(hints.render)
       const exit = view.puzzles.find((puzzle) => puzzle.is_exit)
       if (exit === undefined) return
       parts.push((state) => leaveOnExit(exit.id, state))
@@ -273,6 +280,7 @@ export function mountPlay(
     else {
       unmountWelcome = mountWelcome(session.id, frame.guide, line, frame.body, [frame.topBar, sceneColumn, sideColumn], () => {
         play.openingLine = line
+        hints?.opening(line)
         unfocus = focusFirstHotspot(sceneColumn)
       })
     }
