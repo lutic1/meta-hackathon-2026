@@ -108,7 +108,7 @@ export function accessCodeBuild(onAccepted: (buildsLeft: number) => void): HTMLE
       showBanner(banners, { ...buildQuota, compact: true })
       return
     }
-    holdAccessCode(code)
+    holdAccessCode(code, answer.builds_left)
     showStatus(status, fill(strings.buildsLeft, { n: answer.builds_left }), true)
     onAccepted(answer.builds_left)
   }

@@ -1,5 +1,5 @@
 import type { Meta, RoomSummary } from '../types'
-import { accessCode } from './access-code.ts'
+import { accessCode, claimJudgeBuild } from './access-code.ts'
 import { postBuild, RequestFailed, type UploadPhoto } from './api/index.ts'
 import { holdPhotos, takeCarriedPhotos } from './build-photos.ts'
 import { buildAccepted, mountTimer, startTimer, stopTimer } from './capture-timer.ts'
@@ -37,7 +37,7 @@ interface ChosenPhoto {
 const FR1_CODES = new Set(['unsupported_image', 'photo_count'])
 
 /** Hosted mode's refusals of `POST /builds` (AD-9): a wrong code, too many attempts, every judge build used. */
-const HOSTED_REFUSALS: ReadonlyMap<string, BannerState> = new Map([
+export const HOSTED_REFUSALS: ReadonlyMap<string, BannerState> = new Map([
   ['access_denied', accessRefused],
   ['too_many_attempts', tooManyTries],
   ['build_quota_exceeded', buildQuota],
@@ -223,6 +223,7 @@ export function captureScreen(
     try {
       const job = await postBuild(pairs, accessCode())
       buildAccepted(job.id)
+      claimJudgeBuild()
       accepted = job.id
       holdPhotos({
         jobId: job.id,

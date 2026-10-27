@@ -1,11 +1,11 @@
 import type { JobState, Meta } from '../types'
-import { accessCode } from './access-code.ts'
+import { accessCode, claimJudgeBuild } from './access-code.ts'
 import { getBuild, photoUrl, postBuild, RequestFailed, startSession } from './api/index.ts'
 import { type EndAction, buildEnd } from './build-end.ts'
-import { carryPhotos, heldPhotos, passPhotos, releasePhotos } from './build-photos.ts'
+import { carryPhotos, heldPhotos, passPhotos, releasePhotos, requestCapture } from './build-photos.ts'
 import { stageRows } from './build-stages.ts'
 import { buildViewLink } from './build-view.ts'
-import { captureColumn } from './capture.ts'
+import { captureColumn, HOSTED_REFUSALS } from './capture.ts'
 import { buildAccepted, buildDequeued, buildEnded, buildQueued, sessionOpened, startTimer } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
 import { type BannerAction, type BannerState, bannerSlot, showBanner } from './components/error-banner.ts'
@@ -211,12 +211,17 @@ export function buildScreen(
         actions.hidden = false
       }
 
+      /** The Capture screen, in Hosted mode too: this tab still holds the Access code its Upload sent. */
       function startOver(): void {
         releasePhotos()
+        requestCapture()
         location.hash = placeHref({ route: { name: 'home' }, profile })
       }
 
-      /** "Try again": the held photos as a new Build, its Timer run from this click; a failed post says so. */
+      /**
+       * "Try again": the held photos as a new Build, its Timer run from this click; a failed post says so, and a Hosted
+       * refusal shows the banner Upload shows for it, with no action, so no click spends another access attempt.
+       */
       async function retry(): Promise<void> {
         if (held === null || retrying) return
         retrying = true
@@ -225,10 +230,12 @@ export function buildScreen(
           const job = await postBuild(held.uploads, accessCode())
           startTimer(t0)
           buildAccepted(job.id)
+          claimJudgeBuild()
           passPhotos(jobId, job.id)
           if (mounted) location.hash = captureHref(job.id, profile)
-        } catch {
-          showBanner(banners, {
+        } catch (error) {
+          const hosted = error instanceof RequestFailed && error.code !== null ? HOSTED_REFUSALS.get(error.code) : undefined
+          showBanner(banners, hosted ?? {
             variant: 'error',
             heading: strings.uploadFailed,
             sentence: strings.uploadFailedBody,

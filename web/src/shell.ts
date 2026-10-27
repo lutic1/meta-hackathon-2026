@@ -1,6 +1,8 @@
 import './shell.css'
 import type { Meta, RoomSummary, SessionState } from '../types'
 import { getMeta, getSession, listRooms, RequestFailed } from './api/index.ts'
+import { judgeBuildsLeft } from './access-code.ts'
+import { requestCapture, takeCaptureRequest } from './build-photos.ts'
 import { buildScreen } from './build-progress.ts'
 import { type BuildViewOptions, type BuildViewState, buildViewSurface, loadBuildView } from './build-view.ts'
 import { captureScreen } from './capture.ts'
@@ -46,7 +48,8 @@ function refused(error: unknown): null {
  * the Hosted landing: it reads `GET /rooms` once, and a failed read shows the landing's own failed state, never the
  * unreachable strip, so the title block stays usable; its "Try again" renders the route afresh. An Access code the
  * landing accepts renders `#/` once more as the Capture screen, with the builds left in place of the Stored Rooms
- * list; any later visit to `#/` ("Build another room", "Leave room") is the Hosted landing again. `#/build/<job_id>`
+ * list, and so does a Build end state's "Add photos" or "Start over" while the tab holds that code; any other visit
+ * to `#/` ("Build another room", "Leave room") is the Hosted landing again. `#/build/<job_id>`
  * holds the global lines, the Timer of that Build and the Capture screen during that Build, in both modes. The top
  * bar's Timer slot shows the run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
  * `#/build/<job_id>/view` waits for `GET /builds/<job_id>/view` once and shows the Build view, ready, not ready or
@@ -65,8 +68,6 @@ export function startShell(root: HTMLElement): void {
   let unmount: (() => void) | undefined
   /** Whether this page load reached its route by an in-app navigation, so "Back" has somewhere to return to. */
   let navigated = false
-  /** The builds left an accepted Access code reported: the next Hosted `#/` render is the Capture screen, once. */
-  let accepted: number | null = null
 
   /** `request` until it answers; undefined once a newer navigation has taken over. */
   async function answered<T>(mine: number, request: () => Promise<T>): Promise<T | undefined> {
@@ -96,6 +97,8 @@ export function startShell(root: HTMLElement): void {
     metas.set(place.profile, meta)
     let disclosure = meta.disclosure
     let content: Content = { name: 'empty' }
+    // Hosted `#/` is the Capture screen once when asked for and this tab holds an Access code, with its builds left.
+    const resumed = place.route.name === 'home' && takeCaptureRequest() ? judgeBuildsLeft() : null
     if (place.route.name === 'view') {
       const state = await loadBuildView(place.route.jobId)
       if (state.name === 'ready') disclosure = state.view.disclosure
@@ -118,13 +121,12 @@ export function startShell(root: HTMLElement): void {
       const rooms = await answered(mine, listRooms)
       if (rooms === undefined) return
       content = { name: 'rooms', rooms, profile: place.profile, mode: meta.mode, retention: meta.retention }
-    } else if (place.route.name === 'home' && accepted !== null) {
-      content = { name: 'capture', buildsLeft: accepted, profile: place.profile, mode: meta.mode, retention: meta.retention }
-      accepted = null
+    } else if (place.route.name === 'home' && resumed !== null) {
+      content = { name: 'capture', buildsLeft: resumed, profile: place.profile, mode: meta.mode, retention: meta.retention }
     } else if (place.route.name === 'home') {
       const rooms = await listRooms().catch(() => null)
-      const onAccepted = (buildsLeft: number): void => {
-        accepted = buildsLeft
+      const onAccepted = (): void => {
+        requestCapture()
         void render()
       }
       content = { name: 'landing', rooms, profile: place.profile, mode: meta.mode, onRetry: () => void render(), onAccepted }

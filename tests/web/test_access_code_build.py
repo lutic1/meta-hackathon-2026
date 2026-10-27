@@ -111,7 +111,7 @@ def test_the_check_posts_the_code_and_maps_every_answer():
     quota = check.split("if (answer.builds_left === 0) {", 1)[1].split("return", 1)[0]
     assert "showBanner(banners, { ...buildQuota, compact: true })" in quota
     accepted = check.split("if (answer.builds_left === 0) {", 1)[1].split("return", 1)[1]
-    assert accepted.index("holdAccessCode(code)") < accepted.index(
+    assert accepted.index("holdAccessCode(code, answer.builds_left)") < accepted.index(
         "showStatus(status, fill(strings.buildsLeft, { n: answer.builds_left }), true)") < accepted.index(
         "onAccepted(answer.builds_left)")
 
@@ -141,11 +141,17 @@ def test_quota_from_the_check_leaves_the_demo_room_cards_active():
 def test_an_accepted_code_opens_the_capture_screen_once_with_no_stored_rooms_list():
     shell = _code("shell.ts")
     render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
-    capture = render.split("} else if (place.route.name === 'home' && accepted !== null) {", 1)[1].split("} else if", 1)[0]
-    assert "content = { name: 'capture', buildsLeft: accepted, profile: place.profile, mode: meta.mode, retention: meta.retention }" in capture
-    assert "accepted = null" in capture  # once: a later visit to `#/` is the landing again
-    on_accepted = render.split("const onAccepted = (buildsLeft: number): void => {", 1)[1].split("}", 1)[0]
-    assert "accepted = buildsLeft" in on_accepted and "void render()" in on_accepted
+    # Once: the request is taken by the next `#/` render, so a later visit to `#/` is the landing again.
+    assert "const resumed = place.route.name === 'home' && takeCaptureRequest() ? judgeBuildsLeft() : null" in render
+    capture = render.split("} else if (place.route.name === 'home' && resumed !== null) {", 1)[1].split("} else if", 1)[0]
+    assert "content = { name: 'capture', buildsLeft: resumed, profile: place.profile, mode: meta.mode, retention: meta.retention }" in capture
+    assert render.index("meta.mode === 'local') {") < render.index("&& resumed !== null) {")  # Local `#/` stays the list
+    on_accepted = render.split("const onAccepted = (): void => {", 1)[1].split("}", 1)[0]
+    assert "requestCapture()" in on_accepted and "void render()" in on_accepted
+    held = _code("build-photos.ts")
+    assert "export function requestCapture(): void {\n  toCapture = true\n}" in held
+    take = _function(held, "takeCaptureRequest")
+    assert "const requested = toCapture" in take and "toCapture = false" in take and "return requested" in take
     assert "const capture = captureScreen(content.buildsLeft, content.profile, content.mode, content.retention, bar.timer)" in shell
     screen = _code("capture.ts")
     assert "typeof below === 'number' ? buildsLeftLine(below) : storedRooms(below, profile, mode, banners)," in screen
@@ -274,9 +280,47 @@ def test_build_another_room_and_a_confirmed_leave_return_to_the_landing_recordin
     assert "showRoomGone(frame.body, gone, frame.mode, currentPlace().profile)" in play
     assert "location.hash = placeHref({ route: { name: 'home' }, profile })" in _code("room-gone.ts")
     assert "putResult" not in play and "putResult" not in _code("leave-room.ts")
-    # A Hosted `#/` with no code just accepted renders the landing, the code still held or not.
+    # A Hosted `#/` that nothing asked to be the Capture screen renders the landing, the code still held or not.
     render = _code("shell.ts").split("async function render()", 1)[1]
     assert "} else if (place.route.name === 'home') {\n      const rooms = await listRooms().catch(() => null)" in render
+    for name in ("completion.ts", "play.ts", "leave-room.ts", "room-gone.ts"):
+        assert "requestCapture" not in _code(name), name
+
+
+# --- Hosted end-state actions ------------------------------------------------------------
+
+
+def test_try_again_maps_the_hosted_refusals_of_post_builds_like_upload():
+    capture = _code("capture.ts")
+    assert "export const HOSTED_REFUSALS: ReadonlyMap<string, BannerState> = new Map([" in capture
+    build = _code("build-progress.ts")
+    assert "import { captureColumn, HOSTED_REFUSALS } from './capture.ts'" in build
+    caught = _function(build, "retry").split("} catch (error) {", 1)[1]
+    assert "const hosted = error instanceof RequestFailed && error.code !== null ? HOSTED_REFUSALS.get(error.code) : undefined" in caught
+    # A refusal shows its own banner, whose actions are none, so "Try again" does not spend another access attempt.
+    shown = caught.split("showBanner(banners, hosted ?? {", 1)[1]
+    assert "heading: strings.uploadFailed" in shown and "onActivate: () => void retry()" in shown
+
+
+def test_hosted_add_photos_and_start_over_reopen_the_capture_screen_while_the_tab_holds_the_code():
+    start_over = _function(_code("build-progress.ts"), "startOver")
+    assert start_over.index("requestCapture()") < start_over.index(
+        "location.hash = placeHref({ route: { name: 'home' }, profile })")
+    holder = _code("access-code.ts")
+    hold = _function(holder, "holdAccessCode")
+    assert "export function holdAccessCode(code: string, buildsLeft: number): void {" in holder
+    assert "held = code" in hold and "left = buildsLeft" in hold
+    assert "return left" in _function(holder, "judgeBuildsLeft")  # null until a code is accepted (always in Local)
+
+
+def test_the_builds_left_line_counts_each_build_this_tab_had_accepted_since_the_check():
+    claim = _function(_code("access-code.ts"), "claimJudgeBuild")
+    assert "if (left !== null) left = Math.max(0, left - 1)" in claim
+    for name, call in (("capture.ts", "const job = await postBuild(pairs, accessCode())"),
+                       ("build-progress.ts", "const job = await postBuild(held.uploads, accessCode())")):
+        ts = _code(name)
+        assert ts.index(call) < ts.index("buildAccepted(job.id)\n") < ts.index("claimJudgeBuild()"), name
+        assert ts.count("claimJudgeBuild()") == 1, name
 
 
 # --- Accessibility -----------------------------------------------------------------------
