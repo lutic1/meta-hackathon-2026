@@ -597,3 +597,12 @@ def test_a_local_store_names_no_room_a_demo_room(tmp_path, four_lock_room):
     _store_room(store, four_lock_room, "demo")
     assert store.is_demo_room(four_lock_room.id) is False
     assert store.is_demo_room("room_01ARZ3NDEKTSV4RRFFQ69G5FAV") is False
+
+
+def test_a_local_store_names_no_room_a_judge_room(tmp_path, four_lock_room):
+    """Story 7.21: every local Room is a Local room, so no local session state carries `judge_room`."""
+    store = DiskArtifactStore(tmp_path / "rooms")
+    store.put(room_key(four_lock_room.id), four_lock_room.model_dump_json().encode())
+    _store_room(store, four_lock_room, "judge")
+    assert store.is_judge_room(four_lock_room.id) is False
+    assert store.is_judge_room("room_01ARZ3NDEKTSV4RRFFQ69G5FAV") is False

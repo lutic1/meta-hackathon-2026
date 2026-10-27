@@ -409,6 +409,22 @@ def test_is_demo_room_is_true_for_a_demo_room_only_and_reloads_before_it_looks(h
     assert log.count("reload") == 3 and "commit" not in log
 
 
+def test_is_judge_room_is_true_for_a_judge_room_only_and_reloads_before_it_looks(handles, stores, log, four_lock_room, code_and_find_room):
+    """Story 7.21: the session state's `judge_room` flag is read from this, true only for a Room under `rooms/judge/`."""
+    seed_demo(handles, code_and_find_room)
+    store_room(stores.artifacts, four_lock_room)
+    log.clear()
+    assert stores.artifacts.is_judge_room(four_lock_room.id) is True
+    assert stores.artifacts.is_judge_room(code_and_find_room.id) is False
+    assert stores.artifacts.is_judge_room("room_01ARZ3NDEKTSV4RRFFQ69G5FAV") is False
+    assert log.count("reload") == 3 and "commit" not in log
+
+
+def test_a_demo_room_id_never_reads_as_a_judge_room_through_a_climbing_key(stores):
+    with pytest.raises(ValueError, match="outside its partition"):
+        stores.artifacts.is_judge_room("../demo/room_x")
+
+
 def test_a_judge_room_id_never_reads_as_a_demo_room_through_a_climbing_key(stores):
     with pytest.raises(ValueError, match="outside its partition"):
         stores.artifacts.is_demo_room("../judge/room_x")

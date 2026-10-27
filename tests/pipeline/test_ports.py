@@ -100,6 +100,13 @@ def test_artifact_store_declares_the_demo_room_read_over_a_room_id():
     assert is_demo.parameters["room_id"].annotation is str and is_demo.return_annotation is bool
 
 
+def test_artifact_store_declares_the_judge_room_read_over_a_room_id():
+    """Story 7.21: the port tells whether a `room_id` is a Judge room, so the session state carries `judge_room`."""
+    is_judge = inspect.signature(ArtifactStore.is_judge_room, eval_str=True)
+    assert _params(ArtifactStore.is_judge_room) == ["self", "room_id"]
+    assert is_judge.parameters["room_id"].annotation is str and is_judge.return_annotation is bool
+
+
 def test_session_store_declares_append_read_all_list_ids_and_delete():
     assert typing.is_protocol(SessionStore)
     append = inspect.signature(SessionStore.append, eval_str=True)

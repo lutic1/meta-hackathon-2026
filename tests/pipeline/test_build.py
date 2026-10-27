@@ -356,6 +356,9 @@ class OrderedArtifacts:
     def is_demo_room(self, room_id: str) -> bool:
         return self.inner.is_demo_room(room_id)
 
+    def is_judge_room(self, room_id: str) -> bool:
+        return self.inner.is_judge_room(room_id)
+
     def deleted_room(self, id_: str) -> RoomId | None:
         return self.inner.deleted_room(id_)
 

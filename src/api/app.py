@@ -61,7 +61,11 @@ session's start by `disclosure_lines` in `src/api/meta.py` (AD-15): the
 global lines, plus the earlier-builds line for a Demo room, a Room with a
 session already started in this process, or a Room whose job record holds
 any call served from the Cache; a later session on the same Room never
-changes an earlier session's list.
+changes an earlier session's list. Every session state served also carries
+`judge_room`, read once at the session's start from
+`ArtifactStore.is_judge_room` (hosted, a Room under `rooms/judge/`; local,
+never): the client draws the Completion screen's deletion line from that flag
+alone (FR-33).
 
 `GET /rooms` lists one `RoomSummary` per stored Room with a job record
 through `ArtifactStore.list_rooms()`, newest build first, with `job_id` read
@@ -635,6 +639,8 @@ class OpenSession:
     """The Room's Disclosure list, composed when the session started (AD-15)."""
     derived: Derived
     """The block the thresholds came from (`Derived.fresh()` unless greeted), the Guide port's one input beside a Rung."""
+    judge_room: bool
+    """Whether the Room is a Judge room (`ArtifactStore.is_judge_room`), read when the session started."""
     pending: SessionState | None = None
     """The state served while the Trickster source runs, its window `pending`; set and cleared under the lock, never logged."""
 
@@ -647,10 +653,18 @@ class OpenSessions:
         self._open: dict[SessionId, OpenSession] = {}
 
     def open(
-        self, session_id: SessionId, machine: SessionStateMachine, started_ms: int, disclosure: list[str], derived: Derived
+        self,
+        session_id: SessionId,
+        machine: SessionStateMachine,
+        started_ms: int,
+        disclosure: list[str],
+        derived: Derived,
+        judge_room: bool = False,
     ) -> OpenSession:
         with self._guard:
-            session = self._open[session_id] = OpenSession(machine, threading.Lock(), started_ms, disclosure, derived)
+            session = self._open[session_id] = OpenSession(
+                machine, threading.Lock(), started_ms, disclosure, derived, judge_room
+            )
         return session
 
     def any_on(self, room_id: RoomId) -> bool:
@@ -684,8 +698,14 @@ def session_routes(
     open_sessions = OpenSessions()
 
     def served(session: OpenSession, state: SessionState, log_: Sequence[Event]) -> SessionState:
-        """The state as the client sees it: with the Room's Disclosure list (AD-15) and the events its Rungs name."""
-        return state.model_copy(update={"disclosure": list(session.disclosure), "trigger_events": trigger_events(state, log_)})
+        """The state as the client sees it: with the Room's Disclosure list (AD-15), its Judge room flag and the events its Rungs name."""
+        return state.model_copy(
+            update={
+                "disclosure": list(session.disclosure),
+                "judge_room": session.judge_room,
+                "trigger_events": trigger_events(state, log_),
+            }
+        )
 
     def events(session_id: SessionId) -> list[Event]:
         """The session's log; a session that has appended nothing yet has none."""
@@ -778,7 +798,9 @@ def session_routes(
         )
         disclosure = disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=open_sessions.any_on(room.id))
         session_id = new_session_id()
-        session = open_sessions.open(session_id, machine, clock.now_ms(), disclosure, derived)
+        session = open_sessions.open(
+            session_id, machine, clock.now_ms(), disclosure, derived, judge_room=store.is_judge_room(room.id)
+        )
         if greeted:
             state = served(session, machine.initial(session_id), [])
             spawn(lambda: greet(session_id, session, derived))

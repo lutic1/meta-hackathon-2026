@@ -100,6 +100,10 @@ class DiskArtifactStore:
         """Never: Local mode has no Demo rooms, so every local start gets the First-room welcome."""
         return False
 
+    def is_judge_room(self, room_id: str) -> bool:
+        """Never: every local Room is a Local room, so no session state carries `judge_room` and no deletion line shows."""
+        return False
+
     def deleted_room(self, id_: str) -> RoomId | None:
         """None: Local mode deletes no Room and keeps no deletion record (AD-8)."""
         return None
