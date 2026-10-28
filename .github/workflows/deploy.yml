@@ -44,7 +44,8 @@ jobs:
           COLUMNS: "200"
         run: |
           set -euo pipefail
-          uv run modal environment list --json | grep -qE "\"name\": ?\"$MODAL_ENVIRONMENT\"" || uv run modal environment create "$MODAL_ENVIRONMENT"
+          uv run modal environment list --json > environments.json
+          grep -qE "\"name\": ?\"$MODAL_ENVIRONMENT\"" environments.json || uv run modal environment create "$MODAL_ENVIRONMENT"
           uv run modal deploy -e "$MODAL_ENVIRONMENT" -m src.api.modal_app | tee deploy.log
           url=$(grep -oE 'https://[a-z0-9.-]+\.modal\.run' deploy.log | head -1 || true)
           test -n "$url"
