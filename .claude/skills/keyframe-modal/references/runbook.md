@@ -58,6 +58,7 @@ The same steps run on demand from `.github/workflows/deploy.yml` (Actions tab, d
 - `seed_rooms.py`, `purge_judge_rooms.py` and `ledger.py export` pass `environment_name=` to every `from_name`. Check `modal environment list` and `MODAL_ENVIRONMENT` before running them anyway. A profile set to `dev` must not decide which Volume is seeded or purged.
 - Run `purge_judge_rooms.py` against a dev judge room before Tue Nov 10.
 - `ledger.py export`, `purge_judge_rooms.py --dry-run` and the real purge run the same way from `.github/workflows/ops.yml` (actions `ledger-export`, `purge-dry-run` and `purge`, the last only when the `confirm` input is the word `purge`), with `--env` set from the workflow's Environment input.
+- The Demo room is promoted from a Judge room built on the judge URL, not seeded from the Mac: the ops workflow's `promote` action runs `promote_room.py` with its `room_id` and `room_name` inputs (both required), copying the Room, photos, cards and job record to `rooms/demo/` and leaving the originals, `cache-keys.json` and the Judge copy in place.
 
 ## Inspect
 

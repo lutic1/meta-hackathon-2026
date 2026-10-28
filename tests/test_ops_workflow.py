@@ -7,7 +7,7 @@ from tests.test_ci_workflow import SETUP_UV
 
 REPO = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github/workflows/ops.yml"
-ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings")
+ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote")
 UPLOAD_ARTIFACT = "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"
 
 
@@ -19,13 +19,14 @@ def _steps() -> list[tuple[str, str]]:
     return re.findall(r"^      - (?:if: inputs\.action == '[a-z-]+'\n        )?(?:env:\n(?:          .*\n)+        )?(uses|run): (.*)$", _text(), re.MULTILINE)
 
 
-def test_runs_only_when_started_by_hand_with_the_action_environment_and_confirm_as_inputs():
+def test_runs_only_when_started_by_hand_with_the_action_environment_confirm_and_room_inputs():
     text = _text()
     assert text.startswith("name: ops\non:\n  workflow_dispatch:\n    inputs:\n")
     assert re.search(r"^  (push|pull_request|schedule|workflow_run):", text, re.MULTILINE) is None
     assert f"options: [{', '.join(ACTIONS)}]\n" in text
     assert "options: [main, dev]\n        default: main\n" in text
-    assert '      confirm:\n        description: ' in text and '        type: string\n        default: ""\n' in text
+    for name in ("confirm", "room_id", "room_name"):
+        assert re.search(rf'^      {name}:\n        description: .*\n        type: string\n        default: ""\n', text, re.MULTILINE), name
     assert "permissions:\n  contents: read\n" in text
 
 
@@ -43,7 +44,7 @@ def test_checkout_uv_and_sync_run_before_the_guarded_action_steps():
     assert steps[:3] == [("uses", "actions/checkout@v7"), ("uses", SETUP_UV), ("run", "uv sync --locked")]
     assert len(steps) == 3 + len(ACTIONS) + 1  # the ledger export has a second step, the upload
     assert re.findall(r"^      - if: inputs\.action == '([a-z-]+)'$", _text(), re.MULTILINE) == [
-        "ledger-export", "ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings",
+        "ledger-export", "ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote",
     ]
 
 
@@ -55,6 +56,7 @@ def test_every_runbook_command_is_present_once_with_the_environment_input():
         'uv run scripts/purge_judge_rooms.py --env "$MODAL_ENVIRONMENT"\n',
         'uv run modal function autoscaler update -e "$MODAL_ENVIRONMENT" keyframe/web --min-containers 1',
         'uv run modal function autoscaler update -e "$MODAL_ENVIRONMENT" keyframe/web --min-containers 0',
+        'uv run scripts/promote_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID" "$ROOM_NAME"\n',
     )
     for command in commands:
         assert text.count(command) == 1, command
@@ -76,6 +78,15 @@ def test_the_real_purge_runs_only_when_the_confirm_input_is_the_word_purge():
     assert '[ "$CONFIRM" = purge ] || {' in purge and "exit 1; }" in purge
     assert purge.index('[ "$CONFIRM" = purge ]') < purge.index("uv run scripts/purge_judge_rooms.py")
     assert "--dry-run" not in purge
+
+
+def test_the_promotion_runs_only_when_both_room_inputs_are_given():
+    text = _text()
+    promote = text.split("- if: inputs.action == 'promote'\n", 1)[1]
+    assert "ROOM_ID: ${{ inputs.room_id }}" in promote and "ROOM_NAME: ${{ inputs.room_name }}" in promote
+    assert '[ -n "$ROOM_ID" ] && [ -n "$ROOM_NAME" ] || {' in promote and "exit 1; }" in promote
+    assert promote.index('[ -n "$ROOM_ID" ]') < promote.index("uv run scripts/promote_room.py")
+    assert "seed_rooms.py" not in text  # the Demo room comes from the Volume, never from a checkout
 
 
 def test_no_deploy_and_no_unpinned_third_party_action():

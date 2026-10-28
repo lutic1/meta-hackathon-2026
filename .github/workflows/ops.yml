@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Runbook action (ledger-export uploads spend/exports/ as an artifact to download and commit; purge needs confirm)
+        description: Runbook action (ledger-export uploads spend/exports/ as an artifact to download and commit; purge needs confirm; promote needs room_id and room_name)
         type: choice
-        options: [ledger-export, purge-dry-run, purge, warm, cool, autoscaler-settings]
+        options: [ledger-export, purge-dry-run, purge, warm, cool, autoscaler-settings, promote]
       environment:
         description: Modal Environment (main holds the judging data, dev a development copy)
         type: choice
@@ -13,6 +13,14 @@ on:
         default: main
       confirm:
         description: The word purge, only for the purge action; every other action ignores it
+        type: string
+        default: ""
+      room_id:
+        description: The Judge room to promote to the Demo partition, only for the promote action
+        type: string
+        default: ""
+      room_name:
+        description: The Room.name the promoted Demo room gets (at most 40 characters), only for the promote action
         type: string
         default: ""
 permissions:
@@ -62,3 +70,10 @@ jobs:
           uv run modal function autoscaler settings -e "$MODAL_ENVIRONMENT" keyframe/web
       - if: inputs.action == 'autoscaler-settings'
         run: uv run modal function autoscaler settings -e "$MODAL_ENVIRONMENT" keyframe/web
+      - if: inputs.action == 'promote'
+        env:
+          ROOM_ID: ${{ inputs.room_id }}
+          ROOM_NAME: ${{ inputs.room_name }}
+        run: |
+          [ -n "$ROOM_ID" ] && [ -n "$ROOM_NAME" ] || { echo "refusing to promote a Judge room in $MODAL_ENVIRONMENT: the promote action needs both room_id and room_name, got room_id='$ROOM_ID' room_name='$ROOM_NAME'"; exit 1; }
+          uv run scripts/promote_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID" "$ROOM_NAME"

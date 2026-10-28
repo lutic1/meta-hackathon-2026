@@ -33,7 +33,7 @@ from __future__ import annotations
 import argparse
 import io
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
@@ -103,7 +103,11 @@ def final_job(root: Path, room_id: str) -> JobState:
     done = [job for job in map(jobs.read, jobs.list_ids()) if job.room_id == room_id and job.status == "done"]
     if not done:
         raise SeedRefused(f"{room_id}: no done job record names this Room under {root}/")
-    job = done[-1]
+    return checked(done[-1])
+
+
+def checked(job: JobState) -> JobState:
+    """The `done` record once it holds everything the Build view reads; one missing a part refuses the run."""
     missing = [
         field
         for field, absent in (
@@ -116,7 +120,7 @@ def final_job(root: Path, room_id: str) -> JobState:
         if absent
     ]
     if missing:
-        raise SeedRefused(f"{room_id}: job record {job.id} has no " + ", ".join(missing))
+        raise SeedRefused(f"{job.room_id}: job record {job.id} has no " + ", ".join(missing))
     return job
 
 
@@ -145,11 +149,16 @@ def plan(root: Path, demo_rooms: Sequence[DemoRoom]) -> list[Seed]:
         room = named(stored, demo.name)
         job = final_job(root, room.id)
         keys = [photo_key(room.id, index) for index in range(len(room.photos))] + card_keys(root, room)
-        files = {f"{DEMO_PREFIX}/{key}": store.read(key) for key in keys}
-        files[f"{DEMO_PREFIX}/{room_key(room.id)}"] = room.model_dump_json().encode()
-        files[f"{DEMO_PREFIX}/{room.id}/{JOB_FILE}"] = job.model_dump_json().encode()
-        seeds.append(Seed(room=room, job=job, files=files))
+        seeds.append(Seed(room=room, job=job, files=demo_files(room, job, {key: store.read(key) for key in keys})))
     return seeds
+
+
+def demo_files(room: Room, job: JobState, artifacts: Mapping[str, bytes]) -> dict[str, bytes]:
+    """Every Volume path of one Demo room with its bytes: the photos and Clue cards in `artifacts` by key, the named Room and its job record."""
+    files = {f"{DEMO_PREFIX}/{key}": data for key, data in artifacts.items()}
+    files[f"{DEMO_PREFIX}/{room_key(room.id)}"] = room.model_dump_json().encode()
+    files[f"{DEMO_PREFIX}/{room.id}/{JOB_FILE}"] = job.model_dump_json().encode()
+    return files
 
 
 def seed(volume: Volume, seeds: Sequence[Seed]) -> None:

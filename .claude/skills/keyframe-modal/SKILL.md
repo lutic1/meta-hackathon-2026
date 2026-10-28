@@ -1,12 +1,13 @@
 ---
 name: keyframe-modal
-description: Hosts Keyframe's judge URL on Modal 1.6.2. Covers the App and image; the FastAPI app under @app.function, @modal.concurrent(max_inputs=20) and @modal.asgi_app(); builds spawned to a timeout=900 runner and polled by a watchdog with FunctionCall.from_id(...).get(timeout=0); job state, build quota slots, sessions and ledger entries in the keyframe-jobs, keyframe-sessions and keyframe-ledger Dicts; artifacts and cache on the keyframe-data Volume (commit and reload); the daily ledger snapshot and hourly session sweep on modal.Cron; the keyframe Secret. Use when writing, testing or debugging src/api/modal_app.py, the hosted adapters in src/infra/modal.py and their tests, or the Volume and Dict access in scripts/seed_rooms.py, purge_judge_rooms.py or ledger.py export. Do not use for general Modal questions (use the modal skill), local-mode adapters in src/infra/local.py, provider wiring in src/api/wiring.py, model calls (keyframe-muse, keyframe-sam31, keyframe-sam3d-fal), or CI/CD.
+description: Hosts Keyframe's judge URL on Modal 1.6.2. Covers the App and image; the FastAPI app under @app.function, @modal.concurrent(max_inputs=20) and @modal.asgi_app(); builds spawned to a timeout=900 runner and polled by a watchdog with FunctionCall.from_id(...).get(timeout=0); job state, build quota slots, sessions and ledger entries in the keyframe-jobs, keyframe-sessions and keyframe-ledger Dicts; artifacts and cache on the keyframe-data Volume (commit and reload); the daily ledger snapshot and hourly session sweep on modal.Cron; the keyframe Secret. Use when writing, testing or debugging src/api/modal_app.py, the hosted adapters in src/infra/modal.py and their tests, or the Volume and Dict access in scripts/seed_rooms.py, promote_room.py, purge_judge_rooms.py or ledger.py export. Do not use for general Modal questions (use the modal skill), local-mode adapters in src/infra/local.py, provider wiring in src/api/wiring.py, model calls (keyframe-muse, keyframe-sam31, keyframe-sam3d-fal), or CI/CD.
 when_to_use: Trigger phrases such as "judge URL", "modal_app.py", "asgi_app", "spawn the build", "build watchdog", "202 while running", "keyframe-jobs Dict", "keyframe-sessions sweep", "keyframe-data Volume", "volume busy", "build quota slot", "ledger snapshot cron", "purge judge rooms", "keyframe Secret".
 paths:
   - "src/api/modal_app.py"
   - "src/infra/modal.py"
   - "tests/**/*modal*.py"
   - "scripts/seed_rooms.py"
+  - "scripts/promote_room.py"
   - "scripts/purge_judge_rooms.py"
   - "scripts/ledger.py"
 ---
@@ -20,7 +21,7 @@ Facts here were checked against the official Modal pages and the installed `moda
 Use this skill for:
 - `src/api/modal_app.py`: the hosted entry point. It holds the App, the image, the ASGI web function, the spawned stage runner and the two Cron functions (ledger export, session sweep). It sets `max_containers=1`.
 - `src/infra/modal.py`: the hosted adapters behind `MODE=hosted` (AD-9). These are the Dict `JobStore`, the Volume `ArtifactStore` (which lists `rooms/demo/` only), the Volume `Cache`, the spawn `JobRunner`, the Dict `SessionStore` and the Dict `LedgerStore`.
-- Tests of those adapters (`tests/**/*modal*.py`), and the scripts that reach the Volume or a Dict from the Mac: `seed_rooms.py`, `purge_judge_rooms.py` and `ledger.py export`.
+- Tests of those adapters (`tests/**/*modal*.py`), and the scripts that reach the Volume or a Dict from the Mac or the ops workflow: `seed_rooms.py`, `promote_room.py` (a Judge room copied to `rooms/demo/` with its name; originals and `cache-keys.json` stay behind), `purge_judge_rooms.py` and `ledger.py export`.
 - When a manual `modal serve`, `modal deploy` or the Nov 5 to Nov 9 warm container comes up while this skill is loaded, follow [references/runbook.md](references/runbook.md). The builder runs those steps. Never run `modal serve`, `modal deploy`, `modal secret create`, an autoscaler update, or a script that writes to a real Dict or Volume unless the user explicitly asks for it.
 
 Do not use it for:
@@ -28,7 +29,7 @@ Do not use it for:
 - Local mode: `src/infra/local.py` runs the same ports on disk and needs no Modal.
 - Provider wiring in `src/api/wiring.py`. Its hosted branch only passes `hosted=handles()` to the adapters described here.
 - Model calls, which go through `ModelProvider` and the keyframe-muse, keyframe-sam31 and keyframe-sam3d-fal skills.
-- Automation. There is no CD: no push, merge or schedule runs `modal deploy`. The two hand-started paths are `.github/workflows/deploy.yml` and `.github/workflows/ops.yml`, both run from the Actions tab with the Modal token from the repository's Actions secrets: deploy takes the Environment and `MIN_CONTAINERS` as inputs and runs the same pre-deploy ladder and `modal deploy` as the runbook, then smoke-tests `/api/meta`; ops takes an action (`ledger-export`, which uploads `spend/exports/` as an artifact to download and commit, `purge-dry-run`, `purge` behind a `confirm` input, `warm`, `cool`, `autoscaler-settings`) and the Environment, and runs the runbook's SDK scripts and autoscaler commands without deploying.
+- Automation. There is no CD: no push, merge or schedule runs `modal deploy`. The two hand-started paths are `.github/workflows/deploy.yml` and `.github/workflows/ops.yml`, both run from the Actions tab with the Modal token from the repository's Actions secrets: deploy takes the Environment and `MIN_CONTAINERS` as inputs and runs the same pre-deploy ladder and `modal deploy` as the runbook, then smoke-tests `/api/meta`; ops takes an action (`ledger-export`, which uploads `spend/exports/` as an artifact to download and commit, `purge-dry-run`, `purge` behind a `confirm` input, `warm`, `cool`, `autoscaler-settings`, `promote` with its `room_id` and `room_name` inputs) and the Environment, and runs the runbook's SDK scripts and autoscaler commands without deploying.
 
 ## How Keyframe calls it
 
