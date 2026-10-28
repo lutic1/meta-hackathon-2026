@@ -1,11 +1,10 @@
-/* The Hosted landing (UX-DR57): the title block across the top, then the left area (the banner slot over the Demo
-   room cards) beside the right column at 400, 360 or 340 px, as on the Capture screen; the body scrolls. */
+/* The Hosted landing (UX-DR57), a title screen: the left area (the banner slot, the hero, the cast, then the row with
+   the first Demo room's card, the Riddler's sample page and "How a room is built") beside the right column at 400,
+   360 or 340 px, as on the Capture screen; the body scrolls. */
 .landing-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
-  grid-template-rows: auto auto;
   column-gap: var(--spacing-column-gap);
-  row-gap: var(--spacing-6);
   align-content: start;
   align-items: start;
   padding: var(--spacing-frame-margin);
@@ -21,41 +20,217 @@
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 }
-.landing-title {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--spacing-2);
-}
-.landing-heading,
-.landing-line {
-  margin: 0;
-  color: var(--text);
-}
-.landing-line {
-  max-width: 72ch;
-}
-/* The lead-in, text-muted, with "How a room is built" beside it. */
-.landing-lead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-3);
-  margin-top: var(--spacing-2);
-}
-.landing-lead-in {
-  margin: 0;
-  color: var(--text-muted);
-}
 .landing-left,
 .landing-right {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--spacing-5);
   min-width: 0;
 }
-/* Failed or empty: one plain line on the canvas in place of the cards ("Try again" under the failed one). */
+/* The hero: the display-lg line over the tagline (text-muted) and the sample-room note (text), with the primary verb
+   and "How a room is built" at the right end, wrapping under on a narrow left area. */
+.landing-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--spacing-4) var(--spacing-5);
+}
+.landing-hero-words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  max-width: 60ch;
+}
+.landing-heading {
+  margin: 0;
+  color: var(--text);
+}
+.landing-line {
+  margin: 0;
+  color: var(--text-muted);
+}
+.landing-note {
+  margin: 0;
+  color: var(--text);
+}
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+/* The cast: two across, four from 1440 px; each wizard the 96 px portrait beside its name and role. Hover lifts the
+   row to chrome with the lamp glow and turns the ring lamp; keyboard focus does the same under the focus ring. */
+.landing-cast {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 1440px) {
+  .landing-cast {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.landing-wizard {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  column-gap: var(--spacing-3);
+  align-items: center;
+  padding: var(--spacing-3);
+  border-radius: var(--rounded-lg);
+  transition:
+    background-color var(--motion-hover) var(--motion-ease),
+    box-shadow var(--motion-hover) var(--motion-ease);
+}
+.landing-wizard:hover {
+  background-color: var(--chrome);
+  box-shadow: var(--elevation-lamp-glow);
+}
+.landing-wizard:hover:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring-inner), var(--elevation-lamp-glow);
+}
+.landing-wizard:focus-visible {
+  background-color: var(--chrome);
+}
+.landing-wizard .wizard-portrait {
+  transition: border-color var(--motion-hover) var(--motion-ease);
+}
+.landing-wizard:hover .wizard-portrait,
+.landing-wizard:focus-visible .wizard-portrait {
+  border-color: var(--lamp);
+}
+/* The name and role share one cell with the voice line, which fades in where they were (150 ms); the cell keeps the
+   taller of the two, so nothing moves. */
+.landing-wizard-who,
+.landing-wizard-voice {
+  grid-column: 2;
+  grid-row: 1;
+  transition: opacity var(--motion-hover) var(--motion-ease);
+}
+.landing-wizard-who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+.landing-wizard-name {
+  color: var(--text);
+}
+.landing-wizard-role {
+  color: var(--text-muted);
+}
+.landing-wizard-voice {
+  margin: 0;
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+}
+.landing-wizard:hover .landing-wizard-who,
+.landing-wizard:focus-visible .landing-wizard-who {
+  opacity: 0;
+}
+.landing-wizard:hover .landing-wizard-voice,
+.landing-wizard:focus-visible .landing-wizard-voice {
+  opacity: 1;
+}
+/* The row under the cast: the first Demo room's card, the sample page and the steps, three across (two at 1024 px,
+   the steps wrapping under); any further cards keep the list three across beneath. */
+.landing-below {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-5);
+  align-items: start;
+}
+@media (max-width: 1279px) {
+  .landing-below {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.landing-below > .demo-room-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* The sample page's slot is empty until the Room's PlayView answers, taking no cell of its own meanwhile. */
+.landing-notes-slot {
+  display: contents;
+}
+/* The Riddler's sample page: parchment, paper elevation, "Puzzle {n}" over the Evidence cards, the Clue beside the
+   Riddler's 32 px portrait, then the Lore under the parchment rule, as the Wizard notes draw an entry. */
+.landing-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  border-radius: var(--rounded-lg);
+  background: var(--parchment);
+  color: var(--ink);
+  box-shadow: var(--elevation-paper);
+}
+.landing-notes-heading {
+  margin: 0;
+}
+.landing-notes-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-notes-evidence:empty {
+  display: none;
+}
+.landing-notes-clue {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: var(--spacing-2);
+  align-items: start;
+}
+.landing-notes-clue p {
+  margin: 0;
+}
+.landing-notes-lore {
+  margin: 0;
+  padding-top: var(--spacing-3);
+  border-top: 1px solid var(--parchment-rule);
+  color: var(--ink-muted);
+}
+/* "How a room is built": the heading over three numbered steps, the number in mono lamp beside each. */
+.landing-how {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+.landing-how-heading {
+  margin: 0;
+  color: var(--text);
+}
+.landing-how-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-how-step {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: var(--spacing-3);
+  align-items: start;
+  color: var(--text);
+}
+.landing-how-n {
+  padding-top: 3px;
+  color: var(--lamp);
+}
+.landing-how-text {
+  margin: 0;
+}
+/* Failed: one plain line on the canvas in the row's place, with "Try again" under it. */
 .landing-state {
   display: flex;
   flex-direction: column;

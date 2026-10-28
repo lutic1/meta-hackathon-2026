@@ -1,4 +1,6 @@
-"""Story 7.16: the Hosted landing with its Demo room cards (FR-31, UX-DR57, UX-DR58, UX-DR68, UX-DR81, NFR-10).
+"""Story 7.16: the Hosted landing (FR-31, UX-DR57, UX-DR58, UX-DR68, UX-DR81, NFR-10), as a title screen: the hero
+line, one primary verb, the cast of four, then the first Demo room's card, a page of the Riddler's notes and "How a
+room is built" in three steps, beside the Access-code build.
 
 The client has no test runner (a runner is added only through bmad-correct-course), so most checks read the
 TypeScript and the stylesheets; `npm run build` and `tsc --noEmit` prove they compile. The last checks run the hosted
@@ -75,47 +77,170 @@ def test_the_disclosure_banner_renders_the_served_hosted_line():
     assert "let disclosure = meta.disclosure" in _render()
 
 
-# --- The title block -------------------------------------------------------------------
+# --- The hero, the primary verb and the cast ------------------------------------------
 
 
 def test_the_landing_strings_are_the_experience_lines():
     strings = _strings()
     assert strings["wordmark"] == "Keyframe"
     assert strings["landingSubtitle"] == "An escape room built from your own photos."
-    assert strings["pipelineLine"] == (
-        "muse-spark-1.3 reads your photos and writes the puzzles, sam-3.1 outlines every object, a test run that "
-        "never sees the answers checks each puzzle can be solved, and the Guide hands out hints one at a time.")
-    assert strings["landingLeadIn"] == "Short on time? See how a room is built and checked."
+    assert strings["landingTagline"] == "Six photos of one room go in. Five locks, four wizards and one way out come back."
+    assert strings["playSampleRoom"] == "Play the sample room"
+    assert strings["sampleRoomSoon"] == "The sample room opens soon."
     assert strings["howARoomIsBuilt"] == "How a room is built"
+    assert strings["theWizards"] == "The wizards"
+    roles = [strings[key] for key in ("architectCastRole", "riddlerCastRole", "guideCastRole", "tricksterCastRole")]
+    assert roles == ["Finds the objects", "Writes the locks", "Hints, never answers", "Changes the rules"]
+    assert all(len(role.split()) <= 4 for role in roles)
+    assert strings["riddlersNotes"] == "From the Riddler's notes"
+    assert strings["howArchitect"] == "reads your photos with muse-spark-1.3 and outlines every object with sam-3.1."
+    assert strings["howRiddler"] == (
+        "writes five locks from what was found; a test run that never sees the answers checks each one opens.")
+    assert strings["howGuide"] == "hands out hints one rung at a time."
+    assert strings["howTrickster"] == "changes the room between locks, if the Validator lets him."
     assert strings["demoRoomMeta"].format(n=5) == "5 puzzles · 15 to 25 min"
     assert strings["demoRoomPortraits"] == "The Architect, the Riddler, the Guide and the Trickster"
     assert strings["demoRoomsFailed"] == "Keyframe couldn't load the demo rooms."
-    assert strings["noDemoRooms"] == (
-        "No demo rooms are open right now. You can still build your own room with the access code.")
     assert strings["howBuilt"] == "How this room was built" and strings["tryAgain"] == "Try again"
+    # The hero names no model and the no-demo-rooms sentence is gone for good.
+    for key in ("landingSubtitle", "landingTagline", "sampleRoomSoon"):
+        assert "muse" not in strings[key] and "sam-" not in strings[key] and "Llama" not in strings[key]
+    assert not any("No demo rooms are open" in value for value in strings.values())
+    assert "pipelineLine" not in strings and "landingLeadIn" not in strings and "noDemoRooms" not in strings
 
 
-def test_the_title_block_holds_the_title_subtitle_pipeline_line_and_the_lead_in_with_its_link():
+def test_the_hero_holds_the_display_lg_line_the_tagline_the_verb_and_the_build_view_link():
     ts = _code("landing.ts")
-    block = ts.split("function titleBlock(", 1)[1].split("\n}\n", 1)[0]
-    assert "title.className = 'landing-heading display-lg'" in block and "title.textContent = strings.wordmark" in block
-    assert "paragraph('landing-line body-md', strings.landingSubtitle)" in block
-    assert "paragraph('landing-line body-md', strings.pipelineLine)" in block
-    assert "paragraph('landing-lead-in body-md', strings.landingLeadIn)" in block
-    # "How a room is built" (secondary) opens the first Demo room's Build view.
-    assert "secondaryLink({ label: strings.howARoomIsBuilt, href: buildViewHref(first.job_id, profile) })" in block
-    assert "const block = titleBlock(rooms?.[0], profile)" in ts
+    hero = ts.split("function hero(", 1)[1].split("\n}\n", 1)[0]
+    assert "title.className = 'landing-heading display-lg'" in hero and "title.textContent = strings.landingSubtitle" in hero
+    assert "paragraph('landing-line body-md', strings.landingTagline)" in hero
+    assert "if (soon) words.append(paragraph('landing-note body-md', strings.sampleRoomSoon))" in hero
+    assert "actions.append(verb)" in hero
+    # "How a room is built" (secondary) opens the first Demo room's Build view; absent without one and under cut 0.
+    assert "if (first !== undefined && !CUT_0) {" in hero
+    guarded = hero.split("if (first !== undefined && !CUT_0) {", 1)[1]
+    assert "secondaryLink({ label: strings.howARoomIsBuilt, href: buildViewHref(first.job_id, profile) })" in guarded
+    assert "strings.pipelineLine" not in ts and "strings.landingLeadIn" not in ts and "strings.noDemoRooms" not in ts
     rules = _landing_rules()
-    assert rules[".landing-title"]["grid-column"] == "1 / -1"
-    assert rules[".landing-heading,\n.landing-line"]["color"] == "var(--text)"
-    assert rules[".landing-lead-in"]["color"] == "var(--text-muted)"
+    assert rules[".landing-heading"]["color"] == "var(--text)"
+    assert rules[".landing-line"]["color"] == "var(--text-muted)"
+    assert rules[".landing-hero-words"]["max-width"] == "60ch"
 
 
-def test_with_no_demo_room_or_under_cut_0_the_lead_in_and_link_are_absent():
-    block = _code("landing.ts").split("function titleBlock(", 1)[1].split("\n}\n", 1)[0]
-    assert "if (first !== undefined && !CUT_0) {" in block
-    guarded = block.split("if (first !== undefined && !CUT_0) {", 1)[1]
-    assert "strings.landingLeadIn" in guarded and "strings.howARoomIsBuilt" in guarded
+def test_with_a_demo_room_the_verb_plays_the_sample_room_through_the_card_s_own_start():
+    ts = _code("landing.ts")
+    assert "const start = roomStarter(profile, mode, banners)" in ts
+    verb = ts.split("function primaryVerb(", 1)[1].split("\n}\n", 1)[0]
+    assert "primaryButton({ label: strings.playSampleRoom, pendingLabel: strings.playSampleRoom, onActivate: () => start(first) })" in verb
+    assert "demoRoomCard(first, profile, () => void start(first))" in ts  # the same start the card uses
+
+
+def test_with_no_demo_room_the_verb_is_build_your_own_room_and_moves_focus_to_the_access_code_field():
+    ts = _code("landing.ts")
+    verb = ts.split("function primaryVerb(", 1)[1].split("\n}\n", 1)[0]
+    assert "if (first === undefined) {" in verb
+    none = verb.split("if (first === undefined) {", 1)[1].split("\n  }\n", 1)[0]
+    assert "label: strings.buildYourOwnRoom" in none and "pendingLabel: strings.buildYourOwnRoom" in none
+    assert "field()?.focus()" in none
+    assert "`#${ACCESS_CODE_FIELD}`" in ts and "export const ACCESS_CODE_FIELD = 'access-code'" in _code("components/access-code-build.ts")
+    assert "field.id = ACCESS_CODE_FIELD" in _code("components/access-code-build.ts")
+
+
+def test_the_cast_is_the_four_96px_portraits_with_name_four_word_role_and_voice_line_on_hover_and_focus():
+    ts = _code("landing.ts")
+    cast = ts.split("function cast(", 1)[1].split("\n}\n", 1)[0]
+    assert "list.setAttribute('aria-label', strings.theWizards)" in cast
+    assert "wizardPortrait(wizard, 96)" in cast
+    assert "item.tabIndex = 0" in cast  # each wizard is keyboard reachable, so its voice line shows on focus
+    for wizard, role, voice in (("architect", "architectCastRole", "architectVoice"), ("riddler", "riddlerCastRole", "riddlerVoice"),
+                                ("guide", "guideCastRole", "guideVoice"), ("trickster", "tricksterCastRole", "tricksterVoice")):
+        assert f"wizard: '{wizard}', name: strings.{wizard}, role: strings.{role}, voice: strings.{voice}" in ts
+    rules = _landing_rules()
+    wizard = rules[".landing-wizard"]
+    assert wizard["grid-template-columns"] == "96px minmax(0, 1fr)" and wizard["border-radius"] == "var(--rounded-lg)"
+    # The name and the voice line share one cell: the line fades in where the name was, nothing moves or slides.
+    who = rules[".landing-wizard-who,\n.landing-wizard-voice"]
+    assert who["grid-column"] == "2" and who["grid-row"] == "1"
+    assert who["transition"] == "opacity var(--motion-hover) var(--motion-ease)"
+    assert rules[".landing-wizard-voice"]["opacity"] == "0"
+    assert rules[".landing-wizard:hover .landing-wizard-voice,\n.landing-wizard:focus-visible .landing-wizard-voice"]["opacity"] == "1"
+    assert rules[".landing-wizard:hover .landing-wizard-who,\n.landing-wizard:focus-visible .landing-wizard-who"]["opacity"] == "0"
+    # Hover lifts the row to chrome with the lamp glow and turns the ring lamp; the focus ring keeps its inner ring.
+    assert rules[".landing-wizard:hover"] == {"background-color": "var(--chrome)", "box-shadow": "var(--elevation-lamp-glow)"}
+    assert rules[".landing-wizard:hover:focus-visible"]["box-shadow"].startswith("0 0 0 2px var(--focus-ring-inner)")
+    assert rules[".landing-wizard:hover .wizard-portrait,\n.landing-wizard:focus-visible .wizard-portrait"] == {"border-color": "var(--lamp)"}
+    # Two across, four from 1440 px (css_rules flattens media blocks, so the raw text is read for both).
+    text = _ts("landing.css")
+    assert ".landing-cast {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));" in text
+    assert "@media (min-width: 1440px) {\n  .landing-cast {\n    grid-template-columns: repeat(4, minmax(0, 1fr));" in text
+
+
+def test_the_riddlers_sample_page_shows_the_first_waiting_free_puzzle_from_the_play_view():
+    ts = _code("landing.ts")
+    notes = ts.split("function riddlersNotes(", 1)[1].split("\n}\n", 1)[0]
+    assert "view.puzzles.find((puzzle) => puzzle.requires.length === 0)" in notes
+    assert "sheet.setAttribute('aria-label', strings.riddlersNotes)" in notes
+    assert "fill(strings.puzzleHeading, { n: view.puzzles.indexOf(puzzle) + 1 })" in notes
+    assert "evidenceCard(view.id, interactable, card)" in notes
+    assert "wizardPortrait('riddler', 32)" in notes and "speakerPrefix('riddler'), puzzle.clue" in notes
+    assert "paragraph('landing-notes-lore lore', speakerPrefix('riddler'), puzzle.lore)" in notes
+    assert "strings.current" not in ts  # the Active puzzle marker is never guessed; no Session is open
+    # Read through the existing redaction view, which holds no solution and no Derived field.
+    assert "getRoom(first.room_id).then(" in ts
+    assert "return getJson<PlayView>(`/rooms/${encodeURIComponent(roomId)}`)" in _ts("api/index.ts")
+    rules = _landing_rules()
+    sheet = rules[".landing-notes"]
+    assert sheet["background"] == "var(--parchment)" and sheet["color"] == "var(--ink)" and sheet["box-shadow"] == "var(--elevation-paper)"
+    assert rules[".landing-notes-clue"]["grid-template-columns"] == "32px minmax(0, 1fr)"
+    assert rules[".landing-notes-lore"]["color"] == "var(--ink-muted)"
+
+
+def test_how_a_room_is_built_is_three_steps_naming_the_wizards_and_the_models():
+    ts = _code("landing.ts")
+    how = ts.split("function howARoomIsBuilt(", 1)[1].split("\n}\n", 1)[0]
+    assert "heading.textContent = strings.howARoomIsBuilt" in how
+    steps = ts.split("const STEPS: readonly (readonly string[])[] = [", 1)[1].split("\n]\n", 1)[0]
+    assert "[strings.architect, strings.howArchitect]" in steps
+    assert "[strings.riddler, strings.howRiddler]" in steps
+    assert "[strings.guide, strings.howGuide, strings.trickster, strings.howTrickster]" in steps
+    assert "step.className = 'landing-how-step body-sm'" in how and "STEPS.forEach(" in how
+    rules = _landing_rules()
+    assert rules[".landing-how-n"]["color"] == "var(--lamp)"
+
+
+# --- Two states: a Demo room listed, or none ------------------------------------------
+
+
+def test_with_a_demo_room_listed_the_card_the_sample_page_and_the_steps_sit_in_a_row_under_the_cast():
+    ts = _code("landing.ts")
+    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), cast())" in ts
+    listed = ts.split("const below = document.createElement('div')", 1)[1]
+    assert "below.className = 'landing-below'" in listed
+    assert "below.append(sample, notes, howARoomIsBuilt())" in listed
+    # Further Demo rooms keep their cards three across under the row, in served order.
+    assert "rooms.slice(1).map((room) => demoRoomCard(room, profile, () => void start(room)))" in listed
+    rules = _landing_rules()
+    text = _ts("landing.css")
+    assert ".landing-below {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));" in text
+    assert "@media (max-width: 1279px) {\n  .landing-below {\n    grid-template-columns: repeat(2, minmax(0, 1fr));" in text
+    assert rules[".landing-below > .demo-room-list"]["grid-template-columns"] == "minmax(0, 1fr)"
+    assert rules[".landing-notes-slot"]["display"] == "contents"
+
+
+def test_with_no_demo_room_the_cast_and_the_hero_stay_and_no_no_demo_rooms_line_shows():
+    ts = _code("landing.ts")
+    empty = ts.split("if (first === undefined) {", 2)[2].split("\n  }\n", 1)[0]  # after the verb's own branch
+    assert "children: [left, right]" in empty and "demoRoomCard" not in empty and "howARoomIsBuilt" in empty
+    assert "landing-state" not in empty  # no plain line in place of the cards
+    assert "No demo rooms" not in _ts("landing.ts") and "No demo rooms" not in _ts("strings.ts")
+
+
+def test_initial_focus_is_on_the_primary_verb_the_first_tab_stop_after_the_top_bar():
+    ts = _code("landing.ts")
+    assert ts.count("verb.focus()") == 2  # the listed and the empty states; the failed state focuses "Try again"
+    # The verb comes before the cast and the row in the left area, which comes before the right column.
+    assert ts.index("left.append(hero(") < ts.index("left.append(below")
+    assert "tabIndex" not in _code("components/top-bar.ts")  # the top bar has no Tab stop on the landing
 
 
 # --- Layout: cards three across beside the 400 px right column -----------------------
@@ -131,8 +256,8 @@ def test_cards_sit_three_across_in_the_left_area_beside_the_right_column():
     assert "@media (max-width: 1279px) {\n  .landing-layout {\n    grid-template-columns: minmax(0, 1fr) 340px;" in text
     assert _card_rules()[".demo-room-list"]["grid-template-columns"] == "repeat(3, minmax(0, 1fr))"
     ts = _code("landing.ts")
-    assert "left.append(banners)" in ts and "left.append(list)" in ts
-    assert "right.className = 'landing-right'" in ts and "children: [block, left, right]" in ts
+    assert "left.append(banners)" in ts and "left.append(below" in ts
+    assert "right.className = 'landing-right'" in ts and "children: [left, right]" in ts
     assert not re.search(r"\.sort\(|\.reverse\(|\.filter\(", ts), "the cards keep the served order"
 
 
@@ -230,12 +355,8 @@ def test_the_start_sends_the_fresh_derived_block_and_a_refusal_shows_the_banner_
     assert "actions: [{ label: strings.tryAgain, onActivate: () => void start(room) }]" in refused
     landing = _code("landing.ts")
     assert "const banners = bannerSlot()" in landing
-    assert landing.index("left.append(banners)") < landing.index("left.append(list)")
+    assert landing.index("left.append(banners)") < landing.index("left.append(hero(")
     assert "element.focus()" in _ts("components/error-banner.ts")  # the banner takes focus
-
-
-def test_initial_focus_is_on_the_first_demo_room_card():
-    assert "cards[0].card.focus()" in _code("landing.ts")
 
 
 # --- Failed and empty lists -------------------------------------------------------------
@@ -246,16 +367,9 @@ def test_a_failed_list_shows_the_failed_line_with_try_again_in_place_of_the_card
     failed = ts.split("if (rooms === null) {", 1)[1].split("\n  }\n", 1)[0]
     assert "paragraph('body-md', strings.demoRoomsFailed)" in failed
     assert "secondaryButton({ label: strings.tryAgain, onActivate: onRetry })" in failed
-    assert "children: [block, left, right]" in failed  # the title block and the right column stay
-    assert "demoRoomCard" not in failed
+    assert "children: [left, right]" in failed  # the hero, the cast and the right column stay
+    assert "demoRoomCard" not in failed and "retry.focus()" in failed
     assert "await listRooms().catch(() => null)" in _render()  # never the unreachable strip
-
-
-def test_an_empty_list_shows_the_no_demo_rooms_line_and_hides_the_lead_in():
-    ts = _code("landing.ts")
-    empty = ts.split("if (rooms.length === 0) {", 1)[1].split("\n  }\n", 1)[0]
-    assert "paragraph('landing-state body-md', strings.noDemoRooms)" in empty
-    assert "titleBlock(rooms?.[0], profile)" in ts  # no first room, so no lead-in and no link
 
 
 # --- Platform: contrast and the narrow screen -------------------------------------------
@@ -265,7 +379,8 @@ def test_every_landing_text_pair_meets_the_contrast_table():
     table = design_text().split("### Contrast (load-bearing pairs)", 1)[1].split("\n## ", 1)[0]
     rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]
             for line in table.splitlines() if line.startswith("| `")]
-    pairs = {("text", "canvas"), ("text-muted", "canvas"), ("text", "chrome-raised"), ("text-muted", "chrome-raised"),
+    pairs = {("text", "canvas"), ("text-muted", "canvas"), ("text", "chrome"), ("text-muted", "chrome"),
+             ("text", "chrome-raised"), ("text-muted", "chrome-raised"),
              ("lamp", "chrome-raised"), ("error-text", "error-surface"), ("text", "error-surface"),
              ("lamp", "error-surface"), ("disclosure-text", "disclosure-surface")}
     for fg, bg in pairs:
@@ -301,9 +416,18 @@ def test_the_hosted_app_answers_each_read_the_landing_makes_and_a_card_start_ope
     assert summary == {"room_id": demo.id, "name": "The Reading Room", "cover_photo": summary["cover_photo"],
                        "puzzle_count": len(demo.puzzles), "job_id": job.id, "built_at": summary["built_at"]}
     assert client.get(f"/api/rooms/{demo.id}/photos/{summary['cover_photo']}").status_code == 200
+    page = client.get(f"/api/rooms/{demo.id}").json()  # the Riddler's sample page: the PlayView, no solution
+    free = next(puzzle for puzzle in page["puzzles"] if puzzle["requires"] == [])
+    assert set(free) >= {"clue", "lore", "evidence_cards"} and "solution" not in free and "derived" not in page
     view = client.get(f"/api/builds/{summary['job_id']}/view").json()
     assert [puzzle["id"] for puzzle in view["puzzles"]] == [puzzle.id for puzzle in demo.puzzles]
     assert any(photo["photo"] == summary["cover_photo"] for photo in view["photos"])
     started = client.post("/api/sessions", json={"room_id": summary["room_id"], "derived": Derived.fresh().model_dump(mode="json")})
     assert started.status_code == 200
     assert started.json()["opening_line"] == {"kind": "welcome", "text": "Welcome to someone else's room. Find what doesn't belong."}
+
+
+def test_the_hosted_app_with_no_demo_room_answers_an_empty_list_so_the_landing_shows_its_second_state(tmp_path: Path):
+    client = TestClient(make_hosted_app(tmp_path, hosted_handles(tmp_path)))
+    assert client.get("/api/meta").json()["mode"] == "hosted"
+    assert client.get("/api/rooms").json() == []

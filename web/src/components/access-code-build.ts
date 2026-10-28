@@ -9,6 +9,9 @@ import { type BannerState, bannerSlot, showBanner } from './error-banner.ts'
 /** The status a rate-limited access attempt answers (AD-9: 429 `too_many_attempts`). */
 const TOO_MANY_ATTEMPTS = 429
 
+/** The Access code field's id: the landing's "Build your own room" verb moves focus to it. */
+export const ACCESS_CODE_FIELD = 'access-code'
+
 /** A refused code: `{ok: false}` from the check, or 403 `access_denied` on `POST /builds`. */
 export const accessRefused: BannerState = { variant: 'error', heading: strings.accessCodeRefused, actions: [], compact: true }
 
@@ -63,7 +66,7 @@ export function accessCodeBuild(onAccepted: (buildsLeft: number) => void): HTMLE
   panel.setAttribute('aria-labelledby', heading.id)
 
   const field = document.createElement('input')
-  field.id = 'access-code'
+  field.id = ACCESS_CODE_FIELD
   field.type = 'text'
   field.className = 'access-build-field mono-code'
   field.autocomplete = 'off'
