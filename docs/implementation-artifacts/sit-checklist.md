@@ -146,3 +146,5 @@ If a seam stays red, this applies (`delivery-plan.md`, `stack.md`):
 | Mon Nov 2 | | | | | | |
 | Tue Nov 3 | | | | | | |
 | Wed Nov 4 (no daily SIT; hosted SIT-08 and SIT-09 if 7.8 has merged) | | | | | | |
+
+From the cloud dev container the egress proxy cuts any upstream response at about 30 s, so a Riddler call that reasons past 30 s answers a plain-text 502 there (the 502 is the proxy's, never Meta's; the hosted Modal containers and the Mac go direct with the 60 s client timeout), which is why SIT-13 and SIT-15 run from the Mac or on the hosted URL.
