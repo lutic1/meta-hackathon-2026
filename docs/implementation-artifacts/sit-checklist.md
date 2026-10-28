@@ -138,8 +138,8 @@ If a seam stays red, this applies (`delivery-plan.md`, `stack.md`):
 | Date | Cases run | Pass | Fail | Failing cases | Action | Ledger export committed |
 |---|---|---|---|---|---|---|
 | Mon Oct 26 (no SIT cases; the first daily export only) | none | | | | | |
-| Tue Oct 27 (plus the 7.3 infrastructure smoke) | | | | | | |
-| Wed Oct 28 | | | | | | |
+| Tue Oct 27 (plus the 7.3 infrastructure smoke) | SIT-07, SIT-06, SIT-04, SIT-15, SIT-13, SIT-14, from the cloud dev container through the egress proxy (Meta key injected by the proxy, `SPEND_CAP_USD` 60 local; the SIT's transport honours `HTTPS_PROXY` since 53a4efd, so the container run works keyless). Not run: SIT-01, SIT-02 and SIT-03 (no room photos in the container yet), SIT-05 (no Ollama in the container; Mac item), SIT-11 (no `OPENAI_COMPATIBLE_API_KEY`) | 4: SIT-07 cap refusal; SIT-06 cache hit (first call billed 0.0006 USD, the repeat a cache hit); SIT-04 muse-image (416442-byte webp, 0.01 USD, `muse-image-1.0/image-sit-clue-card`); SIT-15 Trickster (merge proposal accepted, 0.0082 USD) | 2 | SIT-13 Riddler (first attempt: gateway 502, never retried by AD-13); SIT-14 Dry run (reached 3 of 5 answers, twice: the fixture scenes did not draw the clock hands and the door digits) | Fix forward: SIT-13 re-run; the fixture scenes draw the evidence the two code puzzles need (d5ad217), then SIT-14 re-run; both on Wed Oct 28 | none from the container; the export is committed from the Mac ledger |
+| Wed Oct 28 | SIT-13, SIT-14, re-run from the cloud dev container through the egress proxy | 2: SIT-13 Riddler on the second attempt (200 in 21.6 s, 5317 prompt tokens, 6329 completion tokens of which 5498 reasoning, rules 8 of 8 passed, 0.0335 USD, `muse-spark-1.3/chat-riddler-author`); SIT-14 Dry run after the scene fix (reached 5 of 5 answers in 3.6 s, 10403 in, 690 out, 0.0159 USD, `muse-spark-1.3/chat-dry-run`) | 0 | | Both recordings committed as fixtures | none from the container; the export is committed from the Mac ledger |
 | Thu Oct 29 (first SIT-10 run, 7.23) | | | | | | |
 | Sat Oct 31 (full pass) | | | | | | |
 | Sun Nov 1 | | | | | | |
