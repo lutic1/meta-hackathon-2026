@@ -1,25 +1,26 @@
 /* The mask overlays grid: three 4:3 tiles across, each photo contained on canvas. {components.build-view-mask}:
    mask-overlay-fill, a 2 px lamp line over a 4 px dark halo (1 px showing each side), at any tile size.
-   {components.hotspot-label-chip}: parchment, ink, label type. No motion. */
+   {components.hotspot-label-chip}: parchment, ink, label type. No motion. The names share no rule with the
+   Capture screen's Mask preview (mask-preview.css), whose 120 x 90 `.mask-tile` sits in the same bundle. */
 .mask-overlays {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--spacing-4);
 }
-.mask-tile {
+.mask-overlay-tile {
   position: relative;
   aspect-ratio: 4 / 3;
   border-radius: var(--rounded-sm);
   background: var(--canvas);
 }
-.mask-tile-photo,
-.mask-tile-overlay {
+.mask-overlay-photo,
+.mask-overlay-svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
 }
-.mask-tile-photo {
+.mask-overlay-photo {
   object-fit: contain;
   border-radius: inherit;
 }

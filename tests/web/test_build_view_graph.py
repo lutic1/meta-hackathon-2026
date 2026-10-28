@@ -114,6 +114,27 @@ TILES = [
 ]
 
 
+def _random_tiles(count: int) -> list[dict[str, Any]]:
+    """`count` tiles at 1440 px and at 1024 px: three or four masks anywhere on a landscape or a portrait photo, each chip as wide as its label and never wider than the tile."""
+    rng = random.Random(231)
+    tiles = []
+    for _ in range(count):
+        photo = rng.choice([{"width": 1280, "height": 960}, {"width": 960, "height": 1280}])
+        width = ((rng.choice([1440, 1024]) - 48 - 24) * 2 / 3 - 32) / 3
+        masks = []
+        for _ in range(rng.randint(3, 4)):
+            w, h = rng.randint(40, 400), rng.randint(40, 400)
+            masks.append({"x": rng.randint(0, photo["width"] - w), "y": rng.randint(0, photo["height"] - h), "width": w, "height": h})
+        chips = [{"width": min(7 * rng.randint(7, 24) + 16, width), "height": 21} for _ in masks]
+        tiles.append({"masks": masks, "chips": chips, "photo": photo, "tile": {"width": width, "height": width * 3 / 4}})
+    return tiles
+
+
+# Every one of these tiles has room for its chips (two chips in the way block at most 100 px of a column 130 px tall),
+# so the placement must find a clear place for each.
+TILES += _random_tiles(400)
+
+
 @cache
 def _shipped() -> dict[str, list[Any]]:
     return _run(GRAPHS, TILES)
@@ -292,8 +313,10 @@ def test_the_graph_fits_its_column_at_1280px():
 def test_the_mask_overlays_show_the_photos_three_across_at_4_3():
     rules = _css("components/mask-overlays.css")
     assert rules[".mask-overlays"]["grid-template-columns"] == "repeat(3, minmax(0, 1fr))"
-    assert rules[".mask-tile"]["aspect-ratio"] == "4 / 3"
-    assert rules[".mask-tile-photo"]["object-fit"] == "contain"
+    assert rules[".mask-overlay-tile"]["aspect-ratio"] == "4 / 3"
+    assert rules[".mask-overlay-photo"]["object-fit"] == "contain"
+    # The Mask preview's 120 x 90 `.mask-tile` rules share the bundle: no overlays rule may bear one of its names.
+    assert rules.keys().isdisjoint(_css("components/mask-preview.css"))
     assert "grid.append(...view.photos.map((photo) => maskTile(view.room_id, photo)))" in MASKS
     assert "image.src = photoUrl(roomId, photo)" in MASKS
 
@@ -336,10 +359,11 @@ def test_label_chips_never_cover_each_other_and_stay_in_their_tile():
                     a["x"] + a["width"] <= b["x"] or b["x"] + b["width"] <= a["x"]
                     or a["y"] + a["height"] <= b["y"] or b["y"] + b["height"] <= a["y"]
                 ), (a, b)
-    # The first chip keeps its place just above its mask: 4 px over the wax candle's top edge, centred on it.
-    first, tile = _shipped()["tiles"][0][0], TILES[0]["tile"]
-    assert first["y"] == pytest.approx(360 / 960 * tile["height"] - 21 - 4)
-    assert first["x"] + first["width"] / 2 == pytest.approx(230 / 1280 * tile["width"])
+    # Chips are placed from the top down, so the top-most keeps its place just above its mask: 4 px over the iron
+    # lantern's top edge, centred on it.
+    lantern, tile = _shipped()["tiles"][0][1], TILES[0]["tile"]
+    assert lantern["y"] == pytest.approx(300 / 960 * tile["height"] - 21 - 4)
+    assert lantern["x"] + lantern["width"] / 2 == pytest.approx(640 / 1280 * tile["width"])
     tile_ts = _function(MASKS, "function maskTile(")
     assert "placeChips(drawn.map(([mask]) => bounds(mask.polygons)), sizes, photoSize, tileSize)" in tile_ts
 

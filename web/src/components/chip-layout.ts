@@ -3,7 +3,7 @@ import type { Rect, Size } from '../scene/geometry.ts'
 
 /** Each tile is 4:3; the photo sits in it whole (contained), as in the Scene. */
 const TILE_RATIO = 4 / 3
-/** The gap between a chip and the mask under it, and between two stacked chips. */
+/** The gap between a chip and the mask under it, and between two chips, stacked or side by side. */
 const CHIP_GAP = 4
 
 /** Where `point` (photo pixels) falls in the 4:3 tile, in percent of the tile, with the photo contained in it. */
@@ -20,23 +20,34 @@ function overlaps(a: Rect, b: Rect): boolean {
 
 /**
  * Each chip's box in the tile (px): just above its mask's top edge (`masks` in photo pixels), centred on it and kept
- * inside the tile, at the tile's top edge when the mask reaches it. Chips are placed in order; one that would cover a
- * chip already placed moves down a chip's height and the gap at a time, then up, until it is clear, still inside the
- * tile.
+ * inside the tile, at the tile's top edge when the mask reaches it. Chips are placed from the top down; one that
+ * would cover a chip already placed moves to the nearest clear place, over or under the chips in its way (the gap
+ * between) or beside them, still inside the tile. Any clear place slides toward the chip's own place until it meets
+ * one of those chips or the tile's edge, so one is found whenever the tile has room; in a tile with none the chip
+ * keeps its own place.
  */
 export function placeChips(masks: readonly Rect[], chips: readonly Size[], photo: Size, tile: Size): Rect[] {
-  const placed: Rect[] = []
-  masks.forEach((mask, index) => {
+  const owns = masks.map((mask, index) => {
     const { width, height } = chips[index]
     const [left, top] = tilePoint([mask.x + mask.width / 2, mask.y], photo)
-    const x = Math.max(0, Math.min((left / 100) * tile.width - width / 2, tile.width - width))
-    const base = Math.max(0, Math.min((top / 100) * tile.height - height - CHIP_GAP, tile.height - height))
-    const pitch = height + CHIP_GAP
-    const tops = [base]
-    for (let y = base + pitch; y <= tile.height - height; y += pitch) tops.push(y)
-    for (let y = base - pitch; y >= 0; y -= pitch) tops.push(y)
-    const y = tops.find((t) => !placed.some((other) => overlaps({ x, y: t, width, height }, other))) ?? base
-    placed.push({ x, y, width, height })
+    return {
+      x: Math.max(0, Math.min((left / 100) * tile.width - width / 2, tile.width - width)),
+      y: Math.max(0, Math.min((top / 100) * tile.height - height - CHIP_GAP, tile.height - height)),
+    }
   })
-  return placed
+  const boxes: Rect[] = []
+  const placed: Rect[] = []
+  for (const index of owns.map((_, index) => index).sort((a, b) => owns[a].y - owns[b].y)) {
+    const own = owns[index]
+    const { width, height } = chips[index]
+    const inside = (values: number[], limit: number): number[] => values.filter((v) => v >= 0 && v <= limit)
+    const xs = inside([own.x, ...placed.flatMap((o) => [o.x + o.width + CHIP_GAP, o.x - width - CHIP_GAP])], tile.width - width)
+    const ys = inside([own.y, ...placed.flatMap((o) => [o.y + o.height + CHIP_GAP, o.y - height - CHIP_GAP])], tile.height - height)
+    const places = ys.flatMap((y) => xs.map((x) => ({ x, y, width, height })))
+    places.sort((a, b) => Math.abs(a.x - own.x) + Math.abs(a.y - own.y) - Math.abs(b.x - own.x) - Math.abs(b.y - own.y))
+    const box = places.find((place) => !placed.some((other) => overlaps(place, other))) ?? { ...own, width, height }
+    placed.push(box)
+    boxes[index] = box
+  }
+  return boxes
 }

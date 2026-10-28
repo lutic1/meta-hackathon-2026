@@ -30,15 +30,15 @@ function maskTile(roomId: string, { photo, masks }: PhotoMasks): HTMLElement {
     return d === '' ? [] : [[mask, d]]
   })
   const tile = document.createElement('div')
-  tile.className = 'mask-tile'
+  tile.className = 'mask-overlay-tile'
   tile.setAttribute('role', 'group')
   tile.setAttribute('aria-label', fill(strings.photoThumbnail, { n: photo + 1 }))
   const image = document.createElement('img')
-  image.className = 'mask-tile-photo'
+  image.className = 'mask-overlay-photo'
   image.alt = ''
   image.src = photoUrl(roomId, photo)
   const overlay = document.createElementNS(SVG, 'svg')
-  overlay.setAttribute('class', 'mask-tile-overlay')
+  overlay.setAttribute('class', 'mask-overlay-svg')
   overlay.setAttribute('aria-hidden', 'true')
   overlay.setAttribute('preserveAspectRatio', 'xMidYMid meet')
   // Every halo under every mask, so no halo crosses a neighbouring mask's lamp line.
@@ -55,7 +55,11 @@ function maskTile(roomId: string, { photo, masks }: PhotoMasks): HTMLElement {
     overlay.setAttribute('viewBox', `0 0 ${photoSize.width} ${photoSize.height}`)
     const tileSize = { width: tile.clientWidth, height: tile.clientHeight }
     if (tileSize.width === 0) return
-    const sizes = chips.map((chip) => ({ width: chip.offsetWidth, height: chip.offsetHeight }))
+    // Measured to the fraction, as drawn: whole pixels would let two chips placed edge to edge overlap by a hair.
+    const sizes = chips.map((chip): Size => {
+      const { width, height } = chip.getBoundingClientRect()
+      return { width, height }
+    })
     const boxes = placeChips(drawn.map(([mask]) => bounds(mask.polygons)), sizes, photoSize, tileSize)
     boxes.forEach(({ x, y }, index) => {
       chips[index].style.left = `${x}px`
