@@ -34,8 +34,9 @@ screen's error state)."""
 ACCESSIBILITY_FLOOR_ONLY = {"lockNotThis", "lockOpen", "cardAnnouncement", "firstCardAnnouncement"}
 """Lines EXPERIENCE.md words only in the Accessibility Floor (the live-region lines for lock outcomes and Cards)."""
 
-RESPONSIVE_ONLY = {"narrowHeading", "narrowBody"}
-"""Lines EXPERIENCE.md words only in Responsive & Platform (the Narrow-screen message's heading and body)."""
+RESPONSIVE_ONLY = {"narrowHeading", "narrowBody", "copyLinkForLaptop", "linkCopied", "linkNotCopied"}
+"""Lines EXPERIENCE.md words only in Responsive & Platform (the Narrow-screen message's heading, body, copy-link
+button and its two confirmations)."""
 
 UNWORDED = {"photoThumbnail": "Remove photo {n}"}
 """Names EXPERIENCE.md never words, each derived from the Voice and Tone line given: the Thumbnail strip's
@@ -139,6 +140,7 @@ def test_the_capture_strings_are_the_experience_lines():
     assert strings["reminder"] == "Leave out faces, documents and other people's belongings."
     assert strings["pickerSentence"] == "Choose 6 to 10 JPEG photos of one room."
     assert (strings["choosePhotos"], strings["upload"]) == ("Choose photos", "Upload")
+    assert strings["playSampleRoomInstead"] == "No photos handy? Play the sample room"  # Hosted, under "Choose photos"
     assert strings["readingPhotos"] == "Reading your photos"  # the ingest stage name, Upload's pending label
     assert strings["removePhoto"].format(n=3) == "Remove photo 3" and strings["photosChosen"].format(n=8) == "8 photos chosen"
     assert strings["notAJpeg"] == "Not a JPEG"
@@ -308,3 +310,8 @@ def test_the_leave_room_and_narrow_screen_strings_are_the_experience_lines():
     assert strings["narrowBody"] == "Open this page on a laptop or desktop browser to play."
     responsive = _section("Responsive & Platform")
     assert f'heading "{strings["narrowHeading"]}"' in responsive and f'body "{strings["narrowBody"]}"' in responsive
+    assert strings["copyLinkForLaptop"] == "Copy link for your laptop"
+    assert strings["linkCopied"] == "Link copied. The room will wait."
+    assert strings["linkNotCopied"] == "Keyframe couldn't copy the link. It's in the address bar."
+    for key in ("copyLinkForLaptop", "linkCopied", "linkNotCopied"):
+        assert f'"{strings[key]}"' in responsive, key

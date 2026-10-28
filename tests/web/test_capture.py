@@ -292,6 +292,38 @@ def test_an_accepted_upload_disables_everything_but_the_retention_summary_and_th
     assert "controls.append(" in capture and "banners" not in capture.split("controls.append(", 1)[1].split("storedRooms(", 1)[0]
 
 
+# --- The sample room on the Hosted dropzone -----------------------------------------------------------------------
+
+
+def test_in_hosted_mode_the_dropzone_offers_the_sample_room_under_choose_photos():
+    ts = (COMPONENTS / "capture-dropzone.ts").read_text()
+    assert "onSample?: () => void" in ts
+    assert ("const sample = onSample === undefined ? null : "
+            "secondaryButton({ label: strings.playSampleRoomInstead, onActivate: onSample })") in ts
+    # Under "Choose photos", so it is the next Tab stop; absent (nothing appended) when no Demo room is listed.
+    assert "element.append(sentence, button, ...(sample === null ? [] : [sample]), input)" in ts
+    assert "sample: HTMLButtonElement | null" in ts
+
+
+def test_the_sample_button_starts_a_session_on_the_first_demo_room_by_the_landing_s_path():
+    capture = _ts("capture.ts")
+    assert "sample?: RoomSummary," in capture  # the first Demo room, Hosted only
+    assert "const start = roomStarter(profile, mode, banners)" in capture  # the path the landing's verb and the cards use
+    assert "sample === undefined ? undefined : () => void start(sample)" in capture
+    shell = _ts("shell.ts")
+    hosted = shell.split("place.route.name === 'home' && resumed !== null", 1)[1].split("} else if", 1)[0]
+    assert "const rooms = await listRooms().catch(() => null)" in hosted and "sample: rooms?.[0]" in hosted
+    assert "captureScreen(content.buildsLeft, content.profile, content.mode, content.retention, bar.timer, content.sample)" in shell
+    # Local mode is unchanged: the Capture screen over the Stored Rooms list offers no sample room.
+    assert "captureScreen(content.rooms, content.profile, content.mode, content.retention, bar.timer)" in shell
+
+
+def test_the_sample_button_is_disabled_with_choose_photos_while_an_upload_is_pending():
+    render = _function(_ts("capture.ts"), "render")
+    assert "dropzone.button.disabled = uploading" in render
+    assert "if (dropzone.sample !== null) dropzone.sample.disabled = uploading" in render
+
+
 # --- Accessibility floor -----------------------------------------------------------------------------------------
 
 

@@ -1,6 +1,7 @@
 /* {components.narrow-screen-message} (UX-DR60): drawn only below 1024 px, where it replaces #app (shell.css). The
    canvas holds a centered plain chrome-raised card, never parchment, at most 480 px wide inside 16 px side gutters,
-   so nothing scrolls sideways at any width. */
+   so nothing scrolls sideways at any width: the wordmark, the Guide's portrait, the heading, the sentence, then
+   "Copy link for your laptop" with its confirmation line under it. */
 .narrow-screen {
   display: none;
 }
@@ -29,9 +30,20 @@
   margin: 0;
   color: var(--text);
 }
+.narrow-screen-portrait {
+  margin-top: var(--spacing-4);
+}
 .narrow-screen-heading {
   margin-top: var(--spacing-4);
 }
 .narrow-screen-sentence {
   margin: var(--spacing-3) 0 0;
+}
+.narrow-screen-copy {
+  margin-top: var(--spacing-5);
+}
+.narrow-screen-status {
+  min-height: 1.5em; /* keeps its place, so the confirmation moves nothing when it lands */
+  margin: var(--spacing-3) 0 0;
+  color: var(--text-muted);
 }

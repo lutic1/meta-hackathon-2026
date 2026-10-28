@@ -60,11 +60,27 @@ def test_the_card_is_plain_chrome_raised_at_most_480px_and_never_scrolls_sideway
     assert contrast(_hex(PROPS["text"])[0], _hex(PROPS["chrome-raised"])[0]) >= 4.5
 
 
-def test_the_card_holds_the_wordmark_the_heading_and_the_sentence_and_no_control():
+def test_the_card_holds_the_wordmark_the_guide_s_portrait_the_heading_the_sentence_and_the_copy_button():
     ts = _ts("components/narrow-screen-message.ts")
     assert "wordmark.textContent = strings.wordmark" in ts
+    assert "const portrait = wizardPortrait('guide', 96)" in ts  # the existing component, so its placeholder stands in
     assert "heading.className = 'narrow-screen-heading display-sm'" in ts and "heading.textContent = strings.narrowHeading" in ts
     assert "body.className = 'narrow-screen-sentence body-md'" in ts and "body.textContent = strings.narrowBody" in ts
-    assert "card.append(wordmark, heading, body)" in ts
-    code = re.sub(r"/\*.*?\*/|//[^\n]*", "", ts, flags=re.DOTALL)
-    assert not re.search(r"button|tabIndex|addEventListener|href", code)
+    assert "secondaryButton({ label: strings.copyLinkForLaptop, onActivate: () => void copyLink() })" in ts
+    assert "status.className = 'narrow-screen-status body-sm'" in ts
+    assert "card.append(wordmark, portrait, heading, body, copy, status)" in ts
+
+
+def test_copy_link_copies_this_page_s_address_and_confirms_in_the_live_region_and_under_the_button():
+    ts = _ts("components/narrow-screen-message.ts")
+    copy = ts.split("async function copyLink(", 1)[1].split("\n  }\n", 1)[0]
+    assert "let line: string = strings.linkCopied" in copy and "await navigator.clipboard.writeText(location.href)" in copy
+    assert "line = strings.linkNotCopied" in copy  # no clipboard, or a refused write: the address bar still has it
+    assert copy.index("status.textContent = line") < copy.index("announce(line)")
+    assert "import { announce } from '../live-region.ts'" in ts
+
+
+def test_no_control_on_the_card_leaves_the_page():
+    code = re.sub(r"/\*.*?\*/|//[^\n]*", "", _ts("components/narrow-screen-message.ts"), flags=re.DOTALL)
+    assert code.count("secondaryButton(") == 1 and "primaryButton" not in code
+    assert not re.search(r"href\s*=|location\.(hash|assign|replace)|window\.open|createElement\('a'\)|tabIndex", code)

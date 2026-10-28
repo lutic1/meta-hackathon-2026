@@ -7,7 +7,7 @@
 // the Wizard notes and the Hint area take their component names as their accessible names. A `{name}` placeholder stands where
 // the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
 // Component Patterns, names its placeholders as that row does. The live-region lines for lock outcomes and Cards are
-// worded only in the Accessibility Floor, and the Narrow-screen message only in Responsive & Platform. The Leave room
+// worded only in the Accessibility Floor, and the Narrow-screen message's lines only in Responsive & Platform. The Leave room
 // confirmation's one line is its heading (the question) over its sentence. The Triggers header is its Voice and
 // Tone line split after "idle", where the threshold's 1× value goes at a Demo timescale above 1, as in "Nudge after
 // 15 s idle (90 s at 1×) …". The cut-2 controls and their line are worded only in the Information Architecture's
@@ -39,6 +39,7 @@ export const strings = {
   reminder: "Leave out faces, documents and other people's belongings.",
   pickerSentence: 'Choose 6 to 10 JPEG photos of one room.',
   choosePhotos: 'Choose photos',
+  playSampleRoomInstead: 'No photos handy? Play the sample room',
   upload: 'Upload',
   readingPhotos: 'Reading your photos',
   removePhoto: 'Remove photo {n}',
@@ -220,6 +221,9 @@ export const strings = {
   keepPlaying: 'Keep playing',
   narrowHeading: 'Keyframe needs a bigger screen',
   narrowBody: 'Open this page on a laptop or desktop browser to play.',
+  copyLinkForLaptop: 'Copy link for your laptop',
+  linkCopied: 'Link copied. The room will wait.',
+  linkNotCopied: "Keyframe couldn't copy the link. It's in the address bar.",
   landingSubtitle: 'An escape room built from your own photos.',
   landingTagline: 'Six photos of one room go in. Five locks, four wizards and one way out come back.',
   playSampleRoom: 'Play the sample room',

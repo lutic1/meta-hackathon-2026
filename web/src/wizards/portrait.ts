@@ -4,7 +4,8 @@ import { strings } from '../strings.ts'
 export type Wizard = 'architect' | 'riddler' | 'guide' | 'trickster'
 
 /** UX-DR29: 24 (Card log, Demo room card, Model table), 32 (signature, In play block), 48 (Hint area, Cards,
- * introductions, Completion sign-off) or 96 px (Greeting and First-room welcome). */
+ * introductions, Completion sign-off) or 96 px (Greeting and First-room welcome, the landing's cast, the Narrow-screen
+ * message). */
 export type PortraitSize = 24 | 32 | 48 | 96
 
 const SPEAKERS: Record<Wizard, string> = {

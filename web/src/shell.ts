@@ -49,7 +49,9 @@ function refused(error: unknown): null {
  * unreachable strip, so the title block stays usable; its "Try again" renders the route afresh. An Access code the
  * landing accepts renders `#/` once more as the Capture screen, with the builds left in place of the Stored Rooms
  * list, and so does a Build end state's "Add photos" or "Start over" while the tab holds that code; any other visit
- * to `#/` ("Build another room", "Leave room") is the Hosted landing again. `#/build/<job_id>`
+ * to `#/` ("Build another room", "Leave room") is the Hosted landing again. That Hosted Capture screen reads `GET
+ * /rooms` once more for the first Demo room its dropzone offers as the sample room; a failed read offers none.
+ * `#/build/<job_id>`
  * holds the global lines, the Timer of that Build and the Capture screen during that Build, in both modes. The top
  * bar's Timer slot shows the run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
  * `#/build/<job_id>/view` waits for `GET /builds/<job_id>/view` once and shows the Build view, ready, not ready or
@@ -122,7 +124,9 @@ export function startShell(root: HTMLElement): void {
       if (rooms === undefined) return
       content = { name: 'rooms', rooms, profile: place.profile, mode: meta.mode, retention: meta.retention }
     } else if (place.route.name === 'home' && resumed !== null) {
-      content = { name: 'capture', buildsLeft: resumed, profile: place.profile, mode: meta.mode, retention: meta.retention }
+      const rooms = await listRooms().catch(() => null)
+      const { profile } = place
+      content = { name: 'capture', buildsLeft: resumed, sample: rooms?.[0], profile, mode: meta.mode, retention: meta.retention }
     } else if (place.route.name === 'home') {
       const rooms = await listRooms().catch(() => null)
       const onAccepted = (): void => {
@@ -169,7 +173,8 @@ interface Surface {
 /**
  * What a route's body holds: the Build view, the Play layout for a session, the Completion screen over it, the Capture
  * screen with the Stored Rooms list (Local `#/`), the Hosted landing (Hosted `#/`, `rooms` null when `GET /rooms`
- * failed), the Capture screen once its Access code is accepted (Hosted `#/`), the Capture screen during a Build
+ * failed), the Capture screen once its Access code is accepted (Hosted `#/`, `sample` the first Demo room listed, if
+ * any, for the dropzone's sample-room button), the Capture screen during a Build
  * (`#/build/<job_id>`), the Session-gone state of a session the server refused, or nothing yet.
  */
 type Content =
@@ -184,7 +189,7 @@ type Content =
       onRetry: () => void
       onAccepted: (buildsLeft: number) => void
     }
-  | { name: 'capture'; buildsLeft: number; profile: string; mode: Meta['mode']; retention: string }
+  | { name: 'capture'; buildsLeft: number; sample: RoomSummary | undefined; profile: string; mode: Meta['mode']; retention: string }
   | { name: 'build'; jobId: string; profile: string; mode: Meta['mode']; retention: string }
   | { name: 'gone'; profile: string }
   | { name: 'empty' }
@@ -255,7 +260,7 @@ function surface(content: Content, bar: TopBar): Surface {
   }
   if (content.name === 'capture') {
     element.classList.add('capture-layout')
-    const capture = captureScreen(content.buildsLeft, content.profile, content.mode, content.retention, bar.timer)
+    const capture = captureScreen(content.buildsLeft, content.profile, content.mode, content.retention, bar.timer, content.sample)
     element.append(capture.left, capture.right)
     return { element, mount: capture.mount }
   }

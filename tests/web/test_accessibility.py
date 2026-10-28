@@ -147,6 +147,7 @@ def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_lock_outco
         "web/src/build-progress.ts",  # the reconnecting line
         "web/src/play.ts",  # the reconnecting line
         "web/src/components/hint-area.ts",  # Rung and No-hint lines
+        "web/src/components/narrow-screen-message.ts",  # the copied-link confirmation
     }
     assert "announce(strings.reconnectingBuild)" in sources["web/src/build-progress.ts"]
     assert "announce(strings.reconnectingPlay)" in sources["web/src/play.ts"]

@@ -13,7 +13,7 @@ import { retentionSummary } from './components/retention-summary.ts'
 import { downscale, isJpeg, isValidSet } from './photos.ts'
 import { CUT_2, openProfileFile } from './profile/index.ts'
 import { captureHref } from './router.ts'
-import { storedRooms } from './stored-rooms.ts'
+import { roomStarter, storedRooms } from './stored-rooms.ts'
 import { strings } from './strings.ts'
 
 export interface CaptureScreen {
@@ -95,7 +95,10 @@ export function captureColumn(retention: string, profile: string, mode: Meta['mo
  * Input requirement standing alone, the iPhone tip, the faces, documents and belongings reminder, then the Retention
  * summary as `GET /meta` serves it for the mode, all there before any photo is chosen. Left: the banner slot, the
  * dropzone, the Photo tray, Upload and, under it, `below`: the Stored Rooms list in Local mode, or in Hosted mode,
- * which has no Stored Rooms list, the accepted check's status line "{n} of 20 builds left".
+ * which has no Stored Rooms list, the accepted check's status line "{n} of 20 builds left". In Hosted mode `sample`
+ * is the first Demo room listed, and the dropzone offers "No photos handy? Play the sample room" under "Choose
+ * photos", which starts a Session on it by the landing's own path (`roomStarter`, its refusal banner in the slot);
+ * with no Demo room, and in Local mode, the dropzone holds no such button.
  *
  * Every addition or removal re-validates the whole set (FR-1): a refused set shows the FR-1 banner and keeps Upload
  * disabled, so nothing is sent; a valid set clears it and enables Upload. Upload downscales each photo and posts
@@ -119,6 +122,7 @@ export function captureScreen(
   mode: Meta['mode'],
   retention: string,
   timerSlot: HTMLElement,
+  sample?: RoomSummary,
 ): CaptureScreen {
   let photos: ChosenPhoto[] = []
   let refusal: HTMLElement | null = null
@@ -128,7 +132,11 @@ export function captureScreen(
   let accepted: string | null = null
 
   const banners = bannerSlot()
-  const dropzone = captureDropzone((files, replace) => void choose(files, replace))
+  const start = roomStarter(profile, mode, banners)
+  const dropzone = captureDropzone(
+    (files, replace) => void choose(files, replace),
+    sample === undefined ? undefined : () => void start(sample),
+  )
   const tray = document.createElement('div')
   const upload = primaryButton({ label: strings.upload, pendingLabel: strings.readingPhotos, onActivate: send })
   upload.disabled = true
@@ -169,6 +177,7 @@ export function captureScreen(
     const shown = photos.map(({ url, jpeg }) => ({ url, rejected: !jpeg }))
     tray.replaceChildren(...(photos.length === 0 ? [] : [photoTray(shown, remove, uploading)]))
     dropzone.button.disabled = uploading
+    if (dropzone.sample !== null) dropzone.sample.disabled = uploading
     upload.disabled = !isValidSet(photos)
   }
 

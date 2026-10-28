@@ -144,7 +144,7 @@ def test_an_accepted_code_opens_the_capture_screen_once_with_no_stored_rooms_lis
     # Once: the request is taken by the next `#/` render, so a later visit to `#/` is the landing again.
     assert "const resumed = place.route.name === 'home' && takeCaptureRequest() ? judgeBuildsLeft() : null" in render
     capture = render.split("} else if (place.route.name === 'home' && resumed !== null) {", 1)[1].split("} else if", 1)[0]
-    assert "content = { name: 'capture', buildsLeft: resumed, profile: place.profile, mode: meta.mode, retention: meta.retention }" in capture
+    assert "content = { name: 'capture', buildsLeft: resumed, sample: rooms?.[0], profile, mode: meta.mode, retention: meta.retention }" in capture
     assert render.index("meta.mode === 'local') {") < render.index("&& resumed !== null) {")  # Local `#/` stays the list
     on_accepted = render.split("const onAccepted = (): void => {", 1)[1].split("}", 1)[0]
     assert "requestCapture()" in on_accepted and "void render()" in on_accepted
@@ -152,7 +152,7 @@ def test_an_accepted_code_opens_the_capture_screen_once_with_no_stored_rooms_lis
     assert "export function requestCapture(): void {\n  toCapture = true\n}" in held
     take = _function(held, "takeCaptureRequest")
     assert "const requested = toCapture" in take and "toCapture = false" in take and "return requested" in take
-    assert "const capture = captureScreen(content.buildsLeft, content.profile, content.mode, content.retention, bar.timer)" in shell
+    assert "const capture = captureScreen(content.buildsLeft, content.profile, content.mode, content.retention, bar.timer, content.sample)" in shell
     screen = _code("capture.ts")
     assert "typeof below === 'number' ? buildsLeftLine(below) : storedRooms(below, profile, mode, banners)," in screen
     # The Retention summary is the mode's text exactly as GET /meta serves it.
