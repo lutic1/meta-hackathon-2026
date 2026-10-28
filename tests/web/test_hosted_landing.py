@@ -18,7 +18,7 @@ from src.domain.schema import Derived, Room
 from tests.api.hosted import hosted_handles, make_hosted_app
 from tests.domain.test_redact import done_job
 from tests.infra.test_modal import seed_demo
-from tests.web.design import WEB_SRC, css_rules, design_text
+from tests.web.design import REPO, WEB_SRC, css_custom_properties, css_rules, design_text
 from tests.web.test_contrast import PROPS, _hex, contrast
 from tests.web.test_strings import _strings
 
@@ -213,7 +213,7 @@ def test_how_a_room_is_built_is_three_steps_naming_the_wizards_and_the_models():
 
 def test_with_a_demo_room_listed_the_card_the_sample_page_and_the_steps_sit_in_a_row_under_the_cast():
     ts = _code("landing.ts")
-    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), cast())" in ts
+    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), attract, cast())" in ts
     listed = ts.split("const below = document.createElement('div')", 1)[1]
     assert "below.className = 'landing-below'" in listed
     assert "below.append(sample, notes, howARoomIsBuilt())" in listed
@@ -241,6 +241,121 @@ def test_initial_focus_is_on_the_primary_verb_the_first_tab_stop_after_the_top_b
     # The verb comes before the cast and the row in the left area, which comes before the right column.
     assert ts.index("left.append(hero(") < ts.index("left.append(below")
     assert "tabIndex" not in _code("components/top-bar.ts")  # the top bar has no Tab stop on the landing
+
+
+# --- The attract frame: the Demo room plays itself above the fold ----------------------
+
+
+def _attract() -> str:
+    return _code("components/attract-frame.ts")
+
+
+def _attract_rules() -> dict[str, dict[str, str]]:
+    return css_rules((WEB_SRC / "components/attract-frame.css").read_text())
+
+
+def test_the_attract_frame_strings_are_the_experience_lines():
+    strings = _strings()
+    assert strings["attractFrame"] == "Play {name}"
+    assert strings["lockOfM"].format(n=1, m=5) == "Lock 1 of 5"
+
+
+def test_the_frame_picks_per_photo_the_first_interactable_with_a_hotspot_and_the_first_puzzle_whose_evidence_is_on_it():
+    ts = _attract()
+    slides = ts.split("export function attractSlides(view: PlayView): AttractSlide[] {", 1)[1].split("\n}\n", 1)[0]
+    assert "return view.photos.map((_, photo) => {" in slides
+    assert "const on = view.interactables.filter((interactable) => interactable.photo === photo)" in slides
+    assert "const interactable = on.find((candidate) => hotspotPath(candidate.polygons ?? []) !== '') ?? null" in slides
+    assert "view.puzzles.find((puzzle) => puzzle.evidence_cards.some((card) => on.some(({ id }) => id === card.interactable))) ??" in slides
+    assert "      view.puzzles[0]\n    return { photo, interactable, puzzle }" in slides
+    # Drawn from the PlayView alone: the module names no solution, rung or Derived field, and never a box.
+    assert "solution" not in ts and "rung" not in ts and "derived" not in ts.lower() and ".box" not in ts
+    assert "import type { PlayInteractable, PlayPuzzle, PlayView } from '../../types'" in ts
+
+
+def test_the_frame_draws_the_scene_s_hotspot_reveal_and_label_chip_over_each_photo():
+    ts = _attract()
+    assert "hotspotReveal(hotspotPath(interactable.polygons ?? []))" in ts
+    assert "svg.setAttribute('class', 'scene-hotspots')" in ts and "svg.setAttribute('preserveAspectRatio', 'none')" in ts
+    assert "slide.svg?.setAttribute('viewBox', `0 0 ${slide.size.width} ${slide.size.height}`)" in ts  # the photo's pixel space
+    assert "chip.className = 'hotspot-label-chip label is-shown'" in ts and "chip.textContent = interactable.label" in ts
+    hotspots = _code("scene/hotspots.ts")
+    assert "export function hotspotReveal(d: string): SVGGElement" in hotspots
+    assert "reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))" in hotspots
+    rules = _attract_rules()
+    assert rules[".attract-frame .hotspot-reveal"] == {"opacity": "1"}  # lit, as the Scene lights a hovered Hotspot
+    assert "import '../scene/scene.css'" in _ts("components/attract-frame.ts")
+
+
+def test_the_clue_sits_on_parchment_under_the_frame_with_the_lock_tag():
+    ts = _attract()
+    assert "wizardPortrait('riddler', 32)" in ts and "speakerPrefix('riddler'), puzzle.clue" in ts
+    assert "fill(strings.lockOfM, { n: view.puzzles.indexOf(puzzle) + 1, m: view.puzzles.length })" in ts
+    assert "tag.className = 'chip chip-current label'" in ts
+    rules = _attract_rules()
+    clue = rules[".attract-clue"]
+    assert clue["background"] == "var(--parchment)" and clue["color"] == "var(--ink)" and clue["box-shadow"] == "var(--elevation-paper)"
+    assert rules[".chip-current"] == {"border": "1px solid var(--lamp-ink)", "color": "var(--lamp-ink)"}
+
+
+def test_the_photos_crossfade_on_the_attract_token_about_every_four_seconds_and_pause_on_hover_focus_and_a_hidden_tab():
+    ts = _attract()
+    assert "export const HOLD_MS = 4000" in ts
+    assert "timer = setTimeout(() => void next(), HOLD_MS)" in ts
+    assert "if (reduced || hovered || focused || document.hidden || slides.length < 2) return" in ts
+    assert "const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches" in ts
+    for event in ("pointerenter", "pointerleave", "focusin", "focusout"):
+        assert f"frame.addEventListener('{event}'" in ts, event
+    assert "document.addEventListener('visibilitychange', schedule)" in ts
+    assert "document.removeEventListener('visibilitychange', schedule)" in ts
+    props = css_custom_properties()
+    assert props["motion-attract"] == "600ms"
+    tokens = (WEB_SRC / "tokens.css").read_text()
+    assert "--motion-attract: 0ms;" in tokens.split("@media (prefers-reduced-motion: reduce)", 1)[1]
+    rules = _attract_rules()
+    assert rules[".attract-slide"]["opacity"] == "0" and rules[".attract-slide"]["transition"] == "opacity var(--motion-attract) var(--motion-ease)"
+    assert rules[".attract-slide.is-shown"] == {"opacity": "1"}
+    assert "@keyframes" not in (WEB_SRC / "components/attract-frame.css").read_text()
+
+
+def test_the_photos_load_lazily_and_the_frame_is_skipped_without_a_first_photo():
+    ts = _attract()
+    assert "if (slides.length === 0) return null" in ts
+    assert "const first = await load(0).catch(() => null)" in ts and "if (first === null) return null" in ts
+    # One photo ahead, never all at once: the next slide is asked for once the current one shows.
+    assert "void load((index + 1) % slides.length).catch(() => undefined)" in ts
+    landing = _code("landing.ts")
+    assert "attractFrame(view, roomTitle(first), () => void start(first)).then(" in landing
+    assert "playing = frame\n              attract.replaceChildren(frame.element)" in landing
+    assert "if (!mounted) {\n                frame.unmount()" in landing  # a frame that answers after the landing left
+    assert "playing?.unmount()" in landing.split("return () => {", 1)[1]
+    assert "attract.className = 'landing-attract-slot'" in landing
+    assert _landing_rules()[".landing-attract-slot"]["display"] == "contents"
+
+
+def test_the_frame_is_one_focusable_control_named_for_the_room_that_starts_a_session_on_click_or_enter():
+    ts = _attract()
+    assert "frame.setAttribute('role', 'button')" in ts and "frame.tabIndex = 0" in ts
+    assert "frame.setAttribute('aria-label', fill(strings.attractFrame, { name }))" in ts
+    assert "frame.addEventListener('click', onStart)" in ts
+    assert "if (event.key === 'Enter' && event.target === frame) onStart()" in ts
+    assert "img.alt = ''" in ts  # the photos are decorative under the one accessible name
+    landing = _code("landing.ts")
+    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), attract, cast())" in landing
+    rules = _attract_rules()
+    frame = rules[".attract-frame"]
+    assert frame["cursor"] == "pointer"
+    assert rules[".attract-frame:hover"]["border-color"] == "var(--lamp)"
+    assert rules[".attract-frame:hover:focus-visible"]["box-shadow"].startswith("0 0 0 2px var(--focus-ring-inner)")
+
+
+def test_the_contract_records_the_attract_frame_and_the_motion_carve_out():
+    experience = (REPO / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md").read_text()
+    design = design_text()
+    assert "attract frame" in experience and "attract frame" in design
+    motion = design.split("**Motion.**", 1)[1].split("\n\n", 1)[0]
+    assert "600 ms" in motion and "4 s" in motion and "reduced motion" in motion
+    assert "Nothing loops" in motion and "attract frame" in motion
 
 
 # --- Layout: cards three across beside the 400 px right column -----------------------
@@ -327,7 +442,7 @@ def test_hover_rings_the_card_in_lamp_with_the_glow_and_keeps_the_focus_ring():
 
 
 def test_hover_and_state_fades_are_instant_under_reduced_motion():
-    for path in ("components/demo-room-card.css", "landing.css"):
+    for path in ("components/demo-room-card.css", "components/attract-frame.css", "landing.css"):
         for selector, declarations in css_rules((WEB_SRC / path).read_text()).items():
             for value in (v for k, v in declarations.items() if k.startswith("transition")):
                 assert re.fullmatch(r"(?:[\w-]+ var\(--motion-\w+\) var\(--motion-ease\),? ?)+", value), (path, selector)

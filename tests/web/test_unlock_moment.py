@@ -104,7 +104,7 @@ def test_the_bloom_the_frame_glow_and_the_chip_lift_stay_inside_the_motion_rule(
     assert "matchMedia('(prefers-reduced-motion: reduce)').matches ? GLOW_REDUCED_MS : GLOW_MS" in bloom
     assert "glowOnce(frame, 'is-glowing', hold)" in bloom and "layer?.bloom(target, hold)" in bloom
     layer = _ts("scene/hotspots.ts")
-    assert "hotspot.append(reveal, path('hotspot-bloom', d), path('hotspot-hit', d))" in layer
+    assert "hotspot.append(hotspotReveal(d), path('hotspot-bloom', d), path('hotspot-hit', d))" in layer
     assert "glowOnce(hotspot, 'is-blooming', hold)" in _function(layer, "bloom")
     rules = _rules("scene/scene.css")
     frame = rules[".scene-frame"]

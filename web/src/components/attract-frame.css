@@ -1,0 +1,94 @@
+/* The attract frame of the Hosted landing: a Scene frame (gilt rule, chrome mat, vignette, canvas ground) that plays
+   the Demo room by itself, over the Riddler's clue on parchment. It is one control, so hover rings it in lamp with
+   the lamp glow as the Demo room card is ringed, under the global focus ring. Its height leaves the hero above and
+   the clue below it inside the fold at 900, 800 and 768 px (about 470, 370 and 300 px; the hero wraps taller below
+   1280 px). */
+.attract {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+.attract-frame {
+  height: clamp(280px, calc(100vh - 430px), 476px);
+  cursor: pointer;
+}
+@media (max-width: 1279px) {
+  .attract-frame {
+    height: clamp(280px, calc(100vh - 470px), 476px);
+  }
+}
+.attract-frame:hover {
+  border-color: var(--lamp);
+  box-shadow:
+    var(--elevation-vignette),
+    var(--elevation-lamp-glow);
+}
+.attract-frame:hover:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--focus-ring-inner),
+    var(--elevation-vignette),
+    var(--elevation-lamp-glow);
+}
+/* The photos: one layer per photo over the ground, each centred and contained as the Scene contains a photo; the
+   shown one is opaque and the crossfade is the 600 ms opacity transition on the attract token, so the cycle is a
+   timer and a class, with no keyframe rule. Instant, and never cycling, under reduced motion. */
+.attract-slide {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity var(--motion-attract) var(--motion-ease);
+}
+.attract-slide.is-shown {
+  opacity: 1;
+}
+.attract-photo {
+  position: relative;
+}
+.attract-photo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--rounded-sm);
+}
+/* The one Hotspot on each photo stays lit: the Scene's hover reveal (outline, halo, glow fill and lamp shadow) with
+   its label chip shown. */
+.attract-frame .hotspot-reveal {
+  opacity: 1;
+}
+/* The clue under the frame: parchment on the paper elevation, the Riddler's 32 px portrait beside the clue lines,
+   which share one cell and crossfade with the photos; the "Lock n of m" tag at the right end of each. */
+.attract-clue {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: var(--spacing-3);
+  align-items: center;
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--rounded-lg);
+  background: var(--parchment);
+  color: var(--ink);
+  box-shadow: var(--elevation-paper);
+}
+.attract-clue-lines {
+  display: grid;
+}
+.attract-clue-line {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  opacity: 0;
+  transition: opacity var(--motion-attract) var(--motion-ease);
+}
+.attract-clue-line.is-shown {
+  opacity: 1;
+}
+.attract-clue-line p {
+  margin: 0;
+}
+.chip-current {
+  border: 1px solid var(--lamp-ink);
+  color: var(--lamp-ink);
+}

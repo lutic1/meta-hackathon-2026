@@ -1,6 +1,6 @@
-/* The Hosted landing (UX-DR57), a title screen: the left area (the banner slot, the hero, the cast, then the row with
-   the first Demo room's card, the Riddler's sample page and "How a room is built") beside the right column at 400,
-   360 or 340 px, as on the Capture screen; the body scrolls. */
+/* The Hosted landing (UX-DR57), a title screen: the left area (the banner slot, the hero, the attract frame over its
+   clue, the cast, then the row with the first Demo room's card, the Riddler's sample page and "How a room is built")
+   beside the right column at 400, 360 or 340 px, as on the Capture screen; the body scrolls. */
 .landing-layout {
   position: relative; /* its hidden speaker prefixes scroll inside it, never past the Disclosure footer */
   display: grid;
@@ -60,6 +60,11 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-3);
+}
+/* The attract frame's slot is empty until the first Demo room's PlayView and first photo answer, taking no space of
+   its own meanwhile, so the hero sits straight over the cast until then. */
+.landing-attract-slot {
+  display: contents;
 }
 /* The cast: two across, four from 1440 px; each wizard the 96 px portrait beside its name and role. Hover lifts the
    row to chrome with the lamp glow and turns the ring lamp; keyboard focus does the same under the focus ring. */

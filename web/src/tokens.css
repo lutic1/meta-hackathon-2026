@@ -154,11 +154,13 @@
   --elevation-lamp-glow: 0 0 16px #E9A94B40;
   --elevation-vignette: inset 0 0 80px #000000A6;
 
-  /* motion: fades and glows only, ease-out; hover 150, state fades 200, overlays and the arrival glow 300 */
+  /* motion: fades and glows only, ease-out; hover 150, state fades 200, overlays and the arrival glow 300; the
+     Hosted landing's attract frame crossfades its photos over 600 (content, the one cycle: DESIGN.md Motion) */
   --motion-ease: ease-out;
   --motion-hover: 150ms;
   --motion-state: 200ms;
   --motion-overlay: 300ms;
+  --motion-attract: 600ms;
 }
 
 /* Every transition is instant under reduced motion. */
@@ -167,6 +169,7 @@
     --motion-hover: 0ms;
     --motion-state: 0ms;
     --motion-overlay: 0ms;
+    --motion-attract: 0ms;
   }
   *,
   ::before,

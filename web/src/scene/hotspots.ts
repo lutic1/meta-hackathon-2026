@@ -64,6 +64,17 @@ function path(className: string, d: string): SVGPathElement {
 }
 
 /**
+ * The reveal of a Hotspot whose union path is `d`: the glow fill, the dark halo and the lamp outline
+ * (`{components.hotspot}`), which the Scene lights on hover and focus and the Hosted landing's attract frame keeps lit.
+ */
+export function hotspotReveal(d: string): SVGGElement {
+  const reveal = document.createElementNS(SVG, 'g')
+  reveal.setAttribute('class', 'hotspot-reveal')
+  reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))
+  return reveal
+}
+
+/**
  * The Hotspots of one photo (`{components.hotspot}`, UX-DR23): one per Interactable on it, the union of its
  * `polygons` in the photo's own pixel space (the SVG `viewBox`), so the browser scales them to the rendered size.
  * Each is a focusable button named by the Interactable label whose id is the Interactable id, in Tab order by
@@ -98,10 +109,7 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     hotspot.setAttribute('role', 'button')
     hotspot.setAttribute('aria-label', interactable.label)
     hotspot.setAttribute('tabindex', '0')
-    const reveal = document.createElementNS(SVG, 'g')
-    reveal.setAttribute('class', 'hotspot-reveal')
-    reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))
-    hotspot.append(reveal, path('hotspot-bloom', d), path('hotspot-hit', d))
+    hotspot.append(hotspotReveal(d), path('hotspot-bloom', d), path('hotspot-hit', d))
     let dwell: ReturnType<typeof setTimeout> | undefined
     hotspot.addEventListener('pointerenter', () => {
       handlers.onPointerEnter()

@@ -2,10 +2,12 @@ import './landing.css'
 import type { Meta, PlayView, RoomSummary } from '../types'
 import { getBuildView, getRoom } from './api/index.ts'
 import { ACCESS_CODE_FIELD, accessCodeBuild } from './components/access-code-build.ts'
+import { type AttractFrame, attractFrame } from './components/attract-frame.ts'
 import { primaryButton, secondaryButton, secondaryLink } from './components/button.ts'
 import { type DemoRoomCard, demoRoomCard } from './components/demo-room-card.ts'
 import { bannerSlot } from './components/error-banner.ts'
 import { evidenceCard } from './components/evidence-card.ts'
+import { roomTitle } from './components/stored-room-row.ts'
 import { buildViewHref, CUT_0 } from './router.ts'
 import { roomStarter } from './stored-rooms.ts'
 import { fill, strings } from './strings.ts'
@@ -15,7 +17,8 @@ export interface HostedLanding {
   children: HTMLElement[]
   /**
    * Runs once the landing is in the page: focuses the primary verb (or "Try again" after a failed load), asks the
-   * first Demo room for the Riddler's sample page and each card's Build view for its thumbnail; returns the teardown.
+   * first Demo room for its attract frame and the Riddler's sample page and each card's Build view for its thumbnail;
+   * returns the teardown.
    */
   mount: () => () => void
 }
@@ -181,7 +184,8 @@ function howARoomIsBuilt(): HTMLElement {
 
 /**
  * The Hosted landing (UX-DR57, UX-DR68), a title screen: the left area holds the banner slot, the hero with the one
- * primary verb, the cast, then a row with the first Demo room's card, the Riddler's sample page from that Room's
+ * primary verb, the first Demo room's attract frame (once its `PlayView` and first photo have answered; its slot
+ * takes no space before), the cast, then a row with that room's card, the Riddler's sample page from the same
  * `PlayView` and "How a room is built", with any further cards three across under it in served order; the right
  * column holds the Access-code build, whose accepted code calls `onAccepted` with the builds left. `rooms` is null
  * when `GET /rooms` failed: the plain failed line with "Try again" (`onRetry`) stands in the row's place. An empty
@@ -206,7 +210,9 @@ export function hostedLanding(
   const first = rooms?.[0]
   const start = roomStarter(profile, mode, banners)
   const verb = primaryVerb(first, start, () => right.querySelector(`#${ACCESS_CODE_FIELD}`))
-  left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), cast())
+  const attract = document.createElement('div')
+  attract.className = 'landing-attract-slot'
+  left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), attract, cast())
 
   if (rooms === null) {
     const failed = document.createElement('div')
@@ -254,12 +260,25 @@ export function hostedLanding(
     mount: () => {
       verb.focus()
       let mounted = true
+      let playing: AttractFrame | null = null
       getRoom(first.room_id).then(
         (view) => {
           const sheet = riddlersNotes(view)
           if (mounted && sheet !== null) notes.replaceChildren(sheet)
+          attractFrame(view, roomTitle(first), () => void start(first)).then(
+            (frame) => {
+              if (frame === null) return
+              if (!mounted) {
+                frame.unmount()
+                return
+              }
+              playing = frame
+              attract.replaceChildren(frame.element)
+            },
+            () => undefined, // no attract frame; the landing keeps its layout without it
+          )
         },
-        () => undefined, // no sample page; the verb and the card still start Sessions
+        () => undefined, // no sample page and no attract frame; the verb and the card still start Sessions
       )
       if (!CUT_0) {
         rooms.forEach((room, index) => {
@@ -273,6 +292,7 @@ export function hostedLanding(
       }
       return () => {
         mounted = false
+        playing?.unmount()
       }
     },
   }

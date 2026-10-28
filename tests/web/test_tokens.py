@@ -14,7 +14,7 @@ TYPE_STYLES = ("display-lg", "display-md", "display-sm", "wizard-line-lg", "wiza
 FAMILY_VAR = {"EB Garamond": "var(--font-serif)", "Source Sans 3": "var(--font-sans)", "IBM Plex Mono": "var(--font-mono)"}
 ROLE_PREFIXES = ("card-", "clue-card-", "graph-", "mask-overlay-")
 FADE_OR_GLOW = {"opacity", "box-shadow", "background-color", "border-color", "color", "outline-color"}
-MOTION = {"motion-hover": "150ms", "motion-state": "200ms", "motion-overlay": "300ms"}
+MOTION = {"motion-hover": "150ms", "motion-state": "200ms", "motion-overlay": "300ms", "motion-attract": "600ms"}
 
 
 @pytest.fixture(scope="module")
@@ -144,7 +144,7 @@ def test_motion_tokens_and_every_transition_is_a_fade_or_glow_with_ease_out(prop
 def test_reduced_motion_makes_every_transition_instant():
     text = (WEB_SRC / "tokens.css").read_text()
     block = re.search(r"@media \(prefers-reduced-motion: reduce\) \{(.*?)\n\}", text, flags=re.S).group(1)
-    for name in ("motion-hover", "motion-state", "motion-overlay"):
+    for name in MOTION:
         assert f"--{name}: 0ms;" in block
     assert re.search(r"\*,\s*::before,\s*::after \{\s*transition-duration: 0ms !important;", block)
 
