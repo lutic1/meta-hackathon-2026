@@ -1,4 +1,5 @@
-/* The frame (UX-DR7): the Disclosure banner, the 48 px top bar, then the body, stacked and never overlaid. */
+/* The frame (UX-DR7): the 48 px top bar, the body filling the height, then the Disclosure banner as the footer strip,
+   stacked and never overlaid; every surface keeps its full height above the footer. */
 #app {
   display: flex;
   flex-direction: column;
@@ -87,8 +88,10 @@
 }
 
 /* The Capture layout (Local `#/`): the left area beside the right column at 400, 360 or 340 px; the body scrolls,
-   since the Stored Rooms sit below the dropzone. */
+   since the Stored Rooms sit below the dropzone. Each scrolling body is positioned, so its visually hidden speaker
+   prefixes scroll inside it and never lengthen the page under the Disclosure footer. */
 .capture-layout {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
   column-gap: var(--spacing-column-gap);
@@ -169,9 +172,10 @@
   flex: 1 1 0;
 }
 
-/* The Build view (UX-DR67): the one body that scrolls under the pinned Disclosure banner and top bar; full width inside
+/* The Build view (UX-DR67): the one body that scrolls between the pinned top bar and Disclosure banner; full width inside
    the 24 px margins, the header row, then the left two-thirds column beside the right third. */
 .build-view-layout {
+  position: relative;
   overflow-y: auto;
   padding: var(--spacing-frame-margin);
 }

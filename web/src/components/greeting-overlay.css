@@ -1,6 +1,6 @@
-/* {components.greeting-overlay}: the scrim covers the page body only (it starts below the top bar, so the
-   Disclosure banner and the Timer stay undimmed); the 560 px parchment card is centered on it, the First-room
-   welcome's tip 16 px under it. */
+/* {components.greeting-overlay}: the scrim covers the page body only (it starts below the top bar and ends above the
+   Disclosure banner, so the Timer and the Disclosures stay undimmed); the 560 px parchment card is centered on it,
+   the First-room welcome's tip 16 px under it. */
 .greeting-scrim {
   position: absolute;
   inset: 0;

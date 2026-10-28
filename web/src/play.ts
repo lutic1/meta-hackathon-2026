@@ -47,8 +47,8 @@ export interface PlaySession {
 
 /**
  * What the Play screen takes from the shell: the page body and the top bar, which the First-room welcome covers and
- * holds inert, the top bar's controls slot, the `guide` setting its role line names and the Hint area's thinking
- * state follows, and the `mode` that decides which Derived block "Start again" sends.
+ * holds inert, the top bar's controls slot, the `guide` setting the Hint area's thinking state follows, and the `mode`
+ * that decides which Derived block "Start again" sends; the welcome card's role line follows both.
  */
 export interface PlayFrame {
   body: HTMLElement
@@ -103,7 +103,7 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * unlock moment (`lockOpened`): the solved Hotspot blooms and the Scene frame glows once, the Open chip lifts in and
  * the Guide speaks one aside for the lock type in the Hint area; a Wrong attempt glows the Guide's ring once with its
  * line. A reload plays none of it for locks already open. The Triggers toggle under the hint controls shows why each Rung
- * arrived, its panel open from the start when the session loads with a Disclosure active. "Leave room" beside it, or
+ * arrived, its panel opening by itself once a row exists while a Disclosure is active. "Leave room" beside it, or
  * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
  * confirming goes to `#/` in place of the Play route (`LeaveRoom.exit`, so Back never resumes the play-through) and
  * records no Room result. A state that shows a Trickster window open asks for its
@@ -318,7 +318,7 @@ export function mountPlay(
       const triggers = triggersPanel(view, latest, currentPlace().profile, (open) => area.triggersOpen(open))
       hints.triggers.append(triggers.element)
       sideColumn.append(hints.element)
-      triggers.reveal() // opened on load with a Disclosure active: the newest row in view now the list can scroll
+      triggers.reveal() // opened on load with rows under a Disclosure: the newest row in view now the list can scroll
       holdInputs()
       parts.push(hints.render)
       parts.push(triggers.render)
@@ -341,7 +341,7 @@ export function mountPlay(
     if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text
     else {
       welcoming = true
-      const welcome = mountWelcome(session.id, frame.guide, opening, frame.body, [frame.topBar, sceneColumn, sideColumn], (line) => {
+      const welcome = mountWelcome(session.id, frame.mode, frame.guide, opening, frame.body, [frame.topBar, sceneColumn, sideColumn], (line) => {
         welcoming = false
         play.openingLine = line
         hints?.opening(line)

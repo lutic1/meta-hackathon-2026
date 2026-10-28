@@ -39,9 +39,12 @@ export function playHasBegun(state: SessionState): boolean {
   )
 }
 
-/** The Guide's role line for the `guide` setting (UX-DR74): Local with Ollama, or shown as written. */
-export function guideRoleLine(guide: Meta['guide']): string {
-  return guide === 'ollama' ? strings.guideRoleLocal : strings.guideRoleWritten
+/**
+ * The Guide's role line for the mode and the `guide` setting (UX-DR74): Local with Ollama names Llama 3.2 3B on this
+ * Mac; Hosted, and Local shown as written, end "shown as written".
+ */
+export function guideRoleLine(mode: Meta['mode'], guide: Meta['guide']): string {
+  return mode === 'local' && guide === 'ollama' ? strings.guideRoleLocal : strings.guideRoleWritten
 }
 
 export interface Welcome {
@@ -64,13 +67,14 @@ export interface Welcome {
  */
 export function mountWelcome(
   sessionId: string,
+  mode: Meta['mode'],
   guide: Meta['guide'],
   opening: OpeningLine,
   body: HTMLElement,
   held: readonly HTMLElement[],
   onBegin: (line: string) => void,
 ): Welcome {
-  const role = guideRoleLine(guide)
+  const role = guideRoleLine(mode, guide)
   const overlay = greetingOverlay(role)
   const { begin, heading } = overlay
   if (opening.kind === 'welcome') {

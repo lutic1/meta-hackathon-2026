@@ -1,9 +1,9 @@
-/* {components.disclosure-banner}: the one cool grey strip, full width above the top bar, part of the grid,
+/* {components.disclosure-banner}: the one cool grey strip, the full-width footer under the body, part of the grid,
    one 32 px line per Disclosure, rounded.none, no icon and no close control. */
 .disclosure-banner {
   flex: none;
   background: var(--disclosure-surface);
-  border-bottom: 1px solid var(--disclosure-edge);
+  border-top: 1px solid var(--disclosure-edge);
   border-radius: var(--rounded-none);
   color: var(--disclosure-text);
 }

@@ -1,5 +1,5 @@
-/* {components.leave-room-confirmation}: the scrim covers the page body only (it starts below the top bar, so the
-   Disclosure banner and the Timer stay undimmed); the plain 480 px chrome-raised card is centered on it. */
+/* {components.leave-room-confirmation}: the scrim covers the page body only (it starts below the top bar and ends above the
+   Disclosure banner, so the Timer and the Disclosures stay undimmed); the plain 480 px chrome-raised card is centered on it. */
 .leave-room-scrim {
   box-sizing: border-box;
   position: absolute;

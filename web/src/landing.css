@@ -2,6 +2,7 @@
    the first Demo room's card, the Riddler's sample page and "How a room is built") beside the right column at 400,
    360 or 340 px, as on the Capture screen; the body scrolls. */
 .landing-layout {
+  position: relative; /* its hidden speaker prefixes scroll inside it, never past the Disclosure footer */
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
   column-gap: var(--spacing-column-gap);

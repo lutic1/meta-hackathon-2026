@@ -78,13 +78,13 @@ def test_while_thinking_focus_is_held_on_the_heading_with_no_begin():
     assert "target().focus()" in trap
 
 
-def test_the_role_line_follows_the_guide_setting():
+def test_the_role_line_follows_the_mode_and_the_guide_setting():
     strings = _strings()
     assert strings["guideRoleLocal"] == (
         "Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac.")
     assert strings["guideRoleWritten"] == "Reads how you play; offers one hint at a time, never the answer, shown as written."
     assert strings["guideVoice"] == "Get stuck as often as you like. I'll help, a little at a time."
-    assert "return guide === 'ollama' ? strings.guideRoleLocal : strings.guideRoleWritten" in _ts("welcome.ts")
+    assert "return mode === 'local' && guide === 'ollama' ? strings.guideRoleLocal : strings.guideRoleWritten" in _ts("welcome.ts")
     assert "const overlay = greetingOverlay(role)" in _ts("welcome.ts")
 
 

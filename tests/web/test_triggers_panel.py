@@ -48,15 +48,23 @@ def test_the_triggers_strings_are_the_experience_lines():
     assert strings["noHintChanges"] == "No hint changes yet."
 
 
-def test_the_toggle_sits_under_the_hint_controls_collapsed_unless_a_disclosure_is_active():
+def test_the_toggle_sits_under_the_hint_controls_collapsed_until_a_row_exists_under_a_disclosure():
     panel, play = _ts(PANEL), _ts("play.ts")
-    assert "const open = !CUT_5 && session.disclosure.length > 0" in panel
-    assert "toggleButton({\n        label: '',\n        state: 'expanded',\n        on: open,\n        controls: LIST_ID," in panel
-    assert "list.element.hidden = !open" in panel and "list.element.hidden = !on" in panel
+    # Collapsed at first on every session: the toggle alone. While a Disclosure is active the panel opens by itself as
+    # soon as a row exists (FR-16), on load or when the first Rung change arrives, until the player works the toggle.
+    assert "let auto = !CUT_5 && session.disclosure.length > 0" in panel
+    toggle = panel.split("toggleButton({", 1)[1].split("})", 1)[0]
+    assert "on:" not in toggle and "controls: LIST_ID," in toggle
+    assert "onToggle: (on) => {\n          auto = false\n          show(on)\n        }," in toggle
+    assert "list.element.hidden = true" in panel and "list.element.hidden = !on" in panel
+    show = _function(panel, "show")
+    assert "toggle.setAttribute('aria-expanded', String(on))" in show and "onOpen(on)" in show
     # "Triggers ({n})" with n the number of Rung changes, its count in mono-sm, redrawn from every state.
     render = panel.split("  function render(state: SessionState): void {\n    const label", 1)[1].split("\n  }\n", 1)[0]
     assert "label.append(...withNumbers(fill(strings.triggers, { n: state.rung_changes.length })))" in render
     assert "toggle.replaceChildren(label)" in render
+    assert "list.render(state)" in render
+    assert render.rstrip().endswith("if (auto && !open && state.rung_changes.length > 0) show(true)")
     assert "number.className = 'mono-sm'" in panel
     # In the Hint area's pinned lower part, after the helper line, drawn from every state the Play screen receives.
     assert "lower.append(ask, helper, triggers)" in _ts("components/hint-area.ts")

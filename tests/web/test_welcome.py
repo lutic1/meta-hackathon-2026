@@ -39,7 +39,7 @@ def test_the_play_screen_shows_the_card_for_a_served_welcome_until_play_has_begu
     play = _ts("play.ts")
     assert "if (opening !== null) {" in play
     assert "if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text" in play
-    assert "mountWelcome(session.id, frame.guide, opening, frame.body, [frame.topBar, sceneColumn, sideColumn], (line) => {" in play
+    assert "mountWelcome(session.id, frame.mode, frame.guide, opening, frame.body, [frame.topBar, sceneColumn, sideColumn], (line) => {" in play
     assert "unmountWelcome = welcome.close" in play and "unmountWelcome?.()" in play
     # The shell hands the Play screen its body, the whole top bar, its controls slot (Story 1.25) and the `guide`
     # setting of `GET /meta`.
@@ -85,9 +85,9 @@ def test_the_card_holds_the_guides_introduction_the_served_line_the_voice_line_a
     assert rules[".greeting-role"]["color"] == "var(--ink-muted)"
     assert rules[".greeting-intro"]["grid-template-columns"] == "96px minmax(0, 1fr)"
     assert rules[".greeting-actions"]["display"] == "flex"  # "Begin" left-aligned under the voice line
-    # The role line follows the `guide` setting of `GET /meta`.
+    # The role line follows the mode and the `guide` setting of `GET /meta`: Hosted is always shown as written.
     welcome = _ts("welcome.ts")
-    assert "return guide === 'ollama' ? strings.guideRoleLocal : strings.guideRoleWritten" in welcome
+    assert "return mode === 'local' && guide === 'ollama' ? strings.guideRoleLocal : strings.guideRoleWritten" in welcome
 
 
 def test_the_line_is_rendered_as_served_never_worded_in_the_client():

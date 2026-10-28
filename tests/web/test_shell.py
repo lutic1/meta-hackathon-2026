@@ -50,9 +50,9 @@ def test_disclosure_lines_come_from_meta_on_home_and_from_session_state_on_play_
     # A 4xx is an answer, not an unreachable server: no retry, and no Room whose lines could be missing.
     assert "getSession(sessionId).catch(refused)" in shell
     assert "error instanceof RequestFailed && error.status !== null && error.status < 500" in shell
-    # Banner first, then the top bar, then the body: part of the grid, above the top bar.
+    # The top bar, then the body, then the banner: the footer strip of the frame, under the body.
     assert "const bar = topBar(meta, played)" in shell
-    assert "show(...(banner === null ? [] : [banner]), bar.element, body.element)" in shell
+    assert "show(bar.element, body.element, ...(banner === null ? [] : [banner]))" in shell
 
 
 def test_disclosure_banner_renders_lines_as_served_with_no_control_and_no_focus():
@@ -63,7 +63,7 @@ def test_disclosure_banner_renders_lines_as_served_with_no_control_and_no_focus(
     rules = _css("components/disclosure-banner.css")
     banner = rules[".disclosure-banner"]
     assert banner["background"] == "var(--disclosure-surface)" and banner["color"] == "var(--disclosure-text)"
-    assert banner["border-bottom"] == "1px solid var(--disclosure-edge)" and banner["border-radius"] == "var(--rounded-none)"
+    assert banner["border-top"] == "1px solid var(--disclosure-edge)" and banner["border-radius"] == "var(--rounded-none)"
     line = rules[".disclosure-banner p"]
     assert line["min-height"] == "var(--spacing-disclosure-min)" and "body-sm" in ts
     for rule in rules.values():

@@ -98,16 +98,34 @@ def test_each_surface_renders_its_lists_as_served_and_the_client_composes_none()
             assert line not in code, f"{path} holds Disclosure copy the server composes: {line!r}"
 
 
-def test_the_banner_sits_above_the_top_bar_and_every_scrim_is_inside_the_body_below_it():
+def test_the_banner_is_the_footer_under_the_body_and_every_scrim_is_inside_the_body_above_it():
     shell = _code((WEB_SRC / "shell.ts").read_text())
-    assert "show(...(banner === null ? [] : [banner]), bar.element, body.element)" in shell
+    # The top bar, then the body, then the banner: the last band of the frame, a footer strip under the body.
+    assert "show(bar.element, body.element, ...(banner === null ? [] : [banner]))" in shell
     assert "element.className = 'shell-body'" in shell
-    # Each overlay is appended to the body (the `main.shell-body` the route owns), never to the page or the top bar.
+    rules = {**css_rules((WEB_SRC / "completion.css").read_text()), **css_rules((WEB_SRC / "shell.css").read_text()),
+             **css_rules((WEB_SRC / "style.css").read_text()), **css_rules((COMPONENTS / "disclosure-banner.css").read_text())}
+    banner = rules[".disclosure-banner"]
+    assert banner["border-top"] == "1px solid var(--disclosure-edge)" and "border-bottom" not in banner
+    assert banner["flex"] == "none" and rules[".disclosure-banner p"]["min-height"] == "var(--spacing-disclosure-min)"
+    # The frame fills the viewport and the body takes every pixel between the top bar and the footer, so the footer is in
+    # view without scrolling and no surface reserves a strip of its own: the Play screen's Hint area and the Capture
+    # dropzone keep their full height.
+    assert rules["html,\nbody,\n#app"]["height"] == "100%"
+    assert rules["#app"]["flex-direction"] == "column"  # the frame's flex column; media queries only hide it
+    assert rules[".shell-body"]["flex"] == "1 1 0" and rules[".shell-body"]["min-height"] == "0"
+    # Each body that scrolls is positioned, so a visually hidden speaker prefix (absolute) scrolls inside it instead of
+    # lengthening the page: the footer stays in view without scrolling, the Hosted landing at 1024 x 768 included.
+    rules.update(css_rules((WEB_SRC / "landing.css").read_text()))
+    for layout in (".landing-layout", ".capture-layout", ".build-view-layout"):
+        assert rules[layout]["overflow-y"] == "auto" and rules[layout]["position"] == "relative", layout
+    placement = EXPERIENCE.read_text().split("- **Placement.**", 1)[1].split("\n", 1)[0]
+    assert "footer strip" in placement and "sits at the top edge" not in placement
+    # Each overlay is appended to the body (the `main.shell-body` the route owns), never to the page or the footer.
     mounts = {"completion.ts": "body.append(scrim)", "welcome.ts": "body.append(overlay.element)",
               "leave-room.ts": "frame.body.append(confirmation.element)"}
     for name, mount in mounts.items():
         assert mount in _code((WEB_SRC / name).read_text()), name
-    rules = {**css_rules((WEB_SRC / "completion.css").read_text()), **css_rules((WEB_SRC / "shell.css").read_text())}
     for name in ("greeting-overlay.css", "leave-room-confirmation.css"):
         rules.update(css_rules((COMPONENTS / name).read_text()))
     for scrim in (".completion-scrim", ".greeting-scrim", ".leave-room-scrim"):
@@ -147,7 +165,11 @@ def test_demo_settings_are_read_only_by_the_mode_indicator_the_triggers_header_a
     assert set(re.findall(r"name: '(\w+)'", router)) <= {"home", "build", "view", "play", "done", "triggers"}
 
 
-def test_the_triggers_panel_opens_on_load_while_a_disclosure_is_active_and_still_collapses():
+def test_the_triggers_panel_under_a_disclosure_shows_only_its_toggle_until_a_row_exists_then_opens_by_itself():
     panel = _code((COMPONENTS / "triggers-panel.ts").read_text())
-    assert "const open = !CUT_5 && session.disclosure.length > 0" in panel
-    assert "on: open," in panel and "list.element.hidden = !on" in panel
+    assert "let auto = !CUT_5 && session.disclosure.length > 0" in panel
+    assert "list.element.hidden = true" in panel and "list.element.hidden = !on" in panel
+    render = panel.split("function render(state: SessionState): void {\n    const label", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (auto && !open && state.rung_changes.length > 0) show(true)" in render
+    # The player's own toggle ends the automatic opening either way, so a collapsed panel stays collapsed.
+    assert "onToggle: (on) => {\n          auto = false\n          show(on)\n        }," in panel

@@ -1,5 +1,5 @@
-/* {components.card-log}: the scrim covers the page body only (it starts below the top bar, so the Disclosure banner
-   and the Timer stay undimmed); the 360 px chrome dialog hangs under the top bar's "Card log" button, whose right
+/* {components.card-log}: the scrim covers the page body only (it starts below the top bar and ends above the
+   Disclosure banner, so the Timer and the Disclosures stay undimmed); the 360 px chrome dialog hangs under the top bar's "Card log" button, whose right
    edge the script lines it up with, at most 480 px high and scrolling inside itself. */
 .card-log-scrim {
   position: absolute;

@@ -134,8 +134,10 @@ export interface TriggersPanel {
 
 /**
  * The Triggers toggle "Triggers ({n})" under the hint controls, n the number of Rung changes: a secondary button with
- * an expanded state, collapsed by default and opened at once when the session loads with a Disclosure active; the
- * player can still collapse it. `onOpen` tells the Hint area, which may grow past its cap while the panel is open.
+ * an expanded state, collapsed at first. While a Disclosure is active (FR-16) the panel opens by itself as soon as a
+ * row exists, on load or when the first Rung change arrives, so until then only the toggle with its count shows; the
+ * player's own toggle ends that, and the player can open or collapse it at any time. `onOpen` tells the Hint area,
+ * which may grow past its cap while the panel is open.
  * Under cut 5 the same button opens `#/triggers/<session_id>` in a second window instead, and nothing opens in place;
  * the window is 1024 px wide, since below that the Narrow-screen message replaces every route.
  */
@@ -149,32 +151,41 @@ export function triggersPanel(
   element.className = 'triggers'
   const list = triggersList(room)
   const href = placeHref({ route: { name: 'triggers', sessionId: session.id }, profile })
-  const open = !CUT_5 && session.disclosure.length > 0
+  /** Whether the panel still opens by itself once a row exists: under a Disclosure, until the player works the toggle. */
+  let auto = !CUT_5 && session.disclosure.length > 0
+  let open = false
   const toggle = CUT_5
     ? secondaryButton({ label: '', onActivate: () => window.open(href, `triggers-${session.id}`, 'popup,width=1024,height=480') })
     : toggleButton({
         label: '',
         state: 'expanded',
-        on: open,
         controls: LIST_ID,
         onToggle: (on) => {
-          list.element.hidden = !on
-          onOpen(on)
-          if (on) list.reveal()
+          auto = false
+          show(on)
         },
       })
   toggle.classList.add('triggers-toggle')
-  list.element.hidden = !open
+  list.element.hidden = true
   element.append(toggle, ...(CUT_5 ? [] : [list.element]))
+
+  function show(on: boolean): void {
+    open = on
+    toggle.setAttribute('aria-expanded', String(on))
+    list.element.hidden = !on
+    onOpen(on)
+    if (on) list.reveal()
+  }
 
   function render(state: SessionState): void {
     const label = document.createElement('span') // one flex item, so the name reads "Triggers (2)" unbroken
     label.append(...withNumbers(fill(strings.triggers, { n: state.rung_changes.length })))
     toggle.replaceChildren(label)
     list.render(state)
+    if (auto && !open && state.rung_changes.length > 0) show(true)
   }
 
-  render(session)
   onOpen(open)
+  render(session)
   return { element, render, reveal: list.reveal }
 }

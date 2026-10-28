@@ -140,9 +140,9 @@ def test_the_sheet_is_720px_parchment_with_48px_padding_over_a_scrim_on_the_body
     assert (scrim["position"], scrim["inset"], scrim["background"]) == ("absolute", "0", "var(--scrim)")
     assert scrim["overflow-y"] == "auto"  # a short body scrolls the scrim, never the page
     assert rules[".completion-layout"]["position"] == "relative"
-    # The scrim is a child of the page body, so the Disclosure banner and the top bar above it are never dimmed.
+    # The scrim is a child of the page body, so the top bar above it and the Disclosure footer under it are never dimmed.
     assert "body.append(scrim)" in _code("completion.ts")
-    assert "show(...(banner === null ? [] : [banner]), bar.element, body.element)" in _code("shell.ts")
+    assert "show(bar.element, body.element, ...(banner === null ? [] : [banner]))" in _code("shell.ts")
 
 
 def test_the_stats_are_three_across_in_mono_timer_under_the_parchment_rule_with_ink_muted_labels():

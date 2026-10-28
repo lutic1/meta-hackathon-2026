@@ -174,7 +174,7 @@ def test_lock_outcomes_are_announced_once_each_never_checking_and_nothing_again_
 def test_keyboard_order_follows_the_page_and_there_are_no_single_key_shortcuts():
     shell, play, scene = _ts("shell.ts"), _ts("play.ts"), _ts("scene/index.ts")
     # Top bar, then the Scene column (Scene frame, Thumbnail strip, Inventory), then the side column (Wizard notes).
-    assert "show(...(banner === null ? [] : [banner]), bar.element, body.element)" in shell
+    assert "show(bar.element, body.element, ...(banner === null ? [] : [banner]))" in shell
     assert "element.append(sceneColumn, sideColumn)" in shell
     assert "root.append(frame)" in scene and "sceneColumn.append(stripRow)" in play
     assert "stripRow.prepend(strip.element)" in scene and "stripRow.append(held.element)" in play

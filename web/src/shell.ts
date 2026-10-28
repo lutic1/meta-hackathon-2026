@@ -34,7 +34,8 @@ function refused(error: unknown): null {
 }
 
 /**
- * The app shell (UX-DR7): the Disclosure banner, the top bar and the body for the current route.
+ * The app shell (UX-DR7): the top bar, the body for the current route and the Disclosure banner, the footer strip
+ * under the body.
  *
  * Nothing renders until `GET /meta` answers, and a Room-bound route also waits for its session state, so no
  * surface ever shows without its Disclosure lines. While a request fails the page body holds only the centered
@@ -56,7 +57,7 @@ function refused(error: unknown): null {
  * bar's Timer slot shows the run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
  * `#/build/<job_id>/view` waits for `GET /builds/<job_id>/view` once and shows the Build view, ready, not ready or
  * failed (never the unreachable strip), with the `BuildView`'s own Disclosure list once it answered; only its body
- * scrolls, so the banner and the top bar stay pinned. Either Build route whose job's Room is gone (410
+ * scrolls, so the top bar and the banner stay pinned. Either Build route whose job's Room is gone (410
  * `room_deleted`, or 404 `room_not_found` on the view) holds only the Deleted Judge room notice or the unknown-room
  * card in its body (`showRoomGone`). `#/done/<session_id>` is the Completion screen over the
  * dimmed Play screen, its top bar inert and its Timer frozen. `#/triggers/<session_id>` is cut 5's second window,
@@ -142,7 +143,7 @@ export function startShell(root: HTMLElement): void {
     const body = surface(content, bar)
     const done = content.name === 'done'
     bar.element.inert = done // the Play screen's controls stay in place, taking no input
-    show(...(banner === null ? [] : [banner]), bar.element, body.element)
+    show(bar.element, body.element, ...(banner === null ? [] : [banner]))
     const unmountBody = body.mount?.()
     const owns = timerOwner(place.route)
     const unmountTimer = owns === null ? undefined : mountTimer(bar.timer, owns, done)

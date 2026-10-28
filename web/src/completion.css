@@ -1,5 +1,5 @@
 /* The Completion screen: the Play layout dimmed under the scrim, which covers the page body only (it starts below the
-   top bar, so the Disclosure banner and the Timer stay undimmed). */
+   top bar and ends above the Disclosure banner, so the Timer and the Disclosures stay undimmed). */
 .completion-layout {
   position: relative;
 }
