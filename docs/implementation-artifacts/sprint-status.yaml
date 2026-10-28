@@ -154,7 +154,10 @@ development_status:
   epic-7: in-progress
   7-1-hosted-stores-on-modal-dict-and-volume: done
   7-2-modal-app-entry-settings-mode-and-the-hosted-texts: done
-  7-3-first-manual-modal-deploy-as-a-smoke-test: backlog
+  # 7.3 first hosted deploy, Wed Oct 28: deploy workflow run 3 on master 0452a4c,
+  # Environment main, MIN_CONTAINERS 0, judge URL https://luis-ticas1--keyframe-web.modal.run.
+  # Result: GET /api/meta 200 hosted, access check ok with 20 builds left, landing clean in Chromium.
+  7-3-first-manual-modal-deploy-as-a-smoke-test: done
   7-4-clue-cards-generated-once-per-demo-room: backlog
   7-5-clue-card-read-route: backlog
   7-6-clue-card-slot-beside-each-clue: backlog
