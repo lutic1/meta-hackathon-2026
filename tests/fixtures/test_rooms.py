@@ -6,7 +6,7 @@ from PIL import Image
 
 from src.domain.schema import Room
 from src.domain.validator import validate
-from tests.fixtures.rooms import LONG_EDGE, write_fixtures
+from tests.fixtures.rooms import INTERACTABLES, LONG_EDGE, write_fixtures
 
 IGNORED_FOLDERS = {"rooms", "photos", "captures", "uploads"}
 REPO = Path(__file__).resolve().parents[2]
@@ -24,6 +24,21 @@ def test_generator_writes_six_synthetic_jpeg_scenes_with_one_portrait(tmp_path):
         assert photo.size == path.stat().st_size and photo.original_path == str(path)
     assert all(max(size) == LONG_EDGE for size in sizes)
     assert any(height > width for width, height in sizes)
+
+
+def _dark_pixels(path: str, box: tuple[int, int, int, int], below: int) -> int:
+    with Image.open(path) as image:
+        crop = image.convert("L").crop(box)
+    return sum(count for count, grey in crop.getcolors(crop.width * crop.height) if grey < below)
+
+
+def test_code_scenes_draw_the_evidence_the_clues_point_at(four_lock_room: Room):
+    """The clock face carries hands and numerals and the door carries digits above its frame (Story 2.24, SIT-14)."""
+    _, clock_photo, (x0, y0, x1, y1), _ = INTERACTABLES["clock"]
+    inside_the_outline = (x0 + 24, y0 + 24, x1 - 24, y1 - 24)  # the label alone leaves a few hundred dark pixels
+    assert _dark_pixels(four_lock_room.photos[clock_photo].downscaled_path, inside_the_outline, 128) > 2000
+    _, door_photo, (x0, y0, x1, _), _ = INTERACTABLES["door"]
+    assert _dark_pixels(four_lock_room.photos[door_photo].downscaled_path, (x0, 0, x1, y0), 160) > 500
 
 
 def test_output_sits_outside_every_ignored_folder_and_the_repo(fixture_dir, four_lock_room):

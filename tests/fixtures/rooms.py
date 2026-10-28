@@ -3,18 +3,21 @@
 `write_fixtures(out_dir)` writes six 1280 px JPEG scenes (one portrait) into
 `out_dir`, which callers keep outside `rooms/`, `photos/`, `captures/` and
 `uploads/` (pytest's tmp path), and returns the four-lock room and the
-code-and-find room built over them. Run as `python -m tests.fixtures.rooms <out_dir>`.
+code-and-find room built over them. The clock scene draws the stopped hands and the
+door scene its four digits, so a dry run can reach both code answers from the photos
+alone. Run as `python -m tests.fixtures.rooms <out_dir>`.
 """
 
 from __future__ import annotations
 
 import hashlib
+import math
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from src.domain.schema import Box, Room
 
@@ -51,11 +54,44 @@ INTERACTABLES: dict[str, tuple[str, int, Box, list[str]]] = {
 }
 FILLS = {"key": "#c9a227", "chest": "#6b4423", "clock": "#f4f1e8", "candle": "#f7f3e3",
          "lantern": "#3b3b3b", "hourglass": "#8c6d3f", "door": "#4f7a4a", "rug": "#a0413a"}
+BRASS = "#b08d3c"
 
 
 def _polygon(box: Box) -> list[tuple[float, float]]:
     x0, y0, x1, y1 = box
     return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+
+
+def _hand(draw: ImageDraw.ImageDraw, centre: tuple[float, float], degrees: float, length: float, width: int) -> None:
+    cx, cy = centre
+    theta = math.radians(degrees)  # clockwise from twelve
+    draw.line((cx, cy, cx + length * math.sin(theta), cy - length * math.cos(theta)), fill=BRASS, width=width)
+
+
+def _draw_clock_face(draw: ImageDraw.ImageDraw, box: Box) -> None:
+    """A round face with hour ticks and the hands stopped at a quarter past four (CLOCK_CODE's evidence)."""
+    x0, y0, x1, y1 = box
+    cx, cy, r = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2 - 12
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline="#222222", width=6)
+    numerals = ImageFont.load_default(size=40)
+    for numeral, (dx, dy) in {"12": (0, -1), "3": (1, 0), "6": (0, 1), "9": (-1, 0)}.items():
+        draw.text((cx + dx * (r - 40), cy + dy * (r - 40)), numeral, fill="#111111", font=numerals, anchor="mm")
+    for hour in range(12):
+        theta = math.radians(hour * 30)
+        draw.line((cx + (r - 18) * math.sin(theta), cy - (r - 18) * math.cos(theta),
+                   cx + r * math.sin(theta), cy - r * math.cos(theta)), fill="#222222", width=4)
+    _hand(draw, (cx, cy), 127.5, r * 0.55, 14)  # hour hand a quarter past four
+    _hand(draw, (cx, cy), 90.0, r * 0.85, 8)  # minute hand on the three
+    draw.ellipse((cx - 10, cy - 10, cx + 10, cy + 10), fill=BRASS)
+
+
+def _draw_door_digits(draw: ImageDraw.ImageDraw, box: Box) -> None:
+    """Four brass digits above the door frame (DOOR_CODE's evidence)."""
+    x0, y0, x1, _ = box
+    draw.text(((x0 + x1) / 2, y0 / 2), "7 3 4 2", fill=BRASS, font=ImageFont.load_default(size=60), anchor="mm")
+
+
+EVIDENCE_DRAWERS = {"clock": _draw_clock_face, "door": _draw_door_digits}
 
 
 def _draw_scene(index: int) -> Image.Image:
@@ -68,6 +104,8 @@ def _draw_scene(index: int) -> Image.Image:
             continue
         draw.rectangle(box, fill=FILLS[name], outline="#222222", width=4)
         draw.text((box[0] + 8, box[1] + 8), label, fill="#111111")
+        if name in EVIDENCE_DRAWERS:
+            EVIDENCE_DRAWERS[name](draw, box)
     return image
 
 
