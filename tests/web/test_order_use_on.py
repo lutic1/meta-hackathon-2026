@@ -313,10 +313,10 @@ def test_the_target_label_chip_shows_checking_until_the_verdict():
     pending = _body(layer, "function showPending(")
     assert "checking.className = 'chip chip-pending label'" in pending
     assert "checking.textContent = `${strings.checking}…`" in pending
-    assert "return showChip(interactable, [interactable.label, checking], true)" in pending
+    assert "return showChip(interactable, [interactable.label, checking], 'pending')" in pending
     # Held: no timeout, pointer leave, blur or focus replaces it until the reply clears it.
     chip = layer.split("function showChip(", 1)[1].split("\n  }\n", 1)[0]
-    assert "(release !== undefined && !pin)) return () => undefined" in chip
+    assert "(release !== undefined && hold !== 'pending')) return () => undefined" in chip
     assert chip.index("release = done") < chip.index("timer = setTimeout(")
     use_on = _body(scene, "async function useOn(")
     assert "const pending = layer?.showPending(target)" in use_on and "pending?.()" in use_on.split("finally {", 1)[1]

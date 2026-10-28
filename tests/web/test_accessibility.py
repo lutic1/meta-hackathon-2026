@@ -110,13 +110,13 @@ def test_the_completion_top_bar_keeps_show_all_objects_card_log_and_leave_room_i
 
 def test_show_all_draws_a_2px_dashed_outline_with_halo_no_fill_and_no_label_across_scene_changes():
     rules = _rules("scene/scene.css")
-    rest = ".is-showing-all .hotspot:not(:hover, :focus-visible)"
-    assert rules[f"{rest} .hotspot-reveal"] == {"opacity": "1"}
+    rest = ".is-showing-all .hotspot:not(:hover, :focus-visible, .is-drop-target)"
+    assert rules[f"{rest} .hotspot-reveal"] == {"opacity": "1", "filter": "none"}  # no lamp shadow at rest
     assert rules[f"{rest} .hotspot-glow"] == {"opacity": "0"}  # no fill
     outline = rules[f"{rest} .hotspot-outline"]
     assert outline["stroke"] == "var(--hotspot-show-all)" and "stroke-dasharray" in outline
-    assert rules[".hotspot-outline"]["stroke-width"] == "2px"
-    assert rules[".hotspot-halo"] == {"fill": "none", "stroke": "var(--hotspot-halo)", "stroke-width": "4px"}
+    assert outline["stroke-width"] == "2px"
+    assert rules[f"{rest} .hotspot-halo"] == {"stroke-width": "4px"}
     assert "showAllStroke: '2px dashed {colors.hotspot-show-all}'" in design_text()
     # The class lives on the Scene column, which outlives every photo switch; the toggle never shows a label.
     play = _ts("play.ts")

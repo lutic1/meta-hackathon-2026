@@ -8,6 +8,14 @@ const SVG = 'http://www.w3.org/2000/svg'
 export const CHIP_OFFSET_PX = 8
 /** UX-DR24: after a non-target click the label chip fades after 2 s, or sooner on pointer leave. */
 export const CHIP_MS = 2000
+/** DESIGN.md `{components.hotspot}` `labelDwell`: the pointer rests this long on a Hotspot before its label shows. */
+export const DWELL_MS = 400
+
+/**
+ * What ends a label chip: a `click` chip after 2 s or on pointer leave (or on blur, when keyboard focus showed it), a
+ * `dwell` chip when the pointer leaves, a `pending` chip only when its reply releases it.
+ */
+type ChipHold = 'click' | 'dwell' | 'pending'
 
 export interface HotspotHandlers {
   /** A click inside any of the Hotspot's polygons, or Enter on it. */
@@ -24,15 +32,15 @@ export interface HotspotLayer {
   /** The overlay over the photo: the Hotspots' SVG and the label chip. */
   elements: [SVGSVGElement, HTMLElement]
   /**
-   * Shows the Interactable's label on the chip until 2 s pass or the pointer leaves its Hotspot, or for as long as
-   * its Hotspot keeps keyboard focus: "{label} · in hand" for an Interactable the Inventory holds.
+   * Shows the Interactable's label on the chip after a click: until 2 s pass or the pointer leaves its Hotspot, or
+   * for as long as its Hotspot keeps keyboard focus. "{label} · in hand" for an Interactable the Inventory holds.
    */
   showLabel: (interactable: PlayInteractable) => void
   /** Marks the Hotspots of the Interactables `inventory` holds: a collected one's glow fades out and stays out. */
   setCollected: (inventory: readonly string[]) => void
   /**
-   * Shows the Interactable's label on the chip with the "Checking" chip beside it, held (no timeout, pointer leave or
-   * blur) until the returned function clears it: a `use_on` waiting for its verdict.
+   * Shows the Interactable's label on the chip with the "Checking" chip beside it, held (no dwell, timeout, pointer
+   * leave or blur replaces it) until the returned function clears it: a `click` or `use_on` waiting for its reply.
    */
   showPending: (interactable: PlayInteractable) => () => void
 }
@@ -57,11 +65,12 @@ function path(className: string, d: string): SVGPathElement {
  * `polygons` in the photo's own pixel space (the SVG `viewBox`), so the browser scales them to the rendered size.
  * Each is a focusable button named by the Interactable label whose id is the Interactable id, in Tab order by
  * polygon centroid from top to bottom, then left to right (UX-DR23); only its hit path takes the pointer, so a click
- * outside every polygon reaches no Hotspot. Invisible at rest; the reveal (outline, halo and glow fill) shows on
- * hover, never with a label, and keyboard focus traces the focus ring along it with the label chip shown for as long
- * as it keeps focus (UX-DR69). A collected `find` target stays in the Scene, still a Hotspot, but its glow fill fades
- * out over 200 ms and no longer shows (FR-12). An Inventory item dragged over a Hotspot shows the same reveal as hover,
- * and dropped there it is handed to `onDrop`; a drop anywhere else reaches no Hotspot (UX-DR36).
+ * outside every polygon reaches no Hotspot. Invisible at rest; the reveal (outline, halo, glow fill and lamp shadow)
+ * shows on hover, with the label chip once the pointer has dwelt 400 ms and until it leaves, and keyboard focus
+ * traces the focus ring along it with the label chip shown at once, for as long as it keeps focus (UX-DR69). A
+ * collected `find` target stays in the Scene, still a Hotspot, but its glow fill fades out over 200 ms and no longer
+ * shows (FR-12). An Inventory item dragged over a Hotspot shows the same reveal as hover, and dropped there it is
+ * handed to `onDrop`; a drop anywhere else reaches no Hotspot (UX-DR36).
  */
 export function hotspotLayer(photo: Size, interactables: readonly PlayInteractable[], handlers: HotspotHandlers): HotspotLayer {
   const svg = document.createElementNS(SVG, 'svg')
@@ -88,7 +97,12 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     reveal.setAttribute('class', 'hotspot-reveal')
     reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))
     hotspot.append(reveal, path('hotspot-hit', d))
-    hotspot.addEventListener('pointerenter', handlers.onPointerEnter)
+    let dwell: ReturnType<typeof setTimeout> | undefined
+    hotspot.addEventListener('pointerenter', () => {
+      handlers.onPointerEnter()
+      dwell = setTimeout(() => showLabel(interactable, 'dwell'), DWELL_MS)
+    })
+    hotspot.addEventListener('pointerleave', () => clearTimeout(dwell))
     hotspot.addEventListener('click', () => handlers.onActivate(interactable))
     hotspot.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') handlers.onActivate(interactable)
@@ -113,18 +127,18 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
 
   /** Hides the chip shown on focus or after a click. */
   let hide: (() => void) | undefined
-  /** Clears the chip held for a pending `use_on`, which no focus, click, timeout or pointer leave replaces. */
+  /** Clears the chip held for a pending click or `use_on`, which no focus, dwell, timeout or pointer leave replaces. */
   let release: (() => void) | undefined
   let collected: readonly string[] = []
 
   /**
    * Shows `text` (a label, or a label and the Checking chip) on the chip over the Interactable's Hotspot: until the
-   * returned function runs when `pin`, else for as long as the Hotspot keeps keyboard focus, else until 2 s pass or the
-   * pointer leaves it.
+   * returned function runs when `pending`, else for as long as the Hotspot keeps keyboard focus, else until the
+   * pointer leaves it, after 2 s at most unless a `dwell` showed it.
    */
-  function showChip(interactable: PlayInteractable, text: string | (string | Node)[], pin = false): () => void {
+  function showChip(interactable: PlayInteractable, text: string | (string | Node)[], hold: ChipHold = 'click'): () => void {
     const hotspot = hotspots.get(interactable.id)
-    if (hotspot === undefined || (release !== undefined && !pin)) return () => undefined
+    if (hotspot === undefined || (release !== undefined && hold !== 'pending')) return () => undefined
     hide?.()
     release?.()
     const rendered = svg.getBoundingClientRect()
@@ -145,14 +159,14 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
       chip.classList.remove('is-shown')
       hide = release = undefined
     }
-    if (pin) {
+    if (hold === 'pending') {
       release = done
       return done
     }
     hide = done
-    // Keyboard focus holds the chip until blur; otherwise it fades after 2 s, or sooner on pointer leave.
+    // Keyboard focus holds the chip until blur; otherwise it leaves with the pointer, after 2 s at most for a click.
     if (document.activeElement === hotspot && hotspot.matches(':focus-visible')) return done
-    timer = setTimeout(() => hide?.(), CHIP_MS)
+    if (hold === 'click') timer = setTimeout(() => hide?.(), CHIP_MS)
     hotspot.addEventListener('pointerleave', done)
     return done
   }
@@ -162,16 +176,16 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     for (const [id, hotspot] of hotspots) hotspot.classList.toggle('is-collected', inventory.includes(id))
   }
 
-  function showLabel(interactable: PlayInteractable): void {
+  function showLabel(interactable: PlayInteractable, hold: ChipHold = 'click'): void {
     const held = collected.includes(interactable.id)
-    showChip(interactable, held ? fill(strings.inHand, { label: interactable.label }) : interactable.label)
+    showChip(interactable, held ? fill(strings.inHand, { label: interactable.label }) : interactable.label, hold)
   }
 
   function showPending(interactable: PlayInteractable): () => void {
     const checking = document.createElement('span')
     checking.className = 'chip chip-pending label'
     checking.textContent = `${strings.checking}…`
-    return showChip(interactable, [interactable.label, checking], true)
+    return showChip(interactable, [interactable.label, checking], 'pending')
   }
 
   return { elements: [svg, chip], showLabel, setCollected, showPending }

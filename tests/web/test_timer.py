@@ -144,7 +144,8 @@ def test_the_first_pointer_response_of_the_builds_session_stops_it_at_t1():
 
 def test_keyboard_focus_never_stops_it():
     hotspots = _code("scene/hotspots.ts")
-    assert "hotspot.addEventListener('pointerenter', handlers.onPointerEnter)" in hotspots
+    enter = hotspots.split("hotspot.addEventListener('pointerenter', () => {", 1)[1].split("})", 1)[0]
+    assert "handlers.onPointerEnter()" in enter
     assert not re.search(r"addEventListener\('(focus|focusin|keydown|keyup)', handlers\.onPointerEnter", hotspots)
     keydown = hotspots.split("addEventListener('keydown'", 1)[1].split("})", 1)[0]
     assert "onPointerEnter" not in keydown

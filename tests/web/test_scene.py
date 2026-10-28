@@ -110,25 +110,59 @@ def test_a_hotspot_is_the_union_of_its_polygons_in_photo_pixels_with_the_interac
         assert not re.search(r"\.box\b|\bbox:|\['box'\]", _code(text)), f"{path} reads `box`"
 
 
-def test_hover_reveals_the_outline_halo_and_glow_within_150_ms_with_a_pointer_cursor():
+def test_hover_reveals_the_3px_outline_halo_fill_and_lamp_shadow_in_150_ms_and_the_label_after_a_400_ms_dwell():
     rules = _rules("scene/scene.css")
     assert rules[".hotspot-hit"] == {"fill": "transparent", "pointer-events": "fill", "cursor": "pointer"}
     reveal = rules[".hotspot-reveal"]
     assert reveal["opacity"] == "0" and reveal["transition"] == "opacity var(--motion-hover) var(--motion-ease)"
+    # The glow a player can feel on a real photo: the lamp drop shadow around the whole reveal, fading with it.
+    assert reveal["filter"] == ("drop-shadow(0 0 4px var(--hotspot-outline)) drop-shadow(0 0 12px var(--hotspot-outline)) "
+                                "drop-shadow(var(--elevation-lamp-glow))")
     assert rules[".hotspot:hover .hotspot-reveal,\n.hotspot:focus-visible .hotspot-reveal"] == {"opacity": "1"}
-    assert rules[".hotspot-outline"] == {"fill": "none", "stroke": "var(--hotspot-outline)", "stroke-width": "2px"}
+    assert rules[".hotspot-outline"] == {"fill": "none", "stroke": "var(--hotspot-outline)", "stroke-width": "3px"}
     # Story 1.21: the glow fill is its own path under the halo, so a collected find target's glow alone can fade.
     assert rules[".hotspot-glow"]["fill"] == "var(--hotspot-glow)"
-    assert rules[".hotspot-halo"] == {"fill": "none", "stroke": "var(--hotspot-halo)", "stroke-width": "4px"}
+    # 1 px of halo outside the 3 px outline.
+    assert rules[".hotspot-halo"] == {"fill": "none", "stroke": "var(--hotspot-halo)", "stroke-width": "5px"}
     assert rules[".hotspot-halo,\n.hotspot-outline"]["vector-effect"] == "non-scaling-stroke"
     assert rules[".hotspot:hover .hotspot-glow"] == {"opacity": "1"}
-    assert "reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))" in _ts("scene/hotspots.ts")
-    # No label on hover: the chip shows after a click whose reply opened nothing, or on keyboard focus (Story 1.25).
+    # Keyboard focus traces its ring without the lamp shadow (UX-DR11: the ring is never replaced by the glow).
+    assert rules[".hotspot:focus-visible .hotspot-reveal"] == {"filter": "none"}
+    design = design_text()
+    assert "hoverStroke: '3px {colors.hotspot-outline}'" in design
+    assert ("hoverGlow: 'drop-shadow(0 0 4px {colors.hotspot-outline}) drop-shadow(0 0 12px {colors.hotspot-outline}) "
+            "drop-shadow({elevation.lamp-glow})'") in design
+    assert "labelDwell: 400ms" in design
     layer = _ts("scene/hotspots.ts")
-    assert "hotspot.addEventListener('pointerenter', handlers.onPointerEnter)" in layer
+    assert "reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))" in layer
+    # The label chip after a 400 ms dwell, held until the pointer leaves; keyboard focus shows it at once (1.25).
+    assert "export const DWELL_MS = 400" in layer
     loop = layer.split("for (const { interactable, d } of shown)", 1)[1].split("let hide", 1)[0]
-    assert "showLabel" not in loop and loop.count("showChip(") == 1
+    enter = loop.split("hotspot.addEventListener('pointerenter', () => {", 1)[1].split("})", 1)[0]
+    assert "handlers.onPointerEnter()" in enter
+    assert "dwell = setTimeout(() => showLabel(interactable, 'dwell'), DWELL_MS)" in enter
+    assert "hotspot.addEventListener('pointerleave', () => clearTimeout(dwell))" in loop
     assert "if (hotspot.matches(':focus-visible')) showChip(interactable, interactable.label)" in loop
+    chip = layer.split("function showChip(", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (hold === 'click') timer = setTimeout(() => hide?.(), CHIP_MS)" in chip
+    assert chip.index("if (hold === 'click') timer") < chip.index("hotspot.addEventListener('pointerleave', done)")
+
+
+def test_a_pressed_hotspot_fills_solid_lamp_and_a_click_shows_checking_beside_it_until_the_reply():
+    rules = _rules("scene/scene.css")
+    assert rules[".hotspot:active .hotspot-glow"] == {"fill": "var(--hotspot-outline)"}
+    css = (WEB_SRC / "scene/scene.css").read_text()
+    assert css.index(".hotspot:active .hotspot-glow") < css.index(".hotspot.is-collected .hotspot-glow")  # never on a collected one
+    assert "pressedFill: '{colors.hotspot-outline}'" in design_text()
+    scene = _ts("scene/index.ts")
+    activate = scene.split("async function activate(", 1)[1].split("\n  }\n", 1)[0]
+    assert "const pending = layer?.showPending(interactable)" in activate
+    assert "const reply = await play.post({ type: 'click', interactable_id: interactable.id }).finally(pending)" in activate
+    assert activate.index("const pending = layer?.showPending(") < activate.index("await play.post(")
+    # The same held chip as a use_on: no dwell, timeout, pointer leave or blur clears it before the reply.
+    layer = _ts("scene/hotspots.ts")
+    assert "return showChip(interactable, [interactable.label, checking], 'pending')" in layer
+    assert "(release !== undefined && hold !== 'pending')) return () => undefined" in layer
 
 
 def test_a_click_inside_a_polygon_posts_exactly_one_click_and_a_click_outside_posts_nothing():
@@ -159,7 +193,7 @@ def test_a_non_target_click_shows_only_the_label_chip_8px_above_for_2s_or_until_
     assert "const opened = reply.locks_open.some((id) => !before.includes(id))" in activate
     assert "if (mounted && !opened) layer?.showLabel(interactable)" in activate
     assert "export const CHIP_OFFSET_PX = 8" in layer and "export const CHIP_MS = 2000" in layer
-    assert "showChip(interactable, held ? fill(strings.inHand, { label: interactable.label }) : interactable.label)" in layer
+    assert "showChip(interactable, held ? fill(strings.inHand, { label: interactable.label }) : interactable.label, hold)" in layer
     assert "chip.textContent = text" in layer
     assert "rendered.height - top * scale + CHIP_OFFSET_PX" in layer
     assert "setTimeout(() => hide?.(), CHIP_MS)" in layer
@@ -204,7 +238,7 @@ def test_the_first_pointer_response_is_signalled_once_per_session_and_never_by_t
     assert "window.dispatchEvent(new CustomEvent<FirstPointerResponseDetail>(FIRST_POINTER_RESPONSE" in once
     assert "const responded = new Set<string>()" in scene  # module level: one signal per session, not per Scene
     assert "onPointerEnter: () => firstPointerResponse(play.id)" in scene
-    assert "hotspot.addEventListener('pointerenter', handlers.onPointerEnter)" in layer
+    assert "hotspot.addEventListener('pointerenter', () => {\n      handlers.onPointerEnter()" in layer
     assert scene.count("firstPointerResponse(") == 2 and layer.count("onPointerEnter") == 2
 
 

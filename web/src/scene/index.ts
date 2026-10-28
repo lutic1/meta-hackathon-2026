@@ -57,8 +57,9 @@ function firstPointerResponse(sessionId: string): void {
  * `GET /rooms/<room_id>/photos/<i>` is drawn as a three textured plane, exactly as served (no tone mapping, no
  * light), on a canvas sized to the photo contained in the frame; the photo's Hotspots lie over it in its own pixel
  * space. The frame shows its loading line until a photo and its Hotspots are live. A Hotspot click posts one `click`
- * naming its Interactable and nothing else; when the reply opened no lock, the click hit no target and the label
- * chip shows ("{label} · in hand" on an Interactable the Inventory holds). The Hotspots of collected Interactables
+ * naming its Interactable and nothing else, its label chip showing with "Checking" beside it until the reply; when
+ * the reply opened no lock, the click hit no target and the label chip stays ("{label} · in hand" on an Interactable
+ * the Inventory holds). The Hotspots of collected Interactables
  * follow `inventory` in every state the server sends, so a solved `find` target's glow fades out. An Inventory item
  * dropped on a Hotspot, or a Hotspot activated while an item is selected (whose "Using {item label}" chip is pinned
  * to the frame's top-left), posts one `use_on` lock input naming the item and the Hotspot's Interactable, never a
@@ -152,7 +153,8 @@ export function mountScene(
     const item = play.useOn.selected()
     if (item !== null) return useOn(item, interactable)
     const before = play.state().locks_open
-    const reply = await play.post({ type: 'click', interactable_id: interactable.id })
+    const pending = layer?.showPending(interactable)
+    const reply = await play.post({ type: 'click', interactable_id: interactable.id }).finally(pending)
     const opened = reply.locks_open.some((id) => !before.includes(id))
     if (mounted && !opened) layer?.showLabel(interactable)
   }

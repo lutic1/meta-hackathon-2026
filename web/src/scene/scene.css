@@ -36,10 +36,11 @@
   border-radius: var(--rounded-sm);
 }
 
-/* {components.hotspot}: invisible at rest, a pointer cursor on its polygons only. Hover reveals the 2 px lamp
-   outline over a 1 px dark halo (a 4 px halo stroke under the 2 px outline) and the 35% glow fill, in 150 ms.
-   Strokes keep their pixel width at any rendered size. The glow fill is its own path, so a collected find target's
-   glow alone fades out (200 ms) while its outline still answers hover and focus. */
+/* {components.hotspot}: invisible at rest, a pointer cursor on its polygons only. Hover reveals the 3 px lamp
+   outline over a 1 px dark halo (a 5 px halo stroke under the 3 px outline), the 35% glow fill and the lamp drop
+   shadow around the whole reveal, in 150 ms; the shadow sits on the reveal so it fades out with it. Strokes keep
+   their pixel width at any rendered size. The glow fill is its own path, so a collected find target's glow alone
+   fades out (200 ms) while its outline still answers hover and focus. */
 .scene-hotspots {
   position: absolute;
   inset: 0;
@@ -56,6 +57,8 @@
 .hotspot-reveal {
   opacity: 0;
   pointer-events: none;
+  filter: drop-shadow(0 0 4px var(--hotspot-outline)) drop-shadow(0 0 12px var(--hotspot-outline))
+    drop-shadow(var(--elevation-lamp-glow));
   transition: opacity var(--motion-hover) var(--motion-ease);
 }
 .hotspot:hover .hotspot-reveal,
@@ -74,30 +77,44 @@
 .hotspot-halo {
   fill: none;
   stroke: var(--hotspot-halo);
-  stroke-width: 4px;
+  stroke-width: 5px;
 }
 .hotspot-outline {
   fill: none;
   stroke: var(--hotspot-outline);
-  stroke-width: 2px;
+  stroke-width: 3px;
+}
+/* Pressed: the glow fill goes solid lamp for as long as the button is held, so the click is felt before the reply. */
+.hotspot:active .hotspot-glow {
+  fill: var(--hotspot-outline);
 }
 /* "Show all objects" (NFR-14, UX-DR69): while the toggle is pressed, every Hotspot at rest shows the 2 px dashed
-   hotspot-show-all outline over its dark halo, with no fill and no label; hover and focus keep their own looks. The
-   class sits on the Scene column, so it holds across Scene changes until the toggle is released. */
-.is-showing-all .hotspot:not(:hover, :focus-visible) .hotspot-reveal {
+   hotspot-show-all outline over its 1 px dark halo, with no fill, no lamp shadow and no label; hover, focus and a
+   drop target keep their own looks. The class sits on the Scene column, so it holds across Scene changes until the
+   toggle is released. */
+.is-showing-all .hotspot:not(:hover, :focus-visible, .is-drop-target) .hotspot-reveal {
   opacity: 1;
+  filter: none;
 }
-.is-showing-all .hotspot:not(:hover, :focus-visible) .hotspot-glow {
+.is-showing-all .hotspot:not(:hover, :focus-visible, .is-drop-target) .hotspot-glow {
   opacity: 0;
 }
-.is-showing-all .hotspot:not(:hover, :focus-visible) .hotspot-outline {
+.is-showing-all .hotspot:not(:hover, :focus-visible, .is-drop-target) .hotspot-halo {
+  stroke-width: 4px;
+}
+.is-showing-all .hotspot:not(:hover, :focus-visible, .is-drop-target) .hotspot-outline {
   stroke: var(--hotspot-show-all);
+  stroke-width: 2px;
   stroke-dasharray: 6px 4px;
 }
 /* Keyboard focus: the two-tone focus ring traced along the polygon in place of the box around it (DESIGN.md):
-   outside the edge, 2 px focus-ring-inner against it and 2 px focus-ring beyond (strokes straddle the edge). */
+   outside the edge, 2 px focus-ring-inner against it and 2 px focus-ring beyond (strokes straddle the edge). The
+   ring is never replaced by the hover glow (UX-DR11), so it carries no fill and no lamp shadow. */
 .hotspot:focus-visible {
   outline-color: transparent;
+}
+.hotspot:focus-visible .hotspot-reveal {
+  filter: none;
 }
 .hotspot:focus-visible .hotspot-glow {
   opacity: 0;
@@ -114,24 +131,18 @@
   opacity: 1;
 }
 /* An Inventory item dragged over a Hotspot: the hover reveal, since the pointer's :hover does not apply mid-drag;
-   under "Show all objects" it drops the dashed outline for the hover one. */
+   under "Show all objects" it is left out of the rest look above, so it drops the dashed outline for the hover one. */
 .hotspot.is-drop-target .hotspot-reveal,
 .hotspot.is-drop-target .hotspot-glow {
   opacity: 1;
-}
-.is-showing-all .hotspot.is-drop-target:not(.is-collected) .hotspot-glow {
-  opacity: 1;
-}
-.is-showing-all .hotspot.is-drop-target .hotspot-outline {
-  stroke: var(--hotspot-outline);
-  stroke-dasharray: none;
 }
 /* Collected: no longer a target, so its glow fades out and stays out under hover and focus. */
 .hotspot.is-collected .hotspot-glow {
   opacity: 0;
 }
 
-/* {components.hotspot-label-chip}: parchment, label type, 8 px above the polygon (placed by the Scene); it fades. */
+/* {components.hotspot-label-chip}: parchment, label type, 8 px above the polygon (placed by the Scene); it fades.
+   Shown after a 400 ms dwell, at once on keyboard focus, with "Checking" beside it while a click or use_on waits. */
 .hotspot-label-chip {
   position: absolute;
   display: flex;
@@ -149,7 +160,7 @@
 .hotspot-label-chip.is-shown {
   opacity: 1;
 }
-/* A use_on waiting for its verdict: the "Checking" chip beside the label, sized to the label chip. */
+/* A click or use_on waiting for its reply: the "Checking" chip beside the label, sized to the label chip. */
 .hotspot-label-chip .chip-pending {
   height: auto;
   padding: 0 var(--spacing-1);

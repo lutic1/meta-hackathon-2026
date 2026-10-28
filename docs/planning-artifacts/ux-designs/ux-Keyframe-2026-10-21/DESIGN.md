@@ -305,12 +305,15 @@ components:
     photoRadius: '{rounded.sm}'
   hotspot:
     rest: none
-    hoverStroke: '2px {colors.hotspot-outline}'
+    hoverStroke: '3px {colors.hotspot-outline}'
     hoverHalo: '1px {colors.hotspot-halo}'
     hoverFill: '{colors.hotspot-glow}'
+    hoverGlow: 'drop-shadow(0 0 4px {colors.hotspot-outline}) drop-shadow(0 0 12px {colors.hotspot-outline}) drop-shadow({elevation.lamp-glow})'
+    pressedFill: '{colors.hotspot-outline}'
     focusStroke: '{components.focus-ring.outer}'
     showAllStroke: '2px dashed {colors.hotspot-show-all}'
     transition: '150ms ease-out'
+    labelDwell: 400ms
   hotspot-label-chip:
     background: '{colors.parchment}'
     foreground: '{colors.ink}'
@@ -652,7 +655,7 @@ The palette is three materials and one light. Contrast ratios are WCAG 2.x relat
 
 **Focus.** **Focus ring (`#FFD27A`)** with **focus ring inner (`#14100C`)** form a two-tone ring, so focus is visible on dark chrome, on parchment and on any photo.
 
-**Hotspots.** **Hotspot outline (`#E9A94B`)** carries a 1 px **hotspot halo (`#14100C`)** outside it, so the outline holds at least 3:1 against one of its neighbors on any photo, light or dark. **Hotspot glow (`#E9A94B59`)** is the 35% fill under the pointer. **Hotspot show-all (`#F4C470`)** is the dashed outline the "Show all objects" toggle draws (NFR-14).
+**Hotspots.** **Hotspot outline (`#E9A94B`)** carries a 1 px **hotspot halo (`#14100C`)** outside it, so the outline holds at least 3:1 against one of its neighbors on any photo, light or dark; under the pointer the whole reveal casts a lamp drop shadow (4 px and 12 px blurs of the outline color over `{elevation.lamp-glow}`), so the object is lit, not only traced, on a busy photo. **Hotspot glow (`#E9A94B59`)** is the 35% fill under the pointer, solid outline color while the Hotspot is pressed. **Hotspot show-all (`#F4C470`)** is the dashed outline the "Show all objects" toggle draws (NFR-14).
 
 **State.** Each state has a light form for dark surfaces and an ink form for parchment:
 
@@ -820,8 +823,8 @@ Mock: [mockups/play-screen.html](mockups/play-screen.html), room 1 mid-Session i
 | Component | Anatomy and size | Tokens | States |
 |---|---|---|---|
 | Scene frame | Canvas ground, 12 px chrome mat, 1 px gilt rule, inner vignette; the photo contained inside at `rounded.sm` | `{components.scene-frame}` | Loading: mat only with a `text-muted` line; reconnecting: the status strip appears above the frame (the frame shrinks, nothing overlays the photo), the photo dims to 60% and inputs disable; play-through ended: the photo dims to 60% under a centered plain line on `chrome-raised` with "Start again" (secondary) |
-| Hotspot | The Interactable's polygon(s) over the photo | `{components.hotspot}` | **Rest:** invisible, pointer cursor only. **Hover:** 2 px lamp outline, 1 px dark halo, 35% glow fill, 150 ms fade. **Focus:** the two-tone focus ring traced along the polygon plus the label chip. **Show all objects:** every Hotspot gets the 2 px dashed `hotspot-show-all` outline with halo, no fill, no labels. **Clicked non-target:** label chip only (FR-12). **Collected (`find` solved):** the hover glow shows, then fades out over 200 ms while the Inventory item fades in over the same 200 ms |
-| Hotspot label chip | Parchment chip, `label` type, anchored above the polygon's top edge, 8 px offset | `{components.hotspot-label-chip}` | On keyboard focus: shown for as long as the Hotspot has focus; after a non-target click: fades out after 2 s or on pointer leave [ASSUMPTION] |
+| Hotspot | The Interactable's polygon(s) over the photo | `{components.hotspot}` | **Rest:** invisible, pointer cursor only. **Hover:** 3 px lamp outline, 1 px dark halo, 35% glow fill and the lamp drop shadow (`hoverGlow`) around the reveal, 150 ms fade; the label chip after a 400 ms dwell. **Pressed:** the glow fill goes solid lamp while the button is held. **Focus:** the two-tone focus ring traced along the polygon plus the label chip at once, no shadow. **Show all objects:** every Hotspot gets the 2 px dashed `hotspot-show-all` outline with halo, no fill, no shadow, no labels. **Clicked:** the label chip with the Checking chip beside it until the reply; a non-target reply leaves the label chip alone (FR-12). **Collected (`find` solved):** the hover glow shows, then fades out over 200 ms while the Inventory item fades in over the same 200 ms |
+| Hotspot label chip | Parchment chip, `label` type, anchored above the polygon's top edge, 8 px offset | `{components.hotspot-label-chip}` | On hover: after a 400 ms dwell, held until the pointer leaves; on keyboard focus: at once, for as long as the Hotspot has focus; while a click or `use_on` waits: with the Checking chip beside it until the reply; after a non-target click: fades out after 2 s or on pointer leave [ASSUMPTION] |
 | Thumbnail strip | Row of 96 x 72 thumbnails, 8 px gaps, in upload order (A-12), horizontally scrollable inside its row only | `{components.thumbnail}` | Current 2 px lamp border; hover `lamp-strong`; others at 80% opacity; usable while a `use_on` item is selected |
 | Inventory | Tray of 64 px slots, three across the 288 px tray; each item a 56 px crop with a `caption` label; slots beyond the items held show the dashed empty slot | `{components.inventory}` | Empty: one dashed slot and a `body-sm` `text-muted` line; item arriving fades in (200 ms) in step with its Hotspot's glow fading out; selected for `use_on`: 2 px lamp ring; dragging: item at 60% in place, a 64 px drag image with `{elevation.paper}` |
 | Wizard notes | Parchment sheet, `{components.wizard-notes.padding}` padding, one entry per available Puzzle separated by `parchment-rule`; each entry: a heading row with "Puzzle {n}" in `display-sm` and, at its right end, a plain evidence count in `label` `ink-muted` ("3 evidence cards"); the Riddler portrait (32 px) beside the Clue (`wizard-line`); the Clue card slot beside the Clue when the Room has Clue cards (see its own row); the Evidence cards directly under the Clue; Lore (`lore`, `ink-muted`); opened Rungs; lock input | `{components.wizard-notes}`, `{components.active-puzzle-marker}` | Newly available entry fades in; the Active puzzle's entry carries a 3 px `lamp-ink` left rule plus the word "Current" in `label` `lamp-ink` beside its heading (never color alone); the evidence count changes in place with no highlight or animation; open entry collapses to one line with the Open chip; hidden Puzzles are not drawn at all, except an entry an accepted Merge just hid, which leaves a one-line plain `label` placeholder in `ink-muted` |
