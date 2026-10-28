@@ -59,7 +59,7 @@ from src.providers.mock import ChatCall, MockProvider, MockScript
 from src.providers.spend import SpendLedger
 from tests.pipeline.test_author_stage import LEAKY, reply, riddler, store_interactables
 from tests.pipeline.test_build import MemoryJobStore
-from tests.providers.replay import transport
+from tests.providers.replay import load, transport
 from tests.providers.test_cache import MemoryCache
 from tests.providers.test_spend import MemoryLedgerStore
 
@@ -335,6 +335,14 @@ def test_the_recorded_dry_run_replays_through_the_meta_adapter_reaching_every_an
     assert (row.id, row.role, row.host, row.cached) == (settled.call_id, "dryrun", "api.meta.ai", False)
     assert row.spend_usd == settled.usd > 0
     assert assemble_provenance(seeded, ledger.entries(), {}).spend_per_stage_usd["dryrun"] == pytest.approx(settled.usd)
+
+
+def test_the_recording_is_a_live_reply_answering_every_four_lock_puzzle_with_its_own_solution(four_lock_room):
+    reply = load(RECORDED)
+    assert (reply.model, reply.status) == (CHAT_MODEL, 200)
+    assert "created" in reply.body, "the body as Chat Completions returned it, not a hand-written sample"
+    answers = DryRunAnswers.model_validate_json(reply.body["choices"][0]["message"]["content"]).answers
+    assert [(a.puzzle_id, a.answer) for a in answers] == [(p.id, p.solution) for p in four_lock_room.puzzles]
 
 
 def test_run_dry_run_sends_the_attempt_and_the_stored_photo_bytes(seeded, artifacts, ledger, four_lock_room):
