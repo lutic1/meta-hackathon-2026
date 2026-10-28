@@ -186,7 +186,6 @@ from src.api.errors import (
 from src.api.meta import disclosure_lines, meta
 from src.api.wiring import (
     ACCESS_HEADER,
-    PROPOSALS_ROOT,
     AccessGuard,
     hint_phraser,
     session_clock,
@@ -997,7 +996,7 @@ def create_app(
     exports_root: Path = EXPORTS_ROOT,
     cache_root: Path = CACHE_ROOT,
     today: Callable[[], date] = date.today,
-    proposals_root: Path = PROPOSALS_ROOT,
+    proposals_dir: Path | None = None,
     trickster: Sources | None = None,
 ) -> FastAPI:
     """The app over the adapters `wire` selects; routes are registered before the static mount so `/api/` wins.
@@ -1012,9 +1011,9 @@ def create_app(
     functions wiring builds over the per-role providers (tests pass
     doubles); `access_clock`, Unix milliseconds, times the hosted access
     attempts; the paths and `today` let tests keep the ledger, its exports
-    and the cache out of the repo. `proposals_root` is where the Trickster
-    source table reads `proposals/`, and `trickster` replaces the source
-    wiring resolves from `DEMO_TRICKSTER` (tests pass doubles).
+    and the cache out of the repo. `proposals_dir` replaces the proposals
+    folder `DEMO_PROPOSALS_DIR` names, and `trickster` the source wiring
+    resolves from `DEMO_TRICKSTER` (tests pass doubles).
     """
     wired = wire(
         settings,
@@ -1067,7 +1066,7 @@ def create_app(
             settings,
             demo=settings.demo_timescale > 1,
             greets=wired.greets,
-            trickster=trickster or trickster_source(settings, wired.trickster, proposals_root),
+            trickster=trickster or trickster_source(settings, wired.trickster, proposals_dir),
         )
     )
     app.include_router(unknown_api_routes())

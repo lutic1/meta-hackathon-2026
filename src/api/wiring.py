@@ -42,14 +42,16 @@ reaches a clock and `build_clock` never sees it (AD-10).
 
 `trickster_source` resolves the Trickster's proposal source from
 `DEMO_TRICKSTER` through the source table `trickster_sources` (AD-15), over
-the root holding `proposals/` (the repo root, beside `src/`): `scripted`
-replays the recorded-proposals artifact and `authored` (cut 1) the
-pre-authored file, each read when a window asks; `live` is the live source
-on the `trickster` role's provider, and `record` the same source with the
-recorder behind it, writing each proposal into the recorded-proposals
-artifact (`Settings` refuses `record` in Hosted mode). `wire` builds the
-per-role providers once, over the process's one cache and `SpendLedger`, so
-the Build and the live Trickster share them.
+the proposals folder (`DEMO_PROPOSALS_DIR`, else `proposals/` at the repo
+root, beside `src/`): `scripted` replays the recorded-proposals artifact and
+`authored` (cut 1) the pre-authored file, each read when a window asks, and
+each refused at startup, naming the file, when it is missing, so a demo
+never opens windows it cannot fill; `live` is the live source on the
+`trickster` role's provider, and `record` the same source with the recorder
+behind it, writing each proposal into the recorded-proposals artifact
+(`Settings` refuses `record` in Hosted mode). `wire` builds the per-role
+providers once, over the process's one cache and `SpendLedger`, so the
+Build and the live Trickster share them.
 
 `access_guard` is the hosted access check on `POST /builds`,
 `GET /builds/<job_id>/room` and `POST /access/check` (AD-9): in hosted mode
@@ -95,7 +97,7 @@ from pydantic import ValidationError
 
 from src.api.errors import AccessDenied, TooManyAttempts
 from src.config import MUSE_SPARK, Settings
-from src.council.trickster import RECORDED_PROPOSALS, SOURCES, LiveSource, TricksterSource
+from src.council.trickster import PROPOSAL_FILES, RECORDED_PROPOSALS, SOURCES, LiveSource, TricksterSource
 from src.domain.ledger import CallKind
 from src.domain.schema import JobId, JobState, Role, Stage
 from src.infra.clocks import BuildClock, SessionClock
@@ -134,8 +136,8 @@ JOBS_DIR = "jobs"
 """Job records live under `rooms/jobs/` (AD-7)."""
 SESSIONS_DIR = "sessions"
 """Session logs live under `rooms/sessions/` (AD-9)."""
-PROPOSALS_ROOT = Path(__file__).resolve().parents[2]
-"""The root the Trickster source table reads `proposals/` under: the repo root, beside `src/`."""
+PROPOSALS_DIR = Path(__file__).resolve().parents[2] / "proposals"
+"""The proposals folder the Trickster source table reads when `DEMO_PROPOSALS_DIR` is unset: `proposals/` at the repo root, beside `src/`."""
 
 ROLES: tuple[Role, ...] = get_args(Role)
 ROLE_CALLS: dict[Role, tuple[CallKind, float]] = {
@@ -360,24 +362,38 @@ def resume_jobs(jobs: JobStore, runner: JobRunner) -> list[JobId]:
 
 
 def trickster_sources(provider: ModelProvider) -> dict[str, Callable[[Path], TricksterSource]]:
-    """Every `DEMO_TRICKSTER` value to its source over a root: the replay values, then the live source on `provider` (AD-15).
+    """Every `DEMO_TRICKSTER` value to its source over the proposals folder: the replay values, then the live source on `provider` (AD-15).
 
     `live` never records; `record` writes each live proposal into the
-    recorded-proposals artifact under the root, after the same call.
+    recorded-proposals artifact in the folder, after the same call.
     """
     return {
         **SOURCES,
-        "live": lambda root: LiveSource(provider),
-        "record": lambda root: LiveSource(provider, recording=root / RECORDED_PROPOSALS),
+        "live": lambda folder: LiveSource(provider),
+        "record": lambda folder: LiveSource(provider, recording=folder / RECORDED_PROPOSALS),
     }
 
 
 def trickster_source(
-    settings: Settings, provider: ModelProvider, root: Path = PROPOSALS_ROOT
+    settings: Settings, provider: ModelProvider, folder: Path | None = None
 ) -> Callable[[], TricksterSource | None]:
-    """The source `DEMO_TRICKSTER` names in the source table, built over `root` each time a window asks (AD-15)."""
+    """The source `DEMO_TRICKSTER` names in the source table, built over the proposals folder each time a window asks (AD-15).
+
+    The folder is `folder`, else `DEMO_PROPOSALS_DIR`, else `PROPOSALS_DIR`.
+    A replay value whose file is missing is refused here, at startup,
+    naming the file (the fail-fast shape of `MODE_REFUSED`).
+    """
+    if folder is None:
+        folder = settings.demo_proposals_dir if settings.demo_proposals_dir is not None else PROPOSALS_DIR
+    file = PROPOSAL_FILES.get(settings.demo_trickster)
+    if file is not None and not (folder / file).is_file():
+        raise ValueError(
+            f"DEMO_TRICKSTER={settings.demo_trickster} replays {folder / file}, which does not exist: "
+            "run `uv run scripts/load_fixtures.py` and set DEMO_PROPOSALS_DIR as it prints, "
+            "or record one with DEMO_TRICKSTER=record"
+        )
     source = trickster_sources(provider)[settings.demo_trickster]
-    return lambda: source(root)
+    return lambda: source(folder)
 
 
 def session_clock(settings: Settings) -> SessionClock:

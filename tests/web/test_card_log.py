@@ -14,7 +14,7 @@ from tests.api.test_sessions import Ticker, click, code, start
 from tests.api.test_trickster_route import (
     app_client,
     open_window,
-    proposals_root,
+    proposals_dir,
     state_of,
     trickster,
 )
@@ -259,7 +259,7 @@ def test_every_text_pair_meets_aa_and_is_in_the_contrast_table():
 
 def test_the_polled_state_lists_every_card_oldest_first_with_its_session_time(tmp_path: Path, four_lock_room: Room):
     ticker = Ticker()
-    client = app_client(tmp_path, ticker, four_lock_room, proposals_root=proposals_root(tmp_path))
+    client = app_client(tmp_path, ticker, four_lock_room, proposals_dir=proposals_dir(tmp_path))
     session_id = start(client, four_lock_room)
     open_window(client, ticker, session_id, click("key"), 0)
     trickster(client, session_id)

@@ -1,4 +1,7 @@
-"""Story 1.14: `scripts/load_fixtures.py` stores the two validated fixture rooms and their photos under `rooms/` once, and `GET /rooms` then lists both (AD-7, AD-9)."""
+"""Story 1.14: `scripts/load_fixtures.py` stores the two validated fixture rooms and their photos under `rooms/` once, and `GET /rooms` then lists both (AD-7, AD-9).
+
+It also installs the four-lock recording under `rooms/proposals/` for `DEMO_TRICKSTER=scripted` in local play (AD-12, AD-15).
+"""
 
 import importlib.util
 import subprocess
@@ -11,11 +14,15 @@ from fastapi.testclient import TestClient
 from src.api.app import create_app
 from src.api.wiring import JOBS_DIR, artifact_store, job_store
 from src.config import Settings
+from src.council.trickster import load_proposals
 from src.domain.redact import to_build_view
 from src.domain.schema import JobState, Room
 from src.domain.validator import BUILD_RULES, RULES, validate
 from src.pipeline.build import STAGES
 from src.pipeline.ports import ArtifactStore, JobStore, photo_key, room_key
+from tests.api.test_app import make_app
+from tests.api.test_sessions import Ticker, click, code, start
+from tests.api.test_trickster_route import open_window, trickster
 from tests.fixtures.rooms import ROOM_IDS
 
 REPO = Path(__file__).resolve().parents[2]
@@ -148,3 +155,40 @@ def test_the_script_runs_from_any_directory_and_reports_the_second_run(root: Pat
     second = subprocess.run([sys.executable, str(SCRIPT), str(root)], cwd=tmp_path, capture_output=True, text=True, check=False)
     assert second.returncode == 0 and "already stored" in second.stdout
     assert len(list(root.rglob("room.json"))) == 2
+    env_line = f"DEMO_TRICKSTER=scripted DEMO_PROPOSALS_DIR={root / loader.PROPOSALS_DIR}"
+    assert env_line in first.stdout and env_line in second.stdout
+
+
+# --- The four-lock proposals for scripted local play (AD-12, AD-15) ------------------------------
+
+
+def test_the_loader_installs_the_four_lock_recording_beside_the_rooms_for_the_stored_fixture_room(stores, root: Path, tmp_path: Path):
+    loader.load_fixtures(*stores, tmp_path / "scenes", regen_max=2)
+    installed = loader.install_proposals(root, stores[0])
+    assert installed == root / "proposals" / "recorded.json"
+    recording = load_proposals(installed)
+    assert recording == load_proposals(loader.FIXTURE_PROPOSALS) and recording.room_id == ROOM_IDS["four_lock"]
+    assert not list(root.glob("proposals/**/room.json"))  # never a room the store would list
+
+
+def test_the_recording_is_not_installed_before_its_room_is_stored(stores, root: Path):
+    with pytest.raises(ValueError, match=ROOM_IDS["four_lock"]):
+        loader.install_proposals(root, stores[0])
+    assert not (root / "proposals").exists()
+
+
+def test_a_scripted_session_over_the_installed_recording_gets_a_card_in_each_window(stores, root: Path, tmp_path: Path):
+    """Local play with `DEMO_TRICKSTER=scripted` and the printed env line: window 0 an accepted Decoy, window 1 a refused Merge."""
+    loader.load_fixtures(*stores, tmp_path / "scenes", regen_max=2)
+    loader.install_proposals(root, stores[0])
+    settings = Settings.from_env({"DEMO_TRICKSTER": "scripted", "DEMO_PROPOSALS_DIR": str(root / loader.PROPOSALS_DIR)})
+    ticker = Ticker()
+    client = TestClient(make_app(tmp_path, settings=settings, clock=ticker))
+    room = Room.model_validate_json(stores[0].read(room_key(ROOM_IDS["four_lock"])))
+    session_id = start(client, room)
+    open_window(client, ticker, session_id, click("key"), 0)
+    first = trickster(client, session_id)
+    open_window(client, ticker, session_id, code("clock_code", "415"), 1)
+    second = trickster(client, session_id)
+    assert [(card["accepted"], card["edit_type"]) for card in first["cards"]] == [(True, "decoy")]
+    assert [(card["accepted"], card["edit_type"], card["reason"]) for card in second["cards"]] == [(True, "decoy", None), (False, "merge", 1)]

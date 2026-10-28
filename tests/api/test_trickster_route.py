@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from src.api.app import Sources
 from src.api.wiring import (
-    PROPOSALS_ROOT,
+    PROPOSALS_DIR,
     artifact_store,
     session_store,
     trickster_source,
@@ -21,6 +21,7 @@ from src.api.wiring import (
 from src.config import Settings
 from src.council.trickster import (
     AUTHORED_PROPOSALS,
+    PROPOSAL_FILES,
     RECORDED_PROPOSALS,
     ScriptedSource,
     TricksterProposal,
@@ -79,16 +80,16 @@ SENTINEL_CODE = "ZQXJV9"
 """A clock code that appears nowhere else in the room and still has a valid lock shape, so the room validates."""
 
 
-def proposals_root(tmp_path: Path, recording: dict[str, Any] = RECORDING, file: Path = RECORDED_PROPOSALS) -> Path:
-    """A root holding `proposals/` with `recording` at `file`, as the repo root holds it."""
-    root = tmp_path / "repo"
-    (root / file).parent.mkdir(parents=True, exist_ok=True)
-    (root / file).write_text(json.dumps(recording))
-    return root
+def proposals_dir(tmp_path: Path, recording: dict[str, Any] = RECORDING, file: Path = RECORDED_PROPOSALS) -> Path:
+    """A proposals folder holding `recording` at `file`, as `proposals/` at the repo root holds it."""
+    folder = tmp_path / "proposals"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / file).write_text(json.dumps(recording))
+    return folder
 
 
 def app_client(tmp_path: Path, ticker: Ticker, *rooms: Room, env: dict[str, str] | None = None, **options: Any) -> TestClient:
-    """The app at `DEMO_TRICKSTER=scripted` unless `env` says otherwise; `options` carry `proposals_root` or `trickster`."""
+    """The app at `DEMO_TRICKSTER=scripted` unless `env` says otherwise; `options` carry `proposals_dir` or `trickster`."""
     settings = Settings.from_env({"DEMO_TRICKSTER": "scripted", **(env or {})})
     return TestClient(make_app(tmp_path, *rooms, settings=settings, clock=ticker, **options))
 
@@ -161,10 +162,10 @@ def ticker() -> Ticker:
 # --- Wiring resolves the source from the source table ------------------------------------
 
 
-def test_wiring_resolves_the_scripted_and_authored_sources_over_proposals_under_the_repo_root(tmp_path: Path):
-    assert PROPOSALS_ROOT == REPO
-    recorded = proposals_root(tmp_path)
-    authored = proposals_root(tmp_path, {**RECORDING, "proposals": [VALID_MERGE]}, AUTHORED_PROPOSALS)
+def test_wiring_resolves_the_scripted_and_authored_sources_over_the_proposals_folder_at_the_repo_root(tmp_path: Path):
+    assert PROPOSALS_DIR == REPO / "proposals" and PROPOSAL_FILES == {"scripted": RECORDED_PROPOSALS, "authored": AUTHORED_PROPOSALS}
+    recorded = proposals_dir(tmp_path)
+    authored = proposals_dir(tmp_path, {**RECORDING, "proposals": [VALID_MERGE]}, AUTHORED_PROPOSALS)
     resolved = {
         value: trickster_source(Settings.from_env({"DEMO_TRICKSTER": value}), MockProvider("trickster"), recorded)()
         for value in ("scripted", "authored")
@@ -172,6 +173,36 @@ def test_wiring_resolves_the_scripted_and_authored_sources_over_proposals_under_
     assert recorded == authored and all(isinstance(source, ScriptedSource) for source in resolved.values())
     assert [p.model_dump() for p in resolved["scripted"].recording.proposals] == RECORDING["proposals"]  # type: ignore[union-attr]
     assert [p.model_dump() for p in resolved["authored"].recording.proposals] == [VALID_MERGE]  # type: ignore[union-attr]
+
+
+def test_demo_proposals_dir_names_the_folder_and_an_explicit_folder_wins(tmp_path: Path):
+    """`DEMO_PROPOSALS_DIR` reaches wiring through `Settings` (AD-14); tests and the app may still pass a folder."""
+    folder = proposals_dir(tmp_path)
+    settings = Settings.from_env({"DEMO_TRICKSTER": "scripted", "DEMO_PROPOSALS_DIR": str(folder)})
+    from_settings = trickster_source(settings, MockProvider("trickster"))()
+    assert isinstance(from_settings, ScriptedSource) and from_settings.recording.room_id == RECORDING["room_id"]
+    other = proposals_dir(tmp_path / "other", {**RECORDING, "proposals": [VALID_MERGE]})
+    explicit = trickster_source(settings, MockProvider("trickster"), other)()
+    assert [p.model_dump() for p in explicit.recording.proposals] == [VALID_MERGE]  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize("value", ["scripted", "authored"])
+def test_a_missing_proposals_file_refuses_startup_naming_its_path(tmp_path: Path, ticker: Ticker, four_lock_room: Room, value: str):
+    """A replay value whose file is missing fails at startup like a refused `MODE` value, so no window ever opens unfilled."""
+    folder = tmp_path / "nowhere"
+    path = folder / PROPOSAL_FILES[value]
+    with pytest.raises(ValueError, match=re.escape(str(path))) as refusal:
+        app_client(tmp_path, ticker, four_lock_room, env={"DEMO_TRICKSTER": value}, proposals_dir=folder)
+    assert f"DEMO_TRICKSTER={value}" in str(refusal.value) and "DEMO_PROPOSALS_DIR" in str(refusal.value)
+    settings = Settings.from_env({"DEMO_TRICKSTER": value, "DEMO_PROPOSALS_DIR": str(folder)})
+    with pytest.raises(ValueError, match=re.escape(str(path))):
+        trickster_source(settings, MockProvider("trickster"))
+
+
+@pytest.mark.parametrize("value", ["live", "record"])
+def test_the_live_values_start_without_any_proposals_file(tmp_path: Path, ticker: Ticker, four_lock_room: Room, value: str):
+    client = app_client(tmp_path, ticker, four_lock_room, env={"DEMO_TRICKSTER": value}, proposals_dir=tmp_path / "nowhere")
+    assert client.get("/api/meta").status_code == 200
 
 
 # --- Outside an open window -------------------------------------------------------------
@@ -212,7 +243,7 @@ def test_a_session_at_six_calls_answers_its_unchanged_state_with_its_cards_and_n
 
 
 def test_the_scripted_source_is_judged_live_and_one_card_lands_per_window(tmp_path: Path, ticker: Ticker, four_lock_room: Room):
-    client = app_client(tmp_path, ticker, four_lock_room, proposals_root=proposals_root(tmp_path))
+    client = app_client(tmp_path, ticker, four_lock_room, proposals_dir=proposals_dir(tmp_path))
     session_id, (first, second) = two_windows(client, ticker, four_lock_room, click("key"), code("clock_code", "415"))
 
     accepted, rejected = cards_in(tmp_path, session_id)
@@ -249,7 +280,7 @@ def test_the_source_is_handed_the_effective_rooms_view_and_the_game_state_summar
 
 
 def test_the_stored_card_keeps_the_judged_edit_with_a_minted_id_server_side(tmp_path: Path, ticker: Ticker, four_lock_room: Room):
-    client = app_client(tmp_path, ticker, four_lock_room, proposals_root=proposals_root(tmp_path))
+    client = app_client(tmp_path, ticker, four_lock_room, proposals_dir=proposals_dir(tmp_path))
     session_id, _ = two_windows(client, ticker, four_lock_room, click("key"), code("clock_code", "415"))
     accepted, rejected = cards_in(tmp_path, session_id)
     for window, card in enumerate((accepted, rejected)):
@@ -328,8 +359,8 @@ def test_no_session_body_carries_the_decoys_identity_or_a_rejected_proposals_tok
         "type": "decoy", "puzzle": PZ["clock_code"],
         "payload": {"type": "decoy", "interactable": IX["clock"], "visible_attribute": f"its face reads {SENTINEL_CODE}"},
     }
-    root = proposals_root(tmp_path, {"room_id": room.id, "proposals": [RECORDING["proposals"][0], leaky]})
-    client = app_client(tmp_path, ticker, room, proposals_root=root)
+    root = proposals_dir(tmp_path, {"room_id": room.id, "proposals": [RECORDING["proposals"][0], leaky]})
+    client = app_client(tmp_path, ticker, room, proposals_dir=root)
     session_id = start(client, room)
     open_window(client, ticker, session_id, code("clock_code", SENTINEL_CODE), 0)
     trickster(client, session_id)
@@ -373,12 +404,12 @@ def test_no_trickster_or_effective_room_response_carries_a_solution_provenance_p
 def test_the_recorded_proposals_replay_one_accepted_and_one_rejected_and_a_valid_replacement_flips_the_card(
     tmp_path: Path, ticker: Ticker, four_lock_room: Room
 ):
-    root = proposals_root(tmp_path)
-    client = app_client(tmp_path, ticker, four_lock_room, proposals_root=root)
+    root = proposals_dir(tmp_path)
+    client = app_client(tmp_path, ticker, four_lock_room, proposals_dir=root)
     _, (_, second) = two_windows(client, ticker, four_lock_room, click("key"), code("clock_code", "415"))
     assert [card["accepted"] for card in second["cards"]] == [True, False]
 
-    proposals_root(tmp_path, {**RECORDING, "proposals": [RECORDING["proposals"][0], VALID_MERGE]})
+    proposals_dir(tmp_path, {**RECORDING, "proposals": [RECORDING["proposals"][0], VALID_MERGE]})
     _, (_, flipped) = two_windows(client, ticker, four_lock_room, click("key"), code("clock_code", "415"))
     assert [card["accepted"] for card in flipped["cards"]] == [True, True]
     assert flipped["cards"][1]["reason"] is None and flipped["cards"][1]["message"] is None
@@ -390,9 +421,9 @@ def test_the_recorded_proposals_replay_one_accepted_and_one_rejected_and_a_valid
 def test_under_authored_the_route_replays_the_pre_authored_file_through_the_live_validator(
     tmp_path: Path, ticker: Ticker, four_lock_room: Room
 ):
-    root = proposals_root(tmp_path, file=AUTHORED_PROPOSALS)
+    root = proposals_dir(tmp_path, file=AUTHORED_PROPOSALS)
     assert not (root / RECORDED_PROPOSALS).exists()
-    client = app_client(tmp_path, ticker, four_lock_room, env={"DEMO_TRICKSTER": "authored"}, proposals_root=root)
+    client = app_client(tmp_path, ticker, four_lock_room, env={"DEMO_TRICKSTER": "authored"}, proposals_dir=root)
     session_id, (_, second) = two_windows(client, ticker, four_lock_room, click("key"), code("clock_code", "415"))
     assert [(card["accepted"], card["reason"]) for card in second["cards"]] == [(True, None), (False, 1)]
     assert [card.edit.validator_result.ok for card in cards_in(tmp_path, session_id) if card.edit] == [True, False]
@@ -410,8 +441,8 @@ def test_a_window_with_no_proposal_appends_nothing_and_stays_as_it_was(
     tmp_path: Path, ticker: Ticker, four_lock_room: Room, code_and_find_room: Room, case: str
 ):
     one_proposal = {**RECORDING, "proposals": RECORDING["proposals"][:1]}
-    root = proposals_root(tmp_path, one_proposal)
-    client = app_client(tmp_path, ticker, four_lock_room, code_and_find_room, proposals_root=root)
+    root = proposals_dir(tmp_path, one_proposal)
+    client = app_client(tmp_path, ticker, four_lock_room, code_and_find_room, proposals_dir=root)
     if case == "another room":
         session_id = start(client, code_and_find_room)
         open_window(client, ticker, session_id, click("key"), 0)
@@ -431,15 +462,14 @@ def test_a_window_with_no_proposal_appends_nothing_and_stays_as_it_was(
     assert not (tmp_path / LEDGER_PATH).exists() and not (tmp_path / CACHE_ROOT).exists()
 
 
-@pytest.mark.parametrize("contents", [None, "{not json", json.dumps({"room_id": "nope"})], ids=["missing", "malformed", "invalid"])
+@pytest.mark.parametrize("contents", ["{not json", json.dumps({"room_id": "nope"})], ids=["malformed", "invalid"])
 def test_a_proposals_file_that_fails_to_load_is_no_proposal_and_never_a_500(
-    tmp_path: Path, ticker: Ticker, four_lock_room: Room, contents: str | None, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, ticker: Ticker, four_lock_room: Room, contents: str, caplog: pytest.LogCaptureFixture
 ):
-    root = tmp_path / "repo"
-    if contents is not None:
-        (root / RECORDED_PROPOSALS).parent.mkdir(parents=True)
-        (root / RECORDED_PROPOSALS).write_text(contents)
-    client = app_client(tmp_path, ticker, four_lock_room, proposals_root=root)
+    folder = tmp_path / "proposals"
+    folder.mkdir()
+    (folder / RECORDED_PROPOSALS).write_text(contents)
+    client = app_client(tmp_path, ticker, four_lock_room, proposals_dir=folder)
     session_id = start(client, four_lock_room)
     open_window(client, ticker, session_id, click("key"), 0)
     before, log = state_of(client, session_id), stored(tmp_path, session_id)
@@ -476,7 +506,7 @@ def test_a_provider_error_or_the_spend_cap_appends_the_skipped_card_and_play_goe
 
 def test_the_room_route_serves_the_effective_room_with_the_accepted_edit_only(tmp_path: Path, ticker: Ticker, four_lock_room: Room):
     original = four_lock_room.model_dump_json()
-    client = app_client(tmp_path, ticker, four_lock_room, proposals_root=proposals_root(tmp_path))
+    client = app_client(tmp_path, ticker, four_lock_room, proposals_dir=proposals_dir(tmp_path))
     session_id, _ = two_windows(client, ticker, four_lock_room, click("key"), code("clock_code", "415"))
 
     response = client.get(f"/api/sessions/{session_id}/room")
@@ -495,7 +525,7 @@ def test_the_room_route_serves_the_effective_room_with_the_accepted_edit_only(tm
 
 
 def test_the_room_route_answers_an_unknown_session_with_the_envelope(tmp_path: Path, ticker: Ticker, four_lock_room: Room):
-    client = app_client(tmp_path, ticker, four_lock_room)
+    client = app_client(tmp_path, ticker, four_lock_room, proposals_dir=proposals_dir(tmp_path))
     for response in (client.get("/api/sessions/sess_01ARZ3NDEKTSV4RRFFQ69G5FAV/room"),
                      client.post("/api/sessions/sess_01ARZ3NDEKTSV4RRFFQ69G5FAV/trickster")):
         assert response.status_code == 404 and response.json()["error"]["code"] == "session_not_found"
@@ -505,6 +535,7 @@ def test_the_room_route_answers_an_unknown_session_with_the_envelope(tmp_path: P
     ("live", "live"), ("record", "live"), ("scripted", "scripted"), ("authored", "cut1"),
 ])
 def test_meta_keeps_exactly_its_fields_and_reports_the_source(tmp_path: Path, ticker: Ticker, demo_trickster: str, reported: str):
-    client = app_client(tmp_path, ticker, env={"DEMO_TRICKSTER": demo_trickster})
+    folder = proposals_dir(tmp_path, file=AUTHORED_PROPOSALS) and proposals_dir(tmp_path)
+    client = app_client(tmp_path, ticker, env={"DEMO_TRICKSTER": demo_trickster}, proposals_dir=folder)
     body = client.get("/api/meta").json()
     assert set(body) == set(Meta.model_fields) and body["trickster"] == reported

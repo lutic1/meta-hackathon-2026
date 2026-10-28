@@ -9,6 +9,7 @@ from typing import Any, get_args
 import pytest
 from pydantic import ValidationError
 
+from src.api.wiring import PROPOSALS_DIR
 from src.config import Settings
 from src.council.trickster import (
     AUTHORED_PROPOSALS,
@@ -189,7 +190,7 @@ def test_the_scripted_source_makes_no_model_call_and_writes_no_ledger_entry(tmp_
     } | {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
     adapters = [name for name in imported if name.startswith(("src.providers", "src.infra", "src.pipeline", "src.api"))]
     assert adapters == ["src.providers.base"]  # the port the live source calls (4.8); no adapter, cache or ledger
-    assert list(inspect.signature(SOURCES["scripted"]).parameters) == ["root"]
+    assert list(inspect.signature(SOURCES["scripted"]).parameters) == ["folder"]
 
     monkeypatch.chdir(tmp_path)
     source = scripted_on(tmp_path)
@@ -284,5 +285,6 @@ def test_the_demo_rooms_cut_1_file_passes_one_and_rejects_one():
 
 
 def test_the_cut_1_file_lives_outside_the_git_ignored_rooms_folder():
-    assert AUTHORED_PROPOSALS.parts[0] not in {"rooms", "photos", "captures", "uploads", ".cache", "cache"}
-    assert RECORDED_PROPOSALS.parts[0] not in {"rooms", "photos", "captures", "uploads", ".cache", "cache"}
+    folder = PROPOSALS_DIR.relative_to(REPO)
+    assert folder.parts[0] not in {"rooms", "photos", "captures", "uploads", ".cache", "cache"}
+    assert (folder / AUTHORED_PROPOSALS, folder / RECORDED_PROPOSALS) == (Path("proposals/authored.json"), Path("proposals/recorded.json"))

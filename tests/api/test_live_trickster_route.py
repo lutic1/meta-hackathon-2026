@@ -245,7 +245,7 @@ def test_record_cards_each_live_proposal_and_writes_it_and_scripted_then_replays
     assert artifact.room_id == four_lock_room.id and [p.model_dump() for p in artifact.proposals] == [FIRST, MERGE]
     assert "accepted" not in (root / RECORDED_PROPOSALS).read_text()
 
-    replay = app_client(tmp_path / "replay", ticker, four_lock_room, proposals_root=root)
+    replay = app_client(tmp_path / "replay", ticker, four_lock_room, proposals_dir=root)
     _, (_, replayed) = two_windows(replay, ticker, four_lock_room, click("key"), code("clock_code", "415"))
     assert [(card["accepted"], card["edit_type"], card["reason"]) for card in replayed["cards"]] == live_cards
     assert replayed["cards"][1]["message"] == RULES[1].message

@@ -183,15 +183,16 @@ def test_the_image_runs_hosted_with_the_verbatim_guide(spies: Spies):
 def test_the_image_carries_proposals_beside_src_when_the_folder_exists_so_a_scripted_trickster_has_a_source(
     spies: Spies, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    """`wiring.PROPOSALS_ROOT` is the parent of `src/`, `/root` in the container, so `proposals/` lands at `/root/proposals` (FR-31, AD-15)."""
+    """`wiring.PROPOSALS_DIR` is `proposals/` beside `src/`, `/root/proposals` in the container, so the folder lands there (FR-31, AD-15)."""
     monkeypatch.chdir(tmp_path)
     load()
     assert spies.local_dirs == [("web/dist", modal_app.WEB_DIST)]  # not committed yet: the deploy must not fail on it
-    (tmp_path / RECORDED_PROPOSALS).parent.mkdir()
+    (tmp_path / wiring.PROPOSALS_DIR.name).mkdir()
     spies.local_dirs.clear()
     load()
-    assert spies.local_dirs == [("web/dist", modal_app.WEB_DIST), ("proposals", modal_app.PROPOSALS_DIR)]
-    assert Path(modal_app.PROPOSALS_DIR) == Path(modal_app.WEB_DIST).parents[1] / RECORDED_PROPOSALS.parent
+    assert spies.local_dirs == [("web/dist", modal_app.WEB_DIST), (wiring.PROPOSALS_DIR.name, modal_app.PROPOSALS_DIR)]
+    assert Path(modal_app.PROPOSALS_DIR) == Path(modal_app.WEB_DIST).parents[1] / wiring.PROPOSALS_DIR.name
+    assert Path(modal_app.PROPOSALS_DIR) / RECORDED_PROPOSALS == Path("/root/proposals/recorded.json")
 
 
 def test_importing_the_module_contacts_no_modal_service_and_hydrates_no_handle(spies: Spies):

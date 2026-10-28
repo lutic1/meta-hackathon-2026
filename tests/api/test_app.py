@@ -15,6 +15,7 @@ from src.api.app import WEB_DIST, create_app, load_room
 from src.api.errors import ApiError, PhotoNotFound, RoomNotFound, envelope
 from src.api.wiring import artifact_store
 from src.config import Settings
+from src.council.trickster import PROPOSAL_FILES
 from src.domain.redact import to_play_view
 from src.domain.schema import ErrorEnvelope, Room, Stage
 from src.infra.local import CACHE_ROOT, EXPORTS_ROOT, LEDGER_PATH
@@ -30,6 +31,8 @@ from tests.fixtures.rooms import (
     with_sentinel_solutions,
 )
 
+REPO = Path(__file__).resolve().parents[2]
+FIXTURE_PROPOSALS = REPO / "tests/fixtures/proposals/four_lock.json"
 UNKNOWN = "room_01ARZ3NDEKTSV4RRFFQ69G5FAV"
 ROOM_NOT_FOUND = {"error": {"code": "room_not_found", "message": ANY, "stage": None}}
 
@@ -39,6 +42,15 @@ def store_room(store: ArtifactStore, room: Room) -> None:
     store.put(room_key(room.id), room.model_dump_json().encode())
     for index, photo in enumerate(room.photos):
         store.put(photo_key(room.id, index), Path(photo.downscaled_path).read_bytes())
+
+
+def fixture_proposals(tmp_path: Path) -> Path:
+    """A proposals folder holding the four-lock recording under both replay files, so a replay value starts."""
+    folder = tmp_path / "proposals"
+    folder.mkdir(parents=True, exist_ok=True)
+    for file in PROPOSAL_FILES.values():
+        (folder / file).write_bytes(FIXTURE_PROPOSALS.read_bytes())
+    return folder
 
 
 def idle_stages() -> dict[Stage, StageFn]:
@@ -58,7 +70,12 @@ def make_app(
     """The app over `tmp_path`: rooms, the ledger, its exports and the cache all stay out of the repo.
 
     `options` are the further `create_app` keywords: the Guide adapter, the `Spawn` and `hosted` (5.6).
+    A replay `DEMO_TRICKSTER` refuses to start without its file, so unless
+    `options` name a `proposals_dir` or a `trickster` double, the app reads
+    the four-lock recording from a folder under `tmp_path`.
     """
+    if "proposals_dir" not in options and "trickster" not in options:
+        options["proposals_dir"] = fixture_proposals(tmp_path)
     root = tmp_path / "rooms"
     store = artifact_store(root)
     for room in rooms:

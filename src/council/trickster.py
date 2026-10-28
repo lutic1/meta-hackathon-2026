@@ -16,12 +16,15 @@ index, holds no state between calls (each answer is a fresh copy, so a
 caller changing it never changes a later window), makes no `ModelProvider`
 call and writes no Ledger entry.
 
-`SOURCES` maps the replay values of `DEMO_TRICKSTER` to a source over a
-root folder: `scripted` replays the recorded-proposals artifact at
-`RECORDED_PROPOSALS` and `authored` (cut 1) the committed pre-authored file
-at `AUTHORED_PROPOSALS`, neither with a live path. `live` and `record` take
-`LiveSource` over the `trickster` role's provider, which wiring registers
-beside them in its own source table.
+`SOURCES` maps the replay values of `DEMO_TRICKSTER` to a source over the
+proposals folder (`DEMO_PROPOSALS_DIR`, AD-14; wiring's default is
+`proposals/` at the repo root): `scripted` replays the recorded-proposals
+artifact at `RECORDED_PROPOSALS` and `authored` (cut 1) the committed
+pre-authored file at `AUTHORED_PROPOSALS`, neither with a live path;
+`PROPOSAL_FILES` names each value's file, so wiring can refuse at startup
+when it is missing. `live` and `record` take `LiveSource` over the
+`trickster` role's provider, which wiring registers beside them in its own
+source table.
 
 `LiveSource` asks the model for one window's proposal (FR-18, AD-3, AD-6):
 `build_trickster_prompt` renders the fixed menu, the `RoomView` and the
@@ -54,10 +57,10 @@ from src.domain.schema import EditType, Model, Payload, PuzzleId, RoomId, RoomVi
 from src.domain.session import GameStateSummary
 from src.providers.base import ChatMessage, ModelProvider, ProviderError, ReasoningEffort
 
-RECORDED_PROPOSALS = Path("proposals/recorded.json")
-"""The recorded-proposals artifact `DEMO_TRICKSTER=scripted` replays, under the source's root."""
-AUTHORED_PROPOSALS = Path("proposals/authored.json")
-"""The committed pre-authored proposals file `DEMO_TRICKSTER=authored` (cut 1) replays, under the source's root."""
+RECORDED_PROPOSALS = Path("recorded.json")
+"""The recorded-proposals artifact `DEMO_TRICKSTER=scripted` replays, in the proposals folder."""
+AUTHORED_PROPOSALS = Path("authored.json")
+"""The committed pre-authored proposals file `DEMO_TRICKSTER=authored` (cut 1) replays, in the proposals folder."""
 REASONING_EFFORT: ReasoningEffort = "low"
 
 
@@ -111,17 +114,16 @@ class ScriptedSource:
 
 
 def _scripted_over(file: Path) -> Callable[[Path], TricksterSource]:
-    def source(root: Path) -> TricksterSource:
-        return ScriptedSource(load_proposals(root / file))
+    def source(folder: Path) -> TricksterSource:
+        return ScriptedSource(load_proposals(folder / file))
 
     return source
 
 
-SOURCES: dict[str, Callable[[Path], TricksterSource]] = {
-    "scripted": _scripted_over(RECORDED_PROPOSALS),
-    "authored": _scripted_over(AUTHORED_PROPOSALS),
-}
-"""`DEMO_TRICKSTER` value to its source over a root folder; neither scripted value has a live path (AD-15)."""
+PROPOSAL_FILES: dict[str, Path] = {"scripted": RECORDED_PROPOSALS, "authored": AUTHORED_PROPOSALS}
+"""Each replay value of `DEMO_TRICKSTER` to the file it reads in the proposals folder."""
+SOURCES: dict[str, Callable[[Path], TricksterSource]] = {value: _scripted_over(file) for value, file in PROPOSAL_FILES.items()}
+"""`DEMO_TRICKSTER` value to its source over the proposals folder; neither scripted value has a live path (AD-15)."""
 
 
 # --- The live source (FR-18, AD-3, AD-6) ---------------------------------------------

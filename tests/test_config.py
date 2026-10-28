@@ -130,6 +130,12 @@ def test_demo_trickster_accepts_the_four_values(value):
     assert Settings.from_env({"DEMO_TRICKSTER": value}).demo_trickster == value
 
 
+def test_demo_proposals_dir_is_read_as_a_path_and_unset_leaves_the_default_folder_to_wiring():
+    assert "DEMO_PROPOSALS_DIR" in ENV_KEYS and "DEMO_PROPOSALS_DIR" not in SECRET_KEYS
+    assert Settings.from_env({}).demo_proposals_dir is None
+    assert Settings.from_env({"DEMO_PROPOSALS_DIR": "rooms/proposals"}).demo_proposals_dir == Path("rooms/proposals")
+
+
 @pytest.mark.parametrize("env", [{"DEMO_TRICKSTER": "replay"}, {"GUIDE": "cloud"}, {"CACHE": "yes"},
                                  {"DEMO_TIMESCALE": "0"}, {"REGEN_MAX": "two"}])
 def test_invalid_flag_fails_at_startup(env):

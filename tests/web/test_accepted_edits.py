@@ -18,7 +18,7 @@ from tests.api.test_sessions import Ticker, click, code, start
 from tests.api.test_trickster_route import (
     app_client,
     open_window,
-    proposals_root,
+    proposals_dir,
     state_of,
     trickster,
 )
@@ -53,7 +53,7 @@ def _merge(waiting: str, on: str) -> dict[str, Any]:
 def _client(tmp_path: Path, room: Room, *proposals: dict[str, Any]) -> tuple[TestClient, Ticker]:
     ticker = Ticker()
     recording = {"room_id": room.id, "proposals": list(proposals)}
-    return app_client(tmp_path, ticker, room, proposals_root=proposals_root(tmp_path, recording)), ticker
+    return app_client(tmp_path, ticker, room, proposals_dir=proposals_dir(tmp_path, recording)), ticker
 
 
 def _room(client: TestClient, session_id: str) -> dict[str, dict[str, Any]]:

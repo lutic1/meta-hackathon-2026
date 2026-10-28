@@ -325,4 +325,4 @@ def test_no_route_or_settings_flag_injects_play_or_build_output(tmp_path: Path, 
         "/api/builds": ["post"], "/api/builds/{job_id}": ["get"], "/api/builds/{job_id}/room": ["get"],
         "/api/builds/{job_id}/view": ["get"],
     }
-    assert [name for name in Settings.model_fields if "demo" in name] == ["demo_timescale", "demo_trickster"]
+    assert [name for name in Settings.model_fields if "demo" in name] == ["demo_timescale", "demo_trickster", "demo_proposals_dir"]

@@ -19,7 +19,7 @@ from tests.api.test_trickster_route import (
     always,
     app_client,
     open_window,
-    proposals_root,
+    proposals_dir,
     state_of,
     trickster,
 )
@@ -135,7 +135,7 @@ def test_the_client_holds_no_edit_payload_type_or_field():
 
 def test_the_polled_state_carries_only_the_tricksters_card_fields_under_cards(tmp_path: Path, four_lock_room: Room):
     ticker = Ticker()
-    client = app_client(tmp_path, ticker, four_lock_room, proposals_root=proposals_root(tmp_path))
+    client = app_client(tmp_path, ticker, four_lock_room, proposals_dir=proposals_dir(tmp_path))
     session_id = start(client, four_lock_room)
     open_window(client, ticker, session_id, click("key"), 0)
     assert state_of(client, session_id)["trickster_window"] == {"state": "open", "index": 0}  # what the client asks on

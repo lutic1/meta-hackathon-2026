@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, Literal
 
 from dotenv import load_dotenv
@@ -34,6 +35,7 @@ ENV_KEYS = (
     "SPEND_CAP_USD",
     "DEMO_TIMESCALE",
     "DEMO_TRICKSTER",
+    "DEMO_PROPOSALS_DIR",
     "DRY_RUN",
     "REGEN_MAX",
     "GUIDE",
@@ -86,6 +88,13 @@ class Settings(BaseModel, frozen=True):
     """
     demo_timescale: int = Field(default=1, ge=1)
     demo_trickster: Literal["live", "record", "scripted", "authored"] = "live"
+    demo_proposals_dir: Path | None = None
+    """The folder holding the proposals `scripted` and `authored` replay and `record` writes (AD-15).
+
+    Unset, wiring reads `proposals/` at the repo root; `scripts/load_fixtures.py`
+    installs the four-lock recording under `rooms/proposals/` and prints the
+    value to set for local play.
+    """
     dry_run: Literal["on", "off"] = "on"
     regen_max: int = Field(default=2, ge=0)
     guide: Literal["ollama", "verbatim"] = "ollama"
