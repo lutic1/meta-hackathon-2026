@@ -2,28 +2,28 @@
   "model": "muse-spark-1.3",
   "status": 200,
   "body": {
-    "id": "chatcmpl-01a18308-f318-72a4-a2a7-5e0375f0600e",
+    "id": "chatcmpl-01a18325-1770-700b-8929-7d468a10b8ec",
     "choices": [
       {
         "finish_reason": "stop",
         "index": 0,
         "message": {
-          "content": "{\"candidates\": [{\"attributes\": [], \"box\": [0, 335, 211, 565], \"confidence\": 0.98, \"label\": \"wall-mounted flat screen TV\", \"photo\": 0, \"plural\": false}, {\"attributes\": [], \"box\": [469, 591, 745, 774], \"confidence\": 0.97, \"label\": \"glass coffee table\", \"photo\": 0, \"plural\": false}, {\"attributes\": [], \"box\": [283, 514, 1000, 811], \"confidence\": 0.97, \"label\": \"sectional sofa\", \"photo\": 1, \"plural\": false}, {\"attributes\": [], \"box\": [503, 359, 561, 407], \"confidence\": 0.95, \"label\": \"round wall clock\", \"photo\": 1, \"plural\": false}, {\"attributes\": [], \"box\": [80, 543, 322, 699], \"confidence\": 0.94, \"label\": \"black media console\", \"photo\": 0, \"plural\": false}, {\"attributes\": [], \"box\": [142, 601, 997, 999], \"confidence\": 0.95, \"label\": \"patterned area rug\", \"photo\": 0, \"plural\": false}, {\"attributes\": [], \"box\": [393, 499, 513, 544], \"confidence\": 0.9, \"label\": \"throw pillows\", \"photo\": 0, \"plural\": true}, {\"attributes\": [], \"box\": [508, 582, 615, 644], \"confidence\": 0.88, \"label\": \"decorative tray with candles\", \"photo\": 0, \"plural\": false}, {\"attributes\": [], \"box\": [163, 480, 239, 598], \"confidence\": 0.9, \"label\": \"tall floor speaker\", \"photo\": 1, \"plural\": false}, {\"attributes\": [], \"box\": [714, 536, 864, 589], \"confidence\": 0.9, \"label\": \"folded throw blanket\", \"photo\": 1, \"plural\": false}, {\"attributes\": [], \"box\": [326, 351, 584, 512], \"confidence\": 0.95, \"label\": \"plantation shutter window\", \"photo\": 1, \"plural\": false}, {\"attributes\": [], \"box\": [810, 652, 1000, 695], \"confidence\": 0.88, \"label\": \"white throw blanket\", \"photo\": 1, \"plural\": false}]}",
+          "content": "{\"candidates\": [{\"attributes\": [\"black flat screen\", \"mounted on wall\", \"rectangular large size\"], \"box\": [0, 336, 235, 545], \"confidence\": 0.98, \"label\": \"wall-mounted flat screen tv\", \"photo\": 0, \"plural\": false}, {\"attributes\": [\"gray fabric\", \"curved sectional shape\", \"multiple seat cushions\"], \"box\": [288, 533, 1000, 873], \"confidence\": 0.98, \"label\": \"L-shaped sectional sofa\", \"photo\": 1, \"plural\": false}, {\"attributes\": [\"clear glass top\", \"dark wooden base\", \"rectangular shape\"], \"box\": [490, 601, 740, 751], \"confidence\": 0.97, \"label\": \"glass top coffee table\", \"photo\": 0, \"plural\": false}, {\"attributes\": [\"round black frame\", \"white face\", \"hanging on wall\"], \"box\": [514, 385, 578, 432], \"confidence\": 0.96, \"label\": \"round wall clock\", \"photo\": 1, \"plural\": false}, {\"attributes\": [\"white horizontal slats\", \"three panel window\", \"covering window\"], \"box\": [237, 378, 500, 539], \"confidence\": 0.97, \"label\": \"plantation shutter window\", \"photo\": 1, \"plural\": false}, {\"attributes\": [\"white round tray\", \"orange pumpkins\", \"on table\"], \"box\": [538, 592, 643, 653], \"confidence\": 0.92, \"label\": \"decorative centerpiece tray\", \"photo\": 0, \"plural\": false}, {\"attributes\": [\"beige with pattern\", \"large rectangular size\", \"under table\"], \"box\": [189, 609, 946, 999], \"confidence\": 0.98, \"label\": \"patterned area rug\", \"photo\": 0, \"plural\": false}, {\"attributes\": [\"black glass shelves\", \"under tv\", \"holds electronics\"], \"box\": [108, 541, 310, 723], \"confidence\": 0.95, \"label\": \"black media console stand\", \"photo\": 0, \"plural\": false}, {\"attributes\": [\"black tall box\", \"beside sofa\", \"floor standing\"], \"box\": [168, 503, 240, 614], \"confidence\": 0.9, \"label\": \"tall floor speaker\", \"photo\": 1, \"plural\": false}, {\"attributes\": [\"off-white color\", \"two pillows\", \"on sofa\"], \"box\": [406, 508, 540, 553], \"confidence\": 0.94, \"label\": \"throw pillows\", \"photo\": 0, \"plural\": true}, {\"attributes\": [\"beige folded fabric\", \"on sofa arm\", \"textured weave\"], \"box\": [762, 557, 895, 617], \"confidence\": 0.9, \"label\": \"folded throw blanket\", \"photo\": 1, \"plural\": false}]}",
           "refusal": null,
           "role": "assistant"
         },
         "logprobs": null
       }
     ],
-    "created": 1793199764,
+    "created": 1793201608,
     "model": "muse-spark-1.3",
     "object": "chat.completion",
     "usage": {
-      "completion_tokens": 1173,
-      "prompt_tokens": 3630,
-      "total_tokens": 4803,
+      "completion_tokens": 1448,
+      "prompt_tokens": 3690,
+      "total_tokens": 5138,
       "completion_tokens_details": {
-        "reasoning_tokens": 600
+        "reasoning_tokens": 768
       },
       "prompt_tokens_details": {
         "cached_tokens": 0
