@@ -4,7 +4,10 @@
 in upload order, so no Room, Clue or profile field exists to leak (AD-3), and
 the same bytes always render the same request, which the AD-6 cache key and
 the AD-16 prompt hash rely on. The photos travel as `images`, never inside a
-message, and the adapter owns the HTTP. Candidates come back
+message, and the adapter owns the HTTP. Attributes are short visible descriptions
+a player can confirm (colour, material, shape, size, count, placement, readable text
+verbatim), since Validator rule 4 only passes a Puzzle whose evidence cites one and most
+objects in a real room carry no readable text. Candidates come back
 without ids, correlated by list position; the segment stage mints `ix_` ids.
 A reply off the response shape is a `malformed` `ProviderError` (AD-13) with
 a fixed message, so a Build ends `failed` with code `provider_error` and
@@ -32,7 +35,7 @@ For each object, give:
 - plural: true when the label names several like objects (a row of books, three candles), false for one object.
 - photo: the index of the photo that shows the object most clearly. Photos are indexed from 0 in the order given.
 - box: the object's bounding box in that photo as [x0, y0, x1, y1] on a 0 to 1000 grid, origin top left, x across and y down.
-- attributes: anything that can be read on the object (a number, a word, a marking), each exactly as it appears, character for character; never paraphrase or guess unreadable text; an empty list when nothing is readable.
+- attributes: two to four short visible attributes of the object, each one a player could confirm by looking at it: its colour, material, shape, size, count, where it sits or hangs, and any text that can be read on it (a number, a word, a marking) exactly as it appears, character for character. Each attribute is at most four words, in lower case except readable text, which keeps its spelling and case. Never guess unreadable text, never give a brand name, never describe a person.
 - confidence: from 0 to 1, how sure you are that the object is there and the label fits.
 
 List each object once, in any order. Do not number them or give them ids; the list position is the only reference.

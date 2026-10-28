@@ -16,9 +16,10 @@ from src.council.architect import (
     prompt_hash,
 )
 from src.domain.schema import ArchitectCandidate, ArchitectResponse, Room, strict_schema
+from src.domain.validator import validate
 from src.providers.mock import ChatCall, MockProvider, MockScript
 
-PINNED_PREFIX_HASH = "ec5b9cbb42e6a80a88b1c4b94df0ba86e2026d91ef80c471b3a6cdb67568d74c"
+PINNED_PREFIX_HASH = "f84d888bf70e35beab7f7181da16ce2b7fe939b27ba4c537bba9f9ae7f9f2a84"
 OTHER_PHOTOS = [bytes([0xFF, 0xD8, n]) * 40 for n in range(10)]
 CANDIDATE = {"label": "brass key", "plural": False, "photo": 2, "box": [100, 200, 300, 400], "attributes": ["1947"], "confidence": 0.9}
 
@@ -50,6 +51,29 @@ def test_the_instructions_ask_for_every_field_of_a_candidate():
                    "attributes", "exactly as it appears", "confidence"):
         assert phrase in system, phrase
     assert "ids" in system and "list position" in system
+
+
+def test_the_instructions_ask_for_visible_descriptive_attributes_and_bound_them():
+    """A real room has few readable markings, so attributes are short visible descriptions a player can confirm (rule 4)."""
+    system = build_architect_prompt(OTHER_PHOTOS).messages[0].content.lower()
+    for phrase in ("two to four", "confirm by looking", "colour", "material", "shape", "size", "count", "sits or hangs",
+                   "exactly as it appears", "character for character", "at most four words", "lower case",
+                   "never guess", "brand", "person"):
+        assert phrase in system, phrase
+    assert "empty list" not in system
+
+
+def test_validate_passes_over_a_draft_whose_evidence_cites_a_visible_attribute(four_lock_room: Room):
+    attributes = {ix.id: ix.attributes for ix in four_lock_room.interactables}
+    cited = [p.evidence.visible_attribute for p in four_lock_room.puzzles]
+    assert all(attribute in attributes[p.evidence.interactable] for p, attribute in zip(four_lock_room.puzzles, cited))
+    assert all(attribute.islower() and not any(c.isdigit() for c in attribute) for attribute in cited)
+    assert validate(four_lock_room).ok
+    data = four_lock_room.model_dump()
+    for ix in data["interactables"]:
+        ix["attributes"] = []
+    unread = validate(Room.model_validate(data))
+    assert {(r.rule, r.puzzle_id) for r in unread.reasons} == {(4, p.id) for p in four_lock_room.puzzles}
 
 
 def _nodes(node: Any):
