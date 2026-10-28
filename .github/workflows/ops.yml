@@ -1,0 +1,64 @@
+name: ops
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Runbook action (ledger-export uploads spend/exports/ as an artifact to download and commit; purge needs confirm)
+        type: choice
+        options: [ledger-export, purge-dry-run, purge, warm, cool, autoscaler-settings]
+      environment:
+        description: Modal Environment (main holds the judging data, dev a development copy)
+        type: choice
+        options: [main, dev]
+        default: main
+      confirm:
+        description: The word purge, only for the purge action; every other action ignores it
+        type: string
+        default: ""
+permissions:
+  contents: read
+concurrency:
+  group: ops-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MODEL_PROVIDER: mock
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      MODAL_ENVIRONMENT: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          enable-cache: true
+      - run: uv sync --locked
+      - if: inputs.action == 'ledger-export'
+        run: uv run scripts/ledger.py export --env "$MODAL_ENVIRONMENT"
+      - if: inputs.action == 'ledger-export'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ledger-export-${{ inputs.environment }}
+          path: spend/exports/
+          if-no-files-found: error
+      - if: inputs.action == 'purge-dry-run'
+        run: uv run scripts/purge_judge_rooms.py --env "$MODAL_ENVIRONMENT" --dry-run
+      - if: inputs.action == 'purge'
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          [ "$CONFIRM" = purge ] || { echo "refusing to purge the Judge rooms in $MODAL_ENVIRONMENT: the confirm input must be the word purge, not '$CONFIRM'"; exit 1; }
+          uv run scripts/purge_judge_rooms.py --env "$MODAL_ENVIRONMENT"
+      - if: inputs.action == 'warm'
+        run: |
+          uv run modal function autoscaler update -e "$MODAL_ENVIRONMENT" keyframe/web --min-containers 1
+          uv run modal function autoscaler settings -e "$MODAL_ENVIRONMENT" keyframe/web
+      - if: inputs.action == 'cool'
+        run: |
+          uv run modal function autoscaler update -e "$MODAL_ENVIRONMENT" keyframe/web --min-containers 0
+          uv run modal function autoscaler settings -e "$MODAL_ENVIRONMENT" keyframe/web
+      - if: inputs.action == 'autoscaler-settings'
+        run: uv run modal function autoscaler settings -e "$MODAL_ENVIRONMENT" keyframe/web

@@ -40,6 +40,7 @@ The same steps run on demand from `.github/workflows/deploy.yml` (Actions tab, d
 ## Warm container, Thu Nov 5 to Mon Nov 9
 
 - Without a redeploy: `modal function autoscaler update keyframe/web --min-containers 1` on Thu Nov 5, and `--min-containers 0` on Tue Nov 10.
+- The same update, followed by the settings printout, runs from `.github/workflows/ops.yml` (Actions tab, ops, Run workflow, action `warm` on Thu Nov 5 and `cool` on Tue Nov 10; `autoscaler-settings` only prints them), with the token from the repository's Actions secrets.
 - Check the result with `modal function autoscaler settings keyframe/web`. It shows the active overrides, and who set them and when.
 - In Python the same call is `modal.Function.from_name("keyframe", "web").autoscaler.update(min_containers=1)`. `update_autoscaler()` is deprecated in 1.6.2.
 - Any `modal deploy` resets overrides to the decorator value, so keep `MIN_CONTAINERS=1` in the deploy shell for the whole window.
@@ -48,6 +49,7 @@ The same steps run on demand from `.github/workflows/deploy.yml` (Actions tab, d
 ## Scheduled functions
 
 - `ledger_export` runs at 06:00 America/New_York and `session_sweep` at minute 17 of every hour, on the deployed app.
+- The daily export of the ledger, `scripts/ledger.py export`, also runs from `.github/workflows/ops.yml` (action `ledger-export`), which uploads `spend/exports/` as a workflow artifact for the builder to download and commit; the workflow never commits.
 - After the first deploy, start one run by hand with the "run now" button on the app's dashboard page, so a snapshot exists before the next morning. Then `modal volume ls keyframe-data spend` lists `hosted-<date>.jsonl`.
 - To pause the schedule, remove it from the decorator and redeploy. Modal schedules have no pause.
 
@@ -55,6 +57,7 @@ The same steps run on demand from `.github/workflows/deploy.yml` (Actions tab, d
 
 - `seed_rooms.py`, `purge_judge_rooms.py` and `ledger.py export` pass `environment_name=` to every `from_name`. Check `modal environment list` and `MODAL_ENVIRONMENT` before running them anyway. A profile set to `dev` must not decide which Volume is seeded or purged.
 - Run `purge_judge_rooms.py` against a dev judge room before Tue Nov 10.
+- `ledger.py export`, `purge_judge_rooms.py --dry-run` and the real purge run the same way from `.github/workflows/ops.yml` (actions `ledger-export`, `purge-dry-run` and `purge`, the last only when the `confirm` input is the word `purge`), with `--env` set from the workflow's Environment input.
 
 ## Inspect
 
