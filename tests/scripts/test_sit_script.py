@@ -18,6 +18,7 @@ from src.domain.schema import JobState, MaskPreview
 from src.infra.local import CACHE_ROOT, LEDGER_PATH
 from src.providers.base import ChatMessage
 from tests.fixtures.rooms import INTERACTABLES, IX, PZ
+from tests.pipeline.test_author_stage import DRAFT_FILE
 from tests.providers.replay import Fixture, load
 
 REPO = Path(__file__).resolve().parents[2]
@@ -400,9 +401,10 @@ def _chat(text: str) -> dict:
 class Vendors:
     """One handler for every host: Meta's chat, segment and image endpoints, the Baseten chat endpoint and Ollama's generate.
 
-    The Riddler's recorded reply is replayed with its fixed `ix_` ids rewritten, by label, to the ids
-    the prompt lists, so the full Build's minted ids match; the Dry run replays its recorded reply
-    over the synthetic room, and over a Build's room answers each listed Puzzle with the last draft's solution.
+    The Riddler answers with the scripted draft, its fixed `ix_` ids rewritten, by label, to the ids the
+    prompt lists, so the full Build's minted ids match, in the envelope of its recorded reply; the Dry run
+    replays its recorded reply over the synthetic room, and over a Build's room answers each listed Puzzle
+    with the last draft's solution.
     """
 
     def __init__(self) -> None:
@@ -443,7 +445,7 @@ class Vendors:
     def riddler(self, prompt: str) -> dict:
         recorded = load("muse-spark-1.3/chat-riddler-author").body
         listed = {label: ix for ix, label in re.findall(r'"id": "(ix_\w+)",\s*"label": "([^"]+)"', prompt)}
-        text = recorded["choices"][0]["message"]["content"]
+        text = DRAFT_FILE.read_text()
         for fixed, label in FIXTURE_LABELS.items():
             text = text.replace(fixed, listed.get(label, fixed))
         self.draft = json.loads(text)
@@ -539,11 +541,11 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     assert "'brass lamp': 2 polygon(s)" in out.out and "'a live penguin': none" in out.out
     assert "billed 0.01 USD, recorded" in out.out
     assert "meta-models/muse-spark-open: 4 puzzles" in out.out
-    assert "PASS test_06_ollama_guide: " in out.out and "21 tokens out in" in out.out and "decode 20 tok/s" in out.out
-    assert "PASS test_10_trickster: " in out.out and f"decoy on {PZ['shelf_order']}: accepted" in out.out
-    assert "PASS test_07_riddler: " in out.out and "5 puzzles in" in out.out and "rules 8 of 8 passed; 3174 out" in out.out
     lines = {line.split(":")[0]: line for line in out.out.splitlines() if line.startswith("PASS")}
-    assert "(reached 5 of 5 answers in " in lines["PASS test_08_dry_run"] and "; 10120 in, 2650 out)" in lines["PASS test_08_dry_run"]
+    assert re.search(r"\(\d+ tokens out in .*decode \d+ tok/s", lines["PASS test_06_ollama_guide"])
+    assert re.search(r"\((decoy|merge|loosen|shortcut) on pz_\w+: (accepted|rejected, rule \d)\)$", lines["PASS test_10_trickster"])
+    assert re.search(r"\(5 puzzles in .*; rules 8 of 8 passed; \d+ out\)$", lines["PASS test_07_riddler"])
+    assert re.search(r"\(reached 5 of 5 answers in .*; \d+ in, \d+ out\)$", lines["PASS test_08_dry_run"])
     assert "(done in " in lines["PASS test_09_full_build"]
     assert "; reached 5 of 5 answers; 0 of 2 regenerations; every stage within budget)" in lines["PASS test_09_full_build"]
 

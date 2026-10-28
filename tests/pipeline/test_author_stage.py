@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -44,14 +45,16 @@ from src.providers.meta_api import CHAT_MODEL, MetaModelProvider
 from src.providers.mock import ChatCall, MockProvider, MockScript
 from src.providers.spend import SpendLedger
 from tests.fixtures.rooms import IX
-from tests.providers.replay import load, transport
+from tests.providers.replay import transport
 from tests.providers.test_cache import MemoryCache
 from tests.providers.test_spend import MemoryLedgerStore
 
 PZ = re.compile(r"pz_[0-9A-HJKMNP-TV-Z]{26}")
 RECORDED = "muse-spark-1.3/chat-riddler-author"
-REPLY: dict[str, Any] = json.loads(load(RECORDED).body["choices"][0]["message"]["content"])
-"""The recorded SIT-13 reply over the synthetic four-lock room: five puzzles `p1`..`p5`, `p5` the exit."""
+"""The SIT-13 recording over the synthetic four-lock room: replayed for its shape, the call row and the Ledger only."""
+DRAFT_FILE = Path(__file__).resolve().parents[1] / "fixtures/drafts/four_lock.json"
+"""The scripted draft over the synthetic four-lock room: five puzzles `p1`..`p5`, `p5` the exit, every rule passing."""
+REPLY: dict[str, Any] = json.loads(DRAFT_FILE.read_text())
 
 
 def reply(**changes: Any) -> str:

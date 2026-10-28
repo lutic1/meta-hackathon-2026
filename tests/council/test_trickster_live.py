@@ -1,6 +1,7 @@
 """Story 4.8: the live Trickster source, its prompt over the `RoomView` and the Game-state summary, and the recorder (FR-18, FR-25, AD-3, AD-6, AD-15)."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any, get_type_hints
 
@@ -20,6 +21,7 @@ from src.council.trickster import (
     parse_proposal,
     record_proposal,
 )
+from src.domain.ledger import spark_cost_usd
 from src.domain.redact import to_prompt_view
 from src.domain.schema import Derived, Profile, Room, RoomView, strict_schema
 from src.domain.session import GameStateSummary
@@ -46,7 +48,9 @@ from tests.providers.test_cache import MemoryCache
 from tests.providers.test_spend import MemoryLedgerStore, settled
 
 REPLY = load("muse-spark-1.3/chat-trickster")
-"""The sample Trickster response: window 0's Decoy on the four-lock room, as the 4.3 fixture file has it."""
+"""The SIT-15 recording: window 0 over the four-lock room, any valid proposal; a test that needs a known one scripts FIRST."""
+RECORDED = parse_proposal(REPLY.body["choices"][0]["message"]["content"])
+ROOM_ID_PATTERN = re.compile(r"\b(?:ix|pz)_[0-9A-HJKMNP-TV-Z]{26}\b")
 SUMMARY = GameStateSummary(locks_open=[PZ["find_key"], PZ["clock_code"]], elapsed_ms=754_000, rungs_used=3)
 SENTINEL_DERIVED = Derived(
     sessions=9731, persistence=0.4173, time_to_first_hint_s=137.9, mean_rung_per_lock_type={"code": 2.71}
@@ -61,6 +65,12 @@ MERGE = json.loads(FIXTURE_FILE.read_text())["proposals"][1]
 
 def scripted(*replies: dict[str, Any]) -> MockProvider:
     return MockProvider("trickster", script=MockScript(chat=[json.dumps(reply) for reply in replies]))
+
+
+def assert_proposal_on_the_four_lock_room(proposal: TricksterProposal | None) -> None:
+    """What any valid recording satisfies: one of the four edits, every id one the four-lock room has."""
+    assert proposal is not None and proposal.type in EDIT_TYPES and proposal.payload.type == proposal.type
+    assert set(ROOM_ID_PATTERN.findall(proposal.model_dump_json())) <= set(IX.values()) | set(PZ.values())
 
 
 def assert_no_solution_or_profile_field(text: str) -> None:
@@ -126,6 +136,12 @@ def test_the_response_schema_passes_strict_schema_and_allows_only_the_four_edits
     assert all(branch["additionalProperties"] is False for branch in branches)
 
 
+def test_the_recording_is_one_of_the_four_edits_naming_only_ids_the_four_lock_room_has():
+    assert REPLY.model == CHAT_MODEL and REPLY.status == 200
+    assert_proposal_on_the_four_lock_room(RECORDED)
+    assert RECORDED.puzzle in PZ.values()
+
+
 # --- One call per window ----------------------------------------------------------------
 
 
@@ -147,7 +163,8 @@ def test_on_meta_the_one_request_goes_to_muse_spark_1_3_at_low_with_the_proposal
 
     provider = meta(host)
     proposal = LiveSource(provider).propose(four_lock_room.id, 0, to_prompt_view(four_lock_room), SUMMARY)
-    assert proposal is not None and proposal.model_dump() == FIRST
+    assert_proposal_on_the_four_lock_room(proposal)
+    assert proposal == RECORDED
     assert len(requests) == 1
     body = json.loads(requests[0].content)
     assert (body["model"], body["reasoning_effort"]) == (CHAT_MODEL, "low") == ("muse-spark-1.3", "low")
@@ -203,11 +220,12 @@ def test_two_windows_with_the_same_prompt_get_two_keys_and_a_replayed_window_is_
     reserved = [entry for entry in trickster if entry.status == "reserved"]
     observed = next(entry for entry in trickster if entry.status == "settled").usd
     assert [entry.usd for entry in reserved] == [0.01, observed]  # the seed until a Trickster call was observed
-    assert observed == pytest.approx(1450 * 1.25e-6 + 380 * 4.25e-6)
+    assert observed == pytest.approx(spark_cost_usd(REPLY.body["usage"]))
 
     before = list(store.rows)
     again = source.propose(four_lock_room.id, 0, view, SUMMARY)
-    assert again is not None and again.model_dump() == FIRST
+    assert_proposal_on_the_four_lock_room(again)
+    assert again == RECORDED
     assert len(requests) == 2 and store.rows == before  # served from the Cache: no request, no Ledger entry
 
 
