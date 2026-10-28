@@ -2,7 +2,7 @@
   "model": "muse-spark-1.3",
   "status": 200,
   "body": {
-    "id": "chatcmpl-01a17fde-18e0-7683-ba94-d698c6e3d818",
+    "id": "chatcmpl-01a18309-8d48-765f-b558-7c5a5abd3add",
     "choices": [
       {
         "finish_reason": "stop",
@@ -15,15 +15,15 @@
         "logprobs": null
       }
     ],
-    "created": 1793146624,
+    "created": 1793199803,
     "model": "muse-spark-1.3",
     "object": "chat.completion",
     "usage": {
-      "completion_tokens": 690,
+      "completion_tokens": 712,
       "prompt_tokens": 10403,
-      "total_tokens": 11093,
+      "total_tokens": 11115,
       "completion_tokens_details": {
-        "reasoning_tokens": 431
+        "reasoning_tokens": 453
       },
       "prompt_tokens_details": {
         "cached_tokens": 0
