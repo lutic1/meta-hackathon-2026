@@ -58,6 +58,10 @@ def test_the_routine_picks_the_hotspot_and_the_aside_per_lock_type():
     assert re.search(r"find: strings\.asideFind,\s+code: strings\.asideCode,\s+order: strings\.asideOrder,\s+use_on: strings\.asideUseOn,", opened)
     routine = _function(opened, "lockOpened")
     assert "stage.bloom(bloomTarget(last, stage.lastTarget()))" in routine and "voice.aside(asideFor(last))" in routine
+    # A Rung the same state carries holds the Hint area: the Scene blooms, neither aside is spoken.
+    assert "const rung = state.rung_changes.length > seen.rung_changes.length" in routine
+    assert routine.index("const rung =") < routine.index("seen = state") < routine.index("if (rung) return")
+    assert routine.index("stage.bloom(") < routine.index("if (rung) return") < routine.index("voice.aside(")
     # The target is the Interactable the latest click or use_on named, recorded where each is posted.
     scene = _ts("scene/index.ts")
     assert "lastTarget = interactable.id" in _function(scene, "activate")
@@ -69,6 +73,7 @@ def test_a_wrong_attempt_glows_the_ring_once_with_its_line():
     routine = _function(_ts("lock-opened.ts"), "lockOpened")
     assert "(state.wrong_attempts[puzzle.id] ?? 0) > (seen.wrong_attempts[puzzle.id] ?? 0)" in routine
     assert "else if (wrong) voice.notThat()" in routine
+    assert routine.index("if (rung) return") < routine.index("voice.notThat()")
     hint = _ts("components/hint-area.ts")
     assert "notThat: () => present({ label: null, text: strings.notThatOne, shown: null }, true)" in hint
     assert "aside: (line) => present({ label: null, text: line, shown: null }, false)" in hint
@@ -79,8 +84,10 @@ def test_nothing_blooms_or_speaks_on_reload_and_nothing_is_announced_logged_or_c
     routine = _function(opened, "lockOpened")
     assert "let seen = first" in routine and "seen = state" in routine
     code = _code(opened)
-    for banned in ("announce(", ".post(", "rung", "hint_request", "localStorage"):
+    for banned in ("announce(", ".post(", "hint_request", "localStorage"):
         assert banned not in code, banned
+    # The routine only reads `rung_changes` to yield to a Rung: it never makes, posts or announces one.
+    assert re.findall(r"\w*rung\w*", code) == ["rung", "rung_changes", "rung_changes", "rung"]
     play = _ts("play.ts")
     assert "parts.push(lockOpened(view, latest, scene, hints))" in play
     behind = play.split("export function mountPlayBehind(", 1)[1]
