@@ -186,14 +186,14 @@ Notes:
 
 ## .github/workflows/ci.yml
 
-The deps-foundation story adds this file without the two npm cache lines, because `setup-node` fails when `cache-dependency-path` does not exist yet. The first web story adds them.
+The deps-foundation story adds this file without the two npm cache lines, because `setup-node` fails when `cache-dependency-path` does not exist yet. The first web story adds them. The `check` job runs on pushes to master and to `keyframe/**` branches and on pull requests; the hand-started `.github/workflows/deploy.yml` (see check-ladder.md, rung 2) is the only other workflow and the only one that holds a secret.
 
 <!-- file: .github/workflows/ci.yml -->
 ```yaml
 name: ci
 on:
   push:
-    branches: [master]
+    branches: [master, "keyframe/**"]
   pull_request:
 permissions:
   contents: read

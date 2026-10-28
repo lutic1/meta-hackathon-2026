@@ -31,10 +31,11 @@ Fastest to slowest. SKILL.md has the one-line summary of each rung; this page ha
 
 ## 2. CI job
 
-- **When:** push to master and every pull request; branch protection requires `check` before merge. If the plan does not enforce branch protection on a private repo (GitHub Free may not), Luis keeps "CI green before merge" by hand.
+- **When:** push to master or a `keyframe/**` branch and every pull request (`.github/workflows/ci.yml`); branch protection requires `check` before merge. If the plan does not enforce branch protection on a private repo (GitHub Free may not), Luis keeps "CI green before merge" by hand.
 - **Command:** checkout, setup-uv (0.11.32, cache), setup-node (`.nvmrc`, npm cache once `web/` exists), `bash scripts/check.sh`, with `MODEL_PROVIDER=mock` and no secrets.
 - **Catches:** everything in rung 1 on a clean machine, which adds files that exist only locally (an uncommitted lock) and hand-modified virtualenvs.
 - **Budget:** 2 to 4 min; `timeout-minutes: 10`.
+- **Deploy workflow:** `.github/workflows/deploy.yml` is the one other workflow, `workflow_dispatch` only (never on push, merge or schedule), with the Modal Environment and `MIN_CONTAINERS` as inputs and the Modal token from the repository's Actions secrets. It runs rung 7 (`bash scripts/check.sh --predeploy`), then `modal deploy -e <Environment> -m src.api.modal_app` and a `GET /api/meta` smoke test against the deployed URL. `ci.yml` still holds no secret and no deploy step.
 
 ## 3. Lock and platform checks
 

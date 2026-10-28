@@ -63,7 +63,10 @@ web/                       Vite + TypeScript + three client; builds into web/dis
 tests/                     offline tests (conftest blocks every non-loopback socket)
 scripts/check.sh           pre-push check and the whole CI job (--predeploy before modal deploy)
 scripts/doctor.py          Mac and cloud environment check, stdlib only
-.github/workflows/ci.yml   one job, check: runs scripts/check.sh on master and pull requests
+.github/workflows/ci.yml   one job, check: runs scripts/check.sh on pushes to master
+                           and keyframe/** branches and on pull requests
+.github/workflows/deploy.yml  started by hand from the Actions tab: check.sh --predeploy,
+                           then modal deploy with the Modal token from the Actions secrets
 docs/MONDAY.md             the Mon Oct 26 kickoff checklist
 docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
 _bmad/                     BMAD Method v6 install (hackathon tooling)
@@ -101,12 +104,17 @@ calls run Tue Oct 27 behind the spend cap through `scripts/sit.py`).
 ## Contributing
 
 Run `bash scripts/check.sh` before every push. It is the whole CI
-job (`.github/workflows/ci.yml`, one job named `check`): the privacy
+job (`.github/workflows/ci.yml`, one job named `check`, on every push
+to master or a `keyframe/**` branch and on every pull request): the privacy
 check, `uv lock --check`, `uv sync --locked`, the offline `pytest`
 suite, the wheel check for macOS arm64 and Linux x86_64, and, once
 `web/` exists, `npm ci`, the Vite build and `tsc --noEmit`. CI holds
 no secret and never deploys; `modal deploy` stays a manual step after
-`bash scripts/check.sh --predeploy`.
+`bash scripts/check.sh --predeploy`, run by hand or through the second
+workflow, `.github/workflows/deploy.yml` (`workflow_dispatch` only, with
+the Environment and `MIN_CONTAINERS` as inputs and the Modal token from
+the repository's Actions secrets), which runs the same ladder, then
+`modal deploy` and a `GET /api/meta` smoke test.
 
 ## Key dates
 
