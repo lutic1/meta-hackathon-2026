@@ -14,3 +14,16 @@ export function stateFadeMs(): number {
   const value = getComputedStyle(document.documentElement).getPropertyValue('--motion-state').trim()
   return (parseFloat(value) || 0) * (value.endsWith('ms') ? 1 : 1000)
 }
+
+const glowing = new WeakMap<Element, ReturnType<typeof setTimeout>>()
+
+/**
+ * Lights `element` once by `className`, whose stylesheet fades it in and out: the class is removed after `hold` ms
+ * (DESIGN.md Motion: 150 ms lit between the two `--motion-hover` fades, 300 ms in all; 2 s with no animation under
+ * reduced motion). A second glow before then restarts the hold.
+ */
+export function glowOnce(element: Element, className: string, hold: number): void {
+  clearTimeout(glowing.get(element))
+  element.classList.add(className)
+  glowing.set(element, setTimeout(() => element.classList.remove(className), hold))
+}

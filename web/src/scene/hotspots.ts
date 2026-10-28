@@ -1,4 +1,5 @@
 import type { PlayInteractable } from '../../types'
+import { glowOnce } from '../fade.ts'
 import { fill, strings } from '../strings.ts'
 import { hotspotPath, readingOrder, type Size, topLeft } from './geometry.ts'
 
@@ -43,6 +44,8 @@ export interface HotspotLayer {
    * leave or blur replaces it) until the returned function clears it: a `click` or `use_on` waiting for its reply.
    */
   showPending: (interactable: PlayInteractable) => () => void
+  /** The unlock moment: the Interactable's Hotspot blooms once, its class held `hold` ms between the two fades. */
+  bloom: (interactableId: string, hold: number) => void
 }
 
 /** A drag over the Hotspot: while it carries an Inventory item, the drop is allowed and the hover reveal shows. */
@@ -70,7 +73,9 @@ function path(className: string, d: string): SVGPathElement {
  * traces the focus ring along it with the label chip shown at once, for as long as it keeps focus (UX-DR69). A
  * collected `find` target stays in the Scene, still a Hotspot, but its glow fill fades out over 200 ms and no longer
  * shows (FR-12). An Inventory item dragged over a Hotspot shows the same reveal as hover, and dropped there it is
- * handed to `onDrop`; a drop anywhere else reaches no Hotspot (UX-DR36).
+ * handed to `onDrop`; a drop anywhere else reaches no Hotspot (UX-DR36). `bloom` plays the unlock moment on a
+ * solved target: its bloom path, the polygon filled solid lamp under the lamp drop shadow, fades in and out whatever
+ * hover, focus, "Show all objects" or the collected state show on the Hotspot.
  */
 export function hotspotLayer(photo: Size, interactables: readonly PlayInteractable[], handlers: HotspotHandlers): HotspotLayer {
   const svg = document.createElementNS(SVG, 'svg')
@@ -96,7 +101,7 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     const reveal = document.createElementNS(SVG, 'g')
     reveal.setAttribute('class', 'hotspot-reveal')
     reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))
-    hotspot.append(reveal, path('hotspot-hit', d))
+    hotspot.append(reveal, path('hotspot-bloom', d), path('hotspot-hit', d))
     let dwell: ReturnType<typeof setTimeout> | undefined
     hotspot.addEventListener('pointerenter', () => {
       handlers.onPointerEnter()
@@ -188,5 +193,10 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     return showChip(interactable, [interactable.label, checking], 'pending')
   }
 
-  return { elements: [svg, chip], showLabel, setCollected, showPending }
+  function bloom(interactableId: string, hold: number): void {
+    const hotspot = hotspots.get(interactableId)
+    if (hotspot !== undefined) glowOnce(hotspot, 'is-blooming', hold)
+  }
+
+  return { elements: [svg, chip], showLabel, setCollected, showPending, bloom }
 }

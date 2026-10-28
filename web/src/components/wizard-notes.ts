@@ -128,10 +128,12 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
     else if (wrong.parentNode !== lock) lock.append(wrong)
   }
 
+  /** The lock just opened: the Open chip fades in where the lock input stood, lifted on the paper shadow. */
   function opening(): void {
     const chip = opened.cloneNode(true) as HTMLElement
     chip.hidden = false
     lock.replaceChildren(chip)
+    fadeIn(chip)
   }
 
   let drawnRungs = ''
@@ -190,9 +192,10 @@ function waitingLine(n: number): HTMLParagraphElement {
  * of an `order` one, else the Not this chip a `use_on` verdict shows). The Active puzzle's entry carries the
  * `{components.active-puzzle-marker}`, read from `active_puzzle_id` and never guessed; an open entry collapses to its
  * heading with the Open chip. When a state shows a lock newly open, "Open" takes the lock input's place for 1200 ms
- * (UX-DR38), then the notes draw the latest state: the entry collapses, newly available entries fade in, and focus
- * moves to the heading of the first of them, else of the Active puzzle. Everything follows session state; nothing
- * follows a click.
+ * (UX-DR38), fading in lifted on the paper shadow (the unlock moment; the Scene and the Hint area play their parts
+ * from lock-opened.ts), then the notes draw the latest state: the entry collapses, newly available entries fade in,
+ * and focus moves to the heading of the first of them, else of the Active puzzle. Everything follows session state;
+ * nothing follows a click.
  *
  * `reshape` takes the Effective room refetched after an accepted edit (FR-19, AD-12) and keeps every entry, so the
  * Code field's value and keyboard focus stay: an entry's Evidence cards and count change in place, a card the Room

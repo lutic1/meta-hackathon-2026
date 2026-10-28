@@ -1,5 +1,7 @@
 /* {components.scene-frame}: 1 px gilt rule, 12 px chrome mat carrying the vignette, canvas ground; the photo is
-   contained inside it at rounded sm and letterboxed by the ground. While loading, the mat holds only its line. */
+   contained inside it at rounded sm and letterboxed by the ground. While loading, the mat holds only its line. On a
+   lock opening (the unlock moment) the rule turns lamp under the lamp glow once: in and out by motion-hover, held
+   150 ms between, 300 ms in all; under reduced motion the lit rule is held 2 s, with no fade. */
 .scene-frame {
   position: relative;
   display: flex;
@@ -9,6 +11,15 @@
   border: 1px solid var(--gilt);
   background: var(--chrome);
   box-shadow: var(--elevation-vignette);
+  transition:
+    border-color var(--motion-hover) var(--motion-ease),
+    box-shadow var(--motion-hover) var(--motion-ease);
+}
+.scene-frame.is-glowing {
+  border-color: var(--lamp);
+  box-shadow:
+    var(--elevation-vignette),
+    var(--elevation-lamp-glow);
 }
 .scene-ground {
   position: relative;
@@ -139,6 +150,20 @@
 /* Collected: no longer a target, so its glow fades out and stays out under hover and focus. */
 .hotspot.is-collected .hotspot-glow {
   opacity: 0;
+}
+/* The unlock moment: the solved target's bloom path, the polygon filled solid lamp under the lamp drop shadow, fades
+   in and out by motion-hover around a 150 ms hold (300 ms in all; held 2 s, with no fade, under reduced motion).
+   It sits above the reveal and below the hit path, so it shows whatever hover, focus, "Show all objects" or the
+   collected state draw, and takes no pointer. */
+.hotspot-bloom {
+  fill: var(--hotspot-outline);
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 12px var(--hotspot-outline)) drop-shadow(var(--elevation-lamp-glow));
+  transition: opacity var(--motion-hover) var(--motion-ease);
+}
+.hotspot.is-blooming .hotspot-bloom {
+  opacity: 1;
 }
 
 /* {components.hotspot-label-chip}: parchment, label type, 8 px above the polygon (placed by the Scene); it fades.

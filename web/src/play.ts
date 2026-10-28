@@ -9,6 +9,7 @@ import { statusStrip } from './components/status-strip.ts'
 import { triggersPanel } from './components/triggers-panel.ts'
 import { OPEN_HOLD_MS, wizardNotes } from './components/wizard-notes.ts'
 import { mountLeaveRoom } from './leave-room.ts'
+import { lockOpened } from './lock-opened.ts'
 import { lockOutcomes } from './lock-outcomes.ts'
 import { announce } from './live-region.ts'
 import { sessionStart } from './profile/index.ts'
@@ -98,7 +99,10 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * a Greeting still being phrased (`opening_line.text` null) shows the Guide thinking until a polled state brings its
  * line. "Begin" keeps the line as the first Guide line of the Hint area, pinned under the Wizard notes, and moves
  * focus to the first Hotspot. The top bar's "Show all objects" toggle outlines every Hotspot while pressed, across
- * Scene changes, and lock outcomes are announced in the live region. The Triggers toggle under the hint controls shows why each Rung
+ * Scene changes, and lock outcomes are announced in the live region. A state that shows a lock newly open plays the
+ * unlock moment (`lockOpened`): the solved Hotspot blooms and the Scene frame glows once, the Open chip lifts in and
+ * the Guide speaks one aside for the lock type in the Hint area; a Wrong attempt glows the Guide's ring once with its
+ * line. A reload plays none of it for locks already open. The Triggers toggle under the hint controls shows why each Rung
  * arrived, its panel open from the start when the session loads with a Disclosure active. "Leave room" beside it, or
  * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
  * confirming goes to `#/` in place of the Play route (`LeaveRoom.exit`, so Back never resumes the play-through) and
@@ -318,6 +322,7 @@ export function mountPlay(
       holdInputs()
       parts.push(hints.render)
       parts.push(triggers.render)
+      parts.push(lockOpened(view, latest, scene, hints))
       parts.push((state) => void refetchRoom(state))
       void refetchRoom(latest)
       const exit = view.puzzles.find((puzzle) => puzzle.is_exit)

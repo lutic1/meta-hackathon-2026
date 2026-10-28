@@ -12,7 +12,9 @@ import {
 } from 'three'
 import type { PlayInteractable, PlayView } from '../../types'
 import { photoUrl } from '../api/index.ts'
+import { GLOW_MS, GLOW_REDUCED_MS } from '../components/hint-area.ts'
 import { type ThumbnailStrip, thumbnailStrip } from '../components/thumbnail-strip.ts'
+import { glowOnce } from '../fade.ts'
 import type { PlaySession } from '../play.ts'
 import { strings } from '../strings.ts'
 import { useOnChip } from '../use-on.ts'
@@ -43,6 +45,10 @@ export interface MountedScene {
   unmount: () => void
   /** The Effective room after an accepted edit (AD-12): the shown photo's Hotspots from `view`; the photo stays. */
   reshape: (view: PlayView) => void
+  /** The Interactable the latest `click` or `use_on` named, null before the first: the unlock moment's target. */
+  lastTarget: () => string | null
+  /** The unlock moment: the frame's gilt rule lights once; the Hotspot of `target` on the shown photo blooms with it. */
+  bloom: (target: string | null) => void
 }
 
 function firstPointerResponse(sessionId: string): void {
@@ -64,7 +70,10 @@ function firstPointerResponse(sessionId: string): void {
  * dropped on a Hotspot, or a Hotspot activated while an item is selected (whose "Using {item label}" chip is pinned
  * to the frame's top-left), posts one `use_on` lock input naming the item and the Hotspot's Interactable, never a
  * `click` and never a Puzzle (AD-4), and clears the selection; until the reply, the target's label chip shows with
- * "Checking" beside it. The selection outlives photo switches. It opens on photo `first`.
+ * "Checking" beside it. The selection outlives photo switches. It opens on photo `first`. The Interactable the latest
+ * click or `use_on` named is kept as `lastTarget`, and `bloom` plays the unlock moment (lock-opened.ts): the frame's
+ * gilt rule turns lamp with the lamp glow once (in and out by `--motion-hover`, 300 ms in all; held 2 s with no
+ * animation under reduced motion) and the solved target's Hotspot, when it is on the shown photo, blooms with it.
  *
  * `reshape` lays the shown photo's Hotspots again from a refetched `PlayView` when its Interactables changed, keeping
  * the photo, the strip and the selection; keyboard focus on a Hotspot that is still there stays on it. Returns the
@@ -108,6 +117,7 @@ export function mountScene(
   let size: Size | undefined
   let layer: HotspotLayer | undefined
   let strip: ThumbnailStrip | undefined
+  let lastTarget: string | null = null
 
   function texture(index: number): Promise<Texture<HTMLImageElement>> {
     let loaded = textures.get(index)
@@ -139,6 +149,7 @@ export function mountScene(
 
   /** Posts the `use_on` of `item` on `target`, the target's label chip and "Checking" showing until the reply. */
   async function useOn(item: string, target: PlayInteractable): Promise<void> {
+    lastTarget = target.id
     const pending = layer?.showPending(target)
     const reply = play.post({ type: 'lock_input', input: { type: 'use_on', item, target: target.id } })
     play.useOn.select(null)
@@ -152,6 +163,7 @@ export function mountScene(
   async function activate(interactable: PlayInteractable): Promise<void> {
     const item = play.useOn.selected()
     if (item !== null) return useOn(item, interactable)
+    lastTarget = interactable.id
     const before = play.state().locks_open
     const pending = layer?.showPending(interactable)
     const reply = await play.post({ type: 'click', interactable_id: interactable.id }).finally(pending)
@@ -229,6 +241,12 @@ export function mountScene(
     if (mounted) layer?.setCollected(state.inventory)
   })
 
+  function bloom(target: string | null): void {
+    const hold = matchMedia('(prefers-reduced-motion: reduce)').matches ? GLOW_REDUCED_MS : GLOW_MS
+    glowOnce(frame, 'is-glowing', hold)
+    if (target !== null) layer?.bloom(target, hold)
+  }
+
   const observer = new ResizeObserver(render)
   observer.observe(ground)
   // A failed room or photo request leaves the loading line; missed polls show the reconnecting state (play.ts).
@@ -254,5 +272,5 @@ export function mountScene(
     strip?.element.remove()
   }
 
-  return { unmount, reshape }
+  return { unmount, reshape, lastTarget: () => lastTarget, bloom }
 }

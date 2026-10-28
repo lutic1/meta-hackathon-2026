@@ -69,6 +69,10 @@ export interface HintArea {
   triggers: HTMLElement
   /** The Triggers panel opened or closed: the tray may grow past its cap, and only the newest Card stacks. */
   triggersOpen: (open: boolean) => void
+  /** The Guide's unlock aside (lock-opened.ts): a Guide line in the Rung line's place, no label, no glow. */
+  aside: (line: string) => void
+  /** The Guide's Wrong attempt line, with the arrival glow on the ring and the tray: once per attempt. */
+  notThat: () => void
 }
 
 function paragraph(className: string): HTMLParagraphElement {
@@ -102,7 +106,10 @@ function paragraph(className: string): HTMLParagraphElement {
  * a reply the player asked for never glows. The line the Rung line no longer shows moves into its Puzzle's opened
  * Rungs, through `onOpened`; a Rung a Loosen card opened shows there at once as well. The first state is only read:
  * the latest `rung_change`, else the opening line, is drawn without a fade, a glow or an announcement, so a reload
- * rebuilds the Rungs and re-announces nothing.
+ * rebuilds the Rungs and re-announces nothing. The Guide's asides of the unlock moment (lock-opened.ts) show the same
+ * way as the opening line, with no label and no announcement (the lock outcome already is one): the unlock aside with
+ * no glow, the Scene frame carrying that light, and the Wrong attempt line with the arrival glow, once per attempt;
+ * the Rung line they replace keeps its place in its Puzzle's opened Rungs, and the next Rung line replaces them.
  *
  * Trickster cards (FR-19, UX-DR40 to UX-DR42) stack above the Rung line, newest on top: at most `CARDS_STACKED`, only
  * the newest while the Triggers panel is open, the rest behind the link "{n} more in the Card log", which opens the
@@ -358,5 +365,13 @@ export function hintArea(
   else if (play.openingLine !== null) draw({ label: null, text: play.openingLine, shown: null })
   else think(false)
 
-  return { element, render, opening, triggers, triggersOpen }
+  return {
+    element,
+    render,
+    opening,
+    triggers,
+    triggersOpen,
+    aside: (line) => present({ label: null, text: line, shown: null }, false),
+    notThat: () => present({ label: null, text: strings.notThatOne, shown: null }, true),
+  }
 }

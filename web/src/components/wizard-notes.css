@@ -155,6 +155,15 @@
   border: 1px solid var(--success-ink);
   color: var(--success-ink);
 }
+/* The unlock moment: in the lock slot, where the Open chip stands for its 1200 ms, it fades in (200 ms) lifted on
+   the paper shadow; collapsed into the heading row it lies flat. Instant under reduced motion. */
+.notes-lock .chip-open {
+  box-shadow: var(--elevation-paper);
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+.notes-lock .chip-open.is-arriving {
+  opacity: 0;
+}
 .chip-not-this {
   border: 1px solid var(--wrong-ink);
   color: var(--wrong-ink);
