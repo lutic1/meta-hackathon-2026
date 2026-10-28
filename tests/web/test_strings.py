@@ -168,6 +168,7 @@ def test_the_build_view_strings_are_the_experience_lines():
     mixed = strings["modeSeparator"].join([strings["billed"].format(n=3), strings["cached"].format(n=9)])
     assert mixed == "3 billed · 9 cached"
     assert (strings["hostMeta"], strings["hostThisMac"], strings["hostOllama"]) == ("Meta Model API", "this Mac", "Ollama on the Mac")
+    assert strings["hostThisServer"] == "this server"
     assert (strings["validator"], strings["validatorModel"], strings["validatorDid"]) == ("Validator", "code, no model", "checked 8 rules")
     assert strings["dryRun"] == "Dry run"
     assert (strings["museImage"], strings["museImageModel"]) == ("Muse Image", "muse-image-1.0")

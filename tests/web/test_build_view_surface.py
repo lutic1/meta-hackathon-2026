@@ -113,7 +113,7 @@ def test_only_the_body_scrolls_under_the_pinned_banner_and_top_bar_in_two_column
 
 def test_the_right_column_holds_the_model_table_first_then_the_in_play_block():
     view = _ts("build-view.ts")
-    assert "right.append(modelTable(state.view), inPlayBlock(meta), verdictTable(state.view), dryRunRows(state.view))" in view
+    assert "right.append(modelTable(state.view, meta), inPlayBlock(meta), verdictTable(state.view), dryRunRows(state.view))" in view
     # The right column first in the page, for Tab order (UX-DR71); the stylesheet places it in the right third.
     assert "columns.append(right, left)" in view
     assert "return { children: [header.element, columns], focus: () => header.title?.focus() }" in view
@@ -187,7 +187,10 @@ def test_the_fixed_rows_and_no_guide_or_trickster_row():
     ts = (COMPONENTS / "model-table.ts").read_text()
     validator = ts.split("role: roleCell(strings.validator),", 1)[1].split("}),", 1)[0]
     assert "model: strings.validatorModel" in validator and "id: false" in validator
-    assert "host: strings.hostThisMac" in validator and "did: strings.validatorDid" in validator
+    # The Validator runs where the API runs: "this Mac" in Local mode, "this server" in Hosted mode (GET /meta `mode`).
+    assert "host: meta.mode === 'local' ? strings.hostThisMac : strings.hostThisServer" in validator
+    assert "did: strings.validatorDid" in validator
+    assert "export function modelTable(view: BuildView, meta: Meta): HTMLElement" in ts
     assert "billing: ''" in validator
     assert "did: DRY_RUN_OFF, billing: ''" in ts and "model: '', id: true, host: ''" in ts
     assert "roleLines(models('dryrun'), () => roleCell(strings.dryRun))" in ts

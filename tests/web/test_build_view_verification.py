@@ -173,7 +173,7 @@ def test_the_build_view_of_a_sentinel_room_holds_no_answer_pairing_or_repeated_c
 
 def test_tab_runs_title_back_model_table_in_play_verdicts_dry_run_graph_chips_then_the_json_toggle():
     view = _ts("build-view.ts")
-    assert "right.append(modelTable(state.view), inPlayBlock(meta), verdictTable(state.view), dryRunRows(state.view))" in view
+    assert "right.append(modelTable(state.view, meta), inPlayBlock(meta), verdictTable(state.view), dryRunRows(state.view))" in view
     assert "columns.append(right, left)" in view
     assert "return { children: [header.element, columns], focus: () => header.title?.focus() }" in view
     # Each table is one Tab stop; the toggle comes before the pane it opens.

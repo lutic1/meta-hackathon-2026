@@ -298,7 +298,7 @@ A Decoy Card never says which Evidence card is false (FR-19), and no flourish hi
 - BuildView JSON pane: "Everything this page receives. It holds no answers; a sentinel test checks every build for them."
 - Dry run rows under cut 4, in place of the Dry run caption: "The test run was switched off for this build, so no puzzle was tried blind."
 
-**Build view labels (plain)** `[ASSUMPTION]`: the panels carry no headings, only their captions and table header cells. Model table header: "Role", "Model", "Where it ran", "What it did", "Cached or billed". Verdict table: "Rule", "Check", "Verdict". Dry run rows: "Puzzle", "Lock type", "Verdict". Hosts: "Meta Model API", "this Mac" (the Validator), "Ollama on the Mac" (the Guide in the In play block). Trickster source in the In play block: "Source: live", "Source: scripted" or "Source: written in advance" (cut 1). A Room with no name is titled by its build time, as "Tue Nov 3, 10:42".
+**Build view labels (plain)** `[ASSUMPTION]`: the panels carry no headings, only their captions and table header cells. Model table header: "Role", "Model", "Where it ran", "What it did", "Cached or billed". Verdict table: "Rule", "Check", "Verdict". Dry run rows: "Puzzle", "Lock type", "Verdict". Hosts: "Meta Model API", "this Mac" (the Validator in Local mode; in Hosted mode "this server", where the API runs, from `GET /meta` `mode`), "Ollama on the Mac" (the Guide in the In play block). Trickster source in the In play block: "Source: live", "Source: scripted" or "Source: written in advance" (cut 1). A Room with no name is titled by its build time, as "Tue Nov 3, 10:42".
 
 **Completion screen**
 

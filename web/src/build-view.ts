@@ -103,7 +103,7 @@ export function buildViewSurface(
   left.append(puzzleGraph(state.view), maskOverlays(state.view), buildViewJson(state.view))
   const right = document.createElement('aside')
   right.className = 'build-view-right'
-  right.append(modelTable(state.view), inPlayBlock(meta), verdictTable(state.view), dryRunRows(state.view))
+  right.append(modelTable(state.view, meta), inPlayBlock(meta), verdictTable(state.view), dryRunRows(state.view))
   const columns = document.createElement('div')
   columns.className = 'build-view-columns'
   columns.append(right, left)

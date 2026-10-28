@@ -101,6 +101,7 @@ export const strings = {
   cached: '{n} cached',
   hostMeta: 'Meta Model API',
   hostThisMac: 'this Mac',
+  hostThisServer: 'this server',
   hostOllama: 'Ollama on the Mac',
   verdictCaption: 'The Validator is code, not a model. It checks these 8 rules on every draft; a failed rule sends the draft back to the Riddler.',
   verdictRule: 'Rule',
