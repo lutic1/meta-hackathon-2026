@@ -2,28 +2,31 @@
   "model": "muse-spark-1.3",
   "status": 200,
   "body": {
-    "id": "chatcmpl-sample-2026-10-26-riddler",
-    "object": "chat.completion",
-    "model": "muse-spark-1.3",
+    "id": "chatcmpl-01a17fcb-122c-731f-bad3-ad3b5a8c63b7",
     "choices": [
       {
-        "index": 0,
         "finish_reason": "stop",
+        "index": 0,
         "message": {
-          "role": "assistant",
-          "content": "{\"p1\": {\"lock_type\": \"find\", \"is_exit\": false, \"requires\": [], \"clue\": \"Something small waits where coats would hang.\", \"lore\": \"Every guest of this house left a little of themselves on the hooks by the door. One of them left more than a coat.\", \"rungs\": {\"nudge\": \"Look by the hooks.\", \"direction\": \"Something small and metal hangs where a coat would.\", \"near_answer\": \"Take the small metal thing hanging from the hook by the door.\"}, \"evidence\": {\"interactable\": \"ix_00000000000000000000000001\", \"visible_attribute\": \"hangs on a hook\"}, \"solution\": {\"lock_type\": \"find\", \"target\": \"ix_00000000000000000000000001\"}}, \"p2\": {\"lock_type\": \"code\", \"is_exit\": false, \"requires\": [], \"clue\": \"The clock stopped at a telling hour.\", \"lore\": \"The house keeps its own time, and it stopped keeping it the night the last tenant left.\", \"rungs\": {\"nudge\": \"Check the time.\", \"direction\": \"The clock on the wall stopped long ago; read what its hands still say.\", \"near_answer\": \"Read the hour and the minutes the stopped hands show and type them in that order.\"}, \"evidence\": {\"interactable\": \"ix_00000000000000000000000003\", \"visible_attribute\": \"stopped at a quarter past four\"}, \"solution\": {\"lock_type\": \"code\", \"code\": \"415\"}}, \"p3\": {\"lock_type\": \"order\", \"is_exit\": false, \"requires\": [\"p2\"], \"clue\": \"Three keepers of time stand on the shelf; wake them as the clock would.\", \"lore\": \"Wax, oil and grains each measure an evening in their own way. The tenant lit them in turn.\", \"rungs\": {\"nudge\": \"Study the shelf.\", \"direction\": \"The three things on the shelf each measure time in their own way.\", \"near_answer\": \"Begin with the candle, then what burns oil, then what runs out of grains.\"}, \"evidence\": {\"interactable\": \"ix_00000000000000000000000004\", \"visible_attribute\": \"half burnt\"}, \"solution\": {\"lock_type\": \"order\", \"interactables\": [\"ix_00000000000000000000000004\", \"ix_00000000000000000000000005\", \"ix_00000000000000000000000006\"]}}, \"p4\": {\"lock_type\": \"use_on\", \"is_exit\": false, \"requires\": [\"p1\"], \"clue\": \"What hangs by the door opens what sits on the floor.\", \"lore\": \"The chest has not been opened since the tenant packed it. Its lock is small, like the thing that fits it.\", \"rungs\": {\"nudge\": \"You carry something now.\", \"direction\": \"Something you picked up fits a lock somewhere in this room.\", \"near_answer\": \"Use the small thing from the hook on the wooden chest by the far wall.\"}, \"evidence\": {\"interactable\": \"ix_00000000000000000000000002\", \"visible_attribute\": \"closed lid\"}, \"solution\": {\"lock_type\": \"use_on\", \"item\": \"ix_00000000000000000000000001\", \"target\": \"ix_00000000000000000000000002\"}}, \"p5\": {\"lock_type\": \"code\", \"is_exit\": true, \"requires\": [\"p3\", \"p4\"], \"clue\": \"The way out wears its own number.\", \"lore\": \"Whoever painted the door left the way out in plain sight, for anyone patient enough to read it.\", \"rungs\": {\"nudge\": \"The door is the way out.\", \"direction\": \"The painted door carries its own number above the frame.\", \"near_answer\": \"Type the digits painted above the door frame into the lock, left to right.\"}, \"evidence\": {\"interactable\": \"ix_00000000000000000000000007\", \"visible_attribute\": \"four brass digits above the frame\"}, \"solution\": {\"lock_type\": \"code\", \"code\": \"7342\"}}, \"p6\": null}"
-        }
+          "content": "{\"p1\": {\"clue\": \"Something small glints where it rests unnoticed, waiting to open what stays shut.\", \"evidence\": {\"interactable\": \"ix_00000000000000000000000001\", \"visible_attribute\": \"hangs on a hook\"}, \"is_exit\": false, \"lock_type\": \"find\", \"lore\": \"This chamber loves to keep secrets, and it hung its favorite whisper where only patient eyes wander.\", \"requires\": [], \"rungs\": {\"direction\": \"Notice a quiet glint resting aloft near the edges of the room.\", \"near_answer\": \"Focus on the little hook along the wall and claim what dangles there to carry forward.\", \"nudge\": \"Scan the walls carefully.\"}, \"solution\": {\"lock_type\": \"find\", \"target\": \"ix_00000000000000000000000001\"}}, \"p2\": {\"clue\": \"The shelf keeps a trio in line, from one tip to the other; honor their places in turn.\", \"evidence\": {\"interactable\": \"ix_00000000000000000000000004\", \"visible_attribute\": \"left end of the shelf\"}, \"is_exit\": false, \"lock_type\": \"order\", \"lore\": \"Dust settles in order here, and even shadows queue politely for their turn in the glow.\", \"requires\": [], \"rungs\": {\"direction\": \"See how three shapes stand spaced across its length, each settled in its own spot.\", \"near_answer\": \"Greet them in line from the far tip toward the opposite tip, starting at one side and moving steadily across without skipping.\", \"nudge\": \"Study the long shelf.\"}, \"solution\": {\"interactables\": [\"ix_00000000000000000000000004\", \"ix_00000000000000000000000005\", \"ix_00000000000000000000000006\"], \"lock_type\": \"order\"}}, \"p3\": {\"clue\": \"A banded box sits sealed and silent, longing for the small glint to free it.\", \"evidence\": {\"interactable\": \"ix_00000000000000000000000002\", \"visible_attribute\": \"closed lid\"}, \"is_exit\": false, \"lock_type\": \"use_on\", \"lore\": \"Trunks in this place dream of opening, sighing through iron ribs until kindness turns the lock.\", \"requires\": [\"p1\"], \"rungs\": {\"direction\": \"Observe its lid held fast, clearly meant to be freed by something you already carry.\", \"near_answer\": \"Take the little glint you claimed earlier and offer it to the shut box to coax it open.\", \"nudge\": \"Return to the sealed box.\"}, \"solution\": {\"item\": \"ix_00000000000000000000000001\", \"lock_type\": \"use_on\", \"target\": \"ix_00000000000000000000000002\"}}, \"p4\": {\"clue\": \"The frozen timekeeper guards the way forward; its halted hands hold the passage you seek.\", \"evidence\": {\"interactable\": \"ix_00000000000000000000000003\", \"visible_attribute\": \"stopped at a quarter past four\"}, \"is_exit\": true, \"lock_type\": \"code\", \"lore\": \"Time once paused here to listen, and the room still remembers the hush of that lingering moment.\", \"requires\": [\"p2\", \"p3\"], \"rungs\": {\"direction\": \"Study where its hands came to rest upon the pale round face above the brass.\", \"near_answer\": \"Read the halted hour and minute it displays, then shape those into the entry the egress awaits.\", \"nudge\": \"Gaze at the timekeeper.\"}, \"solution\": {\"code\": \"0415\", \"lock_type\": \"code\"}}, \"p5\": null, \"p6\": null}",
+          "refusal": null,
+          "role": "assistant"
+        },
+        "logprobs": null
       }
     ],
+    "created": 1793145377,
+    "model": "muse-spark-1.3",
+    "object": "chat.completion",
     "usage": {
-      "prompt_tokens": 2386,
-      "completion_tokens": 3174,
-      "total_tokens": 5560,
+      "completion_tokens": 6329,
+      "prompt_tokens": 5317,
+      "total_tokens": 11646,
+      "completion_tokens_details": {
+        "reasoning_tokens": 5498
+      },
       "prompt_tokens_details": {
         "cached_tokens": 0
-      },
-      "completion_tokens_details": {
-        "reasoning_tokens": 2051
       }
     }
   }
