@@ -1,0 +1,311 @@
+{
+  "date": "2026-10-28",
+  "epoch": null,
+  "entries": [
+    {
+      "call_id": "call_01M5ZTZEGXQ8CE2YJP385EW4P6",
+      "kind": "image",
+      "status": "reserved",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZTZEGXQ8CE2YJP385EW4P6",
+      "kind": "image",
+      "status": "settled",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZTZY576PK6KD9DZ5EBTSKR",
+      "kind": "image",
+      "status": "reserved",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZTZY576PK6KD9DZ5EBTSKR",
+      "kind": "image",
+      "status": "settled",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZV0MSFDTR076TFC0GVPAT1",
+      "kind": "image",
+      "status": "reserved",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZV0MSFDTR076TFC0GVPAT1",
+      "kind": "image",
+      "status": "settled",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZV17T6J1D019SW9FZA6J4Y",
+      "kind": "image",
+      "status": "reserved",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZV17T6J1D019SW9FZA6J4Y",
+      "kind": "image",
+      "status": "settled",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZV32A65ZAS5R4HYZ5TPGQA",
+      "kind": "vision",
+      "status": "reserved",
+      "usd": 0.03,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZV32RMD35W2Q7GCFRRFQ27",
+      "kind": "image",
+      "status": "reserved",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZV33PXVMZ3A9742FJ9MACG",
+      "kind": "riddler",
+      "status": "reserved",
+      "usd": 0.03,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZV33T7X9X85VRBMEMR1Q2B",
+      "kind": "dryrun",
+      "status": "reserved",
+      "usd": 0.03,
+      "epoch": null,
+      "job_id": "job_01M5ZV33SW3HF26A8VQXXKZ2NT",
+      "stage": "dryrun",
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZV34JY7PX5BFT7RPFX1RBG",
+      "kind": "trickster",
+      "status": "reserved",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWC4VV5HE296HHWHP3FXMS",
+      "kind": "vision",
+      "status": "reserved",
+      "usd": 0.03,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWC4VV5HE296HHWHP3FXMS",
+      "kind": "vision",
+      "status": "settled",
+      "usd": 0.00061775,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWC6RTX65K0Q3ARSTY8GE3",
+      "kind": "image",
+      "status": "reserved",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWC6RTX65K0Q3ARSTY8GE3",
+      "kind": "image",
+      "status": "settled",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWCE5XAKRJ249VJAW29F12",
+      "kind": "riddler",
+      "status": "reserved",
+      "usd": 0.03,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWDBKBRS8BDBYQJR14MVCK",
+      "kind": "dryrun",
+      "status": "reserved",
+      "usd": 0.03,
+      "epoch": null,
+      "job_id": "job_01M5ZWDBK25BP9GMBSC7CDK9Z2",
+      "stage": "dryrun",
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWDBKBRS8BDBYQJR14MVCK",
+      "kind": "dryrun",
+      "status": "settled",
+      "usd": 0.0184735,
+      "epoch": null,
+      "job_id": "job_01M5ZWDBK25BP9GMBSC7CDK9Z2",
+      "stage": "dryrun",
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWDJ1EXMD644WSX2KZPYQZ",
+      "kind": "trickster",
+      "status": "reserved",
+      "usd": 0.01,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWDJ1EXMD644WSX2KZPYQZ",
+      "kind": "trickster",
+      "status": "settled",
+      "usd": 0.0081775,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWNFBT8AA06B4SDV0XM7G6",
+      "kind": "riddler",
+      "status": "reserved",
+      "usd": 0.03,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWNZPNHYZE8M48J7875B2J",
+      "kind": "dryrun",
+      "status": "reserved",
+      "usd": 0.0184735,
+      "epoch": null,
+      "job_id": "job_01M5ZWNZP8HEWNQKEVFJPM6WRK",
+      "stage": "dryrun",
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWNZPNHYZE8M48J7875B2J",
+      "kind": "dryrun",
+      "status": "settled",
+      "usd": 0.01675225,
+      "epoch": null,
+      "job_id": "job_01M5ZWNZP8HEWNQKEVFJPM6WRK",
+      "stage": "dryrun",
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWNFBT8AA06B4SDV0XM7G6",
+      "kind": "riddler",
+      "status": "settled",
+      "usd": 0.0335445,
+      "epoch": null,
+      "job_id": null,
+      "stage": null,
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWS5ARSN0EFJ5BXNCYYG9T",
+      "kind": "dryrun",
+      "status": "reserved",
+      "usd": 0.01675225,
+      "epoch": null,
+      "job_id": "job_01M5ZWS5ABB2E9Z3EESBJFBGA1",
+      "stage": "dryrun",
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZWS5ARSN0EFJ5BXNCYYG9T",
+      "kind": "dryrun",
+      "status": "settled",
+      "usd": 0.016595,
+      "epoch": null,
+      "job_id": "job_01M5ZWS5ABB2E9Z3EESBJFBGA1",
+      "stage": "dryrun",
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZXW2JSYDFSHGFJVVXD024D",
+      "kind": "dryrun",
+      "status": "reserved",
+      "usd": 0.016595,
+      "epoch": null,
+      "job_id": "job_01M5ZXW2JBNVBP2E96QY5TPR29",
+      "stage": "dryrun",
+      "session_id": null
+    },
+    {
+      "call_id": "call_01M5ZXW2JSYDFSHGFJVVXD024D",
+      "kind": "dryrun",
+      "status": "settled",
+      "usd": 0.01593625,
+      "epoch": null,
+      "job_id": "job_01M5ZXW2JBNVBP2E96QY5TPR29",
+      "stage": "dryrun",
+      "session_id": null
+    }
+  ],
+  "local_total_usd": 0.30009674999999997,
+  "hosted_total_usd": 0.0,
+  "total_usd": 0.30009674999999997,
+  "ceiling_usd": 80.0,
+  "hosted_snapshot": null
+}
