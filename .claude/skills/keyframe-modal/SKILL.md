@@ -28,7 +28,7 @@ Do not use it for:
 - Local mode: `src/infra/local.py` runs the same ports on disk and needs no Modal.
 - Provider wiring in `src/api/wiring.py`. Its hosted branch only passes `hosted=handles()` to the adapters described here.
 - Model calls, which go through `ModelProvider` and the keyframe-muse, keyframe-sam31 and keyframe-sam3d-fal skills.
-- Automation. There is no CD: nothing in CI, a hook or a script runs `modal deploy`.
+- Automation. There is no CD: no push, merge or schedule runs `modal deploy`. The one automated path is `.github/workflows/deploy.yml`, started by hand from the Actions tab with the Environment and `MIN_CONTAINERS` as inputs and the Modal token from the repository's Actions secrets; it runs the same pre-deploy ladder and `modal deploy` as the runbook, then smoke-tests `/api/meta`.
 
 ## How Keyframe calls it
 

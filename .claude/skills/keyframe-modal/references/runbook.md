@@ -26,6 +26,8 @@ Every command here needs a Modal account and token, so all of them are live-only
 
 ## Deploy the judge URL (manual)
 
+The same steps run on demand from `.github/workflows/deploy.yml` (Actions tab, deploy, Run workflow, choosing the Environment and `MIN_CONTAINERS`); the token comes from the repository's Actions secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, never from a file; the chosen Environment's `keyframe` Secret must exist first (step 3 of the one-time setup), since the workflow creates a missing Environment but not its Secret. By hand:
+
 1. Run the offline suite (`pytest`) and `scripts/selfcheck.py`, then `cd web && npm run build`, then `bash scripts/check.sh --predeploy` (keyframe-devops: `uv.lock` in sync, since the image installs it with `uv_sync`, which runs `--frozen`; CI's uv and `.python-version` match the image; clean tree; `web/dist` present).
 2. Set `MIN_CONTAINERS` in the shell. Use 0 before Thu Nov 5, 1 from Thu Nov 5 to Mon Nov 9, and 0 again from Tue Nov 10. The decorator reads this value through `Settings` at deploy time.
 3. `modal deploy -m src.api.modal_app` from the repo root.

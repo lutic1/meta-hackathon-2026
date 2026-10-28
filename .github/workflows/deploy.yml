@@ -1,0 +1,58 @@
+name: deploy
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Modal Environment (main serves the judge URL, dev a development copy)
+        type: choice
+        options: [main, dev]
+        default: main
+      min_containers:
+        description: MIN_CONTAINERS for web (1 only in the warm window, Thu Nov 5 to Mon Nov 9)
+        type: choice
+        options: ["0", "1"]
+        default: "0"
+permissions:
+  contents: read
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MODEL_PROVIDER: mock
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      MODAL_ENVIRONMENT: ${{ inputs.environment }}
+      MIN_CONTAINERS: ${{ inputs.min_containers }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          enable-cache: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: bash scripts/check.sh --predeploy
+      - id: deploy
+        env:
+          COLUMNS: "200"
+        run: |
+          set -euo pipefail
+          uv run modal environment list --json | grep -qE "\"name\": ?\"$MODAL_ENVIRONMENT\"" || uv run modal environment create "$MODAL_ENVIRONMENT"
+          uv run modal deploy -e "$MODAL_ENVIRONMENT" -m src.api.modal_app | tee deploy.log
+          url=$(grep -oE 'https://[a-z0-9.-]+\.modal\.run' deploy.log | head -1 || true)
+          test -n "$url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed keyframe to the $MODAL_ENVIRONMENT Environment with MIN_CONTAINERS=$MIN_CONTAINERS: $url" >> "$GITHUB_STEP_SUMMARY"
+      - run: |
+          for attempt in $(seq 1 12); do
+            curl -fsS "${{ steps.deploy.outputs.url }}/api/meta" && exit 0
+            sleep 10
+          done
+          exit 1
