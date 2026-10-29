@@ -99,13 +99,27 @@ def test_play_this_room_is_the_guarded_start_with_its_pending_label_so_no_sessio
     assert "primaryButton({ label: strings.playThisRoom, pendingLabel: strings.openingRoom, onActivate: () => start(first) })" in ts
     assert "const link = buildViewLink(first.job_id, profile)" in ts and "if (link !== null) actions.append(link)" in ts
     landing = _code("landing.ts")
-    assert landing.count("roomStarter(profile, mode, banners)") == 1  # one starter for the first Demo room
+    assert landing.count("roomStarter(") == 1  # one starter for the whole landing
     starter = _code("stored-rooms.ts")
     assert "if (starting || started) return" in starter
     # The pending primary button ignores repeat activation until the start settles, and a routed start never settles.
     assert "if (pending) return" in _code("components/button.ts")
     assert "return new Promise<never>(() => undefined)" in starter
 
+
+
+def test_the_play_back_and_the_further_cards_share_one_start_guard_so_no_session_starts_twice():
+    landing = _code("landing.ts")
+    # One guarded starter serves the Play back and every further Demo room card; each keeps its own banner slot, so a
+    # start opening from one is never joined by a second from the other.
+    assert landing.count("roomStarter(") == 1 and "const start = roomStarter(profile, mode, banners)" in landing
+    assert "chooser({ first, failed: rooms === null, profile, start, banners, onRetry, onAccepted })" in landing
+    assert "demoRoomCard(room, profile, () => start(room, moreBanners))" in landing
+    assert "startMore" not in landing
+    starter = _code("stored-rooms.ts").split("export function roomStarter(", 1)[1].split("\n}\n", 1)[0]
+    assert "async function start(room: RoomSummary, slot: HTMLElement = banners): Promise<void> {" in starter
+    assert starter.count("let starting = false") == 1 and starter.count("let started = false") == 1
+    assert "if (starting || started) return" in starter
 
 def test_the_build_back_holds_the_three_steps_and_the_access_code_build_unchanged():
     ts = _chooser()

@@ -9,8 +9,9 @@ import { strings } from './strings.ts'
 /**
  * A session start over a stored Room, shared by the Stored Rooms list and the Demo room cards: it posts the start,
  * carrying the profile's Derived block (`sessionStart`), and routes to `#/play/<session_id>`; a refused start shows the
- * session-start-refused banner in `banners`, the slot at the top of the left area, whose "Try again" posts the same
- * start again. One start runs at a time, and none once one went through. The promise settles when the start is
+ * session-start-refused banner in `banners`, the slot at the top of the left area, or in the `slot` a call names (the
+ * Hosted landing's further Demo room cards), whose "Try again" posts the same start again. One start runs at a time
+ * across every call to the returned start, and none once one went through. The promise settles when the start is
  * refused (or another is under way), never once it routed, so a button pending on it keeps its pending label until the
  * Play screen replaces this one.
  */
@@ -18,25 +19,25 @@ export function roomStarter(
   profile: string,
   mode: Meta['mode'],
   banners: HTMLElement,
-): (room: RoomSummary) => Promise<void> {
+): (room: RoomSummary, slot?: HTMLElement) => Promise<void> {
   let starting = false
   let started = false
 
-  async function start(room: RoomSummary): Promise<void> {
+  async function start(room: RoomSummary, slot: HTMLElement = banners): Promise<void> {
     if (starting || started) return
     starting = true
     try {
       const session = await startSession(await sessionStart(room.room_id, profile, mode))
       started = true
-      showBanner(banners, null)
+      showBanner(slot, null)
       location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })
       return new Promise<never>(() => undefined)
     } catch {
-      showBanner(banners, {
+      showBanner(slot, {
         variant: 'error',
         heading: strings.sessionStartRefused,
         sentence: strings.sessionStartRefusedBody,
-        actions: [{ label: strings.tryAgain, onActivate: () => void start(room) }],
+        actions: [{ label: strings.tryAgain, onActivate: () => void start(room, slot) }],
       })
     } finally {
       starting = false

@@ -141,7 +141,7 @@ def test_quota_from_the_check_leaves_the_demo_rooms_playable():
     # Nothing the panel does reaches the Play back or the further cards: they keep their own start and are never disabled.
     assert "disabled" not in landing and "disabled" not in _panel() and ".disabled = " not in chooser
     assert "primaryButton({ label: strings.playThisRoom, pendingLabel: strings.openingRoom, onActivate: () => start(first) })" in chooser
-    assert "demoRoomCard(room, profile, () => startMore(room))" in landing
+    assert "demoRoomCard(room, profile, () => start(room, moreBanners))" in landing
 
 
 # --- Accepted: the Capture screen, the code in memory only --------------------------------

@@ -81,9 +81,9 @@ def test_the_client_fresh_block_is_the_server_derived_fresh():
 def test_a_refused_start_shows_the_session_start_refused_banner_whose_try_again_starts_again():
     ts = _ts("stored-rooms.ts")
     refused = ts.split("} catch {", 1)[1].split("} finally {", 1)[0]
-    assert "showBanner(banners, {" in refused and "variant: 'error'" in refused
+    assert "showBanner(slot, {" in refused and "variant: 'error'" in refused
     assert "heading: strings.sessionStartRefused" in refused and "sentence: strings.sessionStartRefusedBody" in refused
-    assert "actions: [{ label: strings.tryAgain, onActivate: () => void start(room) }]" in refused
+    assert "actions: [{ label: strings.tryAgain, onActivate: () => void start(room, slot) }]" in refused
     # The banner slot sits at the top of the left area, above the list; showBanner moves focus to the banner.
     capture = _ts("capture.ts")
     assert "left.append(banners, controls)" in capture

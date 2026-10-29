@@ -209,10 +209,9 @@ def test_with_a_demo_room_listed_the_sample_page_and_steps_sit_under_the_cast_th
     assert "below.className = 'landing-below'" in ts
     assert "below.append(notes, howARoomIsBuilt(first.puzzle_count))" in ts
     # The first Demo room is the Play card; further Demo rooms keep their cards three across, in served order, with
-    # their own starter and banner slot above their list.
+    # the Play back's starter and their own banner slot above their list.
     assert "const others = rooms?.slice(1) ?? []" in ts
-    assert "const startMore = roomStarter(profile, mode, moreBanners)" in ts
-    assert "cards.push(...others.map((room) => demoRoomCard(room, profile, () => startMore(room))))" in ts
+    assert "cards.push(...others.map((room) => demoRoomCard(room, profile, () => start(room, moreBanners))))" in ts
     assert "more.append(moreBanners, list)" in ts
     assert not re.search(r"\.sort\(|\.reverse\(|\.filter\(", ts), "the cards keep the served order"
     assert _card_rules()[".demo-room-list"]["grid-template-columns"] == "repeat(3, minmax(0, 1fr))"
@@ -331,7 +330,7 @@ def test_play_this_room_or_a_click_on_the_card_starts_a_session_and_the_link_doe
     assert "keydown" not in ts  # Enter on "Play this room" is the button's own
     landing = _code("landing.ts")
     assert "const start = roomStarter(profile, mode, banners)" in landing
-    assert "demoRoomCard(room, profile, () => startMore(room))" in landing
+    assert "demoRoomCard(room, profile, () => start(room, moreBanners))" in landing
 
 
 def test_a_start_in_flight_shows_opening_the_room_and_ignores_repeat_activation_until_the_play_screen_opens():
@@ -361,7 +360,8 @@ def test_the_start_sends_the_fresh_derived_block_and_a_refusal_shows_the_banner_
     assert "location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })" in starter
     refused = starter.split("} catch {", 1)[1].split("} finally {", 1)[0]
     assert "heading: strings.sessionStartRefused" in refused and "sentence: strings.sessionStartRefusedBody" in refused
-    assert "actions: [{ label: strings.tryAgain, onActivate: () => void start(room) }]" in refused
+    assert "showBanner(slot, {" in refused and "showBanner(banners" not in starter
+    assert "actions: [{ label: strings.tryAgain, onActivate: () => void start(room, slot) }]" in refused
     landing = _code("landing.ts")
     assert "const banners = bannerSlot()" in landing and "const start = roomStarter(profile, mode, banners)" in landing
     # One slot for the first Demo room, at the top of the Play back's details, where the click was.

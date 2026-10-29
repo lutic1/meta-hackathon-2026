@@ -161,8 +161,8 @@ function howARoomIsBuilt(locks?: number): HTMLElement {
  * `rooms` is null when `GET /rooms` failed: the Play back holds the plain failed line with "Try again" (`onRetry`). An
  * empty list keeps Watch, Build and the cast, and the Play card reads that the sample room opens soon.
  * The Play back starts a Session on the first Demo room through `roomStarter`, so a refused start shows the
- * session-start-refused banner in its slot at the top of the Play back, focused; the further cards share their own
- * starter and slot above their list.
+ * session-start-refused banner in its slot at the top of the Play back, focused; the further cards go through the same
+ * starter, so no second Session starts while one is opening, with their refusal in their own slot above their list.
  */
 export function hostedLanding(
   rooms: readonly RoomSummary[] | null,
@@ -193,8 +193,7 @@ export function hostedLanding(
   const cards: DemoRoomCard[] = []
   if (others.length > 0) {
     const moreBanners = bannerSlot()
-    const startMore = roomStarter(profile, mode, moreBanners)
-    cards.push(...others.map((room) => demoRoomCard(room, profile, () => startMore(room))))
+    cards.push(...others.map((room) => demoRoomCard(room, profile, () => start(room, moreBanners))))
     const list = document.createElement('ul')
     list.className = 'demo-room-list'
     list.append(...cards.map(({ element }) => element))
