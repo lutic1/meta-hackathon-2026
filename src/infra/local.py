@@ -46,7 +46,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, Literal, TextIO
 
 from pydantic import ConfigDict, Field, TypeAdapter
 
@@ -289,6 +289,13 @@ class LedgerExport(Model):
     total_usd: float = Field(ge=0)
     """The running total of the merged entries, each `call_` id counted once."""
     ceiling_usd: float = Field(ge=0)
+    """The combined ceiling: the sum of the two allocations."""
+    local_cap_usd: float | None = Field(default=None, ge=0)
+    """The Local allocation; `None` in an export written before the allocations were recorded."""
+    hosted_cap_usd: float | None = Field(default=None, ge=0)
+    """The Hosted allocation; `None` in an export written before the allocations were recorded."""
+    hosted_cap_source: Literal["env", "default"] | None = None
+    """`env` when `HOSTED_SPEND_CAP_USD` set the Hosted allocation, `default` when it is the default 20."""
     hosted_snapshot: str | None = None
     """The Volume path of the merged hosted snapshot; `None` when none was merged."""
 
@@ -311,7 +318,13 @@ def _merged_snapshot(path: Path, epoch: str | None, local: list[LedgerEntry]) ->
 
 
 def export_ledger(
-    store: JsonlLedgerStore, exports_root: Path, today: date, ceiling_usd: float, hosted: HostedSnapshot | None = None
+    store: JsonlLedgerStore,
+    exports_root: Path,
+    today: date,
+    local_cap_usd: float,
+    hosted_cap_usd: float,
+    hosted_cap_source: Literal["env", "default"],
+    hosted: HostedSnapshot | None = None,
 ) -> LedgerExport:
     """Write today's export from the store's current epoch, merged with `hosted`'s entries of that epoch, and return it.
 
@@ -320,7 +333,8 @@ def export_ledger(
     merged for the same epoch is kept: its entries are the ones that export
     holds beyond the local store. An empty ledger with no snapshot exports a
     total of 0. The file is replaced whole, so a reader (or `git add`) never
-    sees a partial export.
+    sees a partial export. The ceiling is the sum of the two allocations,
+    each recorded beside it with the Hosted one's source.
     """
     epoch = store.epoch()
     local = store.entries()
@@ -334,7 +348,10 @@ def export_ledger(
         local_total_usd=running_total_usd(local),
         hosted_total_usd=running_total_usd(remote),
         total_usd=running_total_usd(entries),
-        ceiling_usd=ceiling_usd,
+        ceiling_usd=local_cap_usd + hosted_cap_usd,
+        local_cap_usd=local_cap_usd,
+        hosted_cap_usd=hosted_cap_usd,
+        hosted_cap_source=hosted_cap_source,
         hosted_snapshot=hosted.path if hosted else None,
     )
     _replace(export_path(exports_root, today), (export.model_dump_json(indent=2) + "\n").encode())

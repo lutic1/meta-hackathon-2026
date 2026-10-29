@@ -462,7 +462,7 @@ def test_export_ledger_writes_the_current_epoch_entries_and_the_totals_to_the_da
     store.append(first)
     store.append(second)
 
-    export = export_ledger(store, root / EXPORTS_ROOT, date(2026, 10, 26), ceiling_usd=80)
+    export = export_ledger(store, root / EXPORTS_ROOT, date(2026, 10, 26), local_cap_usd=60, hosted_cap_usd=20, hosted_cap_source="default")
 
     path = root / "spend" / "exports" / "ledger-2026-10-26.json"
     assert export_path(EXPORTS_ROOT, date(2026, 10, 26)) == Path("spend/exports/ledger-2026-10-26.json")
@@ -479,12 +479,12 @@ def test_a_reader_never_sees_a_partial_export_while_it_is_rewritten(root):
     for _ in range(50):
         store.append(settled(0.01))
     path = export_path(root / EXPORTS_ROOT, date(2026, 10, 26))
-    export_ledger(store, root / EXPORTS_ROOT, date(2026, 10, 26), ceiling_usd=80)
+    export_ledger(store, root / EXPORTS_ROOT, date(2026, 10, 26), local_cap_usd=60, hosted_cap_usd=20, hosted_cap_source="default")
     stop = threading.Event()
 
     def rewrite() -> None:
         while not stop.is_set():
-            export_ledger(store, root / EXPORTS_ROOT, date(2026, 10, 26), ceiling_usd=80)
+            export_ledger(store, root / EXPORTS_ROOT, date(2026, 10, 26), local_cap_usd=60, hosted_cap_usd=20, hosted_cap_source="default")
 
     writer = threading.Thread(target=rewrite)
     writer.start()
@@ -497,7 +497,7 @@ def test_a_reader_never_sees_a_partial_export_while_it_is_rewritten(root):
 
 
 def test_an_empty_ledger_exports_a_valid_file_with_a_total_of_0(root):
-    export = export_ledger(ledger_store(root), root / EXPORTS_ROOT, date(2026, 10, 26), ceiling_usd=80)
+    export = export_ledger(ledger_store(root), root / EXPORTS_ROOT, date(2026, 10, 26), local_cap_usd=60, hosted_cap_usd=20, hosted_cap_source="default")
     written = json.loads((root / EXPORTS_ROOT / "ledger-2026-10-26.json").read_text())
     assert written["entries"] == [] and written["total_usd"] == 0.0 and written["local_total_usd"] == 0.0
     assert export.total_usd == 0 and not (root / LEDGER_PATH).read_text()
@@ -506,12 +506,12 @@ def test_an_empty_ledger_exports_a_valid_file_with_a_total_of_0(root):
 def test_the_export_after_a_reset_holds_only_the_new_epoch_and_the_earlier_export_is_untouched(root):
     store = ledger_store(root)
     store.append(settled(30.0))
-    earlier = export_ledger(store, root / EXPORTS_ROOT, date(2026, 11, 4), ceiling_usd=80)
+    earlier = export_ledger(store, root / EXPORTS_ROOT, date(2026, 11, 4), local_cap_usd=60, hosted_cap_usd=20, hosted_cap_source="default")
     earlier_bytes = (root / EXPORTS_ROOT / "ledger-2026-11-04.json").read_bytes()
     store.start_epoch("2026-11-05")
     store.append(settled(0.5))
 
-    later = export_ledger(store, root / EXPORTS_ROOT, date(2026, 11, 5), ceiling_usd=25)
+    later = export_ledger(store, root / EXPORTS_ROOT, date(2026, 11, 5), local_cap_usd=5, hosted_cap_usd=20, hosted_cap_source="default")
 
     assert [e.epoch for e in later.entries] == ["2026-11-05"] and later.epoch == "2026-11-05"
     assert (later.total_usd, later.ceiling_usd) == (0.5, 25.0)
@@ -531,12 +531,26 @@ def test_a_hosted_snapshot_merges_its_current_epoch_entries_once_each_after_the_
     stale = settled(9.0, "riddler")  # the epoch before the reset
     snapshot = HostedSnapshot(path="spend/hosted-2026-11-05.jsonl", entries=[stale, stamped[1], hosted_only])
 
-    export = export_ledger(store, root / EXPORTS_ROOT, date(2026, 11, 5), ceiling_usd=25, hosted=snapshot)
+    export = export_ledger(store, root / EXPORTS_ROOT, date(2026, 11, 5), local_cap_usd=5, hosted_cap_usd=20, hosted_cap_source="default", hosted=snapshot)
 
     assert export.entries == [*stamped, hosted_only]
     assert (export.local_total_usd, export.hosted_total_usd, export.total_usd) == (0.75, 1.25, 1.75)
     assert export.hosted_snapshot == "spend/hosted-2026-11-05.jsonl"
     assert LedgerExport.model_validate_json(export_path(root / EXPORTS_ROOT, date(2026, 11, 5)).read_text()) == export
+
+def test_a_committed_export_from_before_the_allocations_were_recorded_still_parses():
+    committed = sorted((Path(__file__).resolve().parents[2] / EXPORTS_ROOT).glob("ledger-*.json"))
+    assert committed, "spend/exports/ holds the committed daily exports"
+    for path in committed:
+        export = LedgerExport.model_validate_json(path.read_bytes())
+        assert export.ceiling_usd >= 0 and export.date == path.stem.removeprefix("ledger-")
+
+
+def test_the_export_records_the_two_allocations_their_sum_as_the_ceiling_and_the_hosted_source(root):
+    export = export_ledger(ledger_store(root), root / EXPORTS_ROOT, date(2026, 11, 5), local_cap_usd=5, hosted_cap_usd=20, hosted_cap_source="default")
+    assert (export.local_cap_usd, export.hosted_cap_usd, export.ceiling_usd, export.hosted_cap_source) == (5.0, 20.0, 25.0, "default")
+    assert LedgerExport.model_validate_json(export_path(root / EXPORTS_ROOT, date(2026, 11, 5)).read_text()) == export
+
 
 # --- The total survives a restart ---------------------------------------------
 

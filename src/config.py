@@ -11,7 +11,10 @@ hosted) and the values the running mode refuses at startup
 (`MODE_REFUSED`: hosted refuses `GUIDE=ollama` and `DEMO_TRICKSTER=record`).
 An explicit `SPEND_CAP_USD` overrides the running mode's default; a later
 allocation is set by configuration at the ledger reset, with no date logic
-here (AD-6, AD-14).
+here (AD-6, AD-14). `HOSTED_SPEND_CAP_USD` (default 20) is the Hosted
+allocation the local ledger export adds to the Local one; it must equal the
+`SPEND_CAP_USD` in the `keyframe` Secret, and the export records whether it
+was set or is the default.
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ ENV_KEYS = (
     "MIN_CONTAINERS",
     "CACHE",
     "SPEND_CAP_USD",
+    "HOSTED_SPEND_CAP_USD",
     "DEMO_TIMESCALE",
     "DEMO_TRICKSTER",
     "DEMO_PROPOSALS_DIR",
@@ -58,6 +62,7 @@ MUSE_SPARK = "muse-spark-1.3"
 MUSE_IMAGE = "muse-image-1.0"
 
 type Mode = Literal["local", "hosted"]
+type CapSource = Literal["env", "default"]
 
 MODE_DEFAULTS: dict[str, dict[str, object]] = {
     "local": {"spend_cap_usd": 60, "guide": "ollama"},
@@ -80,11 +85,11 @@ class Settings(BaseModel, frozen=True):
     spend_cap_usd: float = Field(default=60, ge=0)
     """The running mode's allocation (AD-6): `SPEND_CAP_USD`, else the mode's default in `MODE_DEFAULTS`."""
     hosted_spend_cap_usd: float = Field(default=20, ge=0)
-    """The Hosted-mode allocation the local export adds to the Local one for the combined ceiling (AD-6).
+    """The Hosted-mode allocation the local export adds to the Local one for the combined ceiling (AD-6): `HOSTED_SPEND_CAP_USD`, else 20.
 
-    The hosted process reads its own allocation from `SPEND_CAP_USD` in the
-    `keyframe` Secret; the local process cannot see that value, so the
-    ceiling it reports uses this default.
+    The hosted process enforces its own allocation, `SPEND_CAP_USD` in the
+    `keyframe` Secret, which the local process cannot see; set this key to
+    the same value. `hosted_spend_cap_source` says whether it was set.
     """
     demo_timescale: int = Field(default=1, ge=1)
     demo_trickster: Literal["live", "record", "scripted", "authored"] = "live"
@@ -118,6 +123,11 @@ class Settings(BaseModel, frozen=True):
     fal_key: str | None = None
     ollama_host: str | None = None
     access_code: str | None = None
+
+    @property
+    def hosted_spend_cap_source(self) -> CapSource:
+        """`env` when `HOSTED_SPEND_CAP_USD` set the Hosted allocation, `default` when it is the default 20."""
+        return "env" if "hosted_spend_cap_usd" in self.model_fields_set else "default"
 
     @model_validator(mode="before")
     @classmethod

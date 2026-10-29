@@ -173,3 +173,12 @@ def test_only_config_reads_the_environment():
     offenders = [p for p in (REPO / "src").rglob("*.py") if p != REPO / "src/config.py" and _reads_environ(p)]
     assert offenders == [], f"modules reading os.environ outside src/config.py: {offenders}"
     assert _reads_environ(REPO / "src/config.py")
+
+
+def test_the_hosted_allocation_is_read_from_its_key_and_says_where_it_came_from():
+    default, blank = Settings.from_env({}), Settings.from_env({"HOSTED_SPEND_CAP_USD": ""})
+    assert (default.hosted_spend_cap_usd, default.hosted_spend_cap_source) == (20, "default")
+    assert (blank.hosted_spend_cap_usd, blank.hosted_spend_cap_source) == (20, "default")
+    s = Settings.from_env({"HOSTED_SPEND_CAP_USD": "15"})
+    assert (s.hosted_spend_cap_usd, s.hosted_spend_cap_source) == (15.0, "env")
+    assert "HOSTED_SPEND_CAP_USD" in ENV_KEYS and "HOSTED_SPEND_CAP_USD" not in SECRET_KEYS

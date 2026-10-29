@@ -110,6 +110,7 @@ def hosted(tmp_path: Path, monkeypatch) -> Hosted:
 def root(tmp_path: Path, monkeypatch, hosted: Hosted) -> Path:
     """A repository root with the default allocations: local 60 and hosted 20, the 80 ceiling; the Volume holds no snapshot."""
     monkeypatch.setenv("SPEND_CAP_USD", "")
+    monkeypatch.setenv("HOSTED_SPEND_CAP_USD", "")
     return tmp_path / "repo"
 
 
@@ -159,6 +160,38 @@ def test_the_ceiling_is_the_sum_of_the_two_allocations_settings_knows_with_no_da
     assert ledger.main(["export"], root=root, today=NOV_5) == 0
     assert json.loads(export_file(root, NOV_5).read_text())["ceiling_usd"] == 25.0
     assert "25.00 USD combined ceiling" in capsys.readouterr().out
+
+
+def test_the_export_records_both_allocations_and_the_hosted_default_beside_the_80_then_25_ceiling(root, capsys, monkeypatch):
+    assert ledger.main(["export"], root=root, today=NOV_4) == 0
+    monkeypatch.setenv("SPEND_CAP_USD", "5")  # the Thu Nov 5 configuration
+    assert ledger.main(["export"], root=root, today=NOV_5) == 0
+
+    caps = ("local_cap_usd", "hosted_cap_usd", "ceiling_usd", "hosted_cap_source")
+    nov_4, nov_5 = (json.loads(export_file(root, day).read_text()) for day in (NOV_4, NOV_5))
+    assert tuple(nov_4[key] for key in caps) == (60.0, 20.0, 80.0, "default")
+    assert tuple(nov_5[key] for key in caps) == (5.0, 20.0, 25.0, "default")
+    lines = capsys.readouterr().out.splitlines()
+    assert "ceiling         80.00 USD: local 60.00 + hosted 20.00 USD (hosted from the default; HOSTED_SPEND_CAP_USD is unset)" in lines
+    assert "ceiling         25.00 USD: local 5.00 + hosted 20.00 USD (hosted from the default; HOSTED_SPEND_CAP_USD is unset)" in lines
+
+
+def test_a_changed_hosted_allocation_changes_the_ceiling_and_is_recorded_from_its_key(root, capsys, monkeypatch):
+    monkeypatch.setenv("HOSTED_SPEND_CAP_USD", "12.5")  # the SPEND_CAP_USD in the hosted Secret
+    assert ledger.main(["export"], root=root, today=NOV_4) == 0
+
+    written = json.loads(export_file(root, NOV_4).read_text())
+    assert (written["local_cap_usd"], written["hosted_cap_usd"], written["ceiling_usd"]) == (60.0, 12.5, 72.5)
+    assert written["hosted_cap_source"] == "env"
+    lines = capsys.readouterr().out.splitlines()
+    assert "72.50 USD combined ceiling" in lines[1]
+    assert lines[4] == "ceiling         72.50 USD: local 60.00 + hosted 12.50 USD (hosted from HOSTED_SPEND_CAP_USD)"
+
+
+def test_the_api_export_records_the_same_allocations_as_the_script(root, monkeypatch):
+    monkeypatch.setenv("HOSTED_SPEND_CAP_USD", "10")
+    export = wiring.ledger_export(Settings.from_env(), store(root), root / EXPORTS_ROOT, lambda: NOV_4)()
+    assert (export.local_cap_usd, export.hosted_cap_usd, export.ceiling_usd, export.hosted_cap_source) == (60.0, 10.0, 70.0, "env")
 
 
 def test_a_sum_at_or_above_the_ceiling_is_printed_as_a_warning_and_changes_no_store(root, capsys, monkeypatch):
@@ -280,7 +313,8 @@ def test_export_merges_the_local_entries_with_the_snapshot_of_the_latest_date(ro
     assert lines[0] == "wrote spend/exports/ledger-2026-11-04.json: 5 entries, epoch none"
     assert "0.75 USD" in lines[1] and "1.78 USD" in lines[2] and "2.53 USD" in lines[3]
     assert lines[2].endswith("80.00 USD combined ceiling (from spend/hosted-2026-11-04.jsonl)")
-    assert len(lines) == 4
+    assert lines[4].startswith("ceiling         80.00 USD: local 60.00 + hosted 20.00 USD")
+    assert len(lines) == 5
 
 
 def test_a_call_entry_in_both_sources_appears_once_and_the_total_sums_the_distinct_entries(root, hosted):

@@ -342,11 +342,11 @@ def ledger_export(
 ) -> Callable[[], LedgerExport]:
     """The 2.6 export of the current epoch to `spend/exports/ledger-<date>.json`, one run at a time, against the combined ceiling."""
     lock = threading.Lock()
-    ceiling = settings.spend_cap_usd + settings.hosted_spend_cap_usd
+    caps = (settings.spend_cap_usd, settings.hosted_spend_cap_usd, settings.hosted_spend_cap_source)
 
     def export() -> LedgerExport:
         with lock:
-            return export_ledger(store, exports_root, today(), ceiling)
+            return export_ledger(store, exports_root, today(), *caps)
 
     return export
 

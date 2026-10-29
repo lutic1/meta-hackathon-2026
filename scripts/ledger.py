@@ -13,7 +13,9 @@ with each day's work. An entry present in both appears once and the total
 counts each `call_` id once. The local total, the hosted total from the
 merged snapshot and their sum are printed beside the combined ceiling, the
 sum of the two allocations `Settings` knows (80 through Wed Nov 4, 25 from
-Thu Nov 5 by configuration, no date logic). A sum at or above the ceiling
+Thu Nov 5 by configuration, no date logic), and a last line shows the two
+allocations and where the Hosted one came from: `HOSTED_SPEND_CAP_USD`, or
+the default 20 when it is unset. A sum at or above the ceiling
 is a warning and changes no store. With no snapshot on the Volume, or the
 Volume out of reach (no Modal token, say), the export holds the local
 entries alone, says no hosted snapshot was merged and still exits 0.
@@ -132,7 +134,8 @@ def open_ledger_dict(environment: str) -> DictLike:
 
 
 def export(root: Path, today: date, settings: Settings, environment: str) -> int:
-    ceiling = settings.spend_cap_usd + settings.hosted_spend_cap_usd
+    local_cap, hosted_cap, cap_source = settings.spend_cap_usd, settings.hosted_spend_cap_usd, settings.hosted_spend_cap_source
+    ceiling = local_cap + hosted_cap
     hosted: HostedSnapshot | None = None
     try:
         volume = open_volume(environment)
@@ -141,12 +144,14 @@ def export(root: Path, today: date, settings: Settings, environment: str) -> int
         missing = None if path else f"{SPEND_DIR}/ on {VOLUME} in {environment} holds no hosted-<date>.jsonl"
     except Exception as error:  # noqa: BLE001 - the export still holds the local entries and exits 0
         missing = f"could not read {VOLUME} in {environment}: {type(error).__name__}: {error}"
-    result = export_ledger(JsonlLedgerStore(root / LEDGER_PATH), root / EXPORTS_ROOT, today, ceiling, hosted)
+    result = export_ledger(JsonlLedgerStore(root / LEDGER_PATH), root / EXPORTS_ROOT, today, local_cap, hosted_cap, cap_source, hosted)
     source = f"(from {result.hosted_snapshot})" if result.hosted_snapshot else "(no hosted snapshot merged)"
     print(f"wrote {export_path(EXPORTS_ROOT, today)}: {len(result.entries)} entries, epoch {result.epoch or 'none'}")
     print(f"local total  {result.local_total_usd:8.2f} USD against the {ceiling:.2f} USD combined ceiling")
     print(f"hosted total {result.hosted_total_usd:8.2f} USD against the {ceiling:.2f} USD combined ceiling {source}")
     print(f"sum          {result.total_usd:8.2f} USD against the {ceiling:.2f} USD combined ceiling")
+    origin = "from HOSTED_SPEND_CAP_USD" if cap_source == "env" else "from the default; HOSTED_SPEND_CAP_USD is unset"
+    print(f"ceiling      {ceiling:8.2f} USD: local {local_cap:.2f} + hosted {hosted_cap:.2f} USD (hosted {origin})")
     if missing:
         print(f"no hosted snapshot merged: {missing}")
     if result.total_usd >= ceiling:
