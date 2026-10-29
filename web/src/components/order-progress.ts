@@ -4,7 +4,7 @@ import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
 import { secondaryButton } from './button.ts'
 
-/** A full-length mismatch holds the pips in `wrong-ink` this long before they empty (UX-DR35). */
+/** A full-length mismatch holds the pips in `wrong` this long before they empty (UX-DR35). */
 export const WRONG_FLASH_MS = 300
 
 export interface OrderProgress {
@@ -19,13 +19,13 @@ function reducedMotion(): boolean {
 
 /**
  * An `order` Puzzle's lock input (`{components.order-progress}`, FR-12, UX-DR35): a secondary "Start the sequence"
- * control on parchment, one 10 px pip per position of the sequence (`sequence_length`) with the visually hidden
+ * control on the notes tray, one 10 px pip per position of the sequence (`sequence_length`) with the visually hidden
  * description "{filled} of {length}", and the Not this chip. The control posts the order start lock input, or the
  * order stop one while the sequence is armed; it is the same button either way, so it keeps focus as its label turns
  * to "Stop the sequence" and back. The sequence is armed exactly while `order_buffer.puzzle_id` names this Puzzle, and
- * each pip fills in `lamp-ink` only for a click the server holds in the buffer, never optimistically and never showing
+ * each pip fills in `lamp` only for a click the server holds in the buffer, never optimistically and never showing
  * which clicks were right; the client never decides the disarm. A rise in this Puzzle's Wrong attempts while armed is
- * a full-length mismatch: the pips turn `wrong-ink` for 300 ms (an instant reset under reduced motion), then empty,
+ * a full-length mismatch: the pips turn `wrong` for 300 ms (an instant reset under reduced motion), then empty,
  * and "Not this · n" shows until the sequence is disarmed. A disarm (stopped, or another Puzzle Active) only empties
  * the pips: no flash and no Not this. A reload draws the armed state and filled pips from the first state.
  */
@@ -52,7 +52,7 @@ export function orderProgress(puzzle: PlayPuzzle, play: PlaySession): OrderProgr
       pending = false
     }
   }
-  const control = secondaryButton({ label: strings.startSequence, onActivate: () => void toggle(), onParchment: true })
+  const control = secondaryButton({ label: strings.startSequence, onActivate: () => void toggle() })
   control.setAttribute('aria-describedby', description.id)
 
   const pips = document.createElement('span')

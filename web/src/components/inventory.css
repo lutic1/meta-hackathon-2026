@@ -1,6 +1,6 @@
-/* {components.inventory}: a chrome-raised tray in the Thumbnail strip row, three 64 px slots across; an item is a
-   56 px crop over its caption label, and a free slot is the 1 px dashed hairline well. It scrolls inside itself
-   once a second row of items would pass the 88 px row. */
+/* {components.inventory}: a flat chrome-raised tray with a 1 px hairline edge in the Thumbnail strip row, three 64 px
+   slots across; an item is a 56 px crop over its caption label, and a free slot is the 1 px dashed hairline well. It
+   scrolls inside itself once a second row of items would pass the 88 px row. */
 .inventory {
   box-sizing: border-box;
   display: grid;
@@ -14,6 +14,7 @@
   padding: 0 var(--spacing-3);
   overflow-y: auto;
   list-style: none;
+  border: 1px solid var(--hairline);
   border-radius: var(--rounded-md);
   background: var(--chrome-raised);
   color: var(--text);

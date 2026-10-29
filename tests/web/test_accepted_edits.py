@@ -164,7 +164,7 @@ def test_an_entry_a_merge_gates_fades_out_and_its_placeholder_holds_its_place_wi
     assert "const rows = listed.map((puzzle) => waiting.get(puzzle.id)?.line ?? built(puzzle).element)" in draw
     rules = css_rules((WEB_SRC / "components/wizard-notes.css").read_text())
     assert rules[".notes-entry.is-leaving"] == {"opacity": "0"}
-    assert rules[".notes-waiting"] == {"margin": "0", "color": "var(--ink-muted)"}
+    assert rules[".notes-waiting"] == {"margin": "0", "color": "var(--text-muted)"}
 
 
 def test_a_merge_that_lands_in_the_open_hold_keeps_its_entry_faded_until_the_holds_draw_puts_the_line_in():

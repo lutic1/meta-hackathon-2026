@@ -76,6 +76,7 @@ def test_the_tray_is_chrome_raised_up_to_hint_area_max_pinned_under_the_wizard_n
     )
     assert tray["flex"] == "none"
     assert tray["padding"] == "var(--spacing-4)" and tray["border-radius"] == "var(--rounded-lg)"
+    assert tray["border"] == "1px solid var(--hairline)"  # flat, a hairline edge (Oct 29)
     assert "--spacing-hint-area-max: 320px;" in _ts("tokens.css")
     # The upper part scrolls inside the tray; the lower part, the hint controls, never does: its bands are the tray's
     # own flex items (display: contents), each flex none, 16 px under the upper part.
@@ -314,7 +315,7 @@ def test_the_line_the_rung_line_gives_up_moves_into_its_puzzles_opened_rungs():
     assert "made.rungs(opened)" in notes and "for (const made of entries.values()) made.rungs(lines)" in notes
     rules = _rules("components/wizard-notes.css")
     assert rules[".notes-rung"]["grid-template-columns"] == "32px minmax(0, 1fr)"
-    assert rules[".notes-rung-label"]["color"] == "var(--ink-muted)"
+    assert rules[".notes-rung-label"]["color"] == "var(--text-muted)"
 
 
 def test_the_button_is_named_for_the_active_puzzle_and_every_line_goes_to_the_one_live_region():
@@ -332,10 +333,9 @@ def test_every_hint_area_color_pair_is_in_the_contrast_table():
     rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]
             for line in table.splitlines() if line.startswith("| `")]
     # The label and the line on the tray, the thinking label (pending = text-muted), the field and its placeholder,
-    # the helper line, and an opened Rung on the parchment.
+    # the helper line, and an opened Rung on the notes tray.
     pairs = {("text", "chrome-raised"), ("lamp", "chrome-raised"), ("text-muted", "chrome-raised"),
-             ("text", "chrome"), ("text-muted", "chrome"), ("ink", "parchment"), ("ink-muted", "parchment"),
-             ("on-lamp", "lamp")}
+             ("text", "chrome"), ("text-muted", "chrome"), ("on-lamp", "lamp")}
     for fg, bg in pairs:
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
 

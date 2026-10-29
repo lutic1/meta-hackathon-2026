@@ -12,6 +12,11 @@
   border-radius: var(--rounded-full);
   background: var(--chrome-raised);
 }
+/* In the Play screen's side column (the Wizard notes and the Hint area) the ring is the hairline, so gilt frames the
+   Scene alone there; the lit and thinking rings still turn it lamp. */
+.side-column .wizard-portrait {
+  border-color: var(--hairline);
+}
 .wizard-portrait img {
   display: block;
   width: 100%;

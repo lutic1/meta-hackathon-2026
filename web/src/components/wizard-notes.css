@@ -1,22 +1,17 @@
-/* {components.wizard-notes}: the parchment sheet, 24 px padding, rounded lg, paper elevation, filling the side
-   column and scrolling inside it, never shorter than notes-min. Entries are divided by the parchment rule. */
+/* {components.wizard-notes}: a flat chrome-raised tray with a 1 px hairline edge, 16 px padding, rounded lg, filling
+   the side column and scrolling inside it, never shorter than notes-min; entries are divided by the hairline. The gilt
+   frame stays on the Scene alone (reviewer feedback 4, Oct 29). The tray is a Tab stop (after the Inventory) that the
+   keyboard scrolls; with no shadow of its own it takes the shared two-tone focus ring. */
 .wizard-notes {
   box-sizing: border-box;
   flex: 1 1 auto;
   min-height: var(--spacing-notes-min);
-  padding: var(--spacing-5);
+  padding: var(--spacing-4);
   overflow-y: auto;
+  border: 1px solid var(--hairline);
   border-radius: var(--rounded-lg);
-  background: var(--parchment);
-  color: var(--ink);
-  box-shadow: var(--elevation-paper);
-}
-/* The sheet is a Tab stop (after the Inventory) that the keyboard scrolls; its focus ring keeps the inner ring over
-   the paper shadow. */
-.wizard-notes:focus-visible {
-  box-shadow:
-    0 0 0 2px var(--focus-ring-inner),
-    var(--elevation-paper);
+  background: var(--chrome-raised);
+  color: var(--text);
 }
 .notes-entry {
   display: flex;
@@ -32,7 +27,7 @@
   padding-bottom: 0;
 }
 .notes-entry + .notes-entry {
-  border-top: 1px solid var(--parchment-rule);
+  border-top: 1px solid var(--hairline);
 }
 /* A newly available entry fades in (200 ms). */
 .notes-entry.is-arriving {
@@ -42,20 +37,26 @@
 .notes-entry.is-leaving {
   opacity: 0;
 }
-/* The one-line plain placeholder a Merge leaves in the gated entry's place, in label ink-muted. */
+/* The one-line plain placeholder a Merge leaves in the gated entry's place, in label text-muted. */
 .notes-waiting {
   margin: 0;
-  color: var(--ink-muted);
+  color: var(--text-muted);
 }
-/* {components.active-puzzle-marker}: a 3 px lamp-ink left rule, drawn in the sheet's padding so the text stays
-   aligned, plus the word "Current" in label lamp-ink beside the heading: never color alone. */
+/* {components.active-puzzle-marker}: a 3 px lamp left rule, drawn in the tray's padding so the text stays aligned,
+   plus the word "Current" in label lamp beside the heading: never color alone. */
 .notes-entry.is-current {
   margin-left: calc(-1 * var(--spacing-3) - 3px);
   padding-left: var(--spacing-3);
-  border-left: 3px solid var(--lamp-ink);
+  border-left: 3px solid var(--lamp);
 }
 .notes-current {
-  color: var(--lamp-ink);
+  color: var(--lamp);
+}
+/* The Current puzzle's Clue is the most prominent line on the right: wizard-line-lg (24 px at 1.4), a step above the
+   wizard-line every other entry's Clue keeps. */
+.notes-entry.is-current .notes-clue p {
+  font-size: 24px;
+  line-height: 1.4;
 }
 .notes-entry-head {
   display: flex;
@@ -75,7 +76,7 @@
   margin: 0;
 }
 .notes-count {
-  color: var(--ink-muted);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .notes-entry-body {
@@ -107,14 +108,14 @@
   list-style: none;
 }
 .notes-lore {
-  color: var(--ink-muted);
+  color: var(--text-muted);
 }
 .notes-rungs:empty,
 .notes-lock:empty {
   display: none;
 }
-/* The opened Rungs: each with the Guide's 32 px portrait beside its label in label ink-muted and its line in
-   wizard-line ink, 8 px apart, like the Clue. */
+/* The opened Rungs: each with the Guide's 32 px portrait beside its label in label text-muted and its line in
+   wizard-line text, 8 px apart, like the Clue. */
 .notes-rungs {
   display: flex;
   flex-direction: column;
@@ -130,7 +131,7 @@
   margin: 0;
 }
 .notes-rung-label {
-  color: var(--ink-muted);
+  color: var(--text-muted);
 }
 .notes-lock {
   display: flex;
@@ -139,7 +140,7 @@
   gap: var(--spacing-2);
 }
 
-/* Feedback chips on paper: label type, rounded sm, a word and a 1 px edge in the state's ink. */
+/* Feedback chips on the notes tray: label type, rounded sm, a word and a 1 px edge in the state's light form. */
 .chip {
   box-sizing: border-box;
   display: inline-flex;
@@ -153,8 +154,8 @@
   display: none;
 }
 .chip-open {
-  border: 1px solid var(--success-ink);
-  color: var(--success-ink);
+  border: 1px solid var(--success);
+  color: var(--success);
 }
 /* The unlock moment: in the lock slot, where the Solved chip stands for its 1200 ms, it fades in (200 ms) lifted on
    the paper shadow; collapsed into the heading row it lies flat. Instant under reduced motion. */
@@ -166,11 +167,11 @@
   opacity: 0;
 }
 .chip-not-this {
-  border: 1px solid var(--wrong-ink);
-  color: var(--wrong-ink);
+  border: 1px solid var(--wrong);
+  color: var(--wrong);
 }
-/* "Checking": a dashed pending-ink edge and a static ellipsis; nothing moves while the server judges. */
+/* "Checking": a dashed pending edge and a static ellipsis; nothing moves while the server judges. */
 .chip-pending {
-  border: 1px dashed var(--pending-ink);
-  color: var(--pending-ink);
+  border: 1px dashed var(--pending);
+  color: var(--pending);
 }

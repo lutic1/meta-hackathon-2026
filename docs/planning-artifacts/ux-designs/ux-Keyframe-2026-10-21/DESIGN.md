@@ -1,7 +1,7 @@
 ---
 title: "Keyframe Design"
 name: Keyframe
-description: Lamplit study. A warm, dark, desktop-web frame of parchment notes and candlelit wizard portraits around the player's own room photos. Dark theme only; vanilla TypeScript and three.js, no UI system.
+description: Lamplit study. A warm, dark, desktop-web frame of quiet chrome, parchment cards and candlelit wizard portraits around the player's own room photos. Dark theme only; vanilla TypeScript and three.js, no UI system.
 status: final
 created: 2026-10-21
 updated: 2026-10-21
@@ -340,28 +340,33 @@ components:
     radius: '{rounded.sm}'
     current: '2px solid {colors.lamp}'
     hover: '2px solid {colors.lamp-strong}'
-    countBackground: '{colors.parchment}'
-    countForeground: '{colors.ink}'
+    countBackground: '{colors.chrome-raised}'
+    countForeground: '{colors.text}'
     countTypography: '{typography.caption}'
     emptyOpacity: 0.5
   inventory:
     background: '{colors.chrome-raised}'
+    edge: '1px solid {colors.hairline}'
     slot: 64px
     emptySlot: '1px dashed {colors.hairline}'
     selected: '2px solid {colors.lamp}'
     radius: '{rounded.md}'
   wizard-notes:
-    background: '{colors.parchment}'
-    foreground: '{colors.ink}'
-    divider: '1px solid {colors.parchment-rule}'
+    background: '{colors.chrome-raised}'
+    foreground: '{colors.text}'
+    secondary: '{colors.text-muted}'
+    edge: '1px solid {colors.hairline}'
+    divider: '1px solid {colors.hairline}'
     puzzleHeading: '{typography.display-sm}'
-    padding: '{spacing.5}'
+    clue: '{typography.wizard-line}'
+    currentClue: '{typography.wizard-line-lg}'
+    padding: '{spacing.4}'
     minHeight: '{spacing.notes-min}'
     radius: '{rounded.lg}'
-    shadow: '{elevation.paper}'
   wizard-portrait:
     sizes: '24px · 32px · 48px · 96px'
     ring: '2px solid {colors.gilt}'
+    sideColumnRing: '2px solid {colors.hairline}'
     thinkingRing: '2px solid {colors.lamp}'
     thinkingLabelOnPaper: '{colors.pending-ink}'
     arrivalGlow: '{elevation.lamp-glow}'
@@ -370,6 +375,7 @@ components:
   hint-area:
     background: '{colors.chrome-raised}'
     foreground: '{colors.text}'
+    edge: '1px solid {colors.hairline}'
     radius: '{rounded.lg}'
     padding: '{spacing.4}'
     maxHeight: '{spacing.hint-area-max}'
@@ -380,9 +386,9 @@ components:
     rungLabel: '{typography.label}'
     rungLabelColor: '{colors.lamp}'
   active-puzzle-marker:
-    rule: '3px solid {colors.lamp-ink}'
+    rule: '3px solid {colors.lamp}'
     label: '{typography.label}'
-    labelColor: '{colors.lamp-ink}'
+    labelColor: '{colors.lamp}'
   clue-card-slot:
     width: 112px
     height: 84px
@@ -412,27 +418,27 @@ components:
     selectedEdge: '1px solid {colors.lamp-ink}'
   order-progress:
     pip: 10px
-    empty: '1.5px solid {colors.ink-muted}'
-    filled: '{colors.lamp-ink}'
-    reset: '{colors.wrong-ink}'
+    empty: '1.5px solid {colors.text-muted}'
+    filled: '{colors.lamp}'
+    reset: '{colors.wrong}'
     startControl: '{components.button-secondary}'
   use-on-selected:
     itemRing: '2px solid {colors.lamp}'
     chipBackground: '{colors.parchment}'
     chipForeground: '{colors.ink}'
   chip-not-this:
-    foreground: '{colors.wrong-ink}'
-    border: '1px solid {colors.wrong-ink}'
+    foreground: '{colors.wrong}'
+    border: '1px solid {colors.wrong}'
     typography: '{typography.label}'
     radius: '{rounded.sm}'
   chip-pending:
-    foreground: '{colors.pending-ink}'
-    border: '1px dashed {colors.pending-ink}'
+    foreground: '{colors.pending}'
+    border: '1px dashed {colors.pending}'
     typography: '{typography.label}'
     radius: '{rounded.sm}'
   chip-open:
-    foreground: '{colors.success-ink}'
-    border: '1px solid {colors.success-ink}'
+    foreground: '{colors.success}'
+    border: '1px solid {colors.success}'
     typography: '{typography.label}'
     radius: '{rounded.sm}'
     openLift: '{elevation.paper}'
@@ -443,6 +449,9 @@ components:
     attribute: '{typography.body-sm}'
     note: '{typography.wizard-line}'
     foreground: '{colors.ink}'
+    backgroundInNotes: '{colors.canvas}'
+    foregroundInNotes: '{colors.text}'
+    attributeInNotes: '{colors.text-muted}'
     radius: '{rounded.md}'
   trickster-card-accepted:
     background: '{colors.card-accepted-surface}'
@@ -637,7 +646,7 @@ components:
 
 ## Brand & Style
 
-Keyframe is a wizard's study lit by one lamp, and the player's own room hangs on its wall. The interface is the study: warm dark chrome for the walls and desk, parchment for anything a wizard has written down, gilt hairlines around anything worth framing. The player's photos are the most valuable thing in the room, so the UI frames them and never paints over them. Lead with what the room knows, never with photorealism (PRD §7): the design gives the most room and the clearest type to what the Architect read (object names, outlines, read attributes), and never enhances, relights or retouches a photo. The behavior rules for this principle are in EXPERIENCE.md Foundation.
+Keyframe is a wizard's study lit by one lamp, and the player's own room hangs on its wall. The interface is the study: warm dark chrome for the walls and desk, parchment for the cards and pages a wizard hands over, and one gilt frame around the thing worth framing: on the Play screen, the Scene alone (reviewer feedback, Oct 29: the room image, the current riddle and the next action come first, so the trays around them are quiet). The player's photos are the most valuable thing in the room, so the UI frames them and never paints over them. Lead with what the room knows, never with photorealism (PRD §7): the design gives the most room and the clearest type to what the Architect read (object names, outlines, read attributes), and never enhances, relights or retouches a photo. The behavior rules for this principle are in EXPERIENCE.md Foundation.
 
 **Two registers, one rule for headings.** The PRD §7 register rule splits every line into *in character* or *plain*; which lines fall on each side is listed in EXPERIENCE.md Voice and Tone (Register rule). The design makes that split visible and enforceable:
 
@@ -677,19 +686,19 @@ The palette is three materials and one light. Contrast ratios are WCAG 2.x relat
 
 - **Canvas (`#14100C`)** is the wall behind everything: page background, the Scene frame's letterbox, overlay scrims (`{colors.scrim}` at 80%; the Completion sheet's `{colors.scrim-soft}` at 50%, so the exit photo shows brighter behind it).
 - **Chrome (`#1E1812`)** is the desk: top bar, side column ground, tables in the Build view, the open "How hints work" panel.
-- **Chrome raised (`#2A2119`)** is a tray on the desk: the Hint area, Inventory, capture dropzone, Retention summary, Demo room cards, skipped Cards.
-- **Hairline (`#4A3C2C`)** separates rows and outlines empty slots. Decorative only (1.65:1 on chrome); never the only cue for a state.
-- **Gilt (`#B08A4E`)** is reserved for frames: the Scene frame rule and portrait rings. Never text, never a state.
+- **Chrome raised (`#2A2119`)** is a tray on the desk: the Wizard notes, the Hint area, Inventory, capture dropzone, Retention summary, Demo room cards, skipped Cards. On the Play screen the three trays (Wizard notes, Hint area, Inventory) are flat, with a 1 px `hairline` edge and no shadow (reviewer feedback, Oct 29).
+- **Hairline (`#4A3C2C`)** separates rows (the Puzzle entries in the Wizard notes among them), edges the Play screen's trays and outlines empty slots. Decorative only (1.65:1 on chrome); never the only cue for a state.
+- **Gilt (`#B08A4E`)** is reserved for frames: the Scene frame rule and portrait rings, except in the Play screen's side column, where portraits ring in `hairline` so the Scene is the one framed thing there (Oct 29). Never text, never a state.
 
-**Paper (parchment).** Anything a wizard has written down: the Wizard notes, Evidence cards, Trickster Cards, the Greeting, the Completion sheet, Build view graph nodes. Plain-message surfaces (the narrow-screen message, the Leave room confirmation, the deletion line) are on `chrome-raised`, never on paper.
+**Paper (parchment).** The cards and pages a wizard hands over: Trickster Cards, the Greeting, the Completion sheet, the landing's Riddler sample page with its Evidence cards, Build view graph nodes, the feedback line and the chips over the Scene. The Wizard notes left paper on Oct 29 (reviewer feedback: a bright sheet beside the photo competed with it); they are a dark tray, their Evidence cards `canvas` insets, their text the light forms. Plain-message surfaces (the narrow-screen message, the Leave room confirmation, the deletion line) are on `chrome-raised`, never on paper.
 
-- **Parchment (`#E8DBBE`)** is the sheet; **parchment shade (`#D8C7A2`)** is a card or field inset on the sheet (Evidence cards, code field).
+- **Parchment (`#E8DBBE`)** is the sheet; **parchment shade (`#D8C7A2`)** is a card or field inset (the sample page's Evidence cards, the code field, which keeps its inset on the dark notes).
 - **Ink (`#2A1D11`)** is text on paper; **ink muted (`#5A4630`)** is Lore, read attributes and secondary labels on paper.
-- **Parchment rule (`#5A463040`)** divides Puzzle entries inside the notes.
+- **Parchment rule (`#5A463040`)** divides rows on paper (the Completion sheet, the sample page) and is the dashed edge of a Clue card placeholder.
 
 **Text on dark.** **Text (`#F0E6D2`)** for everything readable on chrome; **text muted (`#B8A98E`)** for secondary lines, pending states and "How hints work".
 
-**Lamplight.** **Lamp (`#E9A94B`)** is the single accent: the primary button, the Hotspot hover outline and glow, the current thumbnail, the running Timer mark, the current Rung label, the Guide's thinking ring, the Exit puzzle ring in the graph. **Lamp strong (`#F4C470`)** is lamp on hover and the "Show all objects" outline. **Lamp ink (`#6E400C`)** is the accent when it must sit on parchment (secondary button label and border, filled order pips, the Active puzzle marker). **Lamp hover fill (`#E9A94B1F`, 12%)** and **lamp-ink hover fill (`#6E400C1F`, 12%)** are the secondary button's hover fill on dark and on paper. Lamp is light, not decoration: it never fills a large area and never colors a plain-register message.
+**Lamplight.** **Lamp (`#E9A94B`)** is the single accent: the primary button, the Hotspot hover outline and glow, the current thumbnail, the running Timer mark, the current Rung label, the Guide's thinking ring, the Exit puzzle ring in the graph. **Lamp strong (`#F4C470`)** is lamp on hover and the "Show all objects" outline. **Lamp ink (`#6E400C`)** is the accent when it must sit on parchment (secondary button label and border, the code field's selected edge). On the dark notes the Active puzzle marker and the filled order pips are `lamp`. **Lamp hover fill (`#E9A94B1F`, 12%)** and **lamp-ink hover fill (`#6E400C1F`, 12%)** are the secondary button's hover fill on dark and on paper. Lamp is light, not decoration: it never fills a large area and never colors a plain-register message.
 
 **Focus.** **Focus ring (`#FFD27A`)** with **focus ring inner (`#14100C`)** form a two-tone ring, so focus is visible on dark chrome, on parchment and on any photo.
 
@@ -715,36 +724,36 @@ The palette is three materials and one light. Contrast ratios are WCAG 2.x relat
 
 | Foreground | Background | Ratio | Use | AA |
 |---|---|---|---|---|
-| `text` #F0E6D2 | `canvas` #14100C | 15.29 | Text on the page | pass |
+| `text` #F0E6D2 | `canvas` #14100C | 15.29 | Text on the page; an Evidence card in the Wizard notes | pass |
 | `text` | `chrome` #1E1812 | 14.19 | Top bar, tables, the newest "How hints work" row | pass |
-| `text` | `chrome-raised` #2A2119 | 12.75 | Hint area, Rung line, Inventory | pass |
-| `text-muted` #B8A98E | `canvas` | 8.21 | Secondary lines | pass |
+| `text` | `chrome-raised` #2A2119 | 12.75 | Wizard notes, Hint area, Rung line, Inventory | pass |
+| `text-muted` #B8A98E | `canvas` | 8.21 | Secondary lines; the read attribute of an Evidence card in the Wizard notes | pass |
 | `text-muted` | `chrome` | 7.62 | "How hints work" panel, table secondary | pass |
-| `text-muted` / `card-skipped-text` | `chrome-raised` / `card-skipped-surface` | 6.84 | Skipped Card, Retention summary body | pass |
-| `ink` #2A1D11 | `parchment` #E8DBBE | 11.94 | Wizard notes, Cards, Greeting | pass |
-| `ink` | `parchment-shade` #D8C7A2 | 9.83 | Evidence card, code field | pass |
-| `ink-muted` #5A4630 | `parchment` | 6.50 | Lore, read attributes | pass |
-| `ink-muted` | `parchment-shade` | 5.36 | Attribute inside an Evidence card | pass |
+| `text-muted` / `card-skipped-text` | `chrome-raised` / `card-skipped-surface` | 6.84 | Skipped Card, Retention summary body; Lore, evidence counts, the Pending chip and empty order pips in the Wizard notes | pass |
+| `ink` #2A1D11 | `parchment` #E8DBBE | 11.94 | Cards, Greeting, the landing's sample page | pass |
+| `ink` | `parchment-shade` #D8C7A2 | 9.83 | Evidence card on the sample page, code field | pass |
+| `ink-muted` #5A4630 | `parchment` | 6.50 | Lore and read attributes on paper | pass |
+| `ink-muted` | `parchment-shade` | 5.36 | Attribute inside an Evidence card on the sample page | pass |
 | `lamp` #E9A94B | `chrome` | 8.57 | Rung label, Timer mark, links on dark | pass |
-| `lamp` | `chrome-raised` | 7.70 | Rung label in the Hint area | pass |
+| `lamp` | `chrome-raised` | 7.70 | Rung label in the Hint area; the Active puzzle marker, filled order pips and the secondary buttons (Submit, the sequence control) in the Wizard notes | pass |
 | `lamp` | `error-surface` | 7.49 | Secondary button actions in an error banner | pass |
 | `lamp` | `warning-surface` | 6.55 | Secondary button actions in a warning banner | pass |
 | `lamp-strong` #F4C470 | `chrome` | 10.86 | Hovered secondary button and thumbnail on dark | pass |
 | `on-lamp` #1A1208 | `lamp` | 9.03 | Primary button label | pass |
 | `lamp-ink` #6E400C | `parchment` | 6.37 | Secondary button on paper | pass |
-| `lamp-ink` | `parchment-shade` | 5.25 | Filled order pips, Submit | pass |
+| `lamp-ink` | `parchment-shade` | 5.25 | Lamp ink on an inset (no Play screen use since the notes went dark, Oct 29) | pass |
 | `lamp-ink` (1 px border) | `parchment` | 6.37 | Secondary button border on paper (non-text, 3:1) | pass |
 | `lamp-ink` | `parchment` + `lamp-ink-hover-fill` (≈ #D9C8A9) | 5.32 | Secondary button label on paper, hovered | pass |
 | `ink` | `parchment-shade` + `lamp-ink-hover-fill` (≈ #CBB790) | 8.36 | Code field value selected for retyping | pass |
 | `lamp-ink` (1 px edge) | `parchment-shade` + `lamp-ink-hover-fill` | 4.46 | Edge of the selected code value (non-text, 3:1) | pass |
 | `success` #8CC48A | `chrome` | 8.69 | Stopped Timer | pass |
-| `success` | `chrome-raised` | 7.80 | Stage done marker, accepted Access code status line | pass |
-| `success-ink` #275A2C | `parchment` | 5.92 | Solved chip, accepted Card edge | pass |
-| `success-ink` | `parchment-shade` | 4.88 | Solved chip inside an inset | pass |
-| `wrong` #E58A6C | `chrome-raised` | 6.15 | Rejected photo marker in the tray | pass |
-| `wrong-ink` #87321B | `parchment` | 6.12 | "Not this" chip, rejected Card edge | pass |
-| `wrong-ink` | `parchment-shade` | 5.04 | "Not this" next to the code field | pass |
-| `pending-ink` #5A4630 | `parchment` | 6.50 | Pending chip | pass |
+| `success` | `chrome-raised` | 7.80 | Stage done marker, accepted Access code status line, Solved chip in the Wizard notes | pass |
+| `success-ink` #275A2C | `parchment` | 5.92 | Accepted Card edge | pass |
+| `success-ink` | `parchment-shade` | 4.88 | Success ink inside an inset | pass |
+| `wrong` #E58A6C | `chrome-raised` | 6.15 | Rejected photo marker in the tray; "Not this" chip and reset order pips in the Wizard notes | pass |
+| `wrong-ink` #87321B | `parchment` | 6.12 | Rejected Card edge | pass |
+| `wrong-ink` | `parchment-shade` | 5.04 | Wrong ink inside an inset | pass |
+| `pending-ink` #5A4630 | `parchment` | 6.50 | Pending label on paper (Guide thinking on the Greeting) | pass |
 | `error-text` #F29A88 | `error-surface` #3D1B16 | 7.14 | Error banner heading | pass |
 | `error-text` | `chrome-raised` | 7.33 | Failed stage row in the Stage list | pass |
 | `text` | `error-surface` | 12.40 | Error banner body | pass |
@@ -834,7 +843,7 @@ No UI system: each component below is built in vanilla TypeScript (Scenes and Ho
 | Component | Anatomy and size | Tokens | States |
 |---|---|---|---|
 | Primary button | Label only, 44 px high, 24 px side padding | `{components.button-primary}` | Rest lamp fill; hover `lamp-strong` + glow; focus two-tone ring; disabled 40% opacity, no glow |
-| Secondary button | 40 px, 1 px lamp border | `{components.button-secondary}` | Hover fills `lamp-hover-fill`; on parchment the label and border are `lamp-ink` and hover fills `lamp-ink-hover-fill` (Code field Submit). **Pressed or expanded** (toggles only: "Show all objects" pressed, "Show the build JSON" expanded; "How hints work" is a quiet text button whose expanded state shows as `text` in place of `text-muted`): `lamp-hover-fill` held as the fill and a 2 px `lamp` border (`pressedFill`, `pressedBorder`), so the state shows without hover; the effect itself (the outlines, the open panel) is the second cue, never color alone |
+| Secondary button | 40 px, 1 px lamp border | `{components.button-secondary}` | Hover fills `lamp-hover-fill`; on parchment the label and border are `lamp-ink` and hover fills `lamp-ink-hover-fill` (the Using chip's Cancel; Submit and the sequence control take the dark form on the notes tray since Oct 29). **Pressed or expanded** (toggles only: "Show all objects" pressed, "Show the build JSON" expanded; "How hints work" is a quiet text button whose expanded state shows as `text` in place of `text-muted`): `lamp-hover-fill` held as the fill and a 2 px `lamp` border (`pressedFill`, `pressedBorder`), so the state shows without hover; the effect itself (the outlines, the open panel) is the second cue, never color alone |
 | Focus ring | 2 px `focus-ring` outside 2 px `focus-ring-inner`, 2 px offset | `{components.focus-ring}` | On every focusable element, Hotspots included; never removed |
 | Mode indicator | One plain line in the top bar after the wordmark, `body-sm` `text-muted` (content in EXPERIENCE.md) | `{components.mode-indicator}` | Local ("Local mode · Cache off · profile demo · 1 room played"); Hosted ("Hosted mode"); never hidden, never styled as a Disclosure |
 | Status strip | `{spacing.status-strip}` plain strip, `body-sm`, no portrait, no glow | `{components.status-strip}` | Reconnecting on the Play screen (top of the Scene column, Scene frame shrinks to fit); reconnecting on the Capture screen (top of the left area, above any banner; the Stage list stays as last seen); server unreachable on cold load (centered in the page body, alone) |
@@ -864,21 +873,21 @@ Mock: [mockups/play-screen.html](mockups/play-screen.html), room 1 mid-Session i
 | Hotspot | The Interactable's polygon(s) over the photo | `{components.hotspot}` | **Rest:** invisible, pointer cursor only. **Hover:** 3 px lamp outline, 1 px dark halo, 35% glow fill and the lamp drop shadow (`hoverGlow`) around the reveal, 150 ms fade; the label chip after a 400 ms dwell. **Pressed:** the glow fill goes solid lamp while the button is held. **Focus:** the two-tone focus ring traced along the polygon plus the label chip at once, no shadow. **Show all objects:** every Hotspot gets the 2 px dashed `hotspot-show-all` outline with halo, no fill, no shadow, no labels. **Clicked:** the label chip with the Checking chip beside it until the reply; a non-target reply leaves the label chip alone (FR-12). **Collected (`find` solved):** the hover glow shows, then fades out over 200 ms while the Inventory item fades in over the same 200 ms. **Opened (the unlock moment):** the solved target's bloom path, the polygon filled `bloomFill` under `bloomGlow`, fades in and out once over `bloom` (300 ms in all; under reduced motion the lit fill held 2 s), above whatever hover, focus, show-all or the collected state draw |
 | Hotspot label chip | Parchment chip, `label` type, anchored above the polygon's top edge, 8 px offset | `{components.hotspot-label-chip}` | On hover: after a 400 ms dwell, held until the pointer leaves; on keyboard focus: at once, for as long as the Hotspot has focus; while a click or `use_on` waits: with the Checking chip beside it until the reply; after a non-target click: fades out after 2 s or on pointer leave [ASSUMPTION] |
 | Feedback line | Parchment strip centred over the bottom edge of the Scene frame, on the mat's inner edge (`inset`), `rounded.md`, `{elevation.paper}`; the Guide's 32 px portrait left of one `wizard-line` in ink | `{components.feedback-line}` | Hidden (opacity 0, takes no pointer); a reply's line fades in (200 ms), is held 2.5 s (`hold`) and fades out; a new line fades in over the shown one; instant under reduced motion [ASSUMPTION for the layout] |
-| Thumbnail strip | Row of 96 x 72 thumbnails, 8 px gaps, in upload order (A-12), horizontally scrollable inside its row only, a vertical wheel scrolling it sideways; while more thumbnails sit beyond an edge, that edge fades out over 32 px (`{spacing.6}`, a mask, replay Oct 29); each with a count badge at its bottom-right corner, 4 px in: the number of objects on its photo in `caption` `ink` on a 20 px `parchment` chip, `rounded.sm` (Oct 29) | `{components.thumbnail}` | Current 2 px lamp border; hover `lamp-strong`; others at 80% opacity; a photo with no objects has no badge and sits at 50% opacity unless current (Oct 29); usable while a `use_on` item is selected |
-| Inventory | Tray of 64 px slots, three across the 288 px tray; each item a 56 px crop with a `caption` label; slots beyond the items held show the dashed empty slot | `{components.inventory}` | Empty: one dashed slot and a `body-sm` `text-muted` line; item arriving fades in (200 ms) in step with its Hotspot's glow fading out, its well lit once with `{elevation.lamp-glow}` (150 ms in, held, 150 ms out; held 2 s under reduced motion); selected for `use_on`: 2 px lamp ring; dragging: item at 60% in place, a 64 px drag image with `{elevation.paper}` |
-| Wizard notes | Parchment sheet, `{components.wizard-notes.padding}` padding, one entry per available Puzzle separated by `parchment-rule`; each entry: a heading row with "Puzzle {n}" in `display-sm` and, at its right end, a plain evidence count in `label` `ink-muted` ("3 evidence cards"); the Riddler portrait (32 px) beside the Clue (`wizard-line`); the Clue card slot beside the Clue when the Room has Clue cards (see its own row); the Evidence cards directly under the Clue; Lore (`lore`, `ink-muted`); opened Rungs; lock input | `{components.wizard-notes}`, `{components.active-puzzle-marker}` | Newly available entry fades in; the Active puzzle's entry carries a 3 px `lamp-ink` left rule plus the word "Current" in `label` `lamp-ink` beside its heading (never color alone); the evidence count changes in place with no highlight or animation; open entry collapses to its heading row with the Solved chip over its whole Evidence cards; hidden Puzzles are not drawn at all, except an entry an accepted Merge just hid, which leaves a one-line plain `label` placeholder in `ink-muted` |
+| Thumbnail strip | Row of 96 x 72 thumbnails, 8 px gaps, in upload order (A-12), horizontally scrollable inside its row only, a vertical wheel scrolling it sideways; while more thumbnails sit beyond an edge, that edge fades out over 32 px (`{spacing.6}`, a mask, replay Oct 29); each with a count badge at its bottom-right corner, 4 px in: the number of objects on its photo in `caption` `text` on a 20 px `chrome-raised` chip, `rounded.sm` (Oct 29; quiet chrome, not paper, since the reviewer feedback the same day) | `{components.thumbnail}` | Current 2 px lamp border; hover `lamp-strong`; others at 80% opacity; a photo with no objects has no badge and sits at 50% opacity unless current (Oct 29); usable while a `use_on` item is selected |
+| Inventory | Flat `chrome-raised` tray with a 1 px `hairline` edge and no shadow (Oct 29), 64 px slots, three across the 288 px tray; each item a 56 px crop with a `caption` label; slots beyond the items held show the dashed empty slot | `{components.inventory}` | Empty: one dashed slot and a `body-sm` `text-muted` line; item arriving fades in (200 ms) in step with its Hotspot's glow fading out, its well lit once with `{elevation.lamp-glow}` (150 ms in, held, 150 ms out; held 2 s under reduced motion); selected for `use_on`: 2 px lamp ring; dragging: item at 60% in place, a 64 px drag image with `{elevation.paper}` |
+| Wizard notes | Flat `chrome-raised` tray with a 1 px `hairline` edge and no shadow, `{components.wizard-notes.padding}` padding, `text` (owner-relayed reviewer feedback, Oct 29: it was a parchment sheet on the paper shadow, which competed with the photo); one entry per available Puzzle separated by the `hairline`; each entry: a heading row with "Puzzle {n}" in `display-sm` and, at its right end, a plain evidence count in `label` `text-muted` ("3 evidence cards"); the Riddler portrait (32 px, `hairline` ring) beside the Clue (`wizard-line`; the Active puzzle's Clue in `wizard-line-lg`, a step larger, so it is the most prominent line on the right); the Clue card slot beside the Clue when the Room has Clue cards (see its own row); the Evidence cards directly under the Clue; Lore (`lore`, `text-muted`); opened Rungs (label in `label` `text-muted`); lock input | `{components.wizard-notes}`, `{components.active-puzzle-marker}` | Newly available entry fades in; the Active puzzle's entry carries a 3 px `lamp` left rule plus the word "Current" in `label` `lamp` beside its heading (never color alone); the evidence count changes in place with no highlight or animation; open entry collapses to its heading row with the Solved chip over its whole Evidence cards; hidden Puzzles are not drawn at all, except an entry an accepted Merge just hid, which leaves a one-line plain `label` placeholder in `text-muted` |
 | Clue card slot (Tier 1.5) | `{components.clue-card-slot.width}` x `{components.clue-card-slot.height}`, `rounded.sm`, beside the Clue in its Puzzle entry, right-aligned, the Clue wrapping to its left (FR-37) [ASSUMPTION for the size]; drawn only when the Room has Clue cards | `{components.clue-card-slot}` | Placeholder: `clue-card-placeholder` fill with a 1 px dashed `clue-card-placeholder-edge`; ready: the image; blank (failed): flat `clue-card-blank`, no edge; same size in every state |
-| Wizard portrait | Circle with a 2 px gilt ring at 24 (Card log, Demo room card, Build view Model table), 32 (signature, In play block, the Completion sheet's "Built by" row), 48 (Hint area, Cards, the Architect's and Riddler's introductions in the Stage list, Completion sign-off) or 96 px (Greeting and First-room welcome) | `{components.wizard-portrait}` | Normal; Guide thinking (Local only, while a Hint request or the Greeting is in flight): static `lamp` ring plus a "thinking on this Mac" `label` (no pulse, no loop), in `pending-ink` on parchment, where lamp fails; arrival: one `{elevation.lamp-glow}` fade in and out on the ring, 300 ms in all, when a Rung arrives unrequested or the Guide's Wrong attempt line shows (under reduced motion, the lit ring held 2 s, no animation); placeholder: initial on `chrome-raised` |
-| Hint area | Tray pinned at the bottom of the side column, up to `{spacing.hint-area-max}` high: a scrolling upper part (Cards, then the latest Rung line) over a pinned lower part that never scrolls (the hint button across the tray, then "How hints work") | `{components.hint-area}` | Idle (after "Begin", the Greeting or First-room welcome sits here as the first Guide line until the first Rung); Guide pulse while a Hint request is in flight; Guide thinking (Local); Card present (at most two Cards stack above the Rung line, newest on top, older ones behind a "{n} more in the Card log" link; only the newest while "How hints work" is open); arrival glow on the tray edge with the portrait's, same timing |
+| Wizard portrait | Circle with a 2 px gilt ring (a `hairline` ring in the Play screen's side column, Oct 29, so gilt frames the Scene alone there) at 24 (Card log, Demo room card, Build view Model table), 32 (signature, In play block, the Completion sheet's "Built by" row), 48 (Hint area, Cards, the Architect's and Riddler's introductions in the Stage list, Completion sign-off) or 96 px (Greeting and First-room welcome) | `{components.wizard-portrait}` | Normal; Guide thinking (Local only, while a Hint request or the Greeting is in flight): static `lamp` ring plus a "thinking on this Mac" `label` (no pulse, no loop), in `pending-ink` on parchment, where lamp fails; arrival: one `{elevation.lamp-glow}` fade in and out on the ring, 300 ms in all, when a Rung arrives unrequested or the Guide's Wrong attempt line shows (under reduced motion, the lit ring held 2 s, no animation); placeholder: initial on `chrome-raised` |
+| Hint area | Flat `chrome-raised` tray with a 1 px `hairline` edge and no shadow (Oct 29), pinned at the bottom of the side column, up to `{spacing.hint-area-max}` high, its portraits ringed in `hairline`: a scrolling upper part (Cards, then the latest Rung line) over a pinned lower part that never scrolls (the hint button across the tray, then "How hints work") | `{components.hint-area}` | Idle (after "Begin", the Greeting or First-room welcome sits here as the first Guide line until the first Rung); Guide pulse while a Hint request is in flight; Guide thinking (Local); Card present (at most two Cards stack above the Rung line, newest on top, older ones behind a "{n} more in the Card log" link; only the newest while "How hints work" is open); arrival glow on the tray edge with the portrait's, same timing |
 | Rung line | Guide portrait (48 px) left; the label "Puzzle {n} · {Rung name}" in `label` `lamp`; the line in `wizard-line` `text`. The No-hint line uses the same anatomy with the label "Puzzle {n}" alone | `{components.rung-line}` | Arrives with a 200 ms fade; a repeated reply to a Hint request fades in again (200 ms) even when its words are unchanged; a phrased and a verbatim Rung look identical on this line, with no badge (where it was worded shows only in its "How hints work" row), and in Hosted mode the thinking state never shows (FR-17) |
 | Hint button | One primary button across the tray, "Get a hint for Puzzle {n}" (owner decision Oct 29; it replaced the hint field, its helper line and "Ask the Guide") | `{components.button-primary}` | Rest; focus ring; sending: "The Guide is thinking" with the Guide pulse on the Rung line's portrait; not due: "Next hint in m:ss", counting down by the second, still pressable (a press repeats the current Rung) |
 | "How hints work" | A quiet text button in `body-sm` `text-muted`, underlined (`text` on hover and while open), with an expanded state; open: a panel on chrome, its plain `body-sm` opening lines (when the Guide offers a hint; for a returning player, that the wait was set by how they played last time), then the hint history, at most `{spacing.triggers-panel-max}` high and scrolling, one row per Rung change in `body-sm` with `mono-sm` numbers ("Puzzle 2, hint 1, after three wrong tries", ", worded on this Mac" when the Guide model worded it); the newest row in `text`, older rows in `text-muted` | `{components.triggers-panel}` | Collapsed until the player opens it (it never opens by itself, owner decision Oct 29); open with no rows (the opening line plus "No hints yet."); under cut 5 the same content fills a second window |
-| Code field | Inset on the Puzzle entry: `mono-code` field sized for 6 characters (`{components.code-field}` size) and a secondary Submit; no visible label or placeholder | `{components.code-field}` | Rest; focus ring; pending (field read-only, Pending chip); wrong (Not this chip and count beside it, field keeps its value, selected for retyping: a `lamp-ink-hover-fill` tint with a 1 px `lamp-ink` edge); open (Solved chip, field removed) |
-| Order click progress | In the order Puzzle's entry: a "Start the sequence" control (secondary button, `lamp-ink` on parchment) and a row of 3 to 5 pips (10 px), one per position in the sequence, with a visually hidden "{filled} of {length}" description | `{components.order-progress}`, `{components.button-secondary}` | **Unarmed** (default): pips empty, never flash; the control reads "Start the sequence". **Armed** (after "Start the sequence"): the control reads "Stop the sequence"; every acknowledged Hotspot click fills the next pip in `lamp-ink`, whichever object it hit (behavior in EXPERIENCE.md); a full-length mismatch turns the pips `wrong-ink` for 300 ms, then empties them, with the Not this chip, and the sequence stays armed. **Stopped:** pips empty, back to unarmed, no Not this chip. Pips never show which clicks were right |
+| Code field | Inset on the Puzzle entry: `mono-code` field sized for 6 characters (`{components.code-field}` size; it keeps its `parchment-shade` inset on the dark notes) and a secondary Submit (the dark form, `lamp`); no visible label or placeholder | `{components.code-field}` | Rest; focus ring; pending (field read-only, Pending chip); wrong (Not this chip and count beside it, field keeps its value, selected for retyping: a `lamp-ink-hover-fill` tint with a 1 px `lamp-ink` edge); open (Solved chip, field removed) |
+| Order click progress | In the order Puzzle's entry: a "Start the sequence" control (secondary button, `lamp` on the dark notes since Oct 29) and a row of 3 to 5 pips (10 px, a `text-muted` ring when empty), one per position in the sequence, with a visually hidden "{filled} of {length}" description | `{components.order-progress}`, `{components.button-secondary}` | **Unarmed** (default): pips empty, never flash; the control reads "Start the sequence". **Armed** (after "Start the sequence"): the control reads "Stop the sequence"; every acknowledged Hotspot click fills the next pip in `lamp`, whichever object it hit (behavior in EXPERIENCE.md); a full-length mismatch turns the pips `wrong` for 300 ms, then empties them, with the Not this chip, and the sequence stays armed. **Stopped:** pips empty, back to unarmed, no Not this chip. Pips never show which clicks were right |
 | `use_on` drag | Inventory item dragged onto the Scene; the Hotspot under the pointer shows the hover state | `{components.inventory}`, `{components.hotspot}` | Dragging; over a Hotspot; dropped (the target's label chip shows with the Checking chip beside it until the verdict, which then shows in the resolved Puzzle's entry) |
 | `use_on` select-then-click | Selected item ringed in lamp; a parchment chip pinned to the top-left of the Scene frame names the item and offers Cancel | `{components.use-on-selected}` | Selected; Hotspot hover while selected; cleared (chip fades out) |
-| Feedback chips | Outlined chip, `label` type, word first, never icon-only: "Not this" (with the per-lock count), pending (wording in EXPERIENCE.md), solved ("Solved") | `{components.chip-not-this}`, `{components.chip-pending}`, `{components.chip-open}` | Not this persists until the next input; pending shows a static ellipsis (no animation); open fades in over 200 ms lifted on `openLift` (instant under reduced motion), holds for its short open state, then the next Puzzle appears |
-| Evidence card | Inset row directly under the Clue. **Unsolved:** the Riddler's note alone, the read attribute quoted in `wizard-line` (`ink`): no label, no crop. **Solved:** 64 px thumbnail crop (`rounded.sm`), Interactable label (`label`, `ink`), read attribute (`body-sm`, `ink-muted`) describing where to look, never a solution token | `{components.evidence-card}` | Two states, following the Puzzle's lock: the note until it opens, then the whole card fading in (200 ms, `--motion-state`; instant under reduced motion) as the reward. Real and Decoy cards are pixel-identical in each state and keep a stable order; a new card gets no highlight, badge or animation beyond the entry's ordinary fade (FR-11, FR-19) |
+| Feedback chips | Outlined chip on the notes tray in the state's light form (`wrong`, `pending`, `success`; the ink forms until Oct 29), `label` type, word first, never icon-only: "Not this" (with the per-lock count), pending (wording in EXPERIENCE.md), solved ("Solved") | `{components.chip-not-this}`, `{components.chip-pending}`, `{components.chip-open}` | Not this persists until the next input; pending shows a static ellipsis (no animation); open fades in over 200 ms lifted on `openLift` (instant under reduced motion), holds for its short open state, then the next Puzzle appears |
+| Evidence card | Inset row directly under the Clue: in the Wizard notes a `canvas` inset in `text` (Oct 29), on the landing's sample page a `parchment-shade` inset in `ink`. **Unsolved:** the Riddler's note alone, the read attribute quoted in `wizard-line`: no label, no crop. **Solved:** 64 px thumbnail crop (`rounded.sm`), Interactable label (`label`), read attribute (`body-sm`, `text-muted` in the notes, `ink-muted` on paper) describing where to look, never a solution token | `{components.evidence-card}` | Two states, following the Puzzle's lock: the note until it opens, then the whole card fading in (200 ms, `--motion-state`; instant under reduced motion) as the reward. Real and Decoy cards are pixel-identical in each state and keep a stable order; a new card gets no highlight, badge or animation beyond the entry's ordinary fade (FR-11, FR-19) |
 | Trickster card, accepted | Parchment card in the Hint area: Trickster portrait (48 px) beside the sentence in `wizard-line` (first), then the outcome label in `label` after it ("Validator passed · Merge · Puzzle 3"), dismiss control (32 px hit area). **First Card of the Session only:** above the sentence, "The Trickster" in `label` with the role line under it in `body-sm` `ink-muted`, then the voice line in `wizard-line` | `{components.trickster-card-accepted}` | Enters after the lock-open state with a 200 ms fade; stays until dismissed; a Loosen Card's Rung also appears as a Rung line; the introduction appears once per Session, on whichever Card comes first, and never on a later Card or in the Card log |
 | Trickster card, rejected | Same anatomy, `wrong-ink` edge; the Trickster's sentence in `wizard-line`, then the outcome label ("Validator refused · Merge · Puzzle 3"), then a plain structural "Proposed: …" line in `body-sm` `ink`, then the plain reason ("That change was refused. {fixed message}") in `body-sm` `ink`; the same first-Card introduction | `{components.trickster-card-rejected}` | As accepted; the reason is never styled in character |
 | Trickster card, skipped | Off the paper: `chrome-raised`, dashed edge, portrait at 60% opacity, one `wizard-line` sentence in `card-skipped-text`, then the label "Skipped"; the same first-Card introduction, its role line in `card-skipped-text` | `{components.trickster-card-skipped}` | As accepted; same look for a provider error and the Spend cap |

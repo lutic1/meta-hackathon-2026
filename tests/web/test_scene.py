@@ -390,7 +390,7 @@ def test_the_edge_cues_are_masks_as_wide_as_the_scroll_padding():
     assert "element.addEventListener('scroll', edges, { passive: true })" in strip
 
 
-def test_the_count_badge_is_a_parchment_caption_chip_and_a_photo_with_no_objects_sits_at_half_opacity():
+def test_the_count_badge_is_a_chrome_raised_caption_chip_and_a_photo_with_no_objects_sits_at_half_opacity():
     strip, scene = _ts("components/thumbnail-strip.ts"), _ts("scene/index.ts")
     assert "strip?.setCounts(objectCounts(view))" in scene.split("function reshape(", 1)[1].split("\n  }\n", 1)[0]
     assert "thumbnail.setAttribute('aria-describedby', description.id)" in strip
@@ -400,7 +400,7 @@ def test_the_count_badge_is_a_parchment_caption_chip_and_a_photo_with_no_objects
     rules = _rules("components/thumbnail-strip.css")
     assert rules[".thumbnail"]["position"] == "relative"
     badge = rules[".thumbnail-count"]
-    assert badge["position"] == "absolute" and badge["background"] == "var(--parchment)" and badge["color"] == "var(--ink)"
+    assert badge["position"] == "absolute" and badge["background"] == "var(--chrome-raised)" and badge["color"] == "var(--text)"
     assert badge["border-radius"] == "var(--rounded-sm)" and badge["pointer-events"] == "none"
     assert rules[".thumbnail.is-empty"] == {"opacity": "0.5"}
     # The current photo stays at full opacity even when it holds nothing: its rule comes after the dimmed one.

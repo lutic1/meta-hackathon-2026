@@ -79,6 +79,7 @@ def test_the_inventory_is_a_chrome_raised_tray_of_64px_slots_three_across_with_5
     rules = _rules("components/inventory.css")
     tray = rules[".inventory"]
     assert tray["background"] == "var(--chrome-raised)" and tray["border-radius"] == "var(--rounded-md)"
+    assert tray["border"] == "1px solid var(--hairline)" and "box-shadow" not in tray  # flat, a hairline edge
     assert tray["grid-template-columns"] == "repeat(3, 64px)" and tray["color"] == "var(--text)"
     well = rules[".inventory-well"]
     assert (well["width"], well["height"]) == ("64px", "64px")
@@ -122,28 +123,30 @@ def test_each_entry_is_heading_and_count_then_portrait_and_clue_evidence_lore_ru
     assert "shown.evidence_cards.flatMap(" in notes and "drawEvidence(room, puzzle)" in notes  # in PlayView order
     rules = _rules("components/wizard-notes.css")
     sheet = rules[".wizard-notes"]
-    assert sheet["background"] == "var(--parchment)" and sheet["color"] == "var(--ink)"
-    assert sheet["padding"] == "var(--spacing-5)" and sheet["min-height"] == "var(--spacing-notes-min)"
+    # A flat chrome-raised tray with a hairline edge since Oct 29 (reviewer feedback 4): no paper, no shadow.
+    assert sheet["background"] == "var(--chrome-raised)" and sheet["color"] == "var(--text)"
+    assert sheet["border"] == "1px solid var(--hairline)" and "box-shadow" not in sheet
+    assert sheet["padding"] == "var(--spacing-4)" and sheet["min-height"] == "var(--spacing-notes-min)"
     assert sheet["overflow-y"] == "auto" and sheet["border-radius"] == "var(--rounded-lg)"
-    assert sheet["box-shadow"] == "var(--elevation-paper)"
-    assert rules[".notes-entry + .notes-entry"] == {"border-top": "1px solid var(--parchment-rule)"}
-    assert rules[".notes-count"]["color"] == "var(--ink-muted)" and rules[".notes-lore"]["color"] == "var(--ink-muted)"
+    assert rules[".notes-entry + .notes-entry"] == {"border-top": "1px solid var(--hairline)"}
+    assert rules[".notes-count"]["color"] == "var(--text-muted)" and rules[".notes-lore"]["color"] == "var(--text-muted)"
+    assert rules[".notes-waiting"]["color"] == "var(--text-muted)"
     assert rules[".notes-clue"]["grid-template-columns"] == "32px minmax(0, 1fr)"
     assert rules[".notes-clue"]["column-gap"] == "var(--spacing-2)"
     assert css_rules((WEB_SRC / "shell.css").read_text())[".side-column"]["flex-direction"] == "column"
 
 
-def test_the_active_puzzle_marker_follows_active_puzzle_id_with_a_lamp_ink_rule_and_the_word_current():
+def test_the_active_puzzle_marker_follows_active_puzzle_id_with_a_lamp_rule_and_the_word_current():
     notes = _ts("components/wizard-notes.ts")
     update = notes.split("function update(", 1)[1].split("\n  }\n", 1)[0]
     assert "const isCurrent = state.active_puzzle_id === puzzle.id" in update
     assert "element.classList.toggle('is-current', isCurrent)" in update and "current.hidden = !isCurrent" in update
     assert "current.textContent = strings.current" in notes and "current.className = 'notes-current label'" in notes
     rules = _rules("components/wizard-notes.css")
-    assert rules[".notes-entry.is-current"]["border-left"] == "3px solid var(--lamp-ink)"
-    assert rules[".notes-current"] == {"color": "var(--lamp-ink)"}
+    assert rules[".notes-entry.is-current"]["border-left"] == "3px solid var(--lamp)"
+    assert rules[".notes-current"] == {"color": "var(--lamp)"}
     marker = design_text().split("  active-puzzle-marker:\n", 1)[1].split("\n  clue-card-slot:", 1)[0]
-    assert "rule: '3px solid {colors.lamp-ink}'" in marker and "labelColor: '{colors.lamp-ink}'" in marker
+    assert "rule: '3px solid {colors.lamp}'" in marker and "labelColor: '{colors.lamp}'" in marker
 
 
 def test_the_sheet_scrolls_to_the_current_entry_when_active_puzzle_id_moves_without_taking_focus():
@@ -195,8 +198,9 @@ def test_open_locks_collapse_their_entry_and_wrong_attempts_show_the_servers_cou
     assert "opened.textContent = strings.solved" in notes
     assert "wrong.textContent = fill(strings.notThis, { n: attempts })" in update
     rules = _rules("components/wizard-notes.css")
-    assert rules[".chip-open"] == {"border": "1px solid var(--success-ink)", "color": "var(--success-ink)"}
-    assert rules[".chip-not-this"] == {"border": "1px solid var(--wrong-ink)", "color": "var(--wrong-ink)"}
+    # The chips sit on the dark notes tray, so they take each state's light form.
+    assert rules[".chip-open"] == {"border": "1px solid var(--success)", "color": "var(--success)"}
+    assert rules[".chip-not-this"] == {"border": "1px solid var(--wrong)", "color": "var(--wrong)"}
     assert rules[".chip"]["border-radius"] == "var(--rounded-sm)"
 
 
@@ -217,6 +221,9 @@ def test_evidence_cards_are_inset_rows_a_note_until_solved_then_a_64px_crop_cut_
     assert "note.className = 'evidence-card-note-text wizard-line'" in card
     assert rules[".evidence-card .crop"] == {"border-radius": "var(--rounded-sm)"}
     assert rules[".evidence-card-attribute"] == {"color": "var(--ink-muted)"}
+    # In the Wizard notes the inset is the canvas, its text on dark (the landing's sample page keeps the paper form).
+    assert rules[".wizard-notes .evidence-card"] == {"background": "var(--canvas)", "color": "var(--text)"}
+    assert rules[".wizard-notes .evidence-card-attribute"] == {"color": "var(--text-muted)"}
     # The whole card's reward fade is the only motion: no hover, focus, animation, highlight or announcement.
     assert row["transition"] == "opacity var(--motion-state) var(--motion-ease)"
     assert rules[".evidence-card.is-arriving"] == {"opacity": "0"}
@@ -289,6 +296,8 @@ def test_the_wizard_portrait_is_a_gilt_ringed_circle_at_four_sizes_reading_web_p
     assert circle["border"] == "2px solid var(--gilt)" and circle["border-radius"] == "var(--rounded-full)"
     assert circle["width"] == circle["height"] == "var(--portrait-size)" and circle["box-sizing"] == "border-box"
     assert rules[".wizard-portrait img"]["object-fit"] == "cover"
+    # In the Play screen's side column the ring is the hairline: gilt frames the Scene alone there.
+    assert rules[".side-column .wizard-portrait"] == {"border-color": "var(--hairline)"}
     # No play path generates one (FR-23).
     assert "generate" not in _code(portrait).lower()
 
@@ -316,20 +325,20 @@ def test_every_in_character_line_carries_a_visually_hidden_speaker_prefix():
     assert hidden["clip-path"] == "inset(50%)" and hidden["overflow"] == "hidden"
 
 
-def test_the_notes_sheet_keeps_the_two_tone_focus_ring_over_its_paper_shadow():
+def test_the_notes_tray_takes_the_shared_two_tone_focus_ring():
     rules = _rules("components/wizard-notes.css")
-    assert rules[".wizard-notes:focus-visible"] == {
-        "box-shadow": "0 0 0 2px var(--focus-ring-inner), var(--elevation-paper)"}
+    # No shadow of its own to keep, so the global ring (outline over the inner ring) applies unchanged.
+    assert ".wizard-notes:focus-visible" not in rules and "box-shadow" not in rules[".wizard-notes"]
+    assert _ts("components/wizard-notes.ts").count("element.tabIndex = 0") == 1
 
 
 def test_every_new_color_pair_is_in_the_contrast_table():
     table = design_text().split("### Contrast (load-bearing pairs)", 1)[1].split("\n## ", 1)[0]
     rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]
             for line in table.splitlines() if line.startswith("| `")]
-    pairs = {("text", "chrome-raised"), ("text-muted", "chrome-raised"), ("ink", "parchment"),
-             ("ink-muted", "parchment"), ("ink", "parchment-shade"), ("ink-muted", "parchment-shade"),
-             ("lamp-ink", "parchment"), ("success-ink", "parchment"), ("wrong-ink", "parchment"),
-             ("focus-ring-inner", "parchment")}
+    pairs = {("text", "chrome-raised"), ("text-muted", "chrome-raised"), ("lamp", "chrome-raised"),
+             ("success", "chrome-raised"), ("wrong", "chrome-raised"), ("text", "canvas"), ("text-muted", "canvas"),
+             ("ink", "parchment-shade"), ("ink-muted", "parchment-shade"), ("focus-ring", "chrome")}
     for fg, bg in pairs:
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
 
@@ -457,3 +466,29 @@ def test_an_unknown_session_and_an_unknown_room_answer_404_with_their_codes(clie
     assert session.status_code == 404 and session.json()["error"]["code"] == "session_not_found"
     room = client.get("/api/rooms/room_missing")
     assert room.status_code == 404 and room.json()["error"]["code"] == "room_not_found"
+
+
+def test_the_play_screen_keeps_one_ornate_frame_around_the_scene_and_the_current_riddle_reads_largest():
+    """Reviewer feedback 4 (Oct 29): the gilt rule and the vignette frame the Scene alone; the Thumbnail strip, the
+    Inventory, the Wizard notes and the Hint area are flat, quiet grounds with a hairline edge, and the Current
+    puzzle's Clue is a type step larger (wizard-line-lg) than every other line in the side column."""
+    frame = _rules("scene/scene.css")[".scene-frame"]
+    assert frame["border"] == "1px solid var(--gilt)" and frame["box-shadow"] == "var(--elevation-vignette)"
+    trays = {"components/inventory.css": ".inventory", "components/wizard-notes.css": ".wizard-notes",
+             "components/hint-area.css": ".hint-area"}
+    for name, selector in trays.items():
+        tray = _rules(name)[selector]
+        assert tray["background"] == "var(--chrome-raised)" and tray["border"] == "1px solid var(--hairline)", name
+        assert "box-shadow" not in tray, name
+    for name in ("components/thumbnail-strip.css", "components/order-progress.css", *trays):
+        css = _code((WEB_SRC / name).read_text())
+        assert "--gilt" not in css and "--elevation-vignette" not in css and "--parchment" not in css, name
+    badge = _rules("components/thumbnail-strip.css")[".thumbnail-count"]
+    assert badge["background"] == "var(--chrome-raised)" and badge["color"] == "var(--text)"
+    # The Current puzzle's Clue in wizard-line-lg, every other entry's in wizard-line.
+    current = _rules("components/wizard-notes.css")[".notes-entry.is-current .notes-clue p"]
+    lg = css_rules(_ts("tokens.css"))[".wizard-line-lg"]
+    assert current == {"font-size": lg["font-size"], "line-height": lg["line-height"]} == {
+        "font-size": "24px", "line-height": "1.4"}
+    marker = design_text().split("  wizard-notes:\n", 1)[1].split("\n  wizard-portrait:", 1)[0]
+    assert "currentClue: '{typography.wizard-line-lg}'" in marker and "edge: '1px solid {colors.hairline}'" in marker

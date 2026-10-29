@@ -1,6 +1,6 @@
-/* {components.hint-area}: a chrome-raised tray pinned under the Wizard notes, 16 px padding, rounded lg, up to
-   hint-area-max; its upper part scrolls inside it, its lower part (the hint controls) never does. The arrival glow
-   lights its edge with the portrait's ring. On a short window it stops where the Wizard notes reach notes-min, so
+/* {components.hint-area}: a flat chrome-raised tray with a 1 px hairline edge pinned under the Wizard notes, 16 px
+   padding, rounded lg, up to hint-area-max; its upper part scrolls inside it, its lower part (the hint controls) never
+   does. The arrival glow lights its edge with the portrait's ring. On a short window it stops where the Wizard notes reach notes-min, so
    its upper part scrolls and the pinned controls stay in view. The tray's bands are its flex items: the upper part,
    then the hint button, "How hints work" and its open panel, 8 px apart (the lower part and the panel's slot are
    display: contents), so short of room the panel gives way first, scrolling from its opening lines, and only then
@@ -13,6 +13,7 @@
   gap: var(--spacing-2);
   max-height: min(var(--spacing-hint-area-max), calc(100% - var(--spacing-notes-min) - var(--spacing-5)));
   padding: var(--spacing-4);
+  border: 1px solid var(--hairline);
   border-radius: var(--rounded-lg);
   background: var(--chrome-raised);
   color: var(--text);

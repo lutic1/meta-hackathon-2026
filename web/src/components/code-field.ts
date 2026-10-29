@@ -93,7 +93,7 @@ export function codeField(puzzle: PlayPuzzle, n: number, play: PlaySession): Cod
     }
   }
 
-  const button = secondaryButton({ label: strings.submit, onActivate: () => void submit(), onParchment: true })
+  const button = secondaryButton({ label: strings.submit, onActivate: () => void submit() })
   button.disabled = true
   field.addEventListener('input', () => {
     button.disabled = field.value.length < CODE_MIN

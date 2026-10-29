@@ -1,5 +1,5 @@
-/* {components.order-progress} in a Puzzle entry's lock slot: the start control (secondary on parchment), the pips,
-   then the Not this chip, 8 px apart. */
+/* {components.order-progress} in a Puzzle entry's lock slot: the start control (secondary), the pips, then the Not
+   this chip, 8 px apart. */
 .order-lock {
   display: flex;
   flex-wrap: wrap;
@@ -11,20 +11,20 @@
   gap: var(--spacing-2);
   align-items: center;
 }
-/* A 10 px pip: empty is a 1.5 px ink-muted ring, filled is lamp-ink; a full-length mismatch holds every pip in
-   wrong-ink before they empty. The pips change at once: nothing animates. */
+/* A 10 px pip on the notes tray: empty is a 1.5 px text-muted ring, filled is lamp; a full-length mismatch holds
+   every pip in wrong before they empty. The pips change at once: nothing animates. */
 .order-pip {
   box-sizing: border-box;
   width: 10px;
   height: 10px;
-  border: 1.5px solid var(--ink-muted);
+  border: 1.5px solid var(--text-muted);
   border-radius: var(--rounded-full);
 }
 .order-pip.is-filled {
-  border-color: var(--lamp-ink);
-  background: var(--lamp-ink);
+  border-color: var(--lamp);
+  background: var(--lamp);
 }
 .order-pips.is-wrong .order-pip {
-  border-color: var(--wrong-ink);
-  background: var(--wrong-ink);
+  border-color: var(--wrong);
+  background: var(--wrong);
 }

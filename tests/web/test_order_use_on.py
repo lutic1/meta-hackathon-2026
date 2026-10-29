@@ -103,7 +103,7 @@ def test_an_order_entry_holds_order_click_progress_in_its_lock_slot_and_redraws_
 def test_the_start_control_posts_order_start_or_stop_and_keeps_focus_through_its_label_change():
     order = _ts("components/order-progress.ts")
     assert "import './order-progress.css'" in order
-    assert "secondaryButton({ label: strings.startSequence, onActivate: () => void toggle(), onParchment: true })" in order
+    assert "secondaryButton({ label: strings.startSequence, onActivate: () => void toggle() })" in order
     toggle = _body(order, "async function toggle(")
     assert "type: armed ? ('order_stop' as const) : ('order_start' as const), puzzle_id: puzzle.id" in toggle
     assert "await play.post({ type: 'lock_input', input })" in toggle
@@ -150,16 +150,16 @@ def test_a_mismatch_flashes_wrong_ink_for_300_ms_or_resets_at_once_under_reduced
     assert "let counted: number | undefined" in order and "counted = attempts" in update
 
 
-def test_the_pips_are_10px_ink_muted_rings_filled_in_lamp_ink_and_reset_in_wrong_ink():
+def test_the_pips_are_10px_text_muted_rings_filled_in_lamp_and_reset_in_wrong():
     rules = _rules("components/order-progress.css")
     pip = rules[".order-pip"]
     assert (pip["width"], pip["height"], pip["box-sizing"]) == ("10px", "10px", "border-box")
-    assert pip["border"] == "1.5px solid var(--ink-muted)" and pip["border-radius"] == "var(--rounded-full)"
-    assert rules[".order-pip.is-filled"] == {"border-color": "var(--lamp-ink)", "background": "var(--lamp-ink)"}
-    assert rules[".order-pips.is-wrong .order-pip"] == {"border-color": "var(--wrong-ink)", "background": "var(--wrong-ink)"}
+    assert pip["border"] == "1.5px solid var(--text-muted)" and pip["border-radius"] == "var(--rounded-full)"
+    assert rules[".order-pip.is-filled"] == {"border-color": "var(--lamp)", "background": "var(--lamp)"}
+    assert rules[".order-pips.is-wrong .order-pip"] == {"border-color": "var(--wrong)", "background": "var(--wrong)"}
     token = design_text().split("  order-progress:\n", 1)[1].split("\n  use-on-selected:", 1)[0]
-    assert "pip: 10px" in token and "empty: '1.5px solid {colors.ink-muted}'" in token
-    assert "filled: '{colors.lamp-ink}'" in token and "reset: '{colors.wrong-ink}'" in token
+    assert "pip: 10px" in token and "empty: '1.5px solid {colors.text-muted}'" in token
+    assert "filled: '{colors.lamp}'" in token and "reset: '{colors.wrong}'" in token
     assert "transition" not in (WEB_SRC / "components/order-progress.css").read_text()  # nothing animates
 
 
@@ -323,13 +323,13 @@ def test_the_target_label_chip_shows_checking_until_the_verdict():
 
 
 def test_the_new_pairs_meet_aa():
-    parchment = _hex(PROPS["parchment"])[0]
-    assert contrast(_hex(PROPS["lamp-ink"])[0], parchment) >= 3  # a filled pip (non-text)
-    assert contrast(_hex(PROPS["wrong-ink"])[0], parchment) >= 3  # the reset pips
-    assert contrast(_hex(PROPS["ink-muted"])[0], parchment) >= 3  # an empty pip's ring
-    assert contrast(_hex(PROPS["lamp"])[0], _hex(PROPS["chrome-raised"])[0]) >= 3  # the selected item's ring
+    parchment, notes = _hex(PROPS["parchment"])[0], _hex(PROPS["chrome-raised"])[0]
+    assert contrast(_hex(PROPS["lamp"])[0], notes) >= 3  # a filled pip (non-text), on the notes tray
+    assert contrast(_hex(PROPS["wrong"])[0], notes) >= 3  # the reset pips
+    assert contrast(_hex(PROPS["text-muted"])[0], notes) >= 3  # an empty pip's ring
+    assert contrast(_hex(PROPS["lamp"])[0], notes) >= 4.5  # the start control
     assert contrast(_hex(PROPS["ink"])[0], parchment) >= 4.5  # the Using chip
-    assert contrast(_hex(PROPS["lamp-ink"])[0], parchment) >= 4.5  # its Cancel and the start control
+    assert contrast(_hex(PROPS["lamp-ink"])[0], parchment) >= 4.5  # its Cancel
 
 
 def test_use_on_needs_no_puzzle_id_and_a_pair_resolving_to_nothing_counts_nothing(client: TestClient, four_lock_room: Room):

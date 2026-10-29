@@ -75,9 +75,9 @@ def test_the_code_field_is_a_168_by_44_parchment_shade_inset_in_mono_code_with_n
     assert mono["font-family"] == "var(--font-mono)" and mono["font-size"] == "20px" and mono["letter-spacing"] == "0.2em"
 
 
-def test_submit_is_secondary_on_parchment_and_disabled_below_3_characters():
+def test_submit_is_secondary_on_the_dark_notes_and_disabled_below_3_characters():
     field = _ts("components/code-field.ts")
-    assert "secondaryButton({ label: strings.submit, onActivate: () => void submit(), onParchment: true })" in field
+    assert "secondaryButton({ label: strings.submit, onActivate: () => void submit() })" in field
     assert "export const CODE_MIN = 3" in field and "button.disabled = true" in field
     assert "button.disabled = field.value.length < CODE_MIN" in field
     assert "if (pending || code.length < CODE_MIN) return" in _body(field, "async function submit(")
@@ -107,7 +107,7 @@ def test_while_pending_the_field_is_read_only_and_the_checking_chip_shows_unanno
     for name in ("components/code-field.ts", "components/wizard-notes.ts"):
         assert "aria-live" not in _ts(name) and "role', 'status'" not in _ts(name)
     rules = _rules("components/wizard-notes.css")
-    assert rules[".chip-pending"] == {"border": "1px dashed var(--pending-ink)", "color": "var(--pending-ink)"}
+    assert rules[".chip-pending"] == {"border": "1px dashed var(--pending)", "color": "var(--pending)"}
     # The ellipsis is a character, never an animation: nothing loops.
     assert "setInterval" not in field and "requestAnimationFrame" not in field
 
@@ -229,9 +229,9 @@ def test_every_lock_color_pair_is_in_the_contrast_table_and_passes():
     table = design_text().split("### Contrast (load-bearing pairs)", 1)[1].split("\n## ", 1)[0]
     rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]
             for line in table.splitlines() if line.startswith("| `")]
-    pairs = {("ink", "parchment-shade"), ("lamp-ink", "parchment"), ("pending-ink", "parchment"),
-             ("wrong-ink", "parchment"), ("success-ink", "parchment"), ("lamp-ink", "parchment-shade"),
-             ("focus-ring-inner", "parchment")}
+    # The Code field keeps its parchment-shade inset; Submit and the chips sit on the dark notes tray (Oct 29).
+    pairs = {("ink", "parchment-shade"), ("lamp", "chrome-raised"), ("text-muted", "chrome-raised"),
+             ("wrong", "chrome-raised"), ("success", "chrome-raised"), ("focus-ring", "chrome")}
     for fg, bg in pairs:
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
         assert contrast(_hex(PROPS[fg])[0], _hex(PROPS[bg])[0]) >= 4.5, f"{fg} on {bg}"

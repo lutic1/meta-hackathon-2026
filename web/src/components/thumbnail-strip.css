@@ -2,7 +2,7 @@
    keep the focus ring inside the scroller. While more thumbnails sit beyond an edge, that edge fades out over 32 px
    (a mask, so it fades to whatever is behind), and a focused thumbnail scrolls in clear of the fade. Others sit at
    80% opacity, hover borders lamp-strong, current lamp.
-   Each carries its photo's object count on a parchment caption badge at its bottom-right corner; a photo with no
+   Each carries its photo's object count on a chrome-raised caption badge at its bottom-right corner; a photo with no
    objects has no badge and sits at 50% opacity, unless it is the current one. */
 .thumbnail-strip {
   display: flex;
@@ -68,8 +68,8 @@
   height: 20px;
   padding: 0 var(--spacing-1);
   border-radius: var(--rounded-sm);
-  background: var(--parchment);
-  color: var(--ink);
+  background: var(--chrome-raised);
+  color: var(--text);
   pointer-events: none;
 }
 .thumbnail-count[hidden] {
