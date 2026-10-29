@@ -105,16 +105,16 @@ function paragraph(className: string): HTMLParagraphElement {
  *
  * The Rung line (`{components.rung-line}`) is the Guide portrait, the label "Puzzle {n} · {Rung name}" ("Puzzle {n}"
  * alone on the No-hint line) and the line. Every new line fades the shown one out and itself in (200 ms each way,
- * instant under reduced motion), so a reply that repeats the shown line still visibly arrives, and is announced in
- * the one live region as "The Guide: …". A `rung_change` in a state the server sent (never computed here, and its
- * words taken from `rung_changes[]`) shows the same way with one arrival glow on the portrait ring and the tray edge;
- * a reply the player asked for never glows. The line the Rung line no longer shows moves into its Puzzle's opened
- * Rungs, through `onOpened`; a Rung a Loosen card opened shows there at once as well. The first state is only read:
- * the latest `rung_change`, else the opening line, is drawn without a fade, a glow or an announcement, so a reload
- * rebuilds the Rungs and re-announces nothing. The Guide's asides of the unlock moment (lock-opened.ts) show the same
- * way as the opening line, with no label, no glow (the Scene frame carries that light) and no announcement (the
- * feedback line already is one); the Rung line it replaces keeps its place in its Puzzle's opened Rungs, and the next
- * Rung line replaces it.
+ * instant under reduced motion), so a reply that repeats the shown line still visibly arrives, and is announced in the
+ * one live region as "The Guide: …". A `rung_change` in a state the server sent (never computed here, and its words
+ * taken from `rung_changes[]`) shows the same way with one arrival glow on the portrait ring and the tray edge; a reply
+ * the player asked for never glows, and a Rung its ask opened is drawn and announced once, by the reply. The line the
+ * Rung line no longer shows moves into its Puzzle's opened Rungs, through `onOpened`; a Rung a Loosen card opened shows
+ * there at once as well. The first state is only read: the latest `rung_change`, else the opening line, is drawn
+ * without a fade, a glow or an announcement, so a reload rebuilds the Rungs and re-announces nothing. The Guide's
+ * asides of the unlock moment (lock-opened.ts) show the same way as the opening line, with no label, no glow (the Scene
+ * frame carries that light) and no announcement (the feedback line already is one); the Rung line it replaces keeps its
+ * place in its Puzzle's opened Rungs, and the next Rung line replaces it.
  *
  * Trickster cards (FR-19, UX-DR40 to UX-DR42) stack above the Rung line, newest on top: at most `CARDS_STACKED`, only
  * the newest while "How hints work" is open, the rest behind the link "{n} more in the Card log", which opens the
@@ -185,6 +185,8 @@ export function hintArea(
   /** The Puzzle the last reply answered and the whole seconds until an ask opens its next Rung; 0 once it is due. */
   let wait: { puzzleId: string | null; seconds: number } = { puzzleId: null, seconds: 0 }
   let ticking: ReturnType<typeof setInterval> | undefined
+  /** A hint request is in flight: the Rung its reply opens is drawn and announced once, by `request`, with no glow. */
+  let asking = false
 
   const lower = document.createElement('div')
   lower.className = 'hint-lower'
@@ -281,6 +283,7 @@ export function hintArea(
   async function request(): Promise<void> {
     element.classList.add('is-asking')
     if (guide === 'ollama') think(true)
+    asking = true
     try {
       const reply = (await play.post({ type: 'hint_request' })).hint_reply ?? null
       if (reply === null) {
@@ -294,6 +297,7 @@ export function hintArea(
       think(false) // nothing reached the server (the reconnecting state lands in 1.24)
     } finally {
       element.classList.remove('is-asking')
+      asking = false
     }
   }
 
@@ -370,7 +374,7 @@ export function hintArea(
     const arrived = state.rung_changes.slice(heard)
     heard = state.rung_changes.length
     const newest = arrived.at(-1)
-    if (newest === undefined) return
+    if (newest === undefined || asking) return // a Rung the player's own ask opened: request() draws its reply
     announce(arrived.map((change) => `${strings.speakerGuide} ${change.text}`).join(' '))
     present(changeLine(newest), true)
   }

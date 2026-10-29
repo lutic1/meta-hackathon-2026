@@ -246,6 +246,22 @@ def test_a_rung_change_from_the_server_shows_its_own_text_with_one_glow_and_one_
     assert "--motion-hover: 150ms;" in _ts("tokens.css")  # lit for 150 ms, faded 150 ms each way: 300 ms in all
 
 
+def test_a_rung_the_players_own_ask_opens_is_drawn_and_announced_once_by_the_reply_and_never_glows():
+    # play.post hands the reply state to render() before request() reads it: while the ask is in flight, render
+    # only counts the arrived rung_changes, so the reply alone announces "The Guide: ..." and presents with no glow.
+    hint = _ts("components/hint-area.ts")
+    request = _function(hint, "request")
+    assert request.index("asking = true") < request.index("await play.post({ type: 'hint_request' })")
+    assert "finally {\n      element.classList.remove('is-asking')\n      asking = false" in request
+    render = _function(hint, "render")
+    held_back = "if (newest === undefined || asking) return"
+    assert render.index("heard = state.rung_changes.length") < render.index(held_back)
+    assert render.index(held_back) < render.index("announce(") < render.index("present(changeLine(newest), true)")
+    # The only arrived=true presentation is render's, so an ask never adds is-glowing.
+    code = _code(hint)
+    assert len(re.findall(r"(?<!function )glow\(\)", code)) == 1 and code.count(", true)") == 1
+
+
 def test_the_thinking_state_shows_only_for_ollama_as_a_static_lamp_ring_and_a_pending_label():
     hint = _ts("components/hint-area.ts")
     assert "if (guide === 'ollama') think(true)" in _function(hint, "request")
