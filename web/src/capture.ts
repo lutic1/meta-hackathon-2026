@@ -10,7 +10,7 @@ import { type BannerState, bannerSlot, showBanner } from './components/error-ban
 import { photoTray } from './components/photo-tray.ts'
 import { openProfileControl } from './components/profile-file.ts'
 import { retentionSummary } from './components/retention-summary.ts'
-import { downscale, isJpeg, isValidSet } from './photos.ts'
+import { downscale, isJpeg, isValidSet, MAX_ORIGINAL_BYTES } from './photos.ts'
 import { CUT_2, openProfileFile, FileNotSaved, saveProfileFile } from './profile/index.ts'
 import { captureHref } from './router.ts'
 import { roomStarter, storedRooms } from './stored-rooms.ts'
@@ -106,9 +106,11 @@ export function captureColumn(retention: string, profile: string, mode: Meta['mo
  * with no Demo room, and in Local mode, the dropzone holds no such button.
  *
  * Every addition or removal re-validates the whole set (FR-1): a refused set shows the FR-1 banner and keeps Upload
- * disabled, so nothing is sent; a valid set clears it and enables Upload. Upload downscales each photo and posts
- * them all with their originals in one `POST /builds`, with the Access code this tab holds as `X-Access-Code` (Hosted);
- * its pending label is the ingest stage name, the step the server runs before it answers. A refused or failed upload
+ * disabled, so nothing is sent; a valid set clears it and enables Upload. Upload with an original over 20 MiB sends
+ * nothing and shows "One of these photos is over 20 MB. Choose a smaller copy of it.", as a 413 `upload_too_large`
+ * does. Otherwise Upload downscales each photo and posts them all with their originals in one `POST /builds`, with
+ * the Access code this tab holds as `X-Access-Code` (Hosted); its pending label is the ingest stage name, the step the
+ * server runs before it answers. A refused or failed upload
  * keeps the photos and shows its banner (Hosted: a wrong code the compact error, too many attempts the compact
  * warning, and `build_quota_exceeded`, a quota reached since the check, the Build quota warning); an accepted one
  * starts the Build: everything but the Retention summary and the banners is disabled, the photos and their
@@ -166,6 +168,7 @@ export function captureScreen(
   const chooseAgain = { label: strings.choosePhotosAgain, onActivate: dropzone.chooseAgain }
   const refused: BannerState = { variant: 'error', heading: strings.photosRefused, actions: [chooseAgain] }
   const unreadable: BannerState = { variant: 'error', heading: strings.photosUnreadable, actions: [chooseAgain] }
+  const tooLarge: BannerState = { variant: 'error', heading: strings.photoTooLarge, actions: [chooseAgain] }
   const failed: BannerState = {
     variant: 'error',
     heading: strings.uploadFailed,
@@ -214,6 +217,11 @@ export function captureScreen(
 
   async function send(): Promise<void> {
     if (!isValidSet(photos)) return
+    // An original past ingest's cap is never sent, so no run starts for it.
+    if (photos.some(({ file }) => file.size > MAX_ORIGINAL_BYTES)) {
+      show(tooLarge)
+      return
+    }
     t0 = Date.now() // set before the run starts, so the slot shows it at once
     startTimer(t0)
     render(true)
@@ -246,6 +254,7 @@ export function captureScreen(
       })
       return null
     } catch (error) {
+      if (error instanceof RequestFailed && error.code === 'upload_too_large') return tooLarge
       const hosted = error instanceof RequestFailed && error.code !== null ? HOSTED_REFUSALS.get(error.code) : undefined
       if (hosted !== undefined) return hosted
       const code = error instanceof RequestFailed && error.status === 422 ? error.code : null

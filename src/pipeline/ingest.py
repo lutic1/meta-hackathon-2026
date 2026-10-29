@@ -1,8 +1,10 @@
 """The ingest stage (AD-7): the photos exactly as uploaded, checked before any job exists.
 
 `validate_upload` is what `POST /builds` calls first: the count (6 to 10,
-else `photo_count`), JPEG by bytes for the downscale and the original alike
-(anything else raises `UnsupportedImage`, code `unsupported_image`; a
+else `photo_count`), at most 2 MiB a downscale and 20 MiB an original (else
+`UploadTooLarge`, 413 `upload_too_large`, the refusal `POST /builds` also
+gives a body past `MAX_UPLOAD_BYTES` before parsing it), JPEG by bytes for
+the downscale and the original alike (anything else raises `UnsupportedImage`, code `unsupported_image`; a
 multi-frame MPO, which phone cameras write as a JPEG with a depth or
 thumbnail frame, counts as JPEG, and a header claiming more pixels than
 Pillow reads does not), and a downscale whose long edge is 1280 px with no
@@ -29,6 +31,11 @@ from src.domain.schema import Photo, RoomId
 from src.pipeline.ports import ArtifactStore
 
 MIN_PHOTOS, MAX_PHOTOS = 6, 10
+MIB = 1024 * 1024
+MAX_DOWNSCALE_BYTES = 2 * MIB
+MAX_ORIGINAL_BYTES = 20 * MIB
+MAX_UPLOAD_BYTES = MAX_PHOTOS * (MAX_DOWNSCALE_BYTES + MAX_ORIGINAL_BYTES) + MIB
+"""The `POST /builds` body cap: ten photos at both file caps plus 1 MiB of multipart overhead."""
 LONG_EDGE = 1280
 ORIENTATION_TAG = 0x0112
 PHOTOS_FILE = "photos.json"
@@ -44,6 +51,19 @@ class UnsupportedImage(Exception):
     """A file that is not a JPEG by its bytes, or claims too many pixels to read (AD-7, AD-13); code `unsupported_image`."""
 
     code = "unsupported_image"
+
+
+class UploadTooLarge(Exception):
+    """A body past `MAX_UPLOAD_BYTES`, a downscale past `MAX_DOWNSCALE_BYTES` or an original past `MAX_ORIGINAL_BYTES`.
+
+    413 `upload_too_large` at stage ingest (AD-13); the message is fixed and echoes nothing the client sent.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            f"an upload holds at most {MAX_PHOTOS} photos, each original at most {MAX_ORIGINAL_BYTES // MIB} MiB "
+            f"and its downscale at most {MAX_DOWNSCALE_BYTES // MIB} MiB"
+        )
 
 
 class IngestRefused(Exception):
@@ -76,9 +96,11 @@ def _open_jpeg(data: bytes, what: str) -> Image.Image:
 
 
 def validate_upload(uploads: Sequence[Upload]) -> None:
-    """Refuse the upload before any job exists: the count, JPEG by bytes, the 1280 px long edge and the orientation."""
+    """Refuse the upload before any job exists: the count, each file's byte cap, JPEG by bytes, the 1280 px long edge and the orientation."""
     if not MIN_PHOTOS <= len(uploads) <= MAX_PHOTOS:
         raise IngestRefused("photo_count", f"Keyframe needs {MIN_PHOTOS} to {MAX_PHOTOS} JPEG photos, got {len(uploads)}")
+    if any(len(upload.downscale) > MAX_DOWNSCALE_BYTES or len(upload.original) > MAX_ORIGINAL_BYTES for upload in uploads):
+        raise UploadTooLarge()
     for index, upload in enumerate(uploads):
         downscale = _open_jpeg(upload.downscale, f"photo {index}")
         _open_jpeg(upload.original, f"original {index}")

@@ -111,6 +111,14 @@ class UploadRefused(ApiError):
         self.code = code
 
 
+class UploadTooLargeRefused(ApiError):
+    """The `UploadTooLarge` refusal of `POST /builds` (AD-7, AD-13): 413 at stage `ingest`, before any job, slot or file exists."""
+
+    status = 413
+    code = "upload_too_large"
+    stage = "ingest"
+
+
 class AccessDenied(ApiError):
     """Hosted mode: a guarded route without the right `X-Access-Code` (AD-9, AD-13); refused before anything is read or stored."""
 

@@ -47,3 +47,8 @@ def make_uploads(count: int = 6, *, portrait_at: int = 2) -> list[Upload]:
         width, height = (960, LONG_EDGE) if index == portrait_at else (LONG_EDGE, 960)
         uploads.append(Upload(image_bytes(width, height, colour), image_bytes(width * 2, height * 2, colour)))
     return uploads
+
+
+def padded(jpeg: bytes, size: int) -> bytes:
+    """`jpeg` grown to exactly `size` bytes with zeros after its end marker, which Pillow never reads."""
+    return jpeg + b"\0" * (size - len(jpeg))

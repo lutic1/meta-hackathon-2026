@@ -12,16 +12,27 @@ from src.infra.local import DiskArtifactStore
 from src.pipeline.build import error_detail
 from src.pipeline.ingest import (
     LONG_EDGE,
+    MAX_DOWNSCALE_BYTES,
+    MAX_ORIGINAL_BYTES,
+    MAX_PHOTOS,
+    MAX_UPLOAD_BYTES,
     PHOTOS_FILE,
     IngestRefused,
     UnsupportedImage,
     Upload,
+    UploadTooLarge,
     photo_keys,
     read_photos,
     store_upload,
     validate_upload,
 )
-from tests.pipeline.uploads import claiming_pixels, image_bytes, make_uploads, mpo_bytes
+from tests.pipeline.uploads import (
+    claiming_pixels,
+    image_bytes,
+    make_uploads,
+    mpo_bytes,
+    padded,
+)
 from tests.test_gitignore import _ignored
 
 ROOM = "room_01ARZ3NDEKTSV4RRFFQ69G5FAV"
@@ -130,6 +141,33 @@ def test_validation_touches_no_store(tmp_path, uploads):
         validate_upload(make_uploads(4))
     assert not root.exists()
 
+
+
+# --- Byte caps: 2 MiB a downscale, 20 MiB an original (item 40) ---
+
+
+def test_the_body_cap_is_ten_photos_at_both_file_caps_plus_1_mib_of_multipart_overhead():
+    assert (MAX_DOWNSCALE_BYTES, MAX_ORIGINAL_BYTES) == (2 * 2**20, 20 * 2**20)
+    assert MAX_UPLOAD_BYTES == MAX_PHOTOS * (MAX_DOWNSCALE_BYTES + MAX_ORIGINAL_BYTES) + 2**20
+
+
+def test_a_downscale_and_an_original_exactly_at_their_caps_pass(uploads):
+    at_caps = Upload(padded(uploads[0].downscale, MAX_DOWNSCALE_BYTES), padded(uploads[0].original, MAX_ORIGINAL_BYTES))
+    validate_upload([at_caps, *uploads[1:]])
+
+
+@pytest.mark.parametrize("over", ["downscale", "original"])
+def test_a_file_one_byte_over_its_cap_is_refused_with_upload_too_large_at_ingest(uploads, over):
+    downscale, original = uploads[3].downscale, uploads[3].original
+    if over == "downscale":
+        downscale = padded(downscale, MAX_DOWNSCALE_BYTES + 1)
+    else:
+        original = padded(original, MAX_ORIGINAL_BYTES + 1)
+    with pytest.raises(UploadTooLarge) as info:
+        validate_upload([*uploads[:3], Upload(downscale, original), *uploads[4:]])
+    detail = error_detail(info.value, "ingest")
+    assert (detail.code, detail.stage) == ("upload_too_large", "ingest")
+    assert detail.message == str(UploadTooLarge())  # fixed: nothing the client sent is echoed
 
 # --- Storing: byte for byte, hashed from the stored downscale, in upload order ---
 

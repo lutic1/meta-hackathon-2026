@@ -89,11 +89,12 @@ generates `web/types`.
 
 Build routes run the persisted job (AD-7): `POST /builds` first runs the
 access guard wiring injects, then reads the multipart body (the i-th
-`downscale` part with the i-th `original` part), lets ingest refuse it
-before any job exists (422 at stage `ingest` with `photo_count`,
-`unsupported_image` or `bad_downscale`), claims a build slot (403
-`build_quota_exceeded` once every judge build is used, with no photo
-stored), then persists the job `queued`, hands it to the `JobRunner` and
+`downscale` part with the i-th `original` part) up to `MAX_UPLOAD_BYTES`
+(past it, or past a file's own cap, 413 `upload_too_large` at stage
+`ingest`), lets ingest refuse it before any job exists (422 at stage
+`ingest` with `photo_count`, `unsupported_image` or `bad_downscale`),
+claims a build slot (403 `build_quota_exceeded` once every judge build is
+used, with no photo stored), then persists the job `queued`, hands it to the `JobRunner` and
 answers 202 with the job state without waiting on a stage. In hosted mode
 the guard refuses a missing or wrong `X-Access-Code` with 403
 `access_denied` before the body is read, so no job, slot or photo follows
@@ -191,6 +192,7 @@ from src.api.errors import (
     RoomNotFound,
     SessionNotFound,
     UploadRefused,
+    UploadTooLargeRefused,
     handle_api_error,
     handle_validation_error,
 )
@@ -256,7 +258,13 @@ from src.infra.clocks import SessionClock
 from src.infra.local import CACHE_ROOT, EXPORTS_ROOT, LEDGER_PATH, ROOMS_ROOT
 from src.infra.modal import ModalHandles, wall_ms
 from src.pipeline.build import TERMINAL, Build, StageFn, error_code
-from src.pipeline.ingest import IngestRefused, UnsupportedImage, Upload
+from src.pipeline.ingest import (
+    MAX_UPLOAD_BYTES,
+    IngestRefused,
+    UnsupportedImage,
+    Upload,
+    UploadTooLarge,
+)
 from src.pipeline.ports import (
     ArtifactStore,
     BuildQuotaExceeded,
@@ -491,6 +499,19 @@ def read_uploads(content_type: str, body: bytes) -> list[Upload]:
     return [Upload(downscale, original) for downscale, original in zip(downscales, originals, strict=True)]
 
 
+async def read_capped(request: Request) -> bytes:
+    """The body, refused as `UploadTooLarge` past `MAX_UPLOAD_BYTES`: at once on a larger Content-Length, else the moment the bytes read pass it."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_UPLOAD_BYTES:
+        raise UploadTooLarge()
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > MAX_UPLOAD_BYTES:
+            raise UploadTooLarge()
+    return bytes(body)
+
+
 def read_job(jobs: JobStore, store: ArtifactStore, job_id: str) -> JobState:
     """The persisted job state, else `RoomDeleted` when a deletion record names the job, or `JobNotFound`; an id the store refuses is as unknown as a missing one.
 
@@ -523,14 +544,20 @@ def build_routes(
     async def post_build(request: Request, response: Response) -> JobState:
         """The guard runs before the body is read; ingest refuses a bad upload before any slot is claimed or job exists.
 
+        A body past `MAX_UPLOAD_BYTES` is refused 413 `upload_too_large` unread when its Content-Length says so, else
+        the moment the bytes read pass the cap, so no more than the cap is ever held.
+
         An accepted upload claims a slot, is queued and started, never awaited.
         The guard's attempt store I/O, the multipart parse, ingest and the runner's start (a spawn and a Dict write in Hosted mode)
         run in the thread pool, so none of them holds the event loop.
         """
         await run_in_threadpool(guard, request.headers.get(ACCESS_HEADER), client_ip(request))
-        content_type, body = request.headers.get("content-type", ""), await request.body()
+        content_type = request.headers.get("content-type", "")
         try:
+            body = await read_capped(request)
             state = await run_in_threadpool(lambda: build.submit(read_uploads(content_type, body)))
+        except UploadTooLarge as exc:
+            raise UploadTooLargeRefused(str(exc)) from None
         except (IngestRefused, UnsupportedImage) as exc:
             raise UploadRefused(error_code(exc), str(exc)) from None
         except BuildQuotaExceeded as exc:

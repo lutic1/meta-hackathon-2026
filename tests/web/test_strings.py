@@ -148,6 +148,7 @@ def test_the_capture_strings_are_the_experience_lines():
     assert strings["photosRefused"] == "Keyframe needs 6 to 10 JPEG photos."  # verbatim, FR-1
     assert strings["choosePhotosAgain"] == "Choose photos again"
     assert strings["photosUnreadable"] == "Keyframe couldn't read these photos. Choose them again."
+    assert strings["photoTooLarge"] == "One of these photos is over 20 MB. Choose a smaller copy of it."
     assert strings["uploadFailed"] == "Your photos didn't reach Keyframe."
     assert strings["uploadFailedBody"] == "Nothing was built. Check the connection and try again."
     assert strings["retentionHeading"] == "Where your photos go." and strings["playHistory"] == "Your play history"

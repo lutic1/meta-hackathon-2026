@@ -11,7 +11,7 @@ from io import BytesIO
 from PIL import Image
 
 from src.api.app import DOWNSCALE, ORIGINAL
-from src.pipeline.ingest import LONG_EDGE, MAX_PHOTOS, MIN_PHOTOS
+from src.pipeline.ingest import LONG_EDGE, MAX_ORIGINAL_BYTES, MAX_PHOTOS, MIN_PHOTOS
 from tests.web.design import WEB_SRC, css_rules, design_text, source_ts
 
 COMPONENTS = WEB_SRC / "components"
@@ -290,6 +290,24 @@ def test_422_codes_and_failures_map_to_their_banners_and_the_photos_stay():
     assert "if (!response.ok) throw new RequestFailed(path, response.status, await errorDetail(response))" in api
     assert "return ((await response.json()) as ErrorEnvelope).error ?? null" in api
 
+
+def test_an_original_over_20_mib_is_not_sent_and_shows_the_too_large_line_before_any_run_starts():
+    photos, capture = _ts("photos.ts"), _ts("capture.ts")
+    assert "export const MAX_ORIGINAL_BYTES = 20 * 1024 * 1024" in photos and 20 * 1024 * 1024 == MAX_ORIGINAL_BYTES
+    too_large = "const tooLarge: BannerState = { variant: 'error', heading: strings.photoTooLarge, actions: [chooseAgain] }"
+    assert too_large in capture  # "Choose photos again" replaces the set, so the dropzone stays the way on
+    send = _function(capture, "send")
+    check = "if (photos.some(({ file }) => file.size > MAX_ORIGINAL_BYTES)) {\n      show(tooLarge)\n      return\n    }"
+    assert check in send
+    assert send.index("if (!isValidSet(photos)) return") < send.index(check) < send.index("startTimer(t0)")
+    assert send.index(check) < send.index("render(true)") < send.index("await submit(photos)")
+
+
+def test_a_413_upload_too_large_from_the_server_shows_the_same_line():
+    submit = _function(_ts("capture.ts"), "submit")
+    too_large = "if (error instanceof RequestFailed && error.code === 'upload_too_large') return tooLarge"
+    assert too_large in submit and submit.index(too_large) < submit.index("return code === 'bad_downscale'")
+    assert "photos =" not in submit  # the set stays, as for every refusal
 
 def test_banners_are_the_shared_error_banner_one_at_a_time_and_take_focus():
     capture = _ts("capture.ts")

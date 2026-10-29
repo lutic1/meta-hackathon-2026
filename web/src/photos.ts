@@ -6,6 +6,8 @@ export const MAX_PHOTOS = 10
 /** The downscale's long edge in px, which ingest requires exactly (else 422 `bad_downscale`). */
 export const LONG_EDGE = 1280
 export const JPEG_QUALITY = 0.85
+/** The largest original ingest stores (else 413 `upload_too_large`); the player line calls it 20 MB. */
+export const MAX_ORIGINAL_BYTES = 20 * 1024 * 1024
 
 /** Every JPEG file starts with the SOI marker and the first marker's lead byte. */
 const JPEG_START = [0xff, 0xd8, 0xff]

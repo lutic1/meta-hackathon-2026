@@ -9,7 +9,10 @@ leaves their keys out.
 from __future__ import annotations
 
 import ast
+import asyncio
+import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import ANY
 
 import pytest
@@ -22,12 +25,18 @@ from src.config import Settings
 from src.domain.schema import JobState, Room
 from src.infra.modal import BUILD_QUOTA, ROOMS_DIR, SLOT_KEYS, hosted_stores, slot_key
 from src.pipeline.build import new_id
+from src.pipeline.ingest import (
+    MAX_ORIGINAL_BYTES,
+    MAX_UPLOAD_BYTES,
+    Upload,
+    UploadTooLarge,
+)
 from tests.api.hosted import hosted_handles, hosted_settings, make_hosted_app
 from tests.api.test_app import make_app
 from tests.api.test_builds import Stages, files, wait_terminal
 from tests.domain.test_redact import json_keys
 from tests.fixtures.rooms import SENTINEL_CODE, with_sentinel_solutions
-from tests.pipeline.uploads import make_uploads
+from tests.pipeline.uploads import make_uploads, padded
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 CODE = "lantern-42"
@@ -37,6 +46,9 @@ START_MS = 1_793_000_000_000
 """The access clock's first reading, a Unix millisecond in Oct 2026."""
 ACCESS_DENIED = {"error": {"code": "access_denied", "message": ANY, "stage": None}}
 QUOTA_EXCEEDED = {"error": {"code": "build_quota_exceeded", "message": ANY, "stage": None}}
+TOO_LARGE = {"error": {"code": "upload_too_large", "message": str(UploadTooLarge()), "stage": "ingest"}}
+CHUNK = 8 * 2**20
+"""The body chunk a streamed upload arrives in."""
 WRONG = {"no header": {}, "a wrong code": {ACCESS_HEADER: "lantern-41"}, "an empty code": {ACCESS_HEADER: ""}}
 
 
@@ -233,6 +245,75 @@ def test_an_ingest_refusal_with_every_slot_taken_is_still_the_ingest_refusal(tmp
     hosted.claim_all()
     assert post(hosted.client, {ACCESS_HEADER: CODE}, 5).json()["error"]["code"] == "photo_count"
 
+
+
+# --- Byte caps: 413 before anything is claimed or stored (item 40) ---------------------
+
+
+class Body:
+    """The ASGI `receive` of `POST /builds`: `CHUNK`-byte chunks, three past the one that passes the cap, counting each one read."""
+
+    CHUNKS = MAX_UPLOAD_BYTES // CHUNK + 4
+
+    def __init__(self) -> None:
+        self.reads = 0
+
+    async def receive(self) -> dict[str, Any]:
+        self.reads += 1
+        return {"type": "http.request", "body": bytes(CHUNK), "more_body": self.reads < self.CHUNKS}
+
+
+def post_raw(hosted: Hosted, body: Body, content_length: int | None) -> tuple[int, bytes]:
+    """`POST /builds` straight through the ASGI app with the right code, so the test controls every body read."""
+    headers = [(ACCESS_HEADER.lower().encode(), CODE.encode()), (b"content-type", b"multipart/form-data; boundary=x")]
+    if content_length is not None:
+        headers.append((b"content-length", str(content_length).encode()))
+    scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "POST", "scheme": "http",
+             "path": "/api/builds", "raw_path": b"/api/builds", "query_string": b"", "root_path": "", "headers": headers,
+             "client": (CLIENT, 50000), "server": ("testserver", 80), "state": {}}
+    sent: list[dict[str, Any]] = []
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+
+    asyncio.run(hosted.client.app(scope, body.receive, send))
+    return sent[0]["status"], b"".join(message.get("body", b"") for message in sent[1:])
+
+
+def assert_nothing_claimed_or_stored(hosted: Hosted) -> None:
+    assert hosted.job_writes() == [] and not SLOT_KEYS & set(hosted.dict) and hosted.stored() == set()
+    assert hosted.jobs.builds_left() == BUILD_QUOTA and hosted.stages.calls == []
+
+
+def test_a_content_length_over_the_cap_is_413_before_the_body_is_read(tmp_path: Path):
+    hosted, body = Hosted(tmp_path), Body()
+    status, answer = post_raw(hosted, body, MAX_UPLOAD_BYTES + 1)
+    assert (status, json.loads(answer)) == (413, TOO_LARGE) and body.reads == 0
+    assert_nothing_claimed_or_stored(hosted)
+
+
+def test_a_body_with_no_length_stops_being_read_once_it_passes_the_cap(tmp_path: Path):
+    hosted, body = Hosted(tmp_path), Body()
+    status, answer = post_raw(hosted, body, None)
+    assert (status, json.loads(answer)) == (413, TOO_LARGE) and body.reads == MAX_UPLOAD_BYTES // CHUNK + 1
+    assert_nothing_claimed_or_stored(hosted)
+
+
+def test_an_original_one_byte_over_20_mib_is_413_and_claims_nothing(tmp_path: Path):
+    hosted = Hosted(tmp_path)
+    uploads = make_uploads(6)
+    uploads[2] = Upload(uploads[2].downscale, padded(uploads[2].original, MAX_ORIGINAL_BYTES + 1))
+    response = hosted.client.post("/api/builds", files=files(uploads), headers={ACCESS_HEADER: CODE})
+    assert (response.status_code, response.json()) == (413, TOO_LARGE)
+    assert_nothing_claimed_or_stored(hosted)
+
+
+def test_an_original_of_exactly_20_mib_is_accepted(tmp_path: Path):
+    hosted = Hosted(tmp_path)
+    uploads = make_uploads(6)
+    uploads[2] = Upload(uploads[2].downscale, padded(uploads[2].original, MAX_ORIGINAL_BYTES))
+    response = hosted.client.post("/api/builds", files=files(uploads), headers={ACCESS_HEADER: CODE})
+    assert response.status_code == 202 and hosted.jobs.builds_left() == BUILD_QUOTA - 1
 
 # --- Local mode: no code check and no quota ----------------------------------------
 

@@ -54,6 +54,7 @@ export const strings = {
   photosRefused: 'Keyframe needs 6 to 10 JPEG photos.',
   choosePhotosAgain: 'Choose photos again',
   photosUnreadable: "Keyframe couldn't read these photos. Choose them again.",
+  photoTooLarge: 'One of these photos is over 20 MB. Choose a smaller copy of it.',
   uploadFailed: "Your photos didn't reach Keyframe.",
   uploadFailedBody: 'Nothing was built. Check the connection and try again.',
   retentionHeading: 'Where your photos go.',
