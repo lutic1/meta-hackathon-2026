@@ -16,19 +16,24 @@ carries the Room's list, and `GET /builds/<job_id>/view` fills
 `BuildView.disclosure` from the same function over the Room and its job
 record. No other module writes a Disclosure line.
 
-`retention` is the Retention summary for the running mode (`RETENTION`):
-the shared opening, then the Local ending or the Hosted ending. The Hosted
-text replaces the Local storage sentence, never appends to it (AD-15; PRD
-§13 Q3 owns the final wording). The per-mode texts and lines are tables
-keyed by `MODE`, so this module selects by mode without branching on it
-(AD-9).
+`retention_summary(settings)` is the Retention summary `GET /meta` serves
+(AD-15), stating only checked provider facts (decision record items 1 and
+31): the Meta Model API Standard service and its terms; the Baseten or
+Fireworks fallback only when `Settings` switches a role to
+`openai_compatible`; then the running mode's ending, the Hosted ending
+replacing the Local storage sentence, never appended to it; then the
+provider-policy links, which the Retention panel renders as anchors. fal
+never ships, so it is never named. The faces, documents and belongings
+reminder is its own Capture line, not part of this text. The per-mode
+texts and lines are tables keyed by `MODE`, so this module selects by mode
+without branching on it (AD-9).
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-from src.config import Mode, Settings
+from src.config import ROLES, Mode, Settings
 from src.domain.schema import GuideModel, JobState, Meta, Room
 from src.providers.ollama import DEFAULT_HOST, GUIDE_MODEL
 
@@ -42,22 +47,43 @@ HOSTED_LINE = "Hosted mode: hints are shown as written; no hint model runs here.
 MODE_LINES: dict[Mode, tuple[str, ...]] = {"local": (), "hosted": (HOSTED_LINE,)}
 """The global Disclosure lines the running mode adds (AD-15)."""
 
-RETENTION_OPENING = (
-    "Your photos and the puzzle text go to the Meta Model API (standard tier) to find objects, "
-    "write puzzles and test them. If a backup model is switched on for the Riddler or the Trickster, "
-    "that role's prompt goes to Baseten or Fireworks, never with an answer or anything from your "
-    "player profile. "
+META_TERMS_URL = "https://dev.meta.ai/legal/terms-of-service"
+META_ZDR_URL = "https://dev.meta.ai/help/policies-and-privacy/zero-data-retention"
+BASETEN_SECURITY_URL = "https://www.baseten.co/security-practices/"
+RETENTION_STANDARD = (
+    "Building a room sends your photos and the puzzle text to the Meta Model API. Keyframe uses its Standard service, "
+    "whose terms prohibit training on this content but permit retention for service operation, security, safety and "
+    "policy review; it is not zero retention, which needs separate enablement."
 )
-"""The shared opening of both Retention summaries; the faces and documents reminder stands on its own line."""
-RETENTION_LOCAL = RETENTION_OPENING + "A copy of your photos is also kept on this computer."
-"""The Local Retention summary: the shared opening and the local storage sentence."""
-RETENTION_HOSTED = RETENTION_OPENING + (
-    "In Hosted mode, your photos, the originals, your room and its play-throughs are stored on Modal "
-    "and deleted Tue Nov 10. Play-through logs are deleted 24 hours after their last event. "
-    "No player profile data leaves your browser."
+"""Meta Model API Terms 4.4 and 5.1 and its zero-retention help page, both modes."""
+RETENTION_FALLBACK = (
+    "A backup model is switched on, so some prompts go to Baseten or Fireworks instead, never with an answer or "
+    "anything from your player profile. If the Baseten fallback is used, its synchronous Model APIs publish zero "
+    "retention for inference content, subject to the provider's exceptions."
 )
-"""The Hosted Retention summary: the shared opening and the hosted ending in place of the local storage sentence (FR-6)."""
-RETENTION: dict[Mode, str] = {"local": RETENTION_LOCAL, "hosted": RETENTION_HOSTED}
+"""Composed only when a role's provider is `openai_compatible` (Baseten's Security Practices)."""
+RETENTION_ENDINGS: dict[Mode, str] = {
+    "local": "Your player profile and room files stay on this computer until you delete them.",
+    "hosted": (
+        "Photos of a room you build on this site, and the room itself, are stored on its hosted volume and are "
+        "scheduled for deletion after judging, on Tue Nov 10. Play sessions are deleted 24 hours after their last move."
+    ),
+}
+"""The mode's storage sentences: the Hosted ending replaces the Local one (AD-15); the purge is scheduled, the 24 h sweep runs."""
+
+
+def retention_summary(settings: Settings) -> str:
+    """The Retention summary for the running mode and the configured providers, ending in the provider-policy links."""
+    fallback = any(getattr(settings, f"provider_{role}") == "openai_compatible" for role in ROLES)
+    links = [META_TERMS_URL, META_ZDR_URL, *([BASETEN_SECURITY_URL] if fallback else [])]
+    sentences = [RETENTION_STANDARD, *([RETENTION_FALLBACK] if fallback else []), RETENTION_ENDINGS[settings.mode]]
+    return " ".join([*sentences, "Provider policies:", *links])
+
+
+RETENTION_LOCAL = retention_summary(Settings(mode="local"))
+"""The Local Retention summary with every role on the Meta Model API."""
+RETENTION_HOSTED = retention_summary(Settings(mode="hosted"))
+"""The Hosted Retention summary with every role on the Meta Model API."""
 
 
 def trickster(settings: Settings) -> Trickster:
@@ -109,5 +135,5 @@ def meta(settings: Settings, profile: str = "dev") -> Meta:
         cache=settings.cache,
         profile=profile,
         disclosure=disclosure_lines(settings),
-        retention=RETENTION[settings.mode],
+        retention=retention_summary(settings),
     )

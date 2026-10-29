@@ -1,6 +1,7 @@
 """Stories 1.14 and 7.2: `GET /meta` serves the status model with the global Disclosure lines and the Retention summary of the running mode, `GET /schema` every AD-2 model, and `GET /rooms` one `RoomSummary` per stored Room with a job record (AD-2, AD-9, AD-15)."""
 
 import ast
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import get_args
@@ -14,11 +15,11 @@ from src.api.meta import (
     HOSTED_LINE,
     RETENTION_HOSTED,
     RETENTION_LOCAL,
-    RETENTION_OPENING,
     SCRIPTED_LINE,
     TIMESCALE_LINE,
     disclosure_lines,
     meta,
+    retention_summary,
 )
 from src.api.wiring import JOBS_DIR, job_store
 from src.config import Settings
@@ -160,17 +161,71 @@ def test_meta_py_is_the_only_module_that_writes_a_disclosure_line():
 # --- Retention ---------------------------------------------------------------
 
 
+META_TERMS = "https://dev.meta.ai/legal/terms-of-service"
+META_ZDR = "https://dev.meta.ai/help/policies-and-privacy/zero-data-retention"
+BASETEN_SECURITY = "https://www.baseten.co/security-practices/"
+STANDARD_FACTS = (
+    "Building a room sends your photos and the puzzle text to the Meta Model API. Keyframe uses its Standard service, "
+    "whose terms prohibit training on this content but permit retention for service operation, security, safety and "
+    "policy review; it is not zero retention, which needs separate enablement."
+)
+BASETEN_FACT = (
+    "If the Baseten fallback is used, its synchronous Model APIs publish zero retention for inference content, "
+    "subject to the provider's exceptions."
+)
+LOCAL_SENTENCE = "Your player profile and room files stay on this computer until you delete them."
+HOSTED_SENTENCES = (
+    "Photos of a room you build on this site, and the room itself, are stored on its hosted volume and are "
+    "scheduled for deletion after judging, on Tue Nov 10. Play sessions are deleted 24 hours after their last move."
+)
+
+
 def test_the_local_retention_summary(client: TestClient):
     retention = get_meta(client)["retention"]
-    assert retention == RETENTION_LOCAL
-    assert retention.startswith("Your photos and the puzzle text go to the Meta Model API (standard tier)")
-    assert "Baseten or Fireworks" in retention
-    assert "Leave out faces" not in retention
-    assert retention.endswith("A copy of your photos is also kept on this computer.")
-    assert "Modal" not in retention
+    assert retention == RETENTION_LOCAL == retention_summary(settings())
+    assert retention == (
+        f"{STANDARD_FACTS} {LOCAL_SENTENCE} Provider policies: {META_TERMS} {META_ZDR}"
+    )
 
 
-LOCAL_SENTENCE = "A copy of your photos is also kept on this computer."
+def test_the_hosted_retention_summary_replaces_the_local_storage_sentence():
+    retention = meta(Settings.from_env({"MODE": "hosted"})).retention
+    assert retention == RETENTION_HOSTED
+    assert retention == f"{STANDARD_FACTS} {HOSTED_SENTENCES} Provider policies: {META_TERMS} {META_ZDR}"
+    assert LOCAL_SENTENCE not in retention and "this computer" not in retention
+
+
+@pytest.mark.parametrize("mode", ["local", "hosted"])
+def test_retention_states_only_verified_facts(mode: str):
+    """No zero-retention claim for Meta, no deletion guarantee, no fal, and the faces reminder stays its own line."""
+    for retention in (meta(settings(MODE=mode)).retention, meta(settings(MODE=mode, PROVIDER_RIDDLER="openai_compatible")).retention):
+        assert "not zero retention" in retention and "prohibit training" in retention
+        assert not re.search(r"\bfal\b", retention, re.IGNORECASE) and "guarantee" not in retention
+        assert "faces" not in retention and "standard tier" not in retention
+        assert "deleted Tue Nov 10" not in retention
+
+
+def test_the_fallback_is_named_only_when_settings_switch_a_role_to_it():
+    for retention in (RETENTION_LOCAL, RETENTION_HOSTED):
+        assert "Baseten" not in retention and "Fireworks" not in retention and "baseten.co" not in retention
+    for role in ("architect", "riddler", "dryrun", "trickster", "image"):
+        for mode in ("local", "hosted"):
+            retention = meta(settings(MODE=mode, **{f"PROVIDER_{role.upper()}": "openai_compatible"})).retention
+            assert retention == RETENTION_FALLBACK_TEMPLATE.format(ending={"local": LOCAL_SENTENCE, "hosted": HOSTED_SENTENCES}[mode])
+    with_fallback = meta(settings(MODEL_PROVIDER="openai_compatible")).retention
+    assert with_fallback == (
+        f"{STANDARD_FACTS} A backup model is switched on, so some prompts go to Baseten or Fireworks instead, never with "
+        f"an answer or anything from your player profile. {BASETEN_FACT} {LOCAL_SENTENCE} "
+        f"Provider policies: {META_TERMS} {META_ZDR} {BASETEN_SECURITY}"
+    )
+    assert "Baseten" not in meta(settings(PROVIDER_RIDDLER="mock")).retention
+
+
+RETENTION_FALLBACK_TEMPLATE = (
+    f"{STANDARD_FACTS} A backup model is switched on, so some prompts go to Baseten or Fireworks instead, never with "
+    f"an answer or anything from your player profile. {BASETEN_FACT} {{ending}} "
+    f"Provider policies: {META_TERMS} {META_ZDR} {BASETEN_SECURITY}"
+)
 
 
 def test_meta_reads_the_mode_from_settings():
@@ -191,20 +246,6 @@ def test_hosted_meta_reports_verbatim_with_no_guide_model_and_the_hosted_line():
 def test_the_hosted_line_follows_the_trickster_source_line():
     hosted = Settings.from_env({"MODE": "hosted", "DEMO_TIMESCALE": "6", "DEMO_TRICKSTER": "scripted"})
     assert disclosure_lines(hosted) == [TIMESCALE_LINE.format(n=6), SCRIPTED_LINE, HOSTED_LINE]
-
-
-def test_the_hosted_retention_summary_replaces_the_local_storage_sentence():
-    retention = meta(Settings.from_env({"MODE": "hosted"})).retention
-    assert retention == RETENTION_HOSTED
-    assert retention.startswith(RETENTION_OPENING) and RETENTION_LOCAL.startswith(RETENTION_OPENING)
-    assert retention.removeprefix(RETENTION_OPENING) == (
-        "In Hosted mode, your photos, the originals, your room and its play-throughs are stored on Modal "
-        "and deleted Tue Nov 10. Play-through logs are deleted 24 hours after their last event. "
-        "No player profile data leaves your browser."
-    )
-    assert LOCAL_SENTENCE not in retention and "kept on this computer" not in retention
-    assert "Leave out faces" not in retention
-    assert RETENTION_LOCAL.removeprefix(RETENTION_OPENING) == LOCAL_SENTENCE
 
 
 # --- GET /schema -------------------------------------------------------------

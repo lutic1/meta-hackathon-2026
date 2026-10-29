@@ -69,7 +69,7 @@ def test_the_right_column_holds_the_three_lines_then_the_retention_summary_in_or
 
 def test_the_retention_summary_renders_the_served_text_then_the_privacy_line_never_truncated():
     ts = (COMPONENTS / "retention-summary.ts").read_text()
-    assert "text.textContent = retention" in ts and "innerHTML" not in ts
+    assert "text.append(...servedText(retention))" in ts and "innerHTML" not in ts
     assert "heading.textContent = strings.retentionHeading" in ts and "heading.className = 'retention-heading display-sm'" in ts
     assert "text.className = 'retention-text body-sm'" in ts
     assert "label.className = 'retention-label label'" in ts and "label.textContent = strings.playHistory" in ts
@@ -83,6 +83,20 @@ def test_the_retention_summary_renders_the_served_text_then_the_privacy_line_nev
     assert rules[".retention-privacy"] == {"margin": "0", "font-weight": "600", "color": "var(--text)"}
     for rule in rules.values():
         assert not {"overflow", "max-height", "height", "text-overflow", "-webkit-line-clamp", "white-space"} & set(rule)
+
+
+def test_the_retention_summary_links_each_provider_policy_url_in_the_served_text():
+    """The served text stays exactly as received; each provider-policy URL in it becomes an anchor to that URL."""
+    ts = (COMPONENTS / "retention-summary.ts").read_text()
+    assert "const POLICY_LINK = /https:\\/\\/\\S*[^\\s.,]/g" in ts
+    served = ts.split("function servedText", 1)[1]
+    assert "retention.matchAll(POLICY_LINK)" in served
+    assert "document.createTextNode(retention.slice(last, match.index))" in served
+    assert "document.createTextNode(retention.slice(last))" in served
+    assert "link.href = match[0]" in served and "link.textContent = match[0]" in served
+    assert "link.rel = 'noopener noreferrer'" in served and "link.target = '_blank'" in served
+    assert "link.className = 'retention-link'" in served
+    assert _css("components/retention-summary.css")[".retention-link"] == {"color": "var(--lamp)"}
 
 
 def test_the_left_area_is_the_banner_slot_then_the_dropzone_the_tray_upload_and_the_stored_rooms():
@@ -247,6 +261,8 @@ def test_the_client_calls_only_its_own_server_under_api():
     for path, text in source_ts().items():
         # The SVG namespace the Scene's Hotspots are created in is a name, never a request.
         text = text.replace("'http://www.w3.org/2000/svg'", "")
+        # The pattern that finds the served provider-policy URLs is a match, never a request.
+        text = text.replace("const POLICY_LINK = /https:\\/\\/\\S*[^\\s.,]/g", "")
         assert not re.search(r"https?:|wss?:|\bnew (WebSocket|EventSource)\(|sendBeacon", text), path
         for call in re.findall(r"fetch\(([^,)]+)", text):
             assert call == "`/api${path}`", f"{path} fetches {call}"
