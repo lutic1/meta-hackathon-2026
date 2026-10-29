@@ -25,7 +25,8 @@ export type BuildViewState =
 /**
  * Loads the Build view once. A not-done Build is the 409 `build_not_ready` answer, keyed on the job `status` its
  * envelope carries (AD-3, AD-13); a deleted Judge room (410 `room_deleted`) or a missing Room (404 `room_not_found`)
- * is gone, and the shell shows its card; any other refusal, and no answer at all, is a failed load.
+ * is gone, and the shell shows its card, as is a link no Build has (404 `job_not_found`), shown as `room_not_found`,
+ * the unknown-room card; any other refusal, and no answer at all, is a failed load.
  */
 export async function loadBuildView(jobId: string): Promise<BuildViewState> {
   try {
@@ -33,7 +34,8 @@ export async function loadBuildView(jobId: string): Promise<BuildViewState> {
   } catch (error) {
     const notReady = error instanceof RequestFailed && error.status === 409 && error.code === 'build_not_ready'
     if (notReady && error.jobStatus !== null) return { name: 'not-ready', jobId }
-    const gone = roomGone(error)
+    const unknownJob = error instanceof RequestFailed && error.code === 'job_not_found'
+    const gone = unknownJob ? 'room_not_found' : roomGone(error)
     return gone === null ? { name: 'failed' } : { name: 'gone', gone }
   }
 }

@@ -11,7 +11,8 @@ import pytest
 from tests.web.design import REPO, source_css, source_ts
 
 BANS = {
-    "plays audio": r"\bnew Audio\(|\bAudioContext\b|\bwebkitAudioContext\b|<audio\b|\.play\(\)|\bspeechSynthesis\b",
+    # `video.play()` is the landing clip's Play toggle; that video is muted (test_landing_clip.py), so it plays no sound.
+    "plays audio": r"\bnew Audio\(|\bAudioContext\b|\bwebkitAudioContext\b|<audio\b|(?<!\bvideo)\.play\(\)|\bspeechSynthesis\b",
     "uses the Notification API": r"\bNotification\b|\bshowNotification\b|\bpushManager\b",
     "registers a service worker": r"\bserviceWorker\b|\bworkbox\b|\bimportScripts\(|\bCacheStorage\b|\bcaches\.open\(",
 }
@@ -35,7 +36,8 @@ def test_the_page_declares_no_manifest_or_service_worker():
 
 
 def test_the_bans_catch_each_api():
-    for sample, ban in (("const a = new Audio('x')", "plays audio"),
+    assert not re.search(BANS["plays audio"], "void video.play()")
+    for sample, ban in (("const a = new Audio('x')", "plays audio"), ("sound.play()", "plays audio"),
                         ("new Notification('x')", "uses the Notification API"),
                         ("navigator.serviceWorker.register('/sw.js')", "registers a service worker")):
         assert re.search(BANS[ban], sample), sample

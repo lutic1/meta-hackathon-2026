@@ -65,6 +65,10 @@ def test_not_ready_is_the_409_build_not_ready_keyed_on_the_job_status_and_anythi
     assert "error.status === 409 && error.code === 'build_not_ready'" in load
     assert "if (notReady && error.jobStatus !== null) return { name: 'not-ready', jobId }" in load
     assert "return gone === null ? { name: 'failed' } : { name: 'gone', gone }" in load
+    # A link no Build has (404 `job_not_found`) is the unknown-room card, as on the Capture screen, never a "Try again"
+    # that cannot work.
+    assert "const unknownJob = error instanceof RequestFailed && error.code === 'job_not_found'" in load
+    assert "const gone = unknownJob ? 'room_not_found' : roomGone(error)" in load
     assert BuildNotReady.status == 409 and BuildNotReady.code == "build_not_ready"
 
 
@@ -127,6 +131,21 @@ def test_every_table_cell_wraps_so_the_table_fits_the_right_third():
     assert rules[".model-table-role"]["flex-wrap"] == "wrap"
     right_third = (1280 - 2 * 24 - 24) / 3
     assert right_third - 2 * 16 > 5 * 40, "five wrapped columns of at least 40 px fit the 1280 px right third"
+
+
+def test_below_1280_px_the_table_lays_out_fixed_so_it_stays_inside_its_panel_at_1024():
+    """In auto layout the cells' longest words ("deterministic", "generation", "Architect") add up to about 313 px
+    against the 285 px the right third leaves at 1024 x 768, so the table ran 28 px past its panel; `break-word` does
+    not lower a cell's min-content width. Below 1280 px the columns take fixed shares and a word too long for its
+    column breaks inside it; from 1280 px the auto layout, which fits, is unchanged."""
+    css = re.sub(r"/\*.*?\*/", "", (COMPONENTS / "model-table.css").read_text(), flags=re.S)
+    narrow = css.split("@media (max-width: 1279px) {", 1)[1].split("\n}\n", 1)[0]
+    block = css_rules(narrow)
+    assert block[".model-table"] == {"table-layout": "fixed"}
+    shares = [block[f".model-table thead th:nth-child({n})"]["width"] for n in range(1, 6)]
+    assert shares == ["19%", "20%", "17%", "26%", "18%"]
+    assert sum(int(share.rstrip("%")) for share in shares) == 100
+    assert css.count("@media") == 1 and "table-layout" not in css.split("@media", 1)[0]
 
 
 # --- Header ------------------------------------------------------------------------------------------------------

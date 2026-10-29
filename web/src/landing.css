@@ -133,6 +133,27 @@
   background: var(--canvas);
   box-shadow: var(--elevation-vignette);
 }
+.landing-clip-frame {
+  position: relative;
+}
+/* The Pause toggle: a chrome chip in the clip's bottom-right corner, in normal Tab order after the column's controls;
+   drawn only while the clip plays by itself (not under reduced motion, where the native controls show). */
+.landing-clip-toggle {
+  position: absolute;
+  right: var(--spacing-2);
+  bottom: var(--spacing-2);
+  min-height: 24px;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-sm);
+  background: var(--chrome);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--motion-hover) var(--motion-ease);
+}
+.landing-clip-toggle:hover {
+  border-color: var(--lamp);
+}
 .landing-clip-caption {
   color: var(--text-muted);
 }

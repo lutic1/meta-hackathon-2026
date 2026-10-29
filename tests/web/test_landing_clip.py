@@ -101,6 +101,44 @@ def test_the_figure_sits_in_the_stage_s_second_column_under_how_to_play_with_no_
     assert rules[".landing-stage .attract-frame"]["grid-row"] == "1 / span 2"
 
 
+def test_the_toggle_strings_are_the_experience_lines():
+    strings = _strings()
+    assert (strings["clipPause"], strings["play"]) == ("Pause", "Play")
+    assert (strings["clipPauseName"], strings["clipPlayName"]) == ("Pause the clip", "Play the clip")
+    row = next(line for line in _section("Voice and Tone").splitlines() if line.startswith("| Ten-second clip"))
+    assert all(f'"{strings[key]}"' in row for key in ("clipPause", "play", "clipPauseName", "clipPlayName"))
+
+
+def test_a_pause_toggle_sits_over_the_clip_only_without_reduced_motion():
+    """WCAG 2.2.2: a loop over five seconds needs a pause. Under reduced motion the native controls cover it."""
+    figure = _clip_figure()
+    assert "frame.className = 'landing-clip-frame'" in figure and "frame.append(video)" in figure
+    assert "if (!reduced) frame.append(clipToggle(video))" in figure
+    assert "element.append(frame, caption)" in figure
+    toggle = _code("components/sample-clip.ts").split("function clipToggle(", 1)[1]
+    assert "toggle.type = 'button'" in toggle and "toggle.className = 'landing-clip-toggle label'" in toggle
+    # The word on the button and its accessible name follow what the video is doing; it starts as playing.
+    assert "toggle.textContent = paused ? strings.play : strings.clipPause" in toggle
+    assert "toggle.setAttribute('aria-label', paused ? strings.clipPlayName : strings.clipPauseName)" in toggle
+    assert "show(false)" in toggle
+    assert "video.addEventListener('play', () => show(false))" in toggle
+    assert "video.addEventListener('pause', () => show(true))" in toggle
+    # A pause holds for the page: only the toggle starts the video again.
+    assert "if (video.paused) void video.play().catch(() => undefined)\n    else video.pause()" in toggle
+
+
+def test_the_toggle_is_a_chrome_chip_in_the_clip_s_bottom_right_corner():
+    rules = css_rules((WEB_SRC / "landing.css").read_text())
+    assert rules[".landing-clip-frame"] == {"position": "relative"}
+    toggle = rules[".landing-clip-toggle"]
+    assert toggle["position"] == "absolute"
+    assert toggle["right"] == "var(--spacing-2)" and toggle["bottom"] == "var(--spacing-2)"
+    assert toggle["background"] == "var(--chrome)" and toggle["color"] == "var(--text)"
+    assert toggle["border"] == "1px solid var(--hairline)" and toggle["border-radius"] == "var(--rounded-sm)"
+    assert toggle["min-height"] == "24px"  # WCAG 2.5.8 target size
+    assert rules[".landing-clip-toggle:hover"] == {"border-color": "var(--lamp)"}
+
+
 def test_the_hosted_app_serves_the_clip_files_with_their_media_types(tmp_path: Path):
     dist = tmp_path / "dist"
     (dist / "clip").mkdir(parents=True)

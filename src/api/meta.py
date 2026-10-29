@@ -64,8 +64,8 @@ META_ZDR_URL = "https://dev.meta.ai/help/policies-and-privacy/zero-data-retentio
 BASETEN_SECURITY_URL = "https://www.baseten.co/security-practices/"
 RETENTION_STANDARD = (
     "Building a room sends your photos and the puzzle text to the Meta Model API. Keyframe uses its Standard service, "
-    "whose terms prohibit training on this content but permit retention for service operation, security, safety and "
-    "policy review; it is not zero retention, which needs separate enablement."
+    "whose terms prohibit training on this content but permit retention, including for service operation, security, "
+    "safety and policy review; it is not zero retention, which needs separate enablement."
 )
 """Meta Model API Terms 4.4 and 5.1 and its zero-retention help page, both modes."""
 RETENTION_FALLBACK = (

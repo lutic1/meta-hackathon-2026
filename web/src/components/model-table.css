@@ -1,7 +1,7 @@
 /* {components.model-table}: a chrome panel; header cells in label text-muted over a hairline rule, a hairline between
    roles, the caption under the table. Cells wrap at their spaces and hyphens (a wizard's name under its portrait when
-   the column is narrow), so the five columns fit the right third without horizontal scroll and the table stays above
-   the fold at 1440 x 900. */
+   the column is narrow), so the five columns fit the right third without horizontal scroll from 1024 px and the
+   table stays above the fold at 1440 x 900. */
 .model-table-panel {
   box-sizing: border-box;
   padding: var(--spacing-4);
@@ -20,6 +20,29 @@
   text-align: left;
   vertical-align: top;
   overflow-wrap: break-word;
+}
+/* Below 1280 px the cells' longest words add up to more than the right third (285 px at 1024 x 768), so the auto
+   layout ran past the panel: there the columns take fixed shares sized to their words and a word too long for its
+   column ("deterministic") breaks inside it. From 1280 px the auto layout fits and is unchanged. */
+@media (max-width: 1279px) {
+  .model-table {
+    table-layout: fixed;
+  }
+  .model-table thead th:nth-child(1) {
+    width: 19%;
+  }
+  .model-table thead th:nth-child(2) {
+    width: 20%;
+  }
+  .model-table thead th:nth-child(3) {
+    width: 17%;
+  }
+  .model-table thead th:nth-child(4) {
+    width: 26%;
+  }
+  .model-table thead th:nth-child(5) {
+    width: 18%;
+  }
 }
 .model-table th:first-child,
 .model-table td:first-child {

@@ -166,8 +166,8 @@ META_ZDR = "https://dev.meta.ai/help/policies-and-privacy/zero-data-retention"
 BASETEN_SECURITY = "https://www.baseten.co/security-practices/"
 STANDARD_FACTS = (
     "Building a room sends your photos and the puzzle text to the Meta Model API. Keyframe uses its Standard service, "
-    "whose terms prohibit training on this content but permit retention for service operation, security, safety and "
-    "policy review; it is not zero retention, which needs separate enablement."
+    "whose terms prohibit training on this content but permit retention, including for service operation, security, "
+    "safety and policy review; it is not zero retention, which needs separate enablement."
 )
 BASETEN_FACT = (
     "If the Baseten fallback is used, its synchronous Model APIs publish zero retention for inference content, "
@@ -193,6 +193,12 @@ def test_the_hosted_retention_summary_replaces_the_local_storage_sentence():
     assert retention == RETENTION_HOSTED
     assert retention == f"{STANDARD_FACTS} {HOSTED_SENTENCES} Provider policies: {META_TERMS} {META_ZDR}"
     assert LOCAL_SENTENCE not in retention and "this computer" not in retention
+
+
+def test_the_privacy_and_retention_row_quotes_the_standard_service_sentence_word_for_word():
+    """Meta's Terms 4.4 list further purposes than these four, so the sentence says the retention includes them."""
+    experience = (SRC.parent / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md").read_text()
+    assert f'**Standard service (both modes):** "{STANDARD_FACTS}"' in experience
 
 
 @pytest.mark.parametrize("mode", ["local", "hosted"])
