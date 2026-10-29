@@ -81,13 +81,35 @@ def test_plural_label_with_nothing_above_0_2_falls_back_to_the_best_mask():
     assert picked == Selection(polygons=[best], instances=1)
 
 
-def test_masks_under_one_percent_of_the_image_are_dropped():
-    box = box_to_frame((100, 100, 300, 300), W, H)
-    tiny = square(130, 100, 230, 200)  # 10,000 px, under 1% of 1,228,800
-    assert abs(masks.area(tiny)) < 0.01 * FRAME_AREA
-    small_enough = square(130, 100, 250, 210)  # 13,200 px, over 1%
-    assert select_instances([tiny], box, W, H, plural=False) == Selection(polygons=[box_polygon(box)], instances=1)
-    assert select_instances([tiny, small_enough], box, W, H, plural=False).polygons == [small_enough]
+def test_a_speck_under_both_floors_is_dropped_and_the_box_stands_in():
+    box = box_to_frame((100, 100, 300, 300), W, H)  # 256 x 192, 49,152 px
+    speck = square(130, 100, 150, 120)  # 400 px, under 1% of the frame and under 10% of the box
+    assert abs(masks.area(speck)) < 0.01 * FRAME_AREA and abs(masks.area(speck)) < 0.1 * 256 * 192
+    assert select_instances([speck], box, W, H, plural=False) == Selection(polygons=[box_polygon(box)], instances=1)
+
+
+def test_a_mask_under_one_percent_of_the_frame_but_over_a_tenth_of_its_small_box_is_kept():
+    box = (146.0, 991.0, 234.0, 1106.0)  # 88 x 115, a floor vent's size
+    vent = square(150, 995, 230, 1100)  # 8,400 px, under 1% of 1,228,800
+    assert abs(masks.area(vent)) < 0.01 * FRAME_AREA
+    assert select_instances([vent], box, H, W, plural=False).polygons == [vent]
+
+
+def test_a_mask_under_a_tenth_of_a_large_box_and_under_one_percent_of_the_frame_is_dropped():
+    box = box_to_frame((100, 100, 600, 700), W, H)  # 640 x 576, 368,640 px
+    small = square(130, 100, 230, 200)  # 10,000 px, under both floors
+    over_one_percent = square(130, 100, 250, 210)  # 13,200 px, over 1% of the frame
+    assert select_instances([small], box, W, H, plural=False) == Selection(polygons=[box_polygon(box)], instances=1)
+    assert select_instances([small, over_one_percent], box, W, H, plural=False).polygons == [over_one_percent]
+
+
+def test_a_small_object_like_the_floor_vent_keeps_its_sam_outline_offset_from_its_box():
+    box = (146.0, 991.0, 234.0, 1106.0)  # the Architect box sits above and left of the real vent
+    vent = square(170, 1015, 250, 1125)  # SAM's vent, down and right, overlapping the box
+    assert 0 < iou_with_box(vent, box) and abs(masks.area(vent)) < 0.01 * 960 * 1280
+    picked = select_instances([vent], box, 960, 1280, plural=False)
+    assert picked == Selection(polygons=[vent], instances=1)
+    assert picked.polygons != [box_polygon(box)]
 
 
 def test_no_mask_gives_the_box_rectangle_as_the_single_unflagged_polygon():

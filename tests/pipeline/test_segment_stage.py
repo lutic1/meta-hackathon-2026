@@ -37,7 +37,7 @@ INSIDE = square(130, 100, 380, 285)
 """A mask inside the box: IoU with it well above 0.2, 69,375 px, over 1% of the frame."""
 SECOND = square(140, 110, 370, 280)
 TINY = square(200, 200, 210, 210)
-"""100 px, under 1% of the frame, so dropped."""
+"""100 px, under 1% of the frame and under a tenth of the 49,152 px box, so dropped."""
 
 
 def _run(jobs, artifacts, ticker, doubles, uploads, candidates, segmenter):

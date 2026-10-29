@@ -2,7 +2,8 @@
 
 Spark boxes on the 0 to 1000 grid become frame pixels, clamped to the frame;
 SAM polygons for one label are selected against that box (schema v1 "SAM mask
-selection"); a label with no mask gets its box rectangle as its one polygon
+selection"), a mask dropped only when under 1% of the frame and under a tenth
+of its box; a label with no mask gets its box rectangle as its one polygon
 (AD-11); candidates are capped at 12 by Architect confidence. Polygons are in
 the pixel space of the stored downscaled 1280 px JPEG, the shapes of
 `schema.py`. No id is minted here. This module imports only the standard
@@ -25,6 +26,7 @@ GridBox = tuple[int, int, int, int]
 
 GRID = 1000
 MIN_AREA_FRACTION = 0.01
+MIN_BOX_FRACTION = 0.1
 PLURAL_IOU = 0.2
 MAX_INTERACTABLES = 12
 SIMPLIFY_TOLERANCE_PX = 1.0
@@ -155,12 +157,14 @@ def select_instances(
 ) -> Selection:
     """Pick one label's polygons against its converted box; no mask leaves the box rectangle.
 
-    Masks under 1% of the frame are dropped. A singular label keeps the best
+    A mask is dropped when it is under 1% of the frame and under a tenth of
+    the box's area, so a small object keeps its outline. A singular label keeps the best
     IoU against the box; a plural label keeps every mask with IoU above 0.2,
     falling back to the best one when none passes. The result carries one
     polygon per instance, simplified and clamped to the frame.
     """
-    min_area = MIN_AREA_FRACTION * frame_w * frame_h
+    box_area = abs((box[2] - box[0]) * (box[3] - box[1]))
+    min_area = min(MIN_AREA_FRACTION * frame_w * frame_h, MIN_BOX_FRACTION * box_area)
     scored = [(iou_with_box(p, box), p) for p in polygons or [] if abs(area(p)) >= min_area]
     kept = [p for iou, p in scored if iou > PLURAL_IOU] if plural else []
     if not kept and scored:
