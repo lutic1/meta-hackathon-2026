@@ -185,7 +185,7 @@ export const strings = {
   requiresNone: 'none',
   exit: 'Exit',
   guideVoice: "Ask as often as you like. I'll help, a little at a time.",
-  howToPlay1: 'Each riddle in the Wizard notes points at one thing in these photos.',
+  howToPlay1: 'Each riddle on the right points at one thing in these photos.',
   howToPlay2: 'Hover to find objects; click the one the riddle means. Some you pick up and use on something else.',
   howToPlay3: 'Open every lock to find the way out. Stuck? Ask the Guide for a hint.',
   begin: 'Begin',

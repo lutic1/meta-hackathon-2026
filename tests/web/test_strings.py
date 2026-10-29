@@ -270,12 +270,14 @@ def test_the_welcome_strings_are_the_experience_lines():
     assert strings["guideIntroduction"] == "The Guide. {role line} {opening line} {voice line}"
     # The First-room welcome's three-step how-to-play: what a riddle points at, how to answer one, how the room ends.
     assert [strings[f"howToPlay{n}"] for n in (1, 2, 3)] == [
-        "Each riddle in the Wizard notes points at one thing in these photos.",
+        "Each riddle on the right points at one thing in these photos.",
         "Hover to find objects; click the one the riddle means. Some you pick up and use on something else.",
         "Open every lock to find the way out. Stuck? Ask the Guide for a hint.",
     ]
     # The step and the voice line ask the player to ask, and nothing says "doesn't belong".
     assert strings["howToPlay3"].endswith("Stuck? Ask the Guide for a hint.")
+    # The panel's title is only its accessible name, so a sighted player is told where the riddles are, not its name.
+    assert "Wizard notes" not in strings["howToPlay1"]
     assert not any("doesn't belong" in value or "Get stuck" in value for value in strings.values())
 
 
