@@ -153,3 +153,18 @@
 .completion-copied:empty {
   display: none;
 }
+/* Where the result is kept, when it is not safely kept: a plain line and its "Try again", under the actions. */
+.completion-kept {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  align-items: center;
+  margin: var(--spacing-3) 0 0;
+}
+.completion-kept[hidden] {
+  display: none;
+}
+.completion-kept-line {
+  margin: 0;
+  color: var(--ink);
+}

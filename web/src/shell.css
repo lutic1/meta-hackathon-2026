@@ -171,6 +171,10 @@
   place-items: center;
   flex: 1 1 0;
 }
+/* A refused profile name: its error banner centered at a readable width. */
+.shell-refused-profile > .banner-slot {
+  width: min(640px, 100%);
+}
 
 /* The Build view (UX-DR67): the one body that scrolls between the pinned top bar and Disclosure banner; full width inside
    the 24 px margins, the header row, then the left two-thirds column beside the right third. */

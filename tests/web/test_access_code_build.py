@@ -225,7 +225,7 @@ def test_the_two_hosted_lines_sit_under_the_stage_list_in_hosted_mode_only():
     lines = _function(build, "hostedLines")
     assert "for (const text of [strings.ownLink, strings.targetMeasured]) {" in lines
     assert "line.className = 'build-hosted-line body-sm'" in lines
-    assert "left.append(banners, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), actions, maskSlot, traySlot, picker)" in build
+    assert "left.append(banners, actions, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), maskSlot, traySlot, picker)" in build
     assert css_rules((WEB_SRC / "shell.css").read_text())[".build-hosted-line"]["color"] == "var(--text)"
 
 

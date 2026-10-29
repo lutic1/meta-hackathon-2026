@@ -64,11 +64,12 @@ async function photoSize(url: string): Promise<Size | null> {
 
 /**
  * The Capture screen during a Build (`#/build/<job_id>`, FR-5, UX-DR62): the right column as before the Build; on
- * the left, under the banner slot, the Stage list in the dropzone's place, the Mask preview once job state carries
- * it, and the Photo tray, compact. `GET /builds/<job_id>` is read at once and every 2000 ms while the Build is
- * `queued` or `running`; a missed poll is tried again on the same cadence, while a refused one (4xx) ends the
- * polling with the list as last seen. Job state alone drives the list; nothing is inferred between polls, though
- * the first poll past segment that carries the Mask preview replays segment's own frame for one poll (`segmentFrame`).
+ * the left, under the banner slot, the done Build's actions (so "Play this room" is in view at 1024 x 768 above the
+ * Stage list's history), the Stage list in the dropzone's place, the Mask preview once job state carries it, and the
+ * Photo tray, compact. `GET /builds/<job_id>` is read at once and every 2000 ms while the Build is `queued` or
+ * `running`; a missed poll is tried again on the same cadence, while a refused one (4xx) ends the polling with the
+ * list as last seen. Job state alone drives the list; nothing is inferred between polls, and the Architect's line
+ * naming the objects stays on the "Finding objects" row from the first poll that carries the Mask preview on.
  *
  * The page that uploaded the Build holds its photos (`build-photos.ts`): the tray shows them and the Mask preview
  * draws on their downscales. When a poll reads `done` after this page saw the Build unfinished, or uploaded it, a
@@ -122,7 +123,7 @@ export function buildScreen(
   const strip = statusStrip(strings.reconnectingBuild)
   const left = document.createElement('section')
   left.className = 'capture-left'
-  left.append(banners, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), actions, maskSlot, traySlot, picker)
+  left.append(banners, actions, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), maskSlot, traySlot, picker)
 
   return {
     left,
@@ -289,24 +290,9 @@ export function buildScreen(
         queuedBanner = null
       }
 
-      /**
-       * The frame the server passed within one poll: `job` as segment's own write left it, the running "Finding
-       * objects" row with the preview's line (Story 2.18 AC4, UJ-1 step 4). Build.run moves the job to author in the
-       * write after segment's, so a poll almost never reads that state; the first poll past segment that carries the
-       * preview shows it for one poll, and the next poll reads on. Null once the preview has shown, while segment
-       * itself is the stage read, and on a job that is not running, which renders as read.
-       */
-      function segmentFrame(job: JobState): JobState | null {
-        if (masked || job.status !== 'running' || job.stage === 'segment' || (job.mask_preview ?? []).length === 0) return null
-        const records = job.stages ?? []
-        const at = records.findIndex((record) => record.stage === 'segment')
-        if (at < 0) return null
-        return { ...job, stage: 'segment', stages: records.slice(0, at + 1), regeneration_count: 0 }
-      }
-
       function apply(job: JobState): void {
         queue(job)
-        stages.update(stageRows(segmentFrame(job) ?? job))
+        stages.update(stageRows(job))
         if (!masked && (job.mask_preview ?? []).length > 0) {
           masked = true
           void showMask(job)

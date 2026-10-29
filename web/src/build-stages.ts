@@ -20,7 +20,10 @@ export interface StageRow {
   results: string[]
   /** "Sent back: …" on a Rewriting row: the fixed messages of the attempt before it. */
   sentBack: string | null
-  /** The Architect's line, on the running row only. */
+  /**
+   * The Architect's line: on the running row, and on the "Finding objects" row from the first job state that carries
+   * the Mask preview on, whatever its state, so the summary of what was found stays in view through the later stages.
+   */
   line: string | null
   /** The first "Writing puzzles" row once the author stage has started: it carries the Riddler's introduction. */
   riddler: boolean
@@ -99,6 +102,8 @@ export function stageRows(job: JobState | null): StageRow[] {
 
   const lastValidate = records.findLastIndex((record) => record.stage === 'validate')
   const photos = byKey.get('reading')?.[0]?.count ?? null
+  /** "I see {n} things worth a closer look, …" once job state carries the Mask preview. */
+  const found = maskPreviewLine((job?.mask_preview ?? []).map((tile) => tile.label))
 
   function row(kind: Kind, attempt: number): StageRow {
     const at = key(kind, attempt)
@@ -117,7 +122,7 @@ export function stageRows(job: JobState | null): StageRow[] {
       model: done && models.length > 0 ? models.join(strings.modeSeparator) : null,
       results: done ? results(kind, attempt, own) : [],
       sentBack: kind === 'writing' && attempt > 0 ? sentBack(attempt) : null,
-      line: state === 'running' ? line(kind, attempt) : null,
+      line: state === 'running' ? line(kind, attempt) : kind === 'finding' ? found : null,
       riddler: kind === 'writing' && attempt === 0 && state !== 'pending',
     }
   }
@@ -164,10 +169,8 @@ export function stageRows(job: JobState | null): StageRow[] {
   function line(kind: Kind, attempt: number): string {
     const reading = fill(strings.readingLine, { n: photos ?? 0 })
     if (kind === 'reading') return reading
-    // The preview arrives with segment's record; until then the Finding objects row keeps the reading line. Build.run
-    // moves the job to author in the very next store write, so `build-progress.ts` replays segment's frame for one
-    // poll once a poll past it carries the preview (AC4, UJ-1 step 4).
-    if (kind === 'finding') return maskPreviewLine((job?.mask_preview ?? []).map((tile) => tile.label)) ?? reading
+    // The preview arrives with segment's record; until then the Finding objects row keeps the reading line.
+    if (kind === 'finding') return found ?? reading
     if (kind === 'writing') return attempt === 0 ? strings.writingLine : strings.regenerationLine
     if (kind === 'testing') return strings.testingLine
     return strings.sceneLine

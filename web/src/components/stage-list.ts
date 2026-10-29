@@ -58,7 +58,7 @@ function introduction(wizard: Wizard, name: string, role: string, voice: string)
  * drawn once and static, over a hairline rule, then one row per stage: a 12 px marker, the name in `label`, and at
  * the right end the model id and the `mono-sm` duration of a done row. Pending is hollow `text-muted`, running a
  * filled `lamp` with the Architect's line for that stage under its name, done `success` with its plain results in
- * `body-sm`, failed `error-text`. The line fades in (200 ms) each time it moves to a newly running row; the
+ * `body-sm`, failed `error-text`; "Finding objects" keeps its line naming the objects in every state once found. The line fades in (200 ms) each time it moves to a newly running row; the
  * Riddler's introduction fades in inside "Writing puzzles" when the author stage starts and stays. A Rewriting row
  * carries "Sent back: …" in `body-sm`. The list is not a live region and takes no focus; every in-character line
  * carries a visually hidden speaker prefix.

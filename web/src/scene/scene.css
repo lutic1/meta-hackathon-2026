@@ -190,3 +190,7 @@
   height: auto;
   padding: 0 var(--spacing-1);
 }
+/* A Scene that cannot be drawn (no WebGL): its error banner centered in the frame at a readable width. */
+.scene-unavailable {
+  width: min(560px, calc(100% - 2 * var(--spacing-5)));
+}

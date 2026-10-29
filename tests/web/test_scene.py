@@ -397,3 +397,20 @@ def test_only_a_click_that_opens_a_lock_is_a_target(client: TestClient, four_loc
     assert rug["locks_open"] == session["locks_open"] == []  # a non-target: the label chip shows
     key = client.post(events, json={"type": "click", "interactable_id": IX["key"]}).json()
     assert len(key["locks_open"]) == 1  # the find target opened its lock: no chip
+
+
+def test_a_browser_without_webgl_gets_an_actionable_error_in_the_frame_never_a_blank_page():
+    """Decision record Oct 29, item 67: there is no DOM Scene to fall back to, so the frame says what to do."""
+    scene = _code(_ts("scene/index.ts"))
+    mount = scene.split("export function mountScene(", 1)[1]
+    assert ("let renderer: WebGLRenderer\n  try {\n    renderer = new WebGLRenderer({ antialias: true })\n  } catch {\n"
+            "    return sceneUnavailable(frame, ground, feedback.say)\n  }") in mount
+    unavailable = scene.split("function sceneUnavailable(", 1)[1].split("\n}\n", 1)[0]
+    assert "ground.replaceChildren(slot)" in unavailable and "frame.classList.remove('is-loading')" in unavailable
+    assert "heading: strings.sceneUnavailable" in unavailable and "sentence: strings.sceneUnavailableBody" in unavailable
+    assert "actions: [{ label: strings.reload, onActivate: () => location.reload() }]" in unavailable
+    assert "unmount: () => frame.remove()" in unavailable  # the Play screen around it mounts and tears down as usual
+    strings = _strings()
+    assert strings["sceneUnavailable"] == "Keyframe can't draw this room in this browser."
+    assert strings["sceneUnavailableBody"] == "Turn on hardware acceleration in the browser's settings, then reload."
+    assert strings["reload"] == "Reload"

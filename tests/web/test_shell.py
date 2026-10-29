@@ -5,10 +5,14 @@ TypeScript and the stylesheets; `npm run build` and `tsc --noEmit` prove they co
 """
 
 import re
+from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from tests.api.test_app import make_app
 from tests.web.design import REPO, WEB_SRC, css_rules, design_text, source_ts
+from tests.web.test_strings import _strings
 
 COMPONENTS = WEB_SRC / "components"
 PLAY_WIDTHS = {1440: 400, 1280: 360, 1024: 340}
@@ -165,3 +169,26 @@ def test_every_shell_color_pair_is_in_the_contrast_table():
              ("warning-text", "warning-surface"), ("lamp", "error-surface"), ("lamp", "warning-surface")}
     for fg, bg in pairs:
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
+
+
+def test_a_profile_name_the_server_refuses_stops_the_retry_loop_and_offers_the_dev_profile(tmp_path: Path):
+    """Decision record Oct 29, item 67: a 422 `invalid_profile_name` is an input error, never "can't reach its server"."""
+    shell = _ts("shell.ts")
+    refused = shell.split("function refusedProfile(error: unknown): null {", 1)[1].split("\n}\n", 1)[0]
+    assert "if (error instanceof RequestFailed && error.code === 'invalid_profile_name') return null" in refused
+    assert "throw error" in refused  # anything else is still retried as unreachable
+    render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
+    assert "await answered(mine, () => getMeta(place.profile).catch(refusedProfile))" in render
+    assert render.index("if (meta === undefined) return") < render.index("if (meta === null) return showRefusedProfile(place)")
+    assert render.index("if (meta === null) return showRefusedProfile(place)") < render.index("metas.set(place.profile, meta)")
+    page = shell.split("function showRefusedProfile(place: Place): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "heading: fill(strings.profileNameRefused, { name: place.profile })" in page
+    assert "sentence: strings.profileNameRefusedBody" in page and "label: strings.useDevProfile" in page
+    assert "location.hash = placeHref({ route: place.route, profile: DEFAULT_PROFILE })" in page  # nothing deleted
+    assert "showBanner(slot, {" in page and "disclosureBanner" not in page and "topBar" not in page
+    strings = _strings()
+    assert strings["profileNameRefused"] == "Keyframe can't use the profile name “{name}”."
+    assert strings["useDevProfile"] == "Use the dev profile"
+    # The server's answer the client keys on.
+    response = TestClient(make_app(tmp_path)).get("/api/meta", params={"profile": ".."})
+    assert response.status_code == 422 and response.json()["error"]["code"] == "invalid_profile_name"

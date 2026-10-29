@@ -5,14 +5,19 @@ TypeScript and the stylesheets; `npm run build` and `tsc --noEmit` prove they co
 fields the client keys on are compared with the server's own.
 """
 
+import json
 import re
-from typing import get_args
+import shutil
+import subprocess
+from typing import Any, get_args
+
+import pytest
 
 from src.domain.schema import JobState, Stage, StageRecord
 from src.pipeline.architect import ARCHITECT_MODEL
 from src.pipeline.build import STAGES
 from src.pipeline.segment import SEGMENT_MODEL
-from tests.web.design import WEB_SRC, css_rules, design_text, source_css
+from tests.web.design import REPO, WEB_SRC, css_rules, design_text, source_css
 
 COMPONENTS = WEB_SRC / "components"
 
@@ -70,7 +75,7 @@ def test_the_build_route_is_the_capture_layout_with_the_stage_list_in_place_of_t
     assert "const build = buildScreen(jobId, profile, mode, retention, (gone) => showRoomGone(element, gone, mode, profile))" in shell
     assert "element.append(build.left, build.right)" in shell and "mount: build.mount" in shell
     screen = _code("build-progress.ts")
-    assert "left.append(banners, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), actions, maskSlot, traySlot, picker)" in screen
+    assert "left.append(banners, actions, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), maskSlot, traySlot, picker)" in screen
     assert "right: captureColumn(retention, profile, mode, banners)" in screen
     assert "captureDropzone" not in screen and "storedRooms" not in screen
     capture = _code("capture.ts")
@@ -190,11 +195,12 @@ def test_a_done_row_shows_its_duration_result_and_model_id_from_job_state():
 
 def test_the_architect_line_follows_the_running_row_and_fades_in_on_each_move():
     stages = _code("build-stages.ts")
-    assert "line: state === 'running' ? line(kind, attempt) : null" in _function(stages, "row")
+    assert "line: state === 'running' ? line(kind, attempt) : kind === 'finding' ? found : null" in _function(stages, "row")
+    assert "const found = maskPreviewLine((job?.mask_preview ?? []).map((tile) => tile.label))" in stages
     line = _function(stages, "line")
     assert "const reading = fill(strings.readingLine, { n: photos ?? 0 })" in line
     assert "if (kind === 'reading') return reading" in line
-    assert "if (kind === 'finding') return maskPreviewLine((job?.mask_preview ?? []).map((tile) => tile.label)) ?? reading" in line
+    assert "if (kind === 'finding') return found ?? reading" in line
     assert "if (kind === 'writing') return attempt === 0 ? strings.writingLine : strings.regenerationLine" in line
     assert "if (kind === 'testing') return strings.testingLine" in line and "return strings.sceneLine" in line
     update = _function(_code("components/stage-list.ts"), "update")
@@ -272,22 +278,47 @@ def test_the_mask_preview_appears_once_job_state_carries_it_on_this_pages_own_do
     assert "return job.status === 'done' && job.room_id != null ? photoUrl(job.room_id, index) : null" in photo
 
 
-def test_the_first_poll_past_segment_with_the_preview_shows_segments_own_frame_for_one_poll():
-    """Build.run moves the job to author in the write after segment's, so the running "Finding objects" row with the
-    preview (AC4, UJ-1 step 4) is a persisted state a 2000 ms poll almost never reads: the first poll past segment
-    that carries the preview replays that frame, and the next poll reads on."""
-    screen = _code("build-progress.ts")
-    frame = _function(screen, "segmentFrame")
-    assert "if (masked || job.status !== 'running' || job.stage === 'segment' || (job.mask_preview ?? []).length === 0) return null" in frame
-    assert "const at = records.findIndex((record) => record.stage === 'segment')" in frame
-    assert "if (at < 0) return null" in frame
-    # The frame is the job as segment's own write left it: nothing past its record, and no Regeneration yet.
-    assert "return { ...job, stage: 'segment', stages: records.slice(0, at + 1), regeneration_count: 0 }" in frame
-    apply = _function(screen, "apply")
-    assert "stages.update(stageRows(segmentFrame(job) ?? job))" in apply
-    assert apply.index("stages.update(stageRows(segmentFrame(job) ?? job))") < apply.index("masked = true")
-    # A done or stopped job, or one reread while segment runs, renders as read.
-    assert "job.status !== 'running'" in frame and "job.stage === 'segment'" in frame
+STAGE_ROWS = """
+import { readFileSync } from 'node:fs'
+const { stageRows } = await import(process.argv[1])
+process.stdout.write(JSON.stringify(JSON.parse(readFileSync(0, 'utf8')).map((job) => stageRows(job))))
+"""
+
+
+def _stage_rows(*jobs: dict[str, Any]) -> list[list[dict[str, Any]]]:
+    """`stageRows` of each job state, run in Node as `build-stages.ts` ships (it has no DOM)."""
+    out = subprocess.run(["node", "--input-type=module", "-e", STAGE_ROWS, (WEB_SRC / "build-stages.ts").as_uri()],
+                         input=json.dumps(jobs), cwd=REPO, capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def _job(status: str, stage: str | None, through: list[str], preview: bool) -> dict[str, Any]:
+    tiles = [{"interactable": f"ix_{n:026d}", "label": label, "photo": n, "polygon": [[0, 0], [1, 0], [1, 1]]}
+             for n, label in enumerate(["throw pillows", "floor vent", "double front door"])]
+    records = [{"stage": name, "duration_ms": 1000, "count": 3, "model": None} for name in through]
+    return {"status": status, "stage": stage, "stages": records, "regeneration_count": 0, "regen_max": 2,
+            "mask_preview": tiles if preview else None}
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs build-stages.ts as it ships")
+def test_the_found_objects_line_stays_on_finding_objects_from_the_first_poll_with_the_preview_on():
+    """Decision record Oct 29, item 64: the summary stays in view through the later stages, with no frame replayed."""
+    summary = "I see 3 things worth a closer look, starting with the throw pillows, the floor vent and the double front door."
+    before, author, testing, done = _stage_rows(
+        _job("running", "architect", ["ingest"], preview=False),
+        _job("running", "author", ["ingest", "architect", "segment"], preview=True),
+        _job("running", "validate", ["ingest", "architect", "segment", "author"], preview=True),
+        _job("done", None, ["ingest", "architect", "segment", "author", "validate", "dryrun", "scene"], preview=True),
+    )
+    for rows in (author, testing, done):
+        row = next(row for row in rows if row["key"] == "finding")
+        assert row["state"] == "done" and row["line"] == summary
+    assert next(row for row in before if row["key"] == "finding")["line"] == "3 photos of one room. Let me find my loupe."
+    # The running row keeps its own line beside it, and every other row stays quiet.
+    assert [row["line"] for row in author if row["state"] == "running"] == ["I've handed my notes to the Riddler. Brace yourself."]
+    assert [row["key"] for row in done if row["line"] is not None] == ["finding"]
+    assert "segmentFrame" not in _code("build-progress.ts")
+    assert "stages.update(stageRows(job))" in _function(_code("build-progress.ts"), "apply")
 
 
 def test_the_mask_preview_has_no_heading_and_no_interaction():

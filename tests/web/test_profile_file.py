@@ -20,6 +20,8 @@ from tests.web.design import REPO, WEB_SRC, css_rules, design_text, source_ts
 from tests.web.test_contrast import _color, contrast
 from tests.web.test_player_profile import (
     FIXTURE,
+    SESSION_1,
+    SESSION_2,
     needs_node,
     puzzle,
     result,
@@ -66,34 +68,35 @@ def _profile_requests(requests: list[dict[str, Any]]) -> list[tuple[str, str]]:
     return [(r["method"], r["url"]) for r in requests]
 
 
-# --- The file backend: no read before "Open profile file", every write the whole file --------------------------------
+# --- The file backend: no read or write before "Open profile file" ----------------------------------------------------
 
 
 @needs_node
-def test_until_a_file_is_opened_the_profile_is_empty_and_nothing_is_read(fresh_json: dict[str, Any]):
-    out = run_profile([["seed", "dev", ON_DISK], ["results", "dev"], ["derived", "dev"], ["start", room_id(7), "dev", "local"]])
-    assert out["answers"][1:] == [[], fresh_json, {"room_id": room_id(7), "derived": fresh_json}]
-    assert out["requests"] == []  # no GET /profile/<name>
+def test_until_a_file_is_opened_the_profile_lives_in_the_page_and_nothing_is_read_or_written(fresh_json: dict[str, Any]):
+    out = run_profile([["seed", "dev", ON_DISK], ["results", "dev"], ["derived", "dev"], ["start", room_id(7), "dev", "local"],
+                       ["put", "dev", FIXTURE[1]], ["results", "dev"], ["file", "dev"]])
+    assert out["answers"][1:4] == [[], fresh_json, {"room_id": room_id(7), "derived": fresh_json}]
+    assert out["answers"][4] is None and out["answers"][5] == [FIXTURE[1]]  # the result is recorded, in the page
+    assert out["answers"][6]["results"] == {FIXTURE[1]["room_id"]: FIXTURE[1]}  # and "Save profile file" downloads it
+    assert out["requests"] == []  # no GET or PUT /profile/<name> before the player opens the file (decision 27, 48)
+    assert out["files"] == {"dev": ON_DISK}  # the stored file is untouched
     # And no IndexedDB: under cut 2 the file backend stands in front of the 5.2 database, which nothing else opens.
     assert "export const CUT_2: boolean = true" in _code("profile/index.ts")
-    assert "const storage = file ?? (typeof indexedDB === 'undefined'" in _code("profile/index.ts")
+    assert "const storage = CUT_2 ? memoryStorage() : browserStorage(name)" in _code("profile/index.ts")
     for path, text in source_ts().items():
         if path != "web/src/profile/index.ts":
             assert "indexedDB" not in text and "IDBDatabase" not in text, path
 
 
 @needs_node
-def test_a_stored_result_writes_the_whole_profile_the_real_route_accepts(route: TestClient):
+def test_once_opened_each_stored_result_writes_the_whole_profile_the_real_route_accepts(route: TestClient):
     replay = result(2, [puzzle(9, "order", rungs=2, first_hint_s=30, nudge=True)])
-    out = run_profile([["put", "dev", ROOM_1], ["put", "dev", replay], ["derived", "dev"]])
-    # The first write of a page load reads the file once, so it never drops what the file already holds.
-    assert _profile_requests(out["requests"]) == [("GET", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE)]
-    first, second = (json.loads(r["body"]) for r in out["requests"][1:])
+    out = run_profile([["open", "dev", ON_DISK, 200], ["put", "dev", replay], ["derived", "dev"]])
+    assert _profile_requests(out["requests"]) == [("PUT", PROFILE_ROUTE), ("GET", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE)]
+    written = json.loads(out["requests"][2]["body"])
     # GET|PUT carries the stored RoomResult entries and the Derived block (the cut-2 exception), keyed by room_id.
-    assert first == {"results": {ROOM_1["room_id"]: ROOM_1}, "derived": json.loads(Derived.model_validate(first["derived"]).model_dump_json())}
-    assert second["results"] == {ROOM_1["room_id"]: ROOM_1, replay["room_id"]: replay} and second["derived"] == out["answers"][2]
-    for body in (first, second):
-        assert route.put(PROFILE_ROUTE, json=body).status_code == 200
+    assert written == {"results": {ROOM_1["room_id"]: ROOM_1, replay["room_id"]: replay}, "derived": out["answers"][2]}
+    assert route.put(PROFILE_ROUTE, json=written).status_code == 200
 
 
 @needs_node
@@ -110,43 +113,99 @@ def test_hosted_mode_sends_nothing_from_the_profile(fresh_json: dict[str, Any]):
     assert out["answers"][1] == [ROOM_1] and out["answers"][2] == {"room_id": room_id(7), "derived": fresh_json}
 
 
-# --- A fresh page load never drops what the file holds ----------------------------------------------------------------
+# --- Opening merges: the file's results are never dropped -------------------------------------------------------------
 
 
 @needs_node
-def test_the_first_write_of_a_page_load_keeps_the_results_the_file_already_holds():
-    # Rooms 1 and 2 were played in an earlier page load; this one finishes Room 3 without "Open profile file".
+def test_opening_merges_the_files_results_with_the_ones_this_page_recorded(route: TestClient):
+    # Rooms 1 and 2 were played in an earlier page load; this one finished Room 3 before "Open profile file".
     room_3 = result(3, [puzzle(9, "order", rungs=2, first_hint_s=30, nudge=True)])
-    out = run_profile([["seed", "dev", profile_text(ROOM_1, FIXTURE[1], derived=json.loads(ON_DISK)["derived"])],
-                       ["put", "dev", room_3], ["results", "dev"]])
-    assert _profile_requests(out["requests"]) == [("GET", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE)]
+    on_disk = profile_text(ROOM_1, FIXTURE[1], derived=json.loads(ON_DISK)["derived"])
+    out = run_profile([["watch", "dev"], ["put", "dev", room_3], ["open", "dev", on_disk, 200], ["results", "dev"]])
+    assert _profile_requests(out["requests"]) == [("PUT", PROFILE_ROUTE), ("GET", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE)]
     written = json.loads(out["files"]["dev"])
     assert written["results"] == {ROOM_1["room_id"]: ROOM_1, FIXTURE[1]["room_id"]: FIXTURE[1], room_3["room_id"]: room_3}
     assert written["derived"] == run_profile([["derive", [ROOM_1, FIXTURE[1], room_3]]])["answers"][0]
-    assert out["answers"][2] == [room_3]  # the page's own view stays what this page load recorded (the cut-2 reading)
+    assert out["answers"][3] == [ROOM_1, FIXTURE[1], room_3] and out["heard"] == [1, 3]
+    assert route.put(PROFILE_ROUTE, json=written).status_code == 200
 
 
 @needs_node
-def test_a_reload_of_done_rewrites_the_file_with_the_same_contents():
-    on_disk = profile_text(ROOM_1, FIXTURE[1], derived=run_profile([["derive", [ROOM_1, FIXTURE[1]]]])["answers"][0])
-    out = run_profile([["seed", "dev", on_disk], ["put", "dev", FIXTURE[1]]])
-    assert json.loads(out["files"]["dev"]) == json.loads(on_disk)
-
-
-@needs_node
-def test_a_demo_result_never_replaces_the_counted_one_the_file_holds():
+def test_a_result_this_page_recorded_replaces_the_files_except_a_demo_result_over_a_counted_one():
     counted, demo = result(1, [puzzle(1, rungs=1)]), result(1, [puzzle(1, rungs=3)], demo=True)
-    out = run_profile([["seed", "dev", profile_text(counted, derived=json.loads(ON_DISK)["derived"])], ["put", "dev", demo]])
+    out = run_profile([["put", "dev", demo], ["open", "dev", profile_text(counted, derived=json.loads(ON_DISK)["derived"]), 200]])
     assert json.loads(out["files"]["dev"])["results"] == {counted["room_id"]: counted}
-    out = run_profile([["seed", "dev", profile_text(demo, derived=json.loads(ON_DISK)["derived"])], ["put", "dev", counted]])
+    assert [r["method"] for r in out["requests"]] == ["PUT", "GET"]  # nothing changed, so nothing more is written
+    out = run_profile([["put", "dev", counted], ["open", "dev", profile_text(demo, derived=json.loads(ON_DISK)["derived"]), 200]])
     assert json.loads(out["files"]["dev"])["results"] == {counted["room_id"]: counted}
+
+
+def _played_twice() -> tuple[dict[str, Any], dict[str, Any], str]:
+    """Room 1 played twice, older then newer, and the profile file holding the newer result (decision record, item 54)."""
+    older, newer = result(1, [puzzle(1, rungs=3)]), result(1, [puzzle(1, rungs=0)], elapsed_ms=200000)
+    return older, newer, profile_text(newer, derived=run_profile([["derive", [newer]]])["answers"][0])
 
 
 @needs_node
-def test_a_file_missing_at_the_first_write_is_an_empty_profile_that_is_written_whole():
-    out = run_profile([["put", "dev", ROOM_1]])
-    assert _profile_requests(out["requests"]) == [("GET", PROFILE_ROUTE), ("PUT", PROFILE_ROUTE)]
+def test_a_reopened_done_pages_older_result_never_replaces_the_files_newer_one(route: TestClient):
+    # A fresh page load mounts the older Session's Done page (a reload, a bookmark, history), then opens the file.
+    older, newer, on_disk = _played_twice()
+    out = run_profile([["put", "dev", older, "local", SESSION_1, True], ["open", "dev", on_disk, 200], ["results", "dev"]])
+    assert out["answers"][1] is None and out["answers"][2] == [newer]
+    assert json.loads(out["files"]["dev"])["results"] == {newer["room_id"]: newer}
+    assert [r["method"] for r in out["requests"]] == ["PUT", "GET"]  # the file kept its result, so nothing is written back
+    # Opened first, the older Done page reopened after it records nothing over the file's result, and writes nothing.
+    out = run_profile([["open", "dev", on_disk, 200], ["put", "dev", older, "local", SESSION_1, True], ["results", "dev"]])
+    assert out["answers"][2] == [newer] and [r["method"] for r in out["requests"]] == ["PUT", "GET"]
+    assert json.loads(out["files"]["dev"])["results"] == {newer["room_id"]: newer}
+
+
+@needs_node
+def test_a_reopened_done_page_fills_a_room_the_file_lacks_and_a_session_ended_here_replaces_the_files():
+    older, newer, on_disk = _played_twice()
+    room_3 = result(3, [puzzle(9, "order", rungs=2)])
+    out = run_profile([["put", "dev", room_3, "local", SESSION_1, True], ["open", "dev", on_disk, 200], ["results", "dev"]])
+    assert out["answers"][2] == [newer, room_3]
+    assert json.loads(out["files"]["dev"])["results"] == {newer["room_id"]: newer, room_3["room_id"]: room_3}
+    # The Completion screen that followed the Exit in this page load is the latest play, so the file takes its result.
+    out = run_profile([["put", "dev", older, "local", SESSION_2, False], ["open", "dev", on_disk, 200], ["results", "dev"]])
+    assert out["answers"][2] == [older] and json.loads(out["files"]["dev"])["results"] == {older["room_id"]: older}
+
+
+@needs_node
+def test_a_file_gone_by_the_read_is_an_empty_file_the_pages_results_are_written_to():
+    out = run_profile([["put", "dev", ROOM_1], ["lose"], ["open", "dev", ON_DISK, 200], ["results", "dev"],
+                       ["start", room_id(7), "dev", "local"]])
+    assert [r["method"] for r in out["requests"]] == ["PUT", "GET", "PUT"] and out["answers"][3] == [ROOM_1]
     assert json.loads(out["files"]["dev"])["results"] == {ROOM_1["room_id"]: ROOM_1}
+    assert out["answers"][4]["derived"] == run_profile([["derive", [ROOM_1]]])["answers"][0]
+
+
+# --- A save that fails keeps the progress and can be tried again ------------------------------------------------------
+
+
+@needs_node
+def test_a_failed_save_keeps_the_result_in_the_page_and_try_again_writes_it():
+    out = run_profile([["open", "dev", ON_DISK, 200], ["fail"], ["put", "dev", FIXTURE[1]], ["results", "dev"],
+                       ["save", "dev"], ["results", "dev"]])
+    assert out["answers"][2] == "FileNotSaved" and out["answers"][3] == [ROOM_1, FIXTURE[1]]  # progress is still here
+    assert out["answers"][4] is None and out["answers"][5] == [ROOM_1, FIXTURE[1]]
+    assert [r["method"] for r in out["requests"]] == ["PUT", "GET", "PUT", "PUT"]
+    assert json.loads(out["files"]["dev"])["results"] == {ROOM_1["room_id"]: ROOM_1, FIXTURE[1]["room_id"]: FIXTURE[1]}
+
+
+@needs_node
+def test_a_merge_that_fails_to_save_still_shows_the_merged_profile():
+    out = run_profile([["put", "dev", FIXTURE[1]], ["open", "dev", ON_DISK, 200, 503], ["results", "dev"], ["save", "dev"]])
+    assert out["answers"][1] == "FileNotSaved" and out["answers"][2] == [ROOM_1, FIXTURE[1]]
+    assert out["answers"][3] is None
+    assert json.loads(out["files"]["dev"])["results"] == {ROOM_1["room_id"]: ROOM_1, FIXTURE[1]["room_id"]: FIXTURE[1]}
+
+
+@needs_node
+def test_saving_before_a_file_is_opened_writes_nothing():
+    out = run_profile([["put", "dev", ROOM_1], ["save", "dev"]])
+    assert out["answers"][1] is None and out["requests"] == []
 
 
 # --- "Open profile file" ---------------------------------------------------------------------------------------------
@@ -169,14 +228,6 @@ def test_opening_a_file_puts_it_then_reads_it_back_and_the_count_follows_at_once
     assert set(json.loads(out["files"]["dev"])["results"]) == {ROOM_1["room_id"], FIXTURE[1]["room_id"]}
 
 
-@needs_node
-def test_a_file_gone_by_the_read_is_an_empty_profile_that_sends_derived_fresh(fresh_json: dict[str, Any]):
-    out = run_profile([["put", "dev", ROOM_1], ["lose"], ["open", "dev", ON_DISK, 200], ["results", "dev"],
-                       ["start", room_id(7), "dev", "local"]])
-    assert out["requests"][-1]["method"] == "GET" and out["answers"][3] == []
-    assert out["answers"][4] == {"room_id": room_id(7), "derived": fresh_json}
-
-
 @pytest.mark.parametrize("text", [
     "not a profile {",
     profile_text(ROOM_1, derived={"sessions": 1, "persistence": 1.5, "time_to_first_hint_s": None, "mean_rung_per_lock_type": {}}),
@@ -190,13 +241,14 @@ def test_a_refused_file_leaves_the_current_profile_unchanged(route: TestClient, 
     out = run_profile([
         ["watch", "dev"], ["put", "dev", ROOM_1], ["derived", "dev"],
         ["open", "dev", text, status], ["results", "dev"], ["derived", "dev"], ["start", room_id(7), "dev", "local"],
+        ["put", "dev", FIXTURE[1]],
     ])
     assert out["answers"][3] == 422
     assert out["answers"][4] == [ROOM_1] and out["answers"][5] == out["answers"][2]
     assert out["answers"][6]["derived"] == out["answers"][2]  # no Session starts from the refused file
-    assert out["heard"] == [1]
-    assert [r["method"] for r in out["requests"]] == ["GET", "PUT", "PUT"]  # nothing read after the refusal
-    assert json.loads(out["files"]["dev"])["results"] == {ROOM_1["room_id"]: ROOM_1}
+    assert out["heard"] == [1, 2]
+    assert [r["method"] for r in out["requests"]] == ["PUT"]  # nothing read after the refusal, and still nothing written
+    assert out["files"] == {}
 
 
 # --- "Save profile file" ---------------------------------------------------------------------------------------------
@@ -267,10 +319,14 @@ def test_open_profile_file_sits_below_the_unchanged_privacy_line_and_the_tray_st
 
 def test_a_refused_file_shows_the_error_banner_which_takes_focus_and_a_good_one_clears_it():
     opener = _function(_code("capture.ts"), "openProfile")
-    assert "void openProfileFile(profile, file).then(" in opener
+    assert "void openProfileFile(profile, file).then(cleared, (error: unknown) => {" in opener
     assert "if (refusal?.isConnected) showBanner(banners, null)" in opener
     assert "const action = { label: strings.openProfileFile, onActivate: control.choose }" in opener
     assert "refusal = showBanner(banners, { variant: 'error', heading: strings.profileFileRefused, actions: [action] })" in opener
+    # A file opened and merged whose write then failed is not a refusal: the warning offers "Try again", which writes it.
+    assert "if (error instanceof FileNotSaved) return notSaved()" in opener
+    assert "const action = { label: strings.tryAgain, onActivate: () => void saveProfileFile(profile).then(cleared, () => {}) }" in opener
+    assert "refusal = showBanner(banners, { variant: 'warning', heading: strings.profileNotSaved, actions: [action] })" in opener
     assert _strings()["profileFileRefused"] == "Keyframe couldn't read this profile file."
     assert "slot.replaceChildren(element)\n  element.focus()" in (COMPONENTS / "error-banner.ts").read_text()
 
@@ -278,8 +334,9 @@ def test_a_refused_file_shows_the_error_banner_which_takes_focus_and_a_good_one_
 def test_save_profile_file_sits_with_the_completion_actions_once_the_result_is_recorded():
     completion = _code("completion.ts")
     load = completion.split("async function load(): Promise<void> {", 1)[1].split("\n  }\n", 1)[0]
-    assert "const recorded = putResult(profile, result, mode)" in load
-    assert "void recorded.then(offerSave, () => {})" in load  # a refused record offers nothing to save
+    assert "const recorded = putResult(profile, result, mode, session.id, !endedOnPlay(session.id))" in load
+    # Saved or not, the result is recorded in the page, so "Save profile file" is offered either way.
+    assert load.split("void recorded.then(", 1)[1].count("offerSave()") == 2
     offer = completion.split("function offerSave(): void {", 1)[1].split("\n  }\n", 1)[0]
     assert "const save = saveProfileControl(profile, () => profileFile(profile))" in offer
     assert "actions.append(save.button)" in offer and "copied.after(save.line)" in offer

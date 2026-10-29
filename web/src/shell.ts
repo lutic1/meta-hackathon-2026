@@ -9,18 +9,19 @@ import { captureScreen } from './capture.ts'
 import { mountCompletion } from './completion.ts'
 import { mountTimer, type TimerRun } from './capture-timer.ts'
 import { disclosureBanner } from './components/disclosure-banner.ts'
+import { bannerSlot, showBanner } from './components/error-banner.ts'
 import { narrowScreenMessage } from './components/narrow-screen-message.ts'
 import { playEnded } from './components/play-ended.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { type TopBar, topBar } from './components/top-bar.ts'
 import { hostedLanding } from './landing.ts'
 import { liveRegion } from './live-region.ts'
-import { currentPlace, placeHref, type Route } from './router.ts'
+import { currentPlace, DEFAULT_PROFILE, type Place, placeHref, type Route } from './router.ts'
 import { mountPlay } from './play.ts'
 import { roomGone, showRoomGone } from './room-gone.ts'
 import { getResults, watchResults } from './profile/index.ts'
 import { mountTriggersWindow } from './triggers-window.ts'
-import { strings } from './strings.ts'
+import { fill, strings } from './strings.ts'
 
 /** How long the server-unreachable state waits between attempts (UX-DR61). */
 export const RETRY_MS = 2000
@@ -37,13 +38,21 @@ function refused(error: unknown): 'room_deleted' | null {
   throw error
 }
 
+/** null for the 422 `invalid_profile_name` of a `?profile=` the server will not use: no retry can change that answer. */
+function refusedProfile(error: unknown): null {
+  if (error instanceof RequestFailed && error.code === 'invalid_profile_name') return null
+  throw error
+}
+
 /**
  * The app shell (UX-DR7): the top bar, the body for the current route and the Disclosure banner, the footer strip
  * under the body.
  *
  * Nothing renders until `GET /meta` answers, and a Room-bound route also waits for its session state, so no
  * surface ever shows without its Disclosure lines. While a request fails the page body holds only the centered
- * status strip, retried every 2000 ms; nothing is guessed in the meantime. A session the server refuses (4xx) has
+ * status strip, retried every 2000 ms; nothing is guessed in the meantime. A `?profile=` name `GET /meta` refuses
+ * (422 `invalid_profile_name`) is not retried: the page body holds only the error banner naming it, which takes focus,
+ * with "Use the dev profile", the same route on the default profile; nothing is deleted. A session the server refuses (4xx) has
  * no Room, so its route shows the global lines: `#/play/<session_id>` and `#/done/<session_id>` hold the Session-gone
  * line with "Start again", which goes to `#/` since the refusal names no Room to start again, or, for a Session its
  * Judge room's deletion took (410 `room_deleted`), the Deleted Judge room notice; `#/triggers/<session_id>` holds an
@@ -97,11 +106,34 @@ export function startShell(root: HTMLElement): void {
     root.replaceChildren(...children)
   }
 
+  /** The page body empty except the error banner for a refused profile name, its way back the default profile. */
+  function showRefusedProfile(place: Place): void {
+    const element = document.createElement('main')
+    element.className = 'shell-unreachable shell-refused-profile'
+    const slot = bannerSlot()
+    element.append(slot)
+    show(element)
+    showBanner(slot, {
+      variant: 'error',
+      heading: fill(strings.profileNameRefused, { name: place.profile }),
+      sentence: strings.profileNameRefusedBody,
+      actions: [
+        {
+          label: strings.useDevProfile,
+          onActivate: () => {
+            location.hash = placeHref({ route: place.route, profile: DEFAULT_PROFILE })
+          },
+        },
+      ],
+    })
+  }
+
   async function render(): Promise<void> {
     const mine = ++generation
     const place = currentPlace()
-    const meta = metas.get(place.profile) ?? (await answered(mine, () => getMeta(place.profile)))
+    const meta = metas.get(place.profile) ?? (await answered(mine, () => getMeta(place.profile).catch(refusedProfile)))
     if (meta === undefined) return
+    if (meta === null) return showRefusedProfile(place)
     metas.set(place.profile, meta)
     let disclosure = meta.disclosure
     let content: Content = { name: 'empty' }

@@ -27,6 +27,18 @@ export const POLL_MS = 2000
 /** This many consecutive missed polls show the reconnecting state (UX-DR13). */
 export const MISSES_TO_RECONNECT = 2
 
+/** The Sessions whose Exit opened on the Play screen in this page load; a reload or a new tab starts with none. */
+const exited = new Set<string>()
+
+/**
+ * Whether Session `sessionId` ended on the Play screen in this page load, so its Completion screen followed the Exit
+ * there; a Completion screen mounted any other way (a reload, a bookmark, history from an earlier page load) is a
+ * reopened one.
+ */
+export function endedOnPlay(sessionId: string): boolean {
+  return exited.has(sessionId)
+}
+
 /** The session as the Play screen's parts share it: the latest state the server sent, and the one way to post. */
 export interface PlaySession {
   readonly id: string
@@ -117,8 +129,9 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * leaves it as it was) refetches `GET /sessions/<id>/room`, one request at a time, and redraws the Wizard notes and
  * the Hotspots from it without a reload: the open Scene, the Inventory and keyboard focus stay (FR-19, AD-12). Once a state
  * shows the Exit puzzle open, its "Solved" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
- * replacing the Play route and its Back guard in the history (`LeaveRoom.exit`); an Exit already open when the screen mounts has no Solved state, so it routes
- * at once.
+ * replacing the Play route and its Back guard in the history (`LeaveRoom.exit`), and the Session counts as ended in
+ * this page load (`endedOnPlay`); an Exit already open when the screen mounts has no Solved state, so it routes at
+ * once, and its Completion screen is a reopened one.
  *
  * A reload mounts the same way from `GET /sessions/<id>` and the Effective room: the first Scene, the Inventory and the open
  * locks, with no welcome once play has begun and nothing announced. A poll that fails, or is still unanswered at the
@@ -267,6 +280,8 @@ export function mountPlay(
   function leaveOnExit(exitId: string, state: SessionState): void {
     if (leaving !== undefined || !state.locks_open.includes(exitId)) return
     const done = placeHref({ route: { name: 'done', sessionId: session.id }, profile: currentPlace().profile })
+    // An Exit already open when the screen mounted ended in an earlier page load: its Completion screen is a reopened one.
+    if (!session.locks_open.includes(exitId)) exited.add(session.id)
     leaving = setTimeout(() => leaveRoom.exit(done), session.locks_open.includes(exitId) ? 0 : OPEN_HOLD_MS)
   }
 

@@ -12,6 +12,7 @@ import {
 } from 'three'
 import type { PlayInteractable, PlayView, PostedEvent } from '../../types'
 import { photoUrl } from '../api/index.ts'
+import { bannerSlot, showBanner } from '../components/error-banner.ts'
 import { feedbackLine } from '../components/feedback-line.ts'
 import { GLOW_MS, GLOW_REDUCED_MS } from '../components/hint-area.ts'
 import { objectCounts, type ThumbnailStrip, thumbnailStrip } from '../components/thumbnail-strip.ts'
@@ -110,6 +111,21 @@ export interface MountedScene {
   say: (line: string) => void
 }
 
+/** The Scene that cannot be drawn: the frame holds the error banner with "Reload" in place of the photo. */
+function sceneUnavailable(frame: HTMLElement, ground: HTMLElement, say: (line: string) => void): MountedScene {
+  frame.classList.remove('is-loading')
+  const slot = bannerSlot()
+  slot.classList.add('scene-unavailable')
+  ground.replaceChildren(slot)
+  showBanner(slot, {
+    variant: 'error',
+    heading: strings.sceneUnavailable,
+    sentence: strings.sceneUnavailableBody,
+    actions: [{ label: strings.reload, onActivate: () => location.reload() }],
+  })
+  return { unmount: () => frame.remove(), reshape: () => {}, lastTarget: () => null, bloom: () => {}, say }
+}
+
 function firstPointerResponse(sessionId: string): void {
   if (responded.has(sessionId)) return
   responded.add(sessionId)
@@ -140,6 +156,10 @@ function firstPointerResponse(sessionId: string): void {
  * `reshape` lays the shown photo's Hotspots again from a refetched `PlayView` when its Interactables changed, keeping
  * the photo, the strip (its object counts redrawn in place) and the selection; keyboard focus on a Hotspot that is still there stays on it. Returns the
  * teardown and `reshape`.
+ *
+ * A browser that cannot start WebGL (hardware acceleration off, or a blocked GPU) has no Scene to draw and no DOM one
+ * to fall back to: the frame holds the error banner "Keyframe can't draw this room in this browser." with how to fix
+ * it and "Reload", which takes focus, so the Play screen never shows a blank frame.
  */
 export function mountScene(
   root: HTMLElement,
@@ -163,7 +183,12 @@ export function mountScene(
   frame.append(ground, feedback.element)
   root.append(frame)
 
-  const renderer = new WebGLRenderer({ antialias: true })
+  let renderer: WebGLRenderer
+  try {
+    renderer = new WebGLRenderer({ antialias: true })
+  } catch {
+    return sceneUnavailable(frame, ground, feedback.say)
+  }
   renderer.setPixelRatio(window.devicePixelRatio)
   const scene = new Scene()
   const camera = new OrthographicCamera()

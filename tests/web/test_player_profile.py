@@ -27,14 +27,18 @@ LOCK_TYPES = ("code", "order", "use_on", "find")
 # Runs one scenario against a fresh import of web/profile: each step is a call, and its answer is printed in order.
 # `fetch` answers `/api/profile/<name>` as the Local-mode route does, from the files `seed` puts there: a GET of no file
 # is 404 (after `lose`, every file is gone by the time a GET reads it), a PUT stores its body and echoes it unless the
-# `open` step names the status the real route gave that body.
-# A `put` is in Local mode unless it names the mode.
+# `open` step names the status the real route gave that body (and any PUT after it), or `fail` made the next PUT a 503.
+# A `put` is in Local mode unless it names the mode, comes from a Session later than every earlier `put`'s unless it
+# names one, and from a Completion screen that followed the Exit in this page load unless it says `true` (reopened); it
+# answers null, or the name of the error it threw.
 RUNNER = """
 import { readFileSync } from 'node:fs'
 const files = new Map()
 const requests = []
-let verdict = 200
+const verdicts = []
 let lost = false
+let sessions = 0
+const nextSession = () => `sess_${String(++sessions).padStart(26, '0')}`
 const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 const refusal = (status, code) => answer(status, { error: { code, message: code, stage: null } })
 globalThis.fetch = async (url, init = {}) => {
@@ -45,8 +49,7 @@ globalThis.fetch = async (url, init = {}) => {
   if (name === '') return refusal(404, 'not_found')
   if (method === 'GET' && lost) files.delete(name)
   if (method === 'GET') return files.has(name) ? answer(200, JSON.parse(files.get(name))) : refusal(404, 'profile_not_found')
-  const status = verdict
-  verdict = 200
+  const status = verdicts.shift() ?? 200
   if (status !== 200) return refusal(status, 'invalid_profile')
   files.set(name, body)
   return answer(200, JSON.parse(body))
@@ -55,12 +58,18 @@ const [profile, derive] = await Promise.all(process.argv.slice(1).map((url) => i
 const answers = []
 const heard = []
 for (const [call, ...args] of JSON.parse(readFileSync(0, 'utf8'))) {
-  if (call === 'put') answers.push(await profile.putResult(args[0], args[1], args[2] ?? 'local') ?? null)
+  if (call === 'put') {
+    const put = profile.putResult(args[0], args[1], args[2] ?? 'local', args[3] ?? nextSession(), args[4] ?? false)
+    answers.push(await put.then(() => null, (error) => error.name))
+  }
   else if (call === 'seed') answers.push(files.set(args[0], args[1]) && null)
   else if (call === 'lose') answers.push((lost = true) && null)
+  else if (call === 'fail') answers.push(verdicts.push(503) && null)
+  else if (call === 'save') answers.push(await profile.saveProfileFile(...args).then(() => null, (error) => error.name))
+  else if (call === 'temporary') answers.push(await profile.profileTemporary(...args))
   else if (call === 'open') {
-    verdict = args[2] ?? 200
-    answers.push(await profile.openProfileFile(args[0], new Blob([args[1]])).then(() => null, (error) => error.status))
+    verdicts.push(...(args.length > 2 ? args.slice(2) : [200]))
+    answers.push(await profile.openProfileFile(args[0], new Blob([args[1]])).then(() => null, (error) => error.status ?? error.name))
   }
   else if (call === 'file') answers.push(await profile.profileFile(...args))
   else if (call === 'results') answers.push(await profile.getResults(...args))
@@ -173,6 +182,41 @@ def test_a_later_result_replaces_the_rooms_stored_one_except_a_demo_result_over_
     assert answers[9] == [replay, result(2, [puzzle(4)])]
     assert answers[10]["sessions"] == 2
     assert heard == [1, 1, 2, 2, 2]  # the ignored demo result records nothing
+
+
+SESSION_1, SESSION_2 = (f"sess_01M61TZ74F0FP3X9HHTMXGTP{n}0" for n in (1, 2))
+
+
+@needs_node
+def test_a_completion_is_recorded_once_per_session():
+    first, other = FIXTURE[0], result(1, [puzzle(1, rungs=3)])
+    answers, heard = _run([
+        ["watch", "dev"], ["put", "dev", first, "local", SESSION_1],
+        # The same Session's Done page mounted again, even with another result for its Room, records nothing.
+        ["put", "dev", first, "local", SESSION_1], ["put", "dev", other, "local", SESSION_1], ["results", "dev"],
+    ])
+    assert answers[4] == [first] and heard == [1]
+
+
+@needs_node
+def test_reopening_an_older_sessions_done_page_never_overwrites_a_newer_result():
+    older, newer = result(1, [puzzle(1, rungs=3)]), result(1, [puzzle(1, rungs=0)], elapsed_ms=200000)
+    answers, heard = _run([
+        ["watch", "dev"], ["put", "dev", older, "local", SESSION_1], ["put", "dev", newer, "local", SESSION_2],
+        ["put", "dev", older, "local", SESSION_1], ["results", "dev"], ["derived", "dev"],
+    ])
+    assert answers[4] == [newer] and answers[5] == _derive([newer])
+    assert heard == [1, 1]  # the reopened older page recorded nothing
+
+
+@needs_node
+def test_a_reopened_done_page_fills_an_empty_room_and_follows_the_session_order_of_this_page_load():
+    older, newer = result(1, [puzzle(1, rungs=3)]), result(1, [puzzle(1, rungs=0)], elapsed_ms=200000)
+    answers, heard = _run([
+        ["watch", "dev"], ["put", "dev", older, "local", SESSION_1, True], ["put", "dev", newer, "local", SESSION_2, True],
+        ["put", "dev", older, "local", SESSION_1, True], ["results", "dev"],
+    ])
+    assert answers[4] == [newer] and heard == [1, 1]
 
 
 @needs_node
@@ -330,8 +374,8 @@ def test_web_profile_is_the_only_writer_and_others_read_through_its_exports():
             users[path] = sorted(imported.group(1).split(", "))
     assert users == {
         "web/src/build-progress.ts": ["sessionStart"],
-        "web/src/capture.ts": ["CUT_2", "openProfileFile"],
-        "web/src/completion.ts": ["CUT_2", "profileFile", "putResult"],
+        "web/src/capture.ts": ["CUT_2", "FileNotSaved", "openProfileFile", "saveProfileFile"],
+        "web/src/completion.ts": ["CUT_2", "profileFile", "profileTemporary", "putResult", "saveProfileFile"],
         "web/src/play.ts": ["sessionStart"],
         "web/src/shell.ts": ["getResults", "watchResults"],
         "web/src/stored-rooms.ts": ["sessionStart"],
@@ -342,7 +386,7 @@ def test_the_completion_screen_records_the_returned_result_once_and_nothing_whil
     load = _function(_code("completion.ts"), "load")
     failed, returned = load.split("} catch (error) {", 1)[1].split("\n    }\n", 1)
     assert "putResult" not in failed and "retry = setTimeout(() => void load(), RESULT_RETRY_MS)" in failed
-    assert returned.count("putResult(") == 1 and "const recorded = putResult(profile, result, mode)" in returned
+    assert returned.count("putResult(") == 1 and "const recorded = putResult(profile, result, mode, session.id, !endedOnPlay(session.id))" in returned
     assert returned.index("if (!mounted) return") < returned.index("putResult(") < returned.index("show(result)")
 
 
@@ -353,7 +397,8 @@ def test_leaving_the_room_records_nothing():
 
 def test_no_surface_offers_a_profile_viewer_export_or_delete_control_beyond_cut_2s_open_and_save():
     profile_lines = {key for key, value in _strings().items() if "profile" in value.lower()}
-    assert profile_lines == {"modeProfile", "privacyLine", "openProfileFile", "saveProfileFile", "profileFileLine", "profileFileRefused"}
+    assert profile_lines == {"modeProfile", "privacyLine", "openProfileFile", "saveProfileFile", "profileFileLine", "profileFileRefused",
+                             "profileNotSaved", "profileNameRefused", "profileNameRefusedBody", "useDevProfile"}
     # Cut 2's "Open profile file" and "Save profile file" are the only profile controls, in their component and the
     # web/profile exports behind them; nothing anywhere views, exports, deletes, clears or resets the profile.
     cut_2 = {"web/src/components/profile-file.ts", "web/src/profile/index.ts", "web/src/capture.ts", "web/src/completion.ts",
@@ -364,8 +409,9 @@ def test_no_surface_offers_a_profile_viewer_export_or_delete_control_beyond_cut_
         if path not in cut_2:
             assert not re.search(r"(open|save)\w*\W{0,3}(the\W)?(player\W)?profile", code, re.IGNORECASE), path
     exports = re.findall(r"^export (?:async )?(?:function|interface) (\w+)", (PROFILE / "index.ts").read_text(), re.MULTILINE)
-    assert exports == ["ProfileStorage", "memoryStorage", "getResults", "getDerived", "putResult", "openProfileFile",
-                       "profileFile", "watchResults", "sessionStart"]
+    assert exports == ["ProfileStorage", "memoryStorage", "getResults", "getDerived", "profileTemporary", "putResult",
+                       "openProfileFile", "saveProfileFile", "profileFile", "watchResults", "sessionStart"]
+    assert "export { FileNotSaved } from './file.ts'" in (PROFILE / "index.ts").read_text()
 
 
 def test_the_storage_interface_is_get_results_and_put_result_with_an_in_memory_backend():
@@ -373,11 +419,13 @@ def test_the_storage_interface_is_get_results_and_put_result_with_an_in_memory_b
     interface = profile.split("export interface ProfileStorage {", 1)[1].split("\n}", 1)[0]
     assert [line.strip() for line in interface.strip().splitlines()] == [
         "getResults(): Promise<RoomResult[]>", "putResult(result: RoomResult): Promise<void>"]
-    # Cut 2 puts its file backend behind the same interface; without it a browser opens the profile's IndexedDB
-    # database (5.2), and memory stands where there is no IndexedDB, as under Node here.
-    assert ("const file = CUT_2 ? fileStorage(name) : null\n    const storage = file ?? (typeof indexedDB === 'undefined'"
-            " ? memoryStorage() : indexedDbStorage(name))") in profile
-    assert "export interface FileStorage extends ProfileStorage {" in _code("profile/file.ts")
+    # Cut 2 keeps the Room results in the page behind the same interface until the player opens the file; without it a
+    # browser opens the profile's IndexedDB database (5.2), and memory stands where there is no IndexedDB, as under
+    # Node here, or where it fails.
+    assert "const file = CUT_2 ? fileStorage(name) : null" in profile
+    assert "const storage = CUT_2 ? memoryStorage() : browserStorage(name)" in profile
+    assert "return typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name)" in profile
+    assert "export interface FileStorage {" in _code("profile/file.ts")
     assert "results.set(result.room_id, result)" in _function(profile, "memoryStorage")
 
 

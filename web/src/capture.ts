@@ -11,7 +11,7 @@ import { photoTray } from './components/photo-tray.ts'
 import { openProfileControl } from './components/profile-file.ts'
 import { retentionSummary } from './components/retention-summary.ts'
 import { downscale, isJpeg, isValidSet } from './photos.ts'
-import { CUT_2, openProfileFile } from './profile/index.ts'
+import { CUT_2, openProfileFile, FileNotSaved, saveProfileFile } from './profile/index.ts'
 import { captureHref } from './router.ts'
 import { roomStarter, storedRooms } from './stored-rooms.ts'
 import { strings } from './strings.ts'
@@ -58,21 +58,26 @@ function release(photos: readonly ChosenPhoto[]): void {
  * Cut 2, Local mode only (Hosted mode has no profile route): "Open profile file" for the Retention summary. The chosen
  * file becomes the profile through web/profile, and the mode indicator hears its count at once; a refused file leaves
  * the profile as it was and shows the error banner in `banners`, which takes focus and offers "Open profile file"
- * again. null without cut 2 or in Hosted mode.
+ * again. A file merged with this page's Room results that then failed to save shows the warning "Progress is still
+ * here, but the profile file wasn't saved. Try again." with "Try again", which writes it again and clears the banner
+ * once it is written. null without cut 2 or in Hosted mode.
  */
 function openProfile(profile: string, mode: Meta['mode'], banners: HTMLElement): HTMLElement | null {
   if (!CUT_2 || mode !== 'local') return null
   let refusal: HTMLElement | null = null
+  const cleared = (): void => {
+    if (refusal?.isConnected) showBanner(banners, null)
+  }
+  const notSaved = (): void => {
+    const action = { label: strings.tryAgain, onActivate: () => void saveProfileFile(profile).then(cleared, () => {}) }
+    refusal = showBanner(banners, { variant: 'warning', heading: strings.profileNotSaved, actions: [action] })
+  }
   const control = openProfileControl((file) => {
-    void openProfileFile(profile, file).then(
-      () => {
-        if (refusal?.isConnected) showBanner(banners, null)
-      },
-      () => {
-        const action = { label: strings.openProfileFile, onActivate: control.choose }
-        refusal = showBanner(banners, { variant: 'error', heading: strings.profileFileRefused, actions: [action] })
-      },
-    )
+    void openProfileFile(profile, file).then(cleared, (error: unknown) => {
+      if (error instanceof FileNotSaved) return notSaved()
+      const action = { label: strings.openProfileFile, onActivate: control.choose }
+      refusal = showBanner(banners, { variant: 'error', heading: strings.profileFileRefused, actions: [action] })
+    })
   })
   return control.element
 }

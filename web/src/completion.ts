@@ -12,8 +12,8 @@ import { saveProfileControl } from './components/profile-file.ts'
 import { formatElapsed } from './components/timer.ts'
 import { motionMs } from './fade.ts'
 import { announce } from './live-region.ts'
-import { mountPlayBehind } from './play.ts'
-import { CUT_2, profileFile, putResult } from './profile/index.ts'
+import { endedOnPlay, mountPlayBehind } from './play.ts'
+import { CUT_2, profileFile, profileTemporary, putResult, saveProfileFile } from './profile/index.ts'
 import { placeHref } from './router.ts'
 import { type RoomGone, roomGone, showRoomGone } from './room-gone.ts'
 import { solvedTargets } from './scene/index.ts'
@@ -151,14 +151,21 @@ async function roomJob(session: SessionState): Promise<string | null> {
  * result arrives (instant under reduced motion), the filmstrip of the Room's photos with each solved object's outline
  * lit, the "Time per puzzle" table and "Built by" over the four wizards' 32 px portraits and names.
  * Until the result returns the stats show as pending; while the request fails a plain line says so and it is asked
- * again every 2000 ms, nothing recorded. The returned `RoomResult` is put into the `profile` once (web/profile keys it
- * by `room_id`, so a reload of this route records nothing new). "Build another room", the one primary action, goes to `#/` and is there from the start;
+ * again every 2000 ms, nothing recorded. The returned `RoomResult` is put into the `profile` once per Session (web/profile
+ * keys it by `room_id` and remembers the Session, so mounting this route again records nothing new, and reopening an
+ * older Session's Completion screen never replaces a newer result). A Completion screen that did not follow the Exit
+ * on the Play screen in this page load (a reload, a bookmark, history) is a reopened one: its result fills a Room the
+ * profile lacks but never replaces a stored or opened one. "Build another room", the one primary action, goes to `#/`
+ * and is there from the start;
  * "Copy your result" (secondary) follows it once the result and the Room's title are known, copying one line of the
  * stats and the site's address with no route ("Keyframe - {room} - 4 locks - 3:28 - 2 hints - 0 wrong - {url}", no
  * solution text) and confirming under the actions and in the live region; "How this room was built" (secondary)
  * joins them once the Room's job is known, opening its Build view, and is absent under cut 0. Under cut 2 in Local
  * mode, once the result is recorded, "Save profile file" (secondary) follows them,
- * downloading the profile with that result, its plain line below the actions; a refused record offers no download.
+ * downloading the profile with that result, its plain line below the actions. Under the actions a plain line says
+ * when the result is not safely kept: a profile file the player opened that failed to save ("Progress is still here,
+ * but the profile file wasn't saved. Try again.", with "Try again", which writes it again and clears the line once it
+ * succeeds), or a browser that refused its storage, so the profile lasts only as long as the page.
  * The heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}".
  * A session state whose `judge_room` the server set (a Hosted Judge room, never a Demo or Local room) adds the
  * "Deleted Tue Nov 10" deletion line directly below the sheet, on the scrim, off the paper; the client never infers it.
@@ -254,9 +261,12 @@ export function mountCompletion(
   actions.append(buildAnother, copy)
   const copied = document.createElement('p')
   copied.className = 'completion-copied body-sm'
+  const kept = document.createElement('div')
+  kept.className = 'completion-kept'
+  kept.hidden = true
   const wizards = builtBy()
 
-  sheet.append(heading, signature, stats, filmstrip, times, wizards, failed, actions, copied)
+  sheet.append(heading, signature, stats, filmstrip, times, wizards, failed, actions, copied, kept)
   scrim.append(sheet)
   if (session.judge_room === true) scrim.append(deletionLine())
   body.append(scrim)
@@ -322,11 +332,42 @@ export function mountCompletion(
       return
     }
     if (!mounted) return
-    const recorded = putResult(profile, result, mode)
+    const recorded = putResult(profile, result, mode, session.id, !endedOnPlay(session.id))
     show(result)
     loaded = result
     offerCopy()
-    void recorded.then(offerSave, () => {}) // a refused record leaves the profile as it was, with nothing to save
+    // A failed save still leaves the result recorded in the page, so it can be downloaded and written again.
+    void recorded.then(
+      async () => {
+        offerSave()
+        if (await profileTemporary(profile)) note(strings.progressTemporary)
+      },
+      () => {
+        offerSave()
+        note(strings.profileNotSaved, { label: strings.tryAgain, onActivate: () => void saveAgain() })
+      },
+    )
+  }
+
+  /** The plain line under the actions about where the result is kept, with its one action, if any. */
+  function note(text: string, action?: { label: string; onActivate: () => void }): void {
+    if (!mounted) return
+    const line = document.createElement('p')
+    line.className = 'completion-kept-line body-sm'
+    line.textContent = text
+    const retry = action === undefined ? [] : [secondaryButton({ ...action, onParchment: true })]
+    kept.replaceChildren(line, ...retry)
+    kept.hidden = false
+  }
+
+  /** "Try again" on a failed save: writes the profile file again, clearing the line once it is written. */
+  async function saveAgain(): Promise<void> {
+    try {
+      await saveProfileFile(profile)
+    } catch {
+      return
+    }
+    if (mounted) kept.hidden = true
   }
 
   /** Cut 2, Local mode: "Save profile file" after the actions, its plain line under them (after any copied line). */

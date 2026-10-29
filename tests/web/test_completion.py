@@ -75,6 +75,9 @@ def test_the_play_screen_routes_to_done_when_the_exit_puzzles_open_state_ends():
     # The Exit's Open chip holds as long as every lock's (UX-DR38); an Exit open at mount has no Open state to wait for.
     # The route replaces the Play route and its Back guard (test_leave_room), so Back leaves the Completion screen.
     assert "setTimeout(() => leaveRoom.exit(done), session.locks_open.includes(exitId) ? 0 : OPEN_HOLD_MS)" in leave
+    # Only an Exit that opened on this screen ends the Session in this page load; one open at mount ended earlier.
+    assert "if (!session.locks_open.includes(exitId)) exited.add(session.id)" in leave
+    assert "const exited = new Set<string>()" in play and "return exited.has(sessionId)" in _function(play, "endedOnPlay")
     assert "clearTimeout(leaving)" in play
 
 
@@ -88,12 +91,13 @@ def test_the_done_route_draws_the_completion_screen_from_the_session_state():
 
 def test_build_another_room_is_the_one_primary_action_and_goes_home_with_the_profile():
     completion = _code("completion.ts")
-    assert completion.count("primaryButton(") == 1 and completion.count("secondaryButton(") == 1  # "Copy your result"
+    # "Copy your result", and "Try again" on a profile file that failed to save.
+    assert completion.count("primaryButton(") == 1 and completion.count("secondaryButton(") == 2
     assert "label: strings.buildAnotherRoom" in completion
     assert "location.hash = placeHref({ route: { name: 'home' }, profile })" in completion
     # Present from the start, before and whatever the result request does.
     mount = _function(completion, "mountCompletion")
-    assert mount.index("sheet.append(heading, signature, stats, filmstrip, times, wizards, failed, actions, copied)") < mount.index("void load()")
+    assert mount.index("sheet.append(heading, signature, stats, filmstrip, times, wizards, failed, actions, copied, kept)") < mount.index("void load()")
 
 
 # --- The sheet --------------------------------------------------------------------------------------------------------
@@ -187,7 +191,7 @@ def test_the_heading_takes_focus_and_the_sign_off_is_announced_once():
     show = _function(completion, "show")
     assert show.count("announce(") == 1 and "announce(`${strings.speakerGuide} ${said}`)" in show
     load = _function(completion, "load")
-    assert "if (!mounted) return\n    const recorded = putResult(profile, result, mode)\n    show(result)" in load
+    assert "if (!mounted) return\n    const recorded = putResult(profile, result, mode, session.id, !endedOnPlay(session.id))\n    show(result)" in load
     assert load.count("show(") == 1  # drawn, and announced, once it returns
     # One polite live region for the page, outside #app so no route change replaces it.
     regions = [path for path, text in source_ts().items() if "aria-live" in text]
@@ -341,3 +345,31 @@ def test_copy_your_result_copies_one_line_and_confirms_in_the_live_region():
     assert "copied.scrollIntoView({ block: 'nearest' })" in copy  # in view even where the scrim scrolls
     assert "url: location.origin + location.pathname" in completion
     assert "room: view.name || buildTime(view.created)" in completion
+
+
+# --- Where the result is kept (decision record Oct 29, items 27 and 54) ----------------------------------------------
+
+
+def test_the_result_is_recorded_once_per_session_and_a_failed_save_or_temporary_profile_says_so():
+    completion = _code("completion.ts")
+    load = _function(completion, "load")
+    # The Session is the completion's identity: web/profile records it once, and never an older one over a newer one.
+    # A Completion screen that did not follow the Exit on the Play screen in this page load is a reopened one.
+    assert "putResult(profile, result, mode, session.id, !endedOnPlay(session.id))" in load
+    assert "import { endedOnPlay, mountPlayBehind } from './play.ts'" in completion
+    kept = load.split("void recorded.then(", 1)[1]
+    succeeded, failed = kept.split("\n      () => {\n", 1)
+    assert "offerSave()" in succeeded and "if (await profileTemporary(profile)) note(strings.progressTemporary)" in succeeded
+    assert "offerSave()" in failed  # the result is still in the page, so it can still be downloaded
+    assert "note(strings.profileNotSaved, { label: strings.tryAgain, onActivate: () => void saveAgain() })" in failed
+    again = _function(completion, "saveAgain")
+    assert "await saveProfileFile(profile)" in again and "if (mounted) kept.hidden = true" in again
+    note = _function(completion, "note")
+    assert "line.className = 'completion-kept-line body-sm'" in note
+    assert "secondaryButton({ ...action, onParchment: true })" in note and "kept.hidden = false" in note
+    assert "sheet.append(heading, signature, stats, filmstrip, times, wizards, failed, actions, copied, kept)" in completion
+    rules = css_rules((WEB_SRC / "completion.css").read_text())
+    assert rules[".completion-kept-line"]["color"] == "var(--ink)"  # ink on parchment, as the copied line
+    strings = _strings()
+    assert strings["profileNotSaved"] == "Progress is still here, but the profile file wasn't saved. Try again."
+    assert strings["progressTemporary"] == "This browser won't keep your progress, so it lasts until you close this page."

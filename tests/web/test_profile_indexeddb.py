@@ -47,7 +47,7 @@ async function visit(steps) {
   const answers = []
   const heard = []
   for (const [call, ...args] of steps) {
-    if (call === 'put') answers.push(await profile.putResult(...args) ?? null)
+    if (call === 'put') answers.push(await profile.putResult(args[0], args[1], args[2], `sess_${String(answers.length).padStart(26, '0')}`, false) ?? null)
     else if (call === 'results') answers.push(await profile.getResults(...args))
     else if (call === 'derived') answers.push(await profile.getDerived(...args))
     else if (call === 'start') answers.push(await profile.sessionStart(...args))
@@ -265,12 +265,89 @@ def test_a_database_that_will_not_open_leaves_the_profile_playing_in_memory(refu
     assert visit["databases"] == {}  # nothing persisted
 
 
+# --- A database that fails: play goes on in memory, and says so --------------------------------------------------------
+
+# web/profile as it ships with cut 2 not taken, run in Node against an IndexedDB that fails one way: its global throws
+# when read (a browser blocking site data), its open throws (Firefox), or it opens and then refuses the write (a full
+# disk). Each step answers in order, as 5.1's runner does.
+FAILING = r"""
+import { readFileSync } from 'node:fs'
+const failure = process.argv[2]
+const later = (step) => setTimeout(step)
+const database = {
+  transaction() {
+    const transaction = { error: new DOMException('The disk is full', 'QuotaExceededError') }
+    transaction.objectStore = () => ({
+      getAll() { later(() => transaction.oncomplete()); return { result: [] } },
+      put() { later(() => (failure === 'put' ? transaction.onabort() : transaction.oncomplete())); return { result: null } },
+    })
+    return transaction
+  },
+}
+const factory = {
+  open() {
+    if (failure === 'open') throw new DOMException('The operation is insecure.', 'SecurityError')
+    const request = {}
+    later(() => { request.result = database; request.onsuccess() })
+    return request
+  },
+}
+if (failure === 'global') Object.defineProperty(globalThis, 'indexedDB', { get() { throw new DOMException('denied', 'SecurityError') } })
+else globalThis.indexedDB = factory
+const profile = await import(process.argv[1])
+const answers = []
+const heard = []
+let session = 0
+for (const [call, ...args] of JSON.parse(readFileSync(0, 'utf8'))) {
+  if (call === 'put') answers.push(await profile.putResult(args[0], args[1], 'local', `sess_${String(++session).padStart(26, '0')}`, false) ?? null)
+  else if (call === 'results') answers.push(await profile.getResults(...args))
+  else if (call === 'temporary') answers.push(await profile.profileTemporary(...args))
+  else if (call === 'start') answers.push(await profile.sessionStart(...args))
+  else if (call === 'watch') answers.push(profile.watchResults(args[0], (results) => heard.push(results.length)) && null)
+}
+process.stdout.write(JSON.stringify({ answers, heard }))
+"""
+
+
+def _run_failing(failure: str, steps: Steps, tmp_path: Any) -> dict[str, Any]:
+    """`steps` against web/profile without cut 2, copied as it ships with only `CUT_2` set to false."""
+    for name in ("profile/index.ts", "profile/derive.ts", "profile/file.ts", "api/index.ts"):
+        (tmp_path / "src" / name).parent.mkdir(parents=True, exist_ok=True)
+        text = (WEB_SRC / name).read_text()
+        (tmp_path / "src" / name).write_text(text.replace("export const CUT_2: boolean = true", "export const CUT_2: boolean = false"))
+    out = subprocess.run(
+        ["node", "--input-type=module", "-e", FAILING, (tmp_path / "src/profile/index.ts").as_uri(), failure],
+        input=json.dumps(steps), cwd=REPO, capture_output=True, text=True, check=True,
+    )
+    return json.loads(out.stdout)
+
+
+@behavior.needs_node
+@pytest.mark.parametrize("failure", ["global", "open", "put"])
+def test_a_failing_database_keeps_play_going_in_memory_with_its_temporary_notice(failure: str, tmp_path: Any):
+    room = room_id(7)
+    out = _run_failing(failure, [["temporary", "dev"], ["watch", "dev"], ["put", "dev", FIXTURE[0]], ["results", "dev"],
+                                 ["temporary", "dev"], ["start", room, "dev", "local"], ["put", "dev", FIXTURE[1]],
+                                 ["results", "dev"]], tmp_path)
+    answers = out["answers"]
+    assert answers[0] is (failure != "put")  # a database that opened is not temporary until a write fails
+    assert answers[3] == [FIXTURE[0]] and answers[4] is True  # the result is kept, and the notice can say so
+    assert answers[5]["derived"]["sessions"] == 1 and answers[7] == FIXTURE
+    assert out["heard"] == [1, 2]
+
+
+@behavior.needs_node
+def test_a_working_database_is_not_temporary(tmp_path: Any):
+    out = _run_failing("none", [["put", "dev", FIXTURE[0]], ["temporary", "dev"]], tmp_path)
+    assert out["answers"] == [None, False]
+
+
 # --- The wiring -------------------------------------------------------------------------------------------------------
 
 
 def test_the_database_is_named_by_the_profile_and_opened_only_by_web_profile():
     profile = _code((PROFILE / "index.ts").read_text())
-    assert "const storage = file ?? (typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name))" in profile
+    assert "return typeof indexedDB === 'undefined' ? memoryStorage() : indexedDbStorage(name)" in profile
     assert "indexedDB.open(name, 1)" in profile
     assert "createObjectStore(RESULTS, { keyPath: 'room_id' })" in profile
     assert "store.put(result)" in profile and "store.getAll()" in profile
