@@ -9,7 +9,7 @@ import { evidenceCard } from './evidence-card.ts'
 import { rungLabel } from './hint-area.ts'
 import { type OrderProgress, orderProgress } from './order-progress.ts'
 
-/** UX-DR38: a lock the server opened shows "Open" this long before its entry collapses and the next one appears. */
+/** UX-DR38: a lock the server opened shows "Solved" this long before its entry collapses and the next one appears. */
 export const OPEN_HOLD_MS = 1200
 
 export interface WizardNotes {
@@ -26,7 +26,7 @@ interface Entry {
   element: HTMLElement
   heading: HTMLHeadingElement
   update: (state: SessionState) => void
-  /** The lock just opened: the lock input gives way to the Open chip while the entry stays expanded. */
+  /** The lock just opened: the lock input gives way to the Solved chip while the entry stays expanded. */
   opening: () => void
   /** Draws the entry's opened Rungs from all the opened Rungs of the Room. */
   rungs: (lines: readonly RungChangeEvent[]) => void
@@ -81,7 +81,7 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
   count.className = 'notes-count label'
   const opened = document.createElement('span')
   opened.className = 'chip chip-open label'
-  opened.textContent = strings.open
+  opened.textContent = strings.solved
   head.append(title, count, opened)
 
   const body = document.createElement('div')
@@ -128,7 +128,7 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
     else if (wrong.parentNode !== lock) lock.append(wrong)
   }
 
-  /** The lock just opened: the Open chip fades in where the lock input stood, lifted on the paper shadow. */
+  /** The lock just opened: the Solved chip fades in where the lock input stood, lifted on the paper shadow. */
   function opening(): void {
     const chip = opened.cloneNode(true) as HTMLElement
     chip.hidden = false
@@ -191,7 +191,7 @@ function waitingLine(n: number): HTMLParagraphElement {
  * `rung_changes[]` carries it) and the lock-input slot (the Code field of a `code` Puzzle, the Order click progress
  * of an `order` one, else the Not this chip a `use_on` verdict shows). The Active puzzle's entry carries the
  * `{components.active-puzzle-marker}`, read from `active_puzzle_id` and never guessed; an open entry collapses to its
- * heading with the Open chip. When a state shows a lock newly open, "Open" takes the lock input's place for 1200 ms
+ * heading with the Solved chip. When a state shows a lock newly open, "Solved" takes the lock input's place for 1200 ms
  * (UX-DR38), fading in lifted on the paper shadow (the unlock moment; the Scene and the Hint area play their parts
  * from lock-opened.ts), then the notes draw the latest state: the entry collapses, newly available entries fade in,
  * and focus moves to the heading of the first of them, else of the Active puzzle. Everything follows session state;

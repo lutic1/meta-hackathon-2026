@@ -6,9 +6,10 @@
 // the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory,
 // the Wizard notes and the Hint area take their component names as their accessible names. A `{name}` placeholder stands where
 // the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
-// Component Patterns, names its placeholders as that row does. The live-region lines for lock outcomes and Cards are
-// worded only in the Accessibility Floor, and the Narrow-screen message's lines only in Responsive & Platform. The Guide's
-// unlock asides and the Wrong attempt line are client-side presentation (lock-opened.ts): never a Rung, never logged.
+// Component Patterns, names its placeholders as that row does. The live-region lines for Cards are worded only in the
+// Accessibility Floor, and the Narrow-screen message's lines only in Responsive & Platform. The feedback line's lines
+// (feedback.ts) are chosen per reply and written once to the live region. The Guide's unlock asides are client-side
+// presentation (lock-opened.ts): never a Rung, never logged.
 // The Leave room confirmation's one line is its heading (the question) over its sentence. The Triggers header is its Voice and
 // Tone line split after "idle", where the threshold's 1× value goes at a Demo timescale above 1, as in "Nudge after
 // 15 s idle (90 s at 1×) …". The cut-2 controls and their line are worded only in the Information Architecture's
@@ -72,7 +73,7 @@ export const strings = {
   evidenceCard: '1 evidence card',
   puzzleWaits: 'Puzzle {n} now waits on another puzzle.',
   notThis: 'Not this · {n}',
-  open: 'Open',
+  solved: 'Solved',
   codeFor: 'Code for Puzzle {n}',
   submit: 'Submit',
   checking: 'Checking',
@@ -199,13 +200,14 @@ export const strings = {
   showAllObjects: 'Show all objects',
   showAllTip: "Tip: 'Show all objects' in the top bar outlines everything you can click.",
   lockNotThis: 'Puzzle {n}: not this, {count}.',
-  lockOpen: 'Puzzle {n}: open.',
+  lockSolved: 'Puzzle {n} solved.',
+  pickUp: 'You pick up the {label}.',
+  notThisOne: '{label}. Not this one.',
+  wayOut: 'The way out is open.',
   asideFind: 'That was the latch.',
   asideCode: 'Right on the number.',
   asideOrder: 'Each in its turn. The room approves.',
   asideUseOn: 'The right thing in the right place.',
-  asideExit: 'The way out is open.',
-  notThatOne: 'Not that one. The room is patient.',
   reconnectingPlay: "Reconnecting to Keyframe. Your progress is safe; play resumes when it's back.",
   sessionGone: 'This play-through has ended. Start the room again.',
   startAgain: 'Start again',

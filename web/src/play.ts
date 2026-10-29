@@ -8,9 +8,9 @@ import { playEnded } from './components/play-ended.ts'
 import { statusStrip } from './components/status-strip.ts'
 import { triggersPanel } from './components/triggers-panel.ts'
 import { OPEN_HOLD_MS, wizardNotes } from './components/wizard-notes.ts'
+import { feedbackFor } from './feedback.ts'
 import { mountLeaveRoom } from './leave-room.ts'
 import { lockOpened } from './lock-opened.ts'
-import { lockOutcomes } from './lock-outcomes.ts'
 import { announce } from './live-region.ts'
 import { sessionStart } from './profile/index.ts'
 import { currentPlace, placeHref } from './router.ts'
@@ -99,10 +99,12 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * a Greeting still being phrased (`opening_line.text` null) shows the Guide thinking until a polled state brings its
  * line. "Begin" keeps the line as the first Guide line of the Hint area, pinned under the Wizard notes, and moves
  * focus to the first Hotspot. The top bar's "Show all objects" toggle outlines every Hotspot while pressed, across
- * Scene changes, and lock outcomes are announced in the live region. A state that shows a lock newly open plays the
- * unlock moment (`lockOpened`): the solved Hotspot blooms and the Scene frame glows once, the Open chip lifts in and
- * the Guide speaks one aside for the lock type in the Hint area; a Wrong attempt glows the Guide's ring once with its
- * line. A reload plays none of it for locks already open. The Triggers toggle under the hint controls shows why each Rung
+ * Scene changes. Each reply to a posted input reads one feedback line (`feedbackFor`, against the state it was sent
+ * against), shown over the bottom edge of the Scene frame and written once to the live region as the Guide's: a click
+ * that opens nothing, a pickup, a solved lock, the way out or a Wrong attempt. A state that shows a lock newly open
+ * plays the unlock moment (`lockOpened`): the solved Hotspot blooms and the Scene frame glows once, the Solved chip
+ * lifts in and the Guide speaks one aside for the lock type in the Hint area. A reload plays none of it for locks
+ * already open. The Triggers toggle under the hint controls shows why each Rung
  * arrived, its panel opening by itself once a row exists while a Disclosure is active. "Leave room" beside it, or
  * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
  * confirming goes to `#/` in place of the Play route (`LeaveRoom.exit`, so Back never resumes the play-through) and
@@ -114,8 +116,8 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * `room_revision` differs from the revision of the room last fetched (an accepted edit; a rejected or skipped Card
  * leaves it as it was) refetches `GET /sessions/<id>/room`, one request at a time, and redraws the Wizard notes and
  * the Hotspots from it without a reload: the open Scene, the Inventory and keyboard focus stay (FR-19, AD-12). Once a state
- * shows the Exit puzzle open, its "Open" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
- * replacing the Play route and its Back guard in the history (`LeaveRoom.exit`); an Exit already open when the screen mounts has no Open state, so it routes
+ * shows the Exit puzzle open, its "Solved" state (OPEN_HOLD_MS) ends and the client routes to `#/done/<session_id>`,
+ * replacing the Play route and its Back guard in the history (`LeaveRoom.exit`); an Exit already open when the screen mounts has no Solved state, so it routes
  * at once.
  *
  * A reload mounts the same way from `GET /sessions/<id>` and the Effective room: the first Scene, the Inventory and the open
@@ -138,6 +140,8 @@ export function mountPlay(
   let latest = session
   let replies = 0
   const parts: ((state: SessionState) => void)[] = []
+  /** Shows and announces the feedback line for one reply, once the Effective room is known. */
+  let feedback: ((body: PostedEvent, before: SessionState, reply: SessionState) => void) | undefined
   /** The Scene frame and its reconnecting strip or ended state; the frame takes what the strip leaves. */
   const stage = document.createElement('div')
   stage.className = 'scene-stage'
@@ -184,9 +188,11 @@ export function mountPlay(
     roomId: session.room_id,
     state: () => latest,
     post: async (body) => {
+      const before = latest
       const reply = await postEvent(session.id, body)
       replies += 1
       receive(reply)
+      feedback?.(body, before, reply)
       return reply
     },
     onState: (render) => {
@@ -291,6 +297,14 @@ export function mountPlay(
       if (!mounted) return
       const held = inventory(view, play.useOn)
       const notes = wizardNotes(view, play)
+      /** The Effective room last fetched: the labels the feedback line names, a Decoy's included. */
+      let shown = view
+      feedback = (body, before, reply) => {
+        const line = feedbackFor(shown, body, before, reply)
+        if (!mounted || ended || line === null) return
+        scene.say(line)
+        announce(`${strings.speakerGuide} ${line}`)
+      }
       /** Refetches the Effective room when `state` names another revision, then redraws the notes and Hotspots. */
       const refetchRoom = async (state: SessionState): Promise<void> => {
         if (refetching || state.room_revision === fetchedRevision) return
@@ -299,6 +313,7 @@ export function mountPlay(
           const next = await getEffectiveRoom(session.id)
           if (!mounted || ended) return
           fetchedRevision = state.room_revision
+          shown = next
           scene.reshape(next)
           notes.reshape(next)
         } catch {
@@ -310,7 +325,7 @@ export function mountPlay(
       }
       stripRow.append(held.element)
       sideColumn.append(notes.element)
-      parts.push(held.render, notes.render, lockOutcomes(view, latest))
+      parts.push(held.render, notes.render)
       held.render(latest)
       notes.render(latest)
       hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open, () => triggers.reveal())

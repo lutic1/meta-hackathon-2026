@@ -71,8 +71,6 @@ export interface HintArea {
   triggersOpen: (open: boolean) => void
   /** The Guide's unlock aside (lock-opened.ts): a Guide line in the Rung line's place, no label, no glow. */
   aside: (line: string) => void
-  /** The Guide's Wrong attempt line, with the arrival glow on the ring and the tray: once per attempt. */
-  notThat: () => void
 }
 
 function paragraph(className: string): HTMLParagraphElement {
@@ -107,15 +105,15 @@ function paragraph(className: string): HTMLParagraphElement {
  * Rungs, through `onOpened`; a Rung a Loosen card opened shows there at once as well. The first state is only read:
  * the latest `rung_change`, else the opening line, is drawn without a fade, a glow or an announcement, so a reload
  * rebuilds the Rungs and re-announces nothing. The Guide's asides of the unlock moment (lock-opened.ts) show the same
- * way as the opening line, with no label and no announcement (the lock outcome already is one): the unlock aside with
- * no glow, the Scene frame carrying that light, and the Wrong attempt line with the arrival glow, once per attempt;
- * the Rung line they replace keeps its place in its Puzzle's opened Rungs, and the next Rung line replaces them.
+ * way as the opening line, with no label, no glow (the Scene frame carries that light) and no announcement (the
+ * feedback line already is one); the Rung line it replaces keeps its place in its Puzzle's opened Rungs, and the next
+ * Rung line replaces it.
  *
  * Trickster cards (FR-19, UX-DR40 to UX-DR42) stack above the Rung line, newest on top: at most `CARDS_STACKED`, only
  * the newest while the Triggers panel is open, the rest behind the link "{n} more in the Card log", which opens the
  * Card log through `openCardLog` (focus returns to it when the log closes). Each new entry of the
  * state's `cards[]` (the `TricksterCard` projection) enters with a 200 ms fade once the lock-open state has played out
- * (the Open chip's `OPEN_HOLD_MS`, then the entry collapse and the next Puzzle's fade-in; a collected item's fade-in
+ * (the Solved chip's `OPEN_HOLD_MS`, then the entry collapse and the next Puzzle's fade-in; a collected item's fade-in
  * starts with the state and ends sooner), and is written once to the live region. A Card stays until dismissed;
  * dismissing it moves focus to the Card now in its place, else the one above, else the hint field. The Session's
  * first Card carries the Trickster's introduction. Cards already in the first state are never stacked, so after a
@@ -319,7 +317,7 @@ export function hintArea(
     onStacked()
   }
 
-  /** Holds new Cards for the lock-open state: the Open chip, then the entry collapse and the next Puzzle's fade-in. */
+  /** Holds new Cards for the lock-open state: the Solved chip, then the entry collapse and the next Puzzle's fade-in. */
   function hold(): void {
     clearTimeout(holding)
     holding = setTimeout(() => {
@@ -372,6 +370,5 @@ export function hintArea(
     triggers,
     triggersOpen,
     aside: (line) => present({ label: null, text: line, shown: null }, false),
-    notThat: () => present({ label: null, text: strings.notThatOne, shown: null }, true),
   }
 }

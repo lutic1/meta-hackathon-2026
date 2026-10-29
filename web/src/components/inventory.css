@@ -36,6 +36,11 @@
   width: 64px;
   height: 64px;
   border-radius: var(--rounded-sm);
+  transition: box-shadow var(--motion-hover) var(--motion-ease);
+}
+/* A newly collected item's well glows once with the lamp glow as it fades in (held 2 s under reduced motion). */
+.inventory-slot.is-glowing .inventory-well {
+  box-shadow: var(--elevation-lamp-glow);
 }
 .inventory-slot.is-empty .inventory-well {
   border: 1px dashed var(--hairline);

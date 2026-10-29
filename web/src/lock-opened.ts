@@ -9,10 +9,9 @@ export interface UnlockStage {
   bloom: (target: string | null) => void
 }
 
-/** Where the Guide speaks: the Hint area's aside, and its Wrong attempt line with the ring's glow. */
+/** Where the Guide speaks: the Hint area's aside. */
 export interface UnlockVoice {
   aside: (line: string) => void
-  notThat: () => void
 }
 
 const ASIDES: Record<PlayPuzzle['lock_type'], string> = {
@@ -22,9 +21,12 @@ const ASIDES: Record<PlayPuzzle['lock_type'], string> = {
   use_on: strings.asideUseOn,
 }
 
-/** The Guide's aside for an opened Puzzle: the exit's line for the Exit puzzle, else its lock type's. */
-export function asideFor(puzzle: PlayPuzzle): string {
-  if (puzzle.is_exit) return strings.asideExit
+/**
+ * The Guide's aside for an opened Puzzle: its lock type's line; none for the Exit puzzle, whose "The way out is open."
+ * the feedback line already says.
+ */
+export function asideFor(puzzle: PlayPuzzle): string | null {
+  if (puzzle.is_exit) return null
   return ASIDES[puzzle.lock_type]
 }
 
@@ -39,13 +41,12 @@ export function bloomTarget(puzzle: PlayPuzzle, lastTarget: string | null): stri
 /**
  * The unlock moment (DESIGN.md Motion, EXPERIENCE.md Hotspot and Hint area rows), read from the session states the
  * server sends and never from a click: when a state shows a Puzzle newly open, its solved Hotspot blooms and the
- * Scene frame glows once (`stage`) and the Guide speaks one aside for its lock type (`voice`), the exit's line for the
- * Exit puzzle; the Wizard notes lift the Open chip in on their own draw. When a state instead shows a Puzzle's Wrong
- * attempts risen, the Guide's ring glows once with the Wrong attempt line, once per attempt. The asides are
- * client-side presentation: not Rungs, not counted, not logged, not announced (the lock outcome already is) and never
- * naming a solution, so a Rung the same state carries wins the Hint area and neither aside is spoken; the Scene still
- * blooms. `first` only sets what has been seen, so a reload blooms and says nothing for locks already open. Returns
- * the renderer the Play screen registers for every later state.
+ * Scene frame glows once (`stage`) and the Guide speaks one aside for its lock type (`voice`), none for the Exit
+ * puzzle; the Wizard notes lift the Solved chip in on their own draw. A Wrong attempt has no aside: the feedback line
+ * says it. The asides are client-side presentation: not Rungs, not counted, not logged, not announced (the feedback
+ * line already is) and never naming a solution, so a Rung the same state carries wins the Hint area and no aside is
+ * spoken; the Scene still blooms. `first` only sets what has been seen, so a reload blooms and says nothing for locks
+ * already open. Returns the renderer the Play screen registers for every later state.
  */
 export function lockOpened(room: PlayView, first: SessionState, stage: UnlockStage, voice: UnlockVoice): (state: SessionState) => void {
   let seen = first
@@ -53,15 +54,13 @@ export function lockOpened(room: PlayView, first: SessionState, stage: UnlockSta
     const opened = room.puzzles.filter(
       (puzzle) => state.locks_open.includes(puzzle.id) && !seen.locks_open.includes(puzzle.id),
     )
-    const wrong = room.puzzles.some(
-      (puzzle) => (state.wrong_attempts[puzzle.id] ?? 0) > (seen.wrong_attempts[puzzle.id] ?? 0),
-    )
     const rung = state.rung_changes.length > seen.rung_changes.length
     seen = state
     const last = opened.at(-1)
-    if (last !== undefined) stage.bloom(bloomTarget(last, stage.lastTarget()))
-    if (rung) return
-    if (last !== undefined) voice.aside(asideFor(last))
-    else if (wrong) voice.notThat()
+    if (last === undefined) return
+    stage.bloom(bloomTarget(last, stage.lastTarget()))
+    const aside = asideFor(last)
+    if (rung || aside === null) return
+    voice.aside(aside)
   }
 }

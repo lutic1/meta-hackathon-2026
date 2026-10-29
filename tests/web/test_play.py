@@ -57,7 +57,7 @@ def test_open_locks_the_inventory_and_wrong_attempts_render_only_from_server_sta
     assert "for (const render of parts) render(state)" in receive
     # Every state the parts draw is a poll or the server's reply to a posted event.
     assert play.count("receive(") == 3  # the definition, the reply and the poll, nothing else
-    assert "parts.push(held.render, notes.render, lockOutcomes(view, latest))" in play
+    assert "parts.push(held.render, notes.render)" in play
     inventory, notes = _ts("components/inventory.ts"), _ts("components/wizard-notes.ts")
     assert "state.inventory.flatMap(" in inventory
     assert "state.locks_open.includes(puzzle.id)" in notes and "state.wrong_attempts[puzzle.id] ?? 0" in notes
@@ -147,7 +147,7 @@ def test_open_locks_collapse_their_entry_and_wrong_attempts_show_the_servers_cou
     update = notes.split("function update(", 1)[1].split("\n  }\n", 1)[0]
     assert "const open = state.locks_open.includes(puzzle.id)" in update
     assert "body.hidden = open" in update and "opened.hidden = !open" in update and "count.hidden = open" in update
-    assert "opened.textContent = strings.open" in notes
+    assert "opened.textContent = strings.solved" in notes
     assert "wrong.textContent = fill(strings.notThis, { n: attempts })" in update
     rules = _rules("components/wizard-notes.css")
     assert rules[".chip-open"] == {"border": "1px solid var(--success-ink)", "color": "var(--success-ink)"}
@@ -260,7 +260,8 @@ def test_a_reload_rebuilds_the_play_screen_from_the_session_and_its_room_announc
     assert "previous === undefined\n        ? []" in notes and "if (before.size > 0) for (const made of arrived) fadeIn(made.element)" in notes
     assert "if (before !== undefined && !before.has(interactable.id)) arrived.push(item)" in held
     assert "if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text" in play
-    assert re.findall(r"announce\(([^)]*)\)", _code(play)) == ["strings.reconnectingPlay"]
+    # Only a reply to a posted input speaks its feedback line; a reload posts nothing.
+    assert re.findall(r"announce\(([^)]*)\)", _code(play)) == ["strings.reconnectingPlay", "`${strings.speakerGuide} ${line}`"]
 
 
 def test_two_consecutive_missed_polls_show_the_reconnecting_strip_once_and_hold_every_input():

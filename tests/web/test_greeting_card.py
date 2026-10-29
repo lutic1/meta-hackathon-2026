@@ -144,7 +144,8 @@ def test_only_begin_dismisses_and_the_line_moves_to_the_hint_area_unannounced():
     assert "markBegun(sessionId)" in click and "onBegin(line)" in click
     begin = play.split("[frame.topBar, sceneColumn, sideColumn], (line) => {", 1)[1].split("\n      })", 1)[0]
     assert "play.openingLine = line" in begin and "hints?.opening(line)" in begin
-    assert re.findall(r"announce\(([^)]*)\)", play) == ["strings.reconnectingPlay"]
+    # The Play screen writes only the reconnecting line and a reply's feedback line, never the opening line again.
+    assert re.findall(r"announce\(([^)]*)\)", play) == ["strings.reconnectingPlay", "`${strings.speakerGuide} ${line}`"]
 
 
 # --- The served states --------------------------------------------------------------------------------------------

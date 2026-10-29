@@ -1,9 +1,10 @@
 import './inventory.css'
 import type { PlayView, SessionState } from '../../types'
-import { fadeIn } from '../fade.ts'
+import { fadeIn, glowOnce } from '../fade.ts'
 import { strings } from '../strings.ts'
 import { type UseOnSelection, useOnItem } from '../use-on.ts'
 import { crop } from './crop.ts'
+import { GLOW_MS, GLOW_REDUCED_MS } from './hint-area.ts'
 
 /** Three 64 px slots across the tray (UX-DR26). */
 const ACROSS = 3
@@ -29,7 +30,8 @@ function slot(well: HTMLElement = document.createElement('span')): HTMLLIElement
  * holding the Interactables `state.inventory` lists for the whole Session, each a 56 px crop with its label in
  * `caption` type, then dashed empty slots to the end of the row. Holding nothing, it shows one dashed slot and
  * "Nothing in hand yet." It redraws only when the held list changes; an item collected after the first draw fades in
- * over 200 ms, in step with its Hotspot's glow fading out (FR-12). Each item's well is a button named by its label and
+ * over 200 ms, in step with its Hotspot's glow fading out (FR-12), and its well glows once with the lamp glow (in and
+ * out by `--motion-hover`; held 2 s with no animation under reduced motion), so the pickup is seen where it lands. Each item's well is a button named by its label and
  * a `use_on` source (UX-DR26): pressed, with the 2 px lamp ring, while `selection` holds it.
  */
 export function inventory(room: PlayView, selection: UseOnSelection): InventoryTray {
@@ -89,7 +91,11 @@ export function inventory(room: PlayView, selection: UseOnSelection): InventoryT
     })
     element.replaceChildren(...items, ...free)
     markSelected(selection.selected())
-    for (const item of arrived) fadeIn(item)
+    const hold = matchMedia('(prefers-reduced-motion: reduce)').matches ? GLOW_REDUCED_MS : GLOW_MS
+    for (const item of arrived) {
+      fadeIn(item)
+      glowOnce(item, 'is-glowing', hold)
+    }
   }
 
   return { element, render }

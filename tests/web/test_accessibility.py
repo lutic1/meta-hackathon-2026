@@ -41,7 +41,7 @@ def test_the_floor_strings_are_the_experience_lines():
     assert strings["showAllObjects"] == "Show all objects"
     assert strings["showAllTip"] == "Tip: 'Show all objects' in the top bar outlines everything you can click."
     assert strings["lockNotThis"].format(n=2, count=1) == "Puzzle 2: not this, 1."
-    assert strings["lockOpen"].format(n=3) == "Puzzle 3: open."
+    assert strings["lockSolved"].format(n=3) == "Puzzle 3 solved."
 
 
 def test_hotspots_are_in_tab_order_by_polygon_centroid_top_to_bottom_then_left_to_right():
@@ -136,16 +136,15 @@ def test_the_first_room_welcome_shows_its_plain_tip_on_the_scrim_under_the_card(
     assert "tip: '{typography.body-sm}'" in overlay and "tipColor: '{colors.text-muted}'" in overlay
 
 
-def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_lock_outcomes_reconnecting_and_rung_lines_write_to_it():
+def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_feedback_line_reconnecting_and_rung_lines_write_to_it():
     sources = {path: _code(text) for path, text in source_ts().items() if "/types/" not in path}
     assert sum(text.count("aria-live") for text in sources.values()) == 1
     writers = {path for path, text in sources.items() if "announce(" in text and not path.endswith("live-region.ts")}
     assert writers == {
         "web/src/welcome.ts",
         "web/src/completion.ts",
-        "web/src/lock-outcomes.ts",
         "web/src/build-progress.ts",  # the reconnecting line
-        "web/src/play.ts",  # the reconnecting line
+        "web/src/play.ts",  # the reconnecting line and the feedback line
         "web/src/components/hint-area.ts",  # Rung and No-hint lines
         "web/src/components/narrow-screen-message.ts",  # the copied-link confirmation
     }
@@ -153,20 +152,18 @@ def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_lock_outco
     assert "announce(strings.reconnectingPlay)" in sources["web/src/play.ts"]
     # The sign-off is a Guide line, so it is heard with its speaker prefix.
     assert "announce(`${strings.speakerGuide} ${said}`)" in sources["web/src/completion.ts"]
-    assert "parts.push(held.render, notes.render, lockOutcomes(view, latest))" in _ts("play.ts")
+    assert "announce(`${strings.speakerGuide} ${line}`)" in sources["web/src/play.ts"]
 
 
-def test_lock_outcomes_are_announced_once_each_never_checking_and_nothing_again_on_reload():
-    outcomes = _ts("lock-outcomes.ts")
-    assert "if (count > (heard.wrong_attempts[puzzle.id] ?? 0)) outcomes.push(fill(strings.lockNotThis, { n, count }))" in outcomes
-    assert "if (state.locks_open.includes(puzzle.id) && !heard.locks_open.includes(puzzle.id)) {" in outcomes
-    assert "outcomes.push(fill(strings.lockOpen, { n }))" in outcomes
-    assert "const n = place + 1" in outcomes and "room.puzzles.flatMap((puzzle, place) => {" in outcomes
-    # The first state is only heard: a reload, which starts from the stored state, announces nothing.
-    assert "let heard = first" in outcomes and "heard = state" in outcomes
-    assert "if (lines.length > 0) announce(lines.join(' '))" in outcomes
-    # Read from server state only; "Checking" never reaches the region.
-    assert "checking" not in _code(outcomes).lower() and "addEventListener" not in outcomes and ".post(" not in outcomes
+def test_lock_outcomes_are_announced_once_per_reply_never_checking_and_nothing_again_on_reload():
+    feedback, play = _ts("feedback.ts"), _ts("play.ts")
+    assert "fill(strings.lockNotThis, { n: place(wrong.id), count: after.wrong_attempts[wrong.id] })" in feedback
+    assert "fill(strings.lockSolved, { n: place(opened.id) })" in feedback
+    assert "room.puzzles.findIndex((puzzle) => puzzle.id === id) + 1" in feedback
+    # Only a reply to a posted input speaks: a poll or a reload, which starts from the stored state, announces nothing.
+    assert play.count("feedback?.(") == 1 and "feedback?.(body, before, reply)" in play
+    # "Checking" never reaches the region.
+    assert "checking" not in _code(feedback).lower() and "addEventListener" not in feedback and ".post(" not in feedback
     for name in ("components/code-field.ts", "components/wizard-notes.ts", "scene/hotspots.ts", "scene/index.ts"):
         assert "announce(" not in _code(_ts(name)), name
 
@@ -225,9 +222,9 @@ def test_the_new_pairs_meet_aa_and_every_state_carries_a_word():
     assert contrast(_hex(PROPS["ink"])[0], _hex(PROPS["parchment"])[0]) >= 4.5  # the label chip
     # The states are words, never color alone.
     strings = _strings()
-    assert (strings["notThis"].split(" ·")[0], strings["open"], strings["current"]) == ("Not this", "Open", "Current")
+    assert (strings["notThis"].split(" ·")[0], strings["solved"], strings["current"]) == ("Not this", "Solved", "Current")
     notes = _ts("components/wizard-notes.ts")
-    assert "current.textContent = strings.current" in notes and "opened.textContent = strings.open" in notes
+    assert "current.textContent = strings.current" in notes and "opened.textContent = strings.solved" in notes
     assert "fill(strings.notThis, { n: attempts })" in notes
 
 

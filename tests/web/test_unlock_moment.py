@@ -1,8 +1,8 @@
 """The unlock moment (owner decision, Oct 28): one `lockOpened` routine, fed the states the server sends, fires when
-a Puzzle moves to open: the solved Hotspot blooms, the Scene frame glows once, the Open chip fades in lifted on the
-paper shadow and the Guide speaks one aside per lock type; a Wrong attempt glows the Guide's ring once with its own
-line. The asides are client-side presentation: never a Rung, never counted, never logged, never announced and never
-shown again on reload. Source-reading checks, as the client has no test runner; the browser run proves the rest.
+a Puzzle moves to open: the solved Hotspot blooms, the Scene frame glows once, the Solved chip fades in lifted on the
+paper shadow and the Guide speaks one aside per lock type. Since Oct 29 the feedback line says the Exit's line and every
+Wrong attempt, so neither has an aside (test_feedback_line.py). The asides are client-side presentation: never a Rung,
+never counted, never logged, never announced and never shown again on reload. Source-reading checks, as the client has no test runner; the browser run proves the rest.
 """
 
 import re
@@ -15,8 +15,6 @@ ASIDES = {
     "asideCode": "Right on the number.",
     "asideOrder": "Each in its turn. The room approves.",
     "asideUseOn": "The right thing in the right place.",
-    "asideExit": "The way out is open.",
-    "notThatOne": "Not that one. The room is patient.",
 }
 
 
@@ -54,28 +52,25 @@ def test_the_routine_picks_the_hotspot_and_the_aside_per_lock_type():
     # The last clicked target for find, use_on and order; for code the frame alone blooms.
     assert "return puzzle.lock_type === 'code' ? null : lastTarget" in _function(opened, "bloomTarget")
     aside = _function(opened, "asideFor")
-    assert "if (puzzle.is_exit) return strings.asideExit" in aside and "return ASIDES[puzzle.lock_type]" in aside
+    assert "if (puzzle.is_exit) return null" in aside and "return ASIDES[puzzle.lock_type]" in aside
     assert re.search(r"find: strings\.asideFind,\s+code: strings\.asideCode,\s+order: strings\.asideOrder,\s+use_on: strings\.asideUseOn,", opened)
     routine = _function(opened, "lockOpened")
-    assert "stage.bloom(bloomTarget(last, stage.lastTarget()))" in routine and "voice.aside(asideFor(last))" in routine
-    # A Rung the same state carries holds the Hint area: the Scene blooms, neither aside is spoken.
+    assert "stage.bloom(bloomTarget(last, stage.lastTarget()))" in routine and "const aside = asideFor(last)" in routine
+    # A Rung the same state carries holds the Hint area: the Scene blooms, no aside is spoken.
     assert "const rung = state.rung_changes.length > seen.rung_changes.length" in routine
-    assert routine.index("const rung =") < routine.index("seen = state") < routine.index("if (rung) return")
-    assert routine.index("stage.bloom(") < routine.index("if (rung) return") < routine.index("voice.aside(")
+    assert routine.index("const rung =") < routine.index("seen = state") < routine.index("if (rung || aside === null) return")
+    assert routine.index("stage.bloom(") < routine.index("if (rung || aside === null) return") < routine.index("voice.aside(aside)")
     # The target is the Interactable the latest click or use_on named, recorded where each is posted.
     scene = _ts("scene/index.ts")
     assert "lastTarget = interactable.id" in _function(scene, "activate")
     assert "lastTarget = target.id" in _function(scene, "useOn")
-    assert "return { unmount, reshape, lastTarget: () => lastTarget, bloom }" in scene
+    assert "return { unmount, reshape, lastTarget: () => lastTarget, bloom, say: feedback.say }" in scene
 
 
-def test_a_wrong_attempt_glows_the_ring_once_with_its_line():
+def test_the_unlock_aside_shows_in_the_hint_area_without_a_glow():
     routine = _function(_ts("lock-opened.ts"), "lockOpened")
-    assert "(state.wrong_attempts[puzzle.id] ?? 0) > (seen.wrong_attempts[puzzle.id] ?? 0)" in routine
-    assert "else if (wrong) voice.notThat()" in routine
-    assert routine.index("if (rung) return") < routine.index("voice.notThat()")
+    assert "wrong_attempts" not in routine  # a Wrong attempt speaks in the feedback line only
     hint = _ts("components/hint-area.ts")
-    assert "notThat: () => present({ label: null, text: strings.notThatOne, shown: null }, true)" in hint
     assert "aside: (line) => present({ label: null, text: line, shown: null }, false)" in hint
 
 
@@ -130,7 +125,7 @@ def test_the_bloom_the_frame_glow_and_the_chip_lift_stay_inside_the_motion_rule(
 def test_the_contract_records_the_unlock_moment():
     design = design_text()
     motion = design.split("**Motion.**", 1)[1].split("\n\n", 1)[0]
-    assert "lock open" in motion and "Wrong attempt" in motion and "2%" in motion
+    assert "lock open" in motion and "pickup" in motion and "Wrong attempt" in motion and "2%" in motion
     hotspot = design.split("  hotspot:\n", 1)[1].split("\n  hotspot-label-chip:", 1)[0]
     assert "bloomFill: '{colors.hotspot-outline}'" in hotspot and "bloom: 300ms" in hotspot
     frame = design.split("  scene-frame:\n", 1)[1].split("\n  hotspot:", 1)[0]
@@ -142,4 +137,4 @@ def test_the_contract_records_the_unlock_moment():
     assert "**Opened (the unlock moment):**" in patterns and "unlock aside" in patterns
     floor = _section("Accessibility Floor")
     assert "asides" in floor and "never written" in floor
-    assert experience.count('"Not that one. The room is patient."') >= 1
+    assert '"Not that one. The room is patient."' not in experience

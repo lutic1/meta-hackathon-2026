@@ -98,7 +98,7 @@ def test_the_scene_keeps_its_photo_and_lays_changed_hotspots_again_with_focus_on
     assert "layHotspots(view, size, current)" in reshape
     assert "layer.elements[0].querySelector<SVGElement>(`[id=\"${focused}\"]`)?.focus()" in reshape
     assert "show(" not in reshape and "strip" not in reshape and "useOn" not in reshape
-    assert "return { unmount, reshape, lastTarget: () => lastTarget, bloom }" in scene
+    assert "return { unmount, reshape, lastTarget: () => lastTarget, bloom, say: feedback.say }" in scene
 
 
 def test_rehung_hotspots_stay_focusable_buttons_that_show_all_objects_still_outlines():

@@ -45,7 +45,7 @@ def test_the_lock_strings_are_the_experience_lines():
     strings = _strings()
     assert strings["codeFor"].format(n=2) == "Code for Puzzle 2"
     assert strings["checking"] == "Checking" and strings["submit"] == "Submit"
-    assert strings["notThis"].format(n=3) == "Not this · 3" and strings["open"] == "Open"
+    assert strings["notThis"].format(n=3) == "Not this · 3" and strings["solved"] == "Solved"
     assert strings["inHand"].format(label="brass key") == "brass key · in hand"
 
 
@@ -171,7 +171,7 @@ def test_a_find_click_posts_only_the_click_and_the_collected_target_fades_into_t
     assert css.index(".hotspot:hover .hotspot-glow") < css.index(".hotspot.is-collected .hotspot-glow")
     inventory = _ts("components/inventory.ts")
     assert "if (before !== undefined && !before.has(interactable.id)) arrived.push(item)" in inventory
-    assert "for (const item of arrived) fadeIn(item)" in inventory
+    assert "for (const item of arrived) {\n      fadeIn(item)" in inventory
     slots = _rules("components/inventory.css")
     assert slots[".inventory-slot"]["transition"] == "opacity var(--motion-state) var(--motion-ease)"
     assert slots[".inventory-slot.is-arriving"] == {"opacity": "0"}

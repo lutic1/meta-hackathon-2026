@@ -12,6 +12,7 @@ import {
 } from 'three'
 import type { PlayInteractable, PlayView } from '../../types'
 import { photoUrl } from '../api/index.ts'
+import { feedbackLine } from '../components/feedback-line.ts'
 import { GLOW_MS, GLOW_REDUCED_MS } from '../components/hint-area.ts'
 import { type ThumbnailStrip, thumbnailStrip } from '../components/thumbnail-strip.ts'
 import { glowOnce } from '../fade.ts'
@@ -49,6 +50,8 @@ export interface MountedScene {
   lastTarget: () => string | null
   /** The unlock moment: the frame's gilt rule lights once; the Hotspot of `target` on the shown photo blooms with it. */
   bloom: (target: string | null) => void
+  /** The feedback line over the bottom edge of the frame shows `line`, held 2.5 s, then fades out. */
+  say: (line: string) => void
 }
 
 function firstPointerResponse(sessionId: string): void {
@@ -74,6 +77,7 @@ function firstPointerResponse(sessionId: string): void {
  * click or `use_on` named is kept as `lastTarget`, and `bloom` plays the unlock moment (lock-opened.ts): the frame's
  * gilt rule turns lamp with the lamp glow once (in and out by `--motion-hover`, 300 ms in all; held 2 s with no
  * animation under reduced motion) and the solved target's Hotspot, when it is on the shown photo, blooms with it.
+ * `say` shows the Play screen's feedback line for a reply over the bottom edge of the frame.
  *
  * `reshape` lays the shown photo's Hotspots again from a refetched `PlayView` when its Interactables changed, keeping
  * the photo, the strip and the selection; keyboard focus on a Hotspot that is still there stays on it. Returns the
@@ -97,7 +101,8 @@ export function mountScene(
   photo.className = 'scene-photo'
   photo.hidden = true
   ground.append(loading, photo)
-  frame.append(ground)
+  const feedback = feedbackLine()
+  frame.append(ground, feedback.element)
   root.append(frame)
 
   const renderer = new WebGLRenderer({ antialias: true })
@@ -272,5 +277,5 @@ export function mountScene(
     strip?.element.remove()
   }
 
-  return { unmount, reshape, lastTarget: () => lastTarget, bloom }
+  return { unmount, reshape, lastTarget: () => lastTarget, bloom, say: feedback.say }
 }
