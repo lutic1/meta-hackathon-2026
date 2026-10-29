@@ -36,7 +36,7 @@ import httpx
 from pydantic import BaseModel
 
 from src.domain.ledger import CallKind, spark_cost_usd
-from src.domain.schema import JobId, Stage, strict_schema
+from src.domain.schema import JobId, SessionId, Stage, strict_schema
 
 from .base import (
     ChatMessage,
@@ -107,9 +107,9 @@ def provider_error(response: httpx.Response) -> ProviderError:
     return ProviderError(response.status_code, error.get("type") or "unknown", error.get("message") or "")
 
 
-def transport_error(exc: httpx.RequestError) -> ProviderError:
+def transport_error(exc: httpx.RequestError, *, dispatched: bool) -> ProviderError:
     code = "timeout" if isinstance(exc, httpx.TimeoutException) else "transport_error"
-    return ProviderError(None, code, str(exc) or type(exc).__name__)
+    return ProviderError(None, code, str(exc) or type(exc).__name__, dispatched=dispatched)
 
 
 def post_with_retry(
@@ -126,16 +126,19 @@ def post_with_retry(
 
     The wait is `Retry-After` or 0.5 to 1 s of jitter; past what is left
     of `budget_s` the call fails at once. Raises `ProviderError`, never an
-    httpx error.
+    httpx error, `dispatched=False` only when every attempt failed to connect.
     """
     started = clock()
+    sent = False
     for attempt in (0, 1):
         try:
             response = client.post(path, json=body)
         except httpx.RequestError as exc:
-            error, cause = transport_error(exc), exc
             retry, after = isinstance(exc, RETRY_ON_CONNECT), None
+            sent = sent or not retry
+            error, cause = transport_error(exc, dispatched=sent), exc
         else:
+            sent = True
             if response.status_code < 400:
                 return response
             error, cause = provider_error(response), None
@@ -201,6 +204,7 @@ class OpenAICompatibleProvider(ModelProvider):
         attempt: int = 0,
         job_id: JobId | None = None,
         stage: Stage | None = None,
+        session_id: SessionId | None = None,
     ) -> ChatResponse:
         check_reasoning_effort(reasoning_effort)
         if images:
@@ -226,7 +230,7 @@ class OpenAICompatibleProvider(ModelProvider):
             chat_model, messages=sent, response_schema=response_schema, reasoning_effort=reasoning_effort, attempt=attempt
         )
         response, receipt = self._calls.chat(
-            key, self.kind, model=chat_model, call=lambda: self._post(body), job_id=job_id, stage=stage
+            key, self.kind, model=chat_model, call=lambda: self._post(body), job_id=job_id, stage=stage, session_id=session_id
         )
         return replace(response, receipt=receipt)
 

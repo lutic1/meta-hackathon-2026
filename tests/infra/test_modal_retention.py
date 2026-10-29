@@ -206,7 +206,8 @@ def test_a_judge_room_goes_with_its_photos_originals_sessions_and_listed_cache_e
     record = delete_judge_room(handles, scene.room_id, today=NOV_10)
 
     scene.assert_deleted()
-    assert record == DeletionRecord(room_id=scene.room_id, job_id=scene.state.id, deleted_on=NOV_10)
+    taken = [] if scene.judge_session is None else [scene.judge_session]
+    assert record == DeletionRecord(room_id=scene.room_id, job_id=scene.state.id, deleted_on=NOV_10, session_ids=taken)
     assert log[-1] == "commit"
 
 
@@ -224,7 +225,7 @@ def test_a_session_on_a_judge_room_is_found_through_list_ids_and_read_all_and_re
 # --- The ids-only record under rooms/deleted/ --------------------------------------------
 
 
-def test_the_deletion_record_holds_the_room_id_job_id_and_date_and_no_content(handles, ticker, four_lock_room, code_and_find_room):
+def test_the_deletion_record_holds_the_room_id_job_id_date_and_session_ids_and_no_content(handles, ticker, four_lock_room, code_and_find_room):
     named = four_lock_room.model_copy(update={"name": "Grandma's kitchen"})
     scene = Scene(handles, ticker, named, code_and_find_room)
     delete_judge_room(handles, scene.room_id, today=NOV_10)
@@ -232,7 +233,7 @@ def test_the_deletion_record_holds_the_room_id_job_id_and_date_and_no_content(ha
     deleted = handles.root / "rooms" / "deleted"
     assert [path.name for path in deleted.iterdir()] == [f"{scene.room_id}.json"]
     raw = scene.record_file.read_text()
-    assert json.loads(raw) == {"room_id": scene.room_id, "job_id": scene.state.id, "deleted_on": "2026-11-10"}
+    assert json.loads(raw) == {"room_id": scene.room_id, "job_id": scene.state.id, "deleted_on": "2026-11-10", "session_ids": [scene.judge_session]}
     content = {"Grandma's kitchen", *(ix.label for ix in named.interactables), *(pz.clue for pz in named.puzzles), "jpg", "originals"}
     assert not [text for text in content if text and text in raw]
 
@@ -336,7 +337,11 @@ def test_a_deletion_that_fails_part_way_raises_and_a_rerun_completes_it_with_the
 
     record = delete_judge_room(handles, scene.room_id, today=date(2026, 11, 11))
     scene.assert_deleted()
-    assert record == DeletionRecord(room_id=scene.room_id, job_id=scene.state.id, deleted_on=NOV_10 if record_written else date(2026, 11, 11))
+    # A rerun names only the Sessions it deleted itself: one after the Sessions went but before the record cannot name them again.
+    taken = [scene.judge_session] if record_written or failure == "session delete" else []
+    assert record == DeletionRecord(
+        room_id=scene.room_id, job_id=scene.state.id, deleted_on=NOV_10 if record_written else date(2026, 11, 11), session_ids=taken
+    )
     assert DeletionRecord.model_validate_json(scene.record_file.read_bytes()) == record
 
 

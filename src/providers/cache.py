@@ -7,7 +7,10 @@ attempt)`; text-only calls omit the image segment and `attempt` defaults to
 `GuardedCalls` is the path every hosted adapter call takes, for `chat`,
 `segment` and `generate_image` alike: a hit returns before the guard runs
 and is never priced or refused; a miss is guarded and priced exactly once,
-then stored under its key. With `CACHE=off` the cache is neither read nor
+then stored under its key. A miss that fails keeps its reserved estimate
+unless the adapter proves the request never left (`ProviderError.dispatched`
+false: every attempt failed to connect), which settles it at 0 USD, the
+entry kept (decision 24). With `CACHE=off` the cache is neither read nor
 written and every call passes the guard. Each call returns its
 `CallReceipt` (cached or billed, model id, host, spend) so the stage can
 write its call row (AD-16). The mock provider bypasses this module and the
@@ -27,7 +30,7 @@ from src.domain.ledger import CallKind
 from src.domain.schema import JobId, Polygon, SessionId, Stage
 from src.pipeline.ports import Cache
 
-from .base import CallReceipt, ChatMessage, ChatResponse, ImageResponse, ReasoningEffort
+from .base import CallReceipt, ChatMessage, ChatResponse, ImageResponse, ProviderError, ReasoningEffort
 from .spend import SpendLedger, new_call_id
 
 type Json = dict[str, Any]
@@ -154,13 +157,20 @@ class GuardedCalls:
     ) -> tuple[T, CallReceipt]:
         """`call` makes the priced call and returns the response with its observed cost in USD.
 
-        A call that raises keeps its reserved entry, as the host may still
-        have billed it, and stores nothing.
+        A call that raises stores nothing and keeps its reserved entry, as the
+        host may still have billed it (a read timeout, a retry after a sent
+        attempt), except a `ProviderError` the adapter marks never dispatched:
+        that entry is settled at 0 USD under its `call_` id, and kept.
         """
         if self.enabled and (cached := self._cache.get(key)) is not None:
             return decode(cached), CallReceipt(new_call_id(), model, self.host, cached=True, spend_usd=0.0)
         call_id = self._ledger.guard(kind, job_id=job_id, stage=stage, session_id=session_id)
-        response, usd = call()
+        try:
+            response, usd = call()
+        except ProviderError as exc:
+            if not exc.dispatched:
+                self._ledger.settle(call_id, 0.0)
+            raise
         settled = self._ledger.settle(call_id, usd)
         if self.enabled:
             self._cache.put(key, encode(response))

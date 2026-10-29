@@ -54,7 +54,7 @@ session's `SessionHeader` beside the log, never a Derived field, so a process
 that never opened the session (a restart, a new container) reopens it from
 the header and the log, its clock resuming at the last event's `t_ms` and its
 Derived block `Derived.fresh()`; only an id with no stored header answers 404
-`session_not_found`. `t_ms` is
+`session_not_found`, or 410 `room_deleted` when a deletion record names it. `t_ms` is
 stamped from the session clock at append, so a body carrying one is refused.
 A `hint_request` is answered on its reply in `hint_reply`: the current Rung
 of the Puzzle it resolved to, routed through the `HintPhraser`, or with no
@@ -95,8 +95,9 @@ the guard refuses a missing or wrong `X-Access-Code` with 403
 (AD-9). `GET /builds/<job_id>` reads only the persisted
 job state, 202 while `queued` or `running` and 200 when terminal, and never a
 Room; `GET /builds/<job_id>/room` is the one route a full Room leaves by
-(AD-3), behind the same guard (open in Local mode), `room_not_found` until
-the job is `done`. Hosted only, `POST /access/check {code}` answers the
+(AD-3), behind the same guard (open in Local mode), answering a known job
+not yet `done` with 409 `build_not_ready` and the job `status`, never
+`room_not_found` (decision 37). Hosted only, `POST /access/check {code}` answers the
 `AccessCheck` before any photo is chosen: `{ok: true, builds_left}` read
 from the `JobStore` for the right code, 200 `{ok: false, builds_left: null}`
 for a wrong one, starting no Build and claiming no slot; `POST /builds`
@@ -114,7 +115,10 @@ start, read from the stored session headers (AD-15); a known job not yet `done` 
 `room_deleted` on `GET /rooms/<room_id>`, its photos, `POST /sessions` and
 the three `/builds/<job_id>` reads, distinct from 404 `room_not_found` or
 `job_not_found` for an id no record names (AD-9); the record is read only
-after the Room or job is not found. Every other route is open in both modes. At
+after the Room or job is not found. Every session route answers a Session
+the deletion took (its id in the record's `session_ids`, or one open in this
+process whose stored header is gone) with 410 `room_deleted` too, and an
+unknown or swept one with 404 `session_not_found` (decision 58). Every other route is open in both modes. At
 startup the local app exports the ledger and restarts every job left
 `queued` or `running`; the runner exports again after each Build ends (AD-9).
 
@@ -543,11 +547,16 @@ def build_routes(
 
     @router.get("/{job_id}/room")
     def get_build_room(job_id: str, request: Request) -> Room:
-        """The full Room, solutions included: the one route a Room leaves the server by (AD-3), behind the access guard."""
+        """The full Room, solutions included: the one route a Room leaves the server by (AD-3), behind the access guard.
+
+        A known job not yet `done` answers 409 `build_not_ready` with its status, as the Build view does, never `room_not_found`.
+        """
         guard(request.headers.get(ACCESS_HEADER), client_ip(request))
         state = read_job(jobs, store, job_id)
-        if state.status != "done" or state.room_id is None:
-            raise RoomNotFound(state.room_id or job_id)
+        if state.status != "done":
+            raise BuildNotReady(job_id, state.status)
+        if state.room_id is None:
+            raise RoomNotFound(job_id)
         return load_room(store, state.room_id)
 
     return router
@@ -577,7 +586,9 @@ def build_view_routes(jobs: JobStore, store: ArtifactStore, sessions: SessionSto
         if state.room_id is None:
             raise RoomNotFound(job_id)
         room = load_room(store, state.room_id)
-        disclosure = disclosure_lines(settings, room, state, earlier_session=stored_session_on(sessions, room.id))
+        disclosure = disclosure_lines(
+            settings, room, state, earlier_session=stored_session_on(sessions, room.id), demo_room=store.is_demo_room(room.id)
+        )
         return to_build_view(room, state, disclosure=disclosure)
 
     return router
@@ -746,6 +757,10 @@ def session_routes(
         thresholds, window_ms = scaled_thresholds(header.nudge_threshold_base_ms, source, scale)
         return SessionStateMachine(room, opening=header.opening, thresholds=thresholds, trickster_window_ms=window_ms)
 
+    def room_disclosure(room: Room, earlier: bool) -> list[str]:
+        """The Room's Disclosure list at a session's start (AD-15): a Demo room is the one the store names, as for the welcome."""
+        return disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=earlier, demo_room=store.is_demo_room(room.id))
+
     def reopen(session_id: SessionId) -> OpenSession | None:
         """A session another process started, from its stored header and log; None when no header is stored.
 
@@ -758,7 +773,7 @@ def session_routes(
             return None
         room = load_room(store, header.room_id)
         log_ = events(session_id)
-        disclosure = disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=header.earlier_session)
+        disclosure = room_disclosure(room, header.earlier_session)
         return OpenSession(
             machine_for(room, header),
             threading.Lock(),
@@ -767,6 +782,20 @@ def session_routes(
             Derived.fresh(),
             store.is_judge_room(room.id),
         )
+
+    def opened(session_id: SessionId) -> OpenSession:
+        """The open session, else 410 `room_deleted` when a deletion record names it, else 404 `session_not_found` (decision 58).
+
+        A session open in this process whose stored header is gone was
+        deleted meanwhile, by its Judge room's deletion or the 24 h sweep, so
+        it is answered like one this process never opened.
+        """
+        try:
+            session = open_sessions.get(session_id)
+            sessions.read_header(session_id)
+        except (SessionNotFound, KeyError):
+            raise missing_room(store, session_id) or SessionNotFound(session_id) from None
+        return session
 
     def earlier_session(room_id: RoomId) -> bool:
         """Whether a session on this Room has started: in this process, or stored by an earlier one."""
@@ -876,7 +905,7 @@ def session_routes(
             earlier_session=earlier_session(room.id),
         )
         machine = machine_for(room, header)
-        disclosure = disclosure_lines(settings, room, room_job(jobs, room.id), earlier_session=header.earlier_session)
+        disclosure = room_disclosure(room, header.earlier_session)
         session_id = new_session_id()
         sessions.put_header(session_id, header)
         session = open_sessions.open(
@@ -892,7 +921,7 @@ def session_routes(
     @router.get("/{session_id}")
     def get_session(session_id: str) -> SessionState:
         """The replayed state, with an `idle_tick` once due; while the Trickster source runs, its `pending` state without waiting."""
-        session = open_sessions.get(session_id)
+        session = opened(session_id)
         if (pending := session.pending) is not None:
             return pending
         with session.lock:
@@ -904,11 +933,11 @@ def session_routes(
 
     @router.post("/{session_id}/events")
     def post_event(session_id: str, body: PostedEvent) -> SessionState:
-        session = open_sessions.get(session_id)
+        session = opened(session_id)
         hint = isinstance(body, HintRequestBody)
         if hint and body.puzzle_id is not None and all(puzzle.id != body.puzzle_id for puzzle in session.machine.room.puzzles):
             raise RequestValidationError(
-                [{"loc": ("body", "puzzle_id"), "msg": f"no puzzle {body.puzzle_id} in this room", "type": "value_error"}]
+                [{"loc": ("body", "puzzle_id"), "msg": "names no puzzle in this room", "type": "value_error"}]
             )
         with session.lock:
             log_ = events(session_id)
@@ -918,7 +947,7 @@ def session_routes(
     @router.post("/{session_id}/trickster")
     def post_trickster(session_id: str) -> SessionState:
         """One source call and one card per open window, under the session lock; outside one, the unchanged state."""
-        session = open_sessions.get(session_id)
+        session = opened(session_id)
         with session.lock:
             log_ = events(session_id)
             state = session.machine.replay(session_id, log_)
@@ -937,7 +966,7 @@ def session_routes(
                     source = None
                 try:
                     proposal = None if source is None else source.propose(
-                        session.machine.room.id, window.index, to_prompt_view(room), summary
+                        session.machine.room.id, window.index, to_prompt_view(room), summary, session_id=session_id
                     )
                 except (ProviderError, SpendCapExceeded) as exc:
                     log.warning(json.dumps({"session_id": session_id, "event": "trickster_skipped", "error": type(exc).__name__}))
@@ -955,14 +984,14 @@ def session_routes(
         A Judge room deleted while its session is still open here answers
         `RoomDeleted`, so the client shows its room-gone card (AD-9).
         """
-        session = open_sessions.get(session_id)
+        session = opened(session_id)
         if session.judge_room and (gone := missing_room(store, session.machine.room.id)) is not None:
             raise gone
         return to_play_view(effective_room(session.machine.room, events(session_id)))
 
     @router.get("/{session_id}/result")
     def get_result(session_id: str) -> RoomResult:
-        session = open_sessions.get(session_id)
+        session = opened(session_id)
         return session.machine.result(session_id, events(session_id), demo=demo)
 
     return router

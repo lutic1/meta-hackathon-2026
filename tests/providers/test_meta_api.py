@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from src.config import Settings
-from src.domain.ledger import CallKind, SpendCapExceeded, fold, image_cost_usd, sam_cost_usd, spark_cost_usd
+from src.domain.ledger import SEED_USD, CallKind, SpendCapExceeded, fold, image_cost_usd, sam_cost_usd, spark_cost_usd
 from src.domain.schema import ArchitectResponse
 from src.providers import meta_api
 from src.providers.base import ChatMessage, ChatResponse, ImageResponse, ProviderError
@@ -352,6 +352,33 @@ def test_what_is_never_retried_raises_provider_error_after_one_request(kind, nam
     else:
         assert info.value.status is None and info.value.code == ("timeout" if first is httpx.ReadTimeout else "transport_error")
     assert replay.cache.writes == 0 and replay.items  # the success reply was never requested
+
+
+# --- Settling a failed call (decision 24): zero only when provably never sent ---------
+
+
+@pytest.mark.parametrize("kind", ["chat", "segment", "image"])
+@pytest.mark.parametrize("second", [httpx.ConnectError, httpx.ConnectTimeout])
+def test_a_call_that_never_reached_the_host_settles_at_zero_and_keeps_its_entry(kind, second):
+    name = {"chat": CHAT, "segment": SEGMENT, "image": IMAGE}[kind]
+    replay = Replay(httpx.ConnectError, second, name)
+    with pytest.raises(ProviderError) as info:
+        _call(replay, kind)
+    assert info.value.dispatched is False and len(replay.seen) == 2
+    assert [(e.status, e.usd) for e in replay.store.rows][1:] == [("settled", 0.0)]
+    assert replay.store.rows[0].status == "reserved" and replay.store.rows[0].call_id == replay.store.rows[1].call_id
+
+
+@pytest.mark.parametrize("items", [
+    (httpx.ReadTimeout,), (httpx.RemoteProtocolError,), (error(401),), (error(502),),
+    (httpx.ConnectError, error(500)), (error(503), httpx.ConnectError), (httpx.ConnectError, httpx.ReadTimeout),
+], ids=["ReadTimeout", "RemoteProtocolError", "401", "502", "ConnectError-500", "503-ConnectError", "ConnectError-ReadTimeout"])
+def test_a_call_that_may_have_reached_the_host_keeps_its_reserved_estimate(items):
+    replay = Replay(*items, CHAT)
+    with pytest.raises(ProviderError) as info:
+        chat(replay)
+    assert info.value.dispatched is True
+    assert [(e.status, e.usd) for e in replay.store.rows] == [("reserved", SEED_USD["vision"])]
 
 
 def test_error_bodies_without_the_envelope_still_become_provider_errors():

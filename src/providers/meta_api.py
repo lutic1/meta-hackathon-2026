@@ -33,7 +33,7 @@ from pydantic import BaseModel
 
 from src.domain.ledger import CallKind, image_cost_usd, sam_cost_usd, spark_cost_usd
 from src.domain.masks import area
-from src.domain.schema import JobId, Polygon, Stage
+from src.domain.schema import JobId, Polygon, SessionId, Stage
 
 from .base import (
     ChatMessage,
@@ -130,9 +130,9 @@ def _http_error(response: httpx.Response) -> ProviderError:
     return ProviderError(response.status_code, error.get("code") or error.get("type") or "unknown", error.get("message") or "")
 
 
-def _transport_error(exc: httpx.RequestError) -> ProviderError:
+def _transport_error(exc: httpx.RequestError, *, dispatched: bool) -> ProviderError:
     code = "timeout" if isinstance(exc, httpx.TimeoutException) else "transport_error"
-    return ProviderError(None, code, str(exc) or type(exc).__name__)
+    return ProviderError(None, code, str(exc) or type(exc).__name__, dispatched=dispatched)
 
 
 def retry_after_s(headers: Mapping[str, str]) -> float | None:
@@ -264,17 +264,24 @@ class MetaModelProvider(ModelProvider):
         budget_s: float,
         timeout: httpx.Timeout = TIMEOUT,
     ) -> Json:
-        """POST once, and once more after backoff on a retryable status or a connect error (AD-13)."""
+        """POST once, and once more after backoff on a retryable status or a connect error (AD-13).
+
+        The error raised is `dispatched=False` only when every attempt failed
+        to connect, so the request provably never reached the host.
+        """
         started = self._clock()
         may_retry = True
+        sent = False
         while True:
             try:
                 response = self.client.post(path, json=body, timeout=timeout)
             except httpx.RequestError as exc:
-                error: ProviderError = _transport_error(exc)
-                cause: BaseException | None = exc
                 retry, after = isinstance(exc, RETRY_ON_CONNECT), None
+                sent = sent or not retry
+                error: ProviderError = _transport_error(exc, dispatched=sent)
+                cause: BaseException | None = exc
             else:
+                sent = True
                 if response.is_success:
                     return response.json()
                 if self._keyless and response.status_code in KEYLESS_REFUSED_STATUS:
@@ -298,6 +305,7 @@ class MetaModelProvider(ModelProvider):
         attempt: int = 0,
         job_id: JobId | None = None,
         stage: Stage | None = None,
+        session_id: SessionId | None = None,
     ) -> ChatResponse:
         check_reasoning_effort(reasoning_effort)
         chat_model = model or self.default_chat_model
@@ -327,7 +335,9 @@ class MetaModelProvider(ModelProvider):
             response = ChatResponse(text=choice["message"]["content"], model=raw.get("model", chat_model), usage=usage, raw=raw)
             return response, spark_cost_usd(usage)
 
-        response, receipt = self._calls.chat(key, self.chat_kind, model=chat_model, call=call, job_id=job_id, stage=stage)
+        response, receipt = self._calls.chat(
+            key, self.chat_kind, model=chat_model, call=call, job_id=job_id, stage=stage, session_id=session_id
+        )
         return replace(response, receipt=receipt)
 
     def segment(self, label: str, image: bytes, *, job_id: JobId | None = None, stage: Stage | None = None) -> SegmentResponse:

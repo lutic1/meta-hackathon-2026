@@ -59,8 +59,9 @@ class ArtifactStore(Protocol):
     deletion line).
 
     `deleted_room` names the Room an ids-only deletion record holds for a
-    room id or a job id (AD-9): hosted, a record under `rooms/deleted/`;
-    local, none, since Local mode deletes no Room. A route asks it only
+    room id, a job id or a session id the deletion took (AD-9): hosted, a
+    record under `rooms/deleted/`; local, none, since Local mode deletes no
+    Room. A route asks it only
     after the Room or job is not found, to answer 410 rather than 404.
     """
 

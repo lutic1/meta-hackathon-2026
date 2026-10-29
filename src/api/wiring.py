@@ -5,8 +5,14 @@
 `PROVIDER_<ROLE>`, which `Settings` defaults to `MODEL_PROVIDER`, so setting
 one role's key replaces that role's provider and no other. Every hosted
 adapter shares the process's one `SpendLedger` and the disk cache through
-its own `GuardedCalls` (AD-6); the mock touches neither. `hint_phraser`
-resolves the `HintPhraser` from `GUIDE` alone; no other setting selects a
+its own `GuardedCalls` (AD-6); the mock touches neither. A paid adapter
+(`meta`, `openai_compatible`) is built on its role's first call and reused
+after (`LazyProvider`, decisions 61 and 63): a keyless checkout starts,
+lists and plays its Rooms with none built, and a setting the adapter refuses
+(the fallback's base URL or key unset) fails only the call that needs it,
+as a `ProviderError` naming the setting, before any spend is reserved; it is
+never replaced by the mock. An unknown `PROVIDER_<ROLE>` is refused at once.
+`hint_phraser` resolves the `HintPhraser` from `GUIDE` alone; no other setting selects a
 phraser, and the Ollama adapter is built only for `GUIDE=ollama`, at
 `OLLAMA_HOST`, over the verbatim adapter it falls back to (the hosted app
 never builds it: `Settings` refuses `MODE=hosted` with `GUIDE=ollama`).
@@ -125,6 +131,7 @@ from src.pipeline.scene import scene_stage, skipped_dry_run_stage
 from src.pipeline.segment import segment_stage
 from src.providers.base import HintPhraser, ModelProvider
 from src.providers.cache import GuardedCalls
+from src.providers.lazy import LazyProvider
 from src.providers.meta_api import DEFAULT_BASE_URL, IMAGE_BUDGET_S, MetaModelProvider
 from src.providers.mock import MockProvider
 from src.providers.ollama import OllamaPhraser
@@ -261,14 +268,26 @@ def model_provider(settings: Settings, role: Role, calls: Callable[[str], Guarde
     raise ValueError(f"Unknown PROVIDER_{role.upper()} {kind!r}. Use 'mock', 'meta' or 'openai_compatible'.")
 
 
+PAID_PROVIDERS = frozenset({"meta", "openai_compatible"})
+"""The `PROVIDER_<ROLE>` values whose adapter calls a paid host, so it is built only when its role first calls."""
+
+
+def role_provider(settings: Settings, role: Role, calls: Callable[[str], GuardedCalls]) -> ModelProvider:
+    """`model_provider` for `role`, a paid adapter deferred to its first call; the mock, or the refusal of an unknown value, at once."""
+    kind: str = getattr(settings, f"provider_{role}")
+    if kind not in PAID_PROVIDERS:
+        return model_provider(settings, role, calls)
+    return LazyProvider(kind, lambda: model_provider(settings, role, calls))
+
+
 def model_providers(settings: Settings, cache: Cache, ledger: SpendLedger) -> dict[Role, ModelProvider]:
-    """One provider per council role, each its own instance; the hosted ones share `cache` and `ledger` (`CACHE=off` skips the cache)."""
+    """One provider per council role, each its own instance, paid ones built on first call; the hosted ones share `cache` and `ledger` (`CACHE=off` skips the cache)."""
     enabled = settings.cache == "on"
 
     def calls(host: str) -> GuardedCalls:
         return GuardedCalls(cache, ledger, host=host, enabled=enabled)
 
-    return {role: model_provider(settings, role, calls) for role in ROLES}
+    return {role: role_provider(settings, role, calls) for role in ROLES}
 
 
 def build_stages(
@@ -473,7 +492,7 @@ def wire(
         ledger = spend_ledger(settings, hosted.ledger)
         providers = model_providers(settings, hosted.cache, ledger)
         build = _build(settings, hosted.artifacts, hosted.jobs, providers, hosted.ledger, stages)
-        uncached = model_provider(
+        uncached = role_provider(
             settings, "trickster", lambda host: GuardedCalls(hosted.cache, ledger, host=host, enabled=False)
         )
         return Wiring(

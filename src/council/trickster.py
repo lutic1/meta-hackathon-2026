@@ -53,7 +53,7 @@ from typing import Protocol
 
 from pydantic import ValidationError, model_validator
 
-from src.domain.schema import EditType, Model, Payload, PuzzleId, RoomId, RoomView
+from src.domain.schema import EditType, Model, Payload, PuzzleId, RoomId, RoomView, SessionId
 from src.domain.session import GameStateSummary
 from src.providers.base import ChatMessage, ModelProvider, ProviderError, ReasoningEffort
 
@@ -91,10 +91,13 @@ def load_proposals(path: Path) -> RecordedProposals:
 
 
 class TricksterSource(Protocol):
-    """Where a window's proposal comes from; the Validator, never the source, decides the Card."""
+    """Where a window's proposal comes from; the Validator, never the source, decides the Card.
+
+    `session_id` names the session the window belongs to; the live source tags its call's ledger entry with it.
+    """
 
     def propose(
-        self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary
+        self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary, *, session_id: SessionId | None = None
     ) -> TricksterProposal | None: ...
 
 
@@ -105,7 +108,7 @@ class ScriptedSource:
     recording: RecordedProposals
 
     def propose(
-        self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary
+        self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary, *, session_id: SessionId | None = None
     ) -> TricksterProposal | None:
         proposals = self.recording.proposals
         if room_id != self.recording.room_id or not 0 <= window < len(proposals):
@@ -224,7 +227,7 @@ class LiveSource:
     recording: Path | None = None
 
     def propose(
-        self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary
+        self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary, *, session_id: SessionId | None = None
     ) -> TricksterProposal | None:
         prompt = build_trickster_prompt(room_view, summary)
         reply = self.provider.chat(
@@ -232,6 +235,7 @@ class LiveSource:
             response_schema=prompt.response_schema,
             reasoning_effort=prompt.reasoning_effort,
             attempt=window,
+            session_id=session_id,
         )
         proposal = parse_proposal(reply.text)
         if self.recording is not None:

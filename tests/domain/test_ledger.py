@@ -90,6 +90,13 @@ def test_estimate_ignores_reserved_entries_of_that_kind():
     assert estimate_usd("riddler", entries) == 0.05
 
 
+def test_a_zero_cost_settlement_never_seeds_the_estimate():
+    """Decision 24: a call settled at 0 USD because it was never sent is no observed price, so it cannot zero the next reservation."""
+    never_sent = [entry(CALL_B, "riddler", "reserved", 0.03), entry(CALL_B, "riddler", "settled", 0.0)]
+    assert estimate_usd("riddler", never_sent) == SEED_USD["riddler"]
+    assert estimate_usd("riddler", [entry(CALL_A, "riddler", "settled", 0.05), *never_sent]) == 0.05
+
+
 # --- Folding, totals and the cap check -------------------------------------
 
 

@@ -56,6 +56,7 @@ from tests.api.test_trickster_route import (
     trickster,
     two_windows,
 )
+from tests.api.test_wiring import built
 from tests.council.test_trickster_live import (
     FIRST,
     MERGE,
@@ -266,8 +267,10 @@ def test_live_writes_no_artifact(tmp_path: Path, ticker: Ticker, four_lock_room:
 
 
 def providers_for(tmp_path: Path, env: dict[str, str]) -> dict[str, Any]:
+    """The per-role providers, each paid one built now as its first call would build it."""
     settings = Settings.from_env(env)
-    return model_providers(settings, model_cache(tmp_path / CACHE_ROOT), spend_ledger(settings, ledger_store(tmp_path / LEDGER_PATH)))
+    providers = model_providers(settings, model_cache(tmp_path / CACHE_ROOT), spend_ledger(settings, ledger_store(tmp_path / LEDGER_PATH)))
+    return {role: built(provider) for role, provider in providers.items()}
 
 
 def test_provider_trickster_replaces_only_the_trickster_roles_provider(tmp_path: Path):

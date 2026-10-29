@@ -158,7 +158,11 @@ def test_every_judge_room_goes_with_or_without_a_room_and_each_ids_only_record_i
     assert out[0] == "Modal Environment: main"
     printed = [DeletionRecord.model_validate_json(line.removeprefix("deleted ")) for line in out if line.startswith("deleted ")]
     assert sorted(printed, key=lambda r: r.room_id) == sorted(
-        (DeletionRecord(room_id=judge.room_id, job_id=judge.state.id, deleted_on=NOV_10) for judge in hosted.judges), key=lambda r: r.room_id
+        (
+            DeletionRecord(room_id=judge.room_id, job_id=judge.state.id, deleted_on=NOV_10, session_ids=[judge.session] if judge.session else [])
+            for judge in hosted.judges
+        ),
+        key=lambda r: r.room_id,
     )
     assert list(hosted.judge_dir.iterdir()) == []
     for judge in hosted.judges:
@@ -357,4 +361,4 @@ def test_a_printed_record_carries_ids_and_the_date_only(monkeypatch, handles, ho
     run_main(monkeypatch, handles)
     for line in capsys.readouterr().out.splitlines():
         if line.startswith("deleted "):
-            assert set(json.loads(line.removeprefix("deleted "))) == {"room_id", "job_id", "deleted_on"}
+            assert set(json.loads(line.removeprefix("deleted "))) == {"room_id", "job_id", "deleted_on", "session_ids"}

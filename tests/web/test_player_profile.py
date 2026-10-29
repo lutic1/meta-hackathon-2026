@@ -282,7 +282,7 @@ def test_every_session_start_posts_the_profiles_session_start_body():
     assert calls["web/src/play.ts"] == ["await sessionStart(session.room_id, currentPlace().profile, frame.mode)"]
     # The mode each start follows is GET /meta's, passed down from the shell.
     shell = _code("shell.ts")
-    assert shell.count("mode: meta.mode") == 5 and "mode: content.mode" in shell
+    assert shell.count("mode: meta.mode") == 6 and "mode: content.mode" in shell
     # web/profile alone builds the body; no other module names a Derived block or the fresh one.
     for path, text in source_ts().items():
         if path.startswith("web/src/profile/"):
@@ -340,7 +340,7 @@ def test_web_profile_is_the_only_writer_and_others_read_through_its_exports():
 
 def test_the_completion_screen_records_the_returned_result_once_and_nothing_while_it_fails():
     load = _function(_code("completion.ts"), "load")
-    failed, returned = load.split("} catch {", 1)[1].split("\n    }\n", 1)
+    failed, returned = load.split("} catch (error) {", 1)[1].split("\n    }\n", 1)
     assert "putResult" not in failed and "retry = setTimeout(() => void load(), RESULT_RETRY_MS)" in failed
     assert returned.count("putResult(") == 1 and "const recorded = putResult(profile, result, mode)" in returned
     assert returned.index("if (!mounted) return") < returned.index("putResult(") < returned.index("show(result)")

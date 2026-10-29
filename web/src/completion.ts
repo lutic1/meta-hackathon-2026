@@ -11,7 +11,7 @@ import { announce } from './live-region.ts'
 import { mountPlayBehind } from './play.ts'
 import { CUT_2, profileFile, putResult } from './profile/index.ts'
 import { placeHref } from './router.ts'
-import { showRoomGone } from './room-gone.ts'
+import { type RoomGone, roomGone, showRoomGone } from './room-gone.ts'
 import { fill, strings } from './strings.ts'
 import { speakerPrefix, wizardPortrait } from './wizards/portrait.ts'
 
@@ -97,7 +97,8 @@ async function roomJob(session: SessionState): Promise<string | null> {
  * A session state whose `judge_room` the server set (a Hosted Judge room, never a Demo or Local room) adds the
  * "Deleted Tue Nov 10" deletion line directly below the sheet, on the scrim, off the paper; the client never infers it.
  * The top bar's `controls` keep "Show all objects" in place, inert. A Room answered 410 `room_deleted` or 404
- * `room_not_found` replaces the page body with its card (`showRoomGone`). Returns the teardown.
+ * `room_not_found`, or a result read answered 410 `room_deleted`, replaces the page body with its card
+ * (`showRoomGone`). Returns the teardown.
  */
 export function mountCompletion(
   body: HTMLElement,
@@ -117,6 +118,11 @@ export function mountCompletion(
     clearTimeout(retry)
     showRoomGone(body, gone, mode, profile)
   })
+  /** A result read refused for a deleted Judge room: the same card, in place of the sheet. */
+  const gone = (which: RoomGone): void => {
+    mounted = false
+    showRoomGone(body, which, mode, profile)
+  }
 
   const scrim = document.createElement('div')
   scrim.className = 'completion-scrim'
@@ -199,8 +205,9 @@ export function mountCompletion(
     let result: RoomResult
     try {
       result = await getResult(session.id)
-    } catch {
+    } catch (error) {
       if (!mounted) return
+      if (roomGone(error) === 'room_deleted') return gone('room_deleted')
       failed.hidden = false
       retry = setTimeout(() => void load(), RESULT_RETRY_MS)
       return

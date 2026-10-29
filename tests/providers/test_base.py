@@ -28,13 +28,13 @@ def _params(method):
 
 
 def test_chat_signature():
-    """AD-5's `chat`, plus the AD-6 `attempt` and the ledger's `job_id` and `stage` tags (Story 2.20)."""
+    """AD-5's `chat`, plus the AD-6 `attempt` and the ledger's `job_id`, `stage` and `session_id` tags (Story 2.20, decision 61)."""
     params, returns = _params(ModelProvider.chat)
-    names = ["messages", "images", "response_schema", "reasoning_effort", "model", "attempt", "job_id", "stage"]
+    names = ["messages", "images", "response_schema", "reasoning_effort", "model", "attempt", "job_id", "stage", "session_id"]
     assert [p.name for p in params] == names
     assert params[0].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert all(p.kind is KEYWORD_ONLY for p in params[1:])
-    assert [p.default for p in params[1:]] == [[], None, "low", None, 0, None, None]
+    assert [p.default for p in params[1:]] == [[], None, "low", None, 0, None, None, None]
     assert returns is ChatResponse
 
 

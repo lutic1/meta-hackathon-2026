@@ -17,7 +17,7 @@ import { hostedLanding } from './landing.ts'
 import { liveRegion } from './live-region.ts'
 import { currentPlace, placeHref, type Route } from './router.ts'
 import { mountPlay } from './play.ts'
-import { showRoomGone } from './room-gone.ts'
+import { roomGone, showRoomGone } from './room-gone.ts'
 import { getResults, watchResults } from './profile/index.ts'
 import { mountTriggersWindow } from './triggers-window.ts'
 import { strings } from './strings.ts'
@@ -27,8 +27,12 @@ export const RETRY_MS = 2000
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-/** null for a 4xx: the server answered and refused, so there is nothing to retry and no Room to disclose. */
-function refused(error: unknown): null {
+/**
+ * null for a 4xx: the server answered and refused, so there is nothing to retry and no Room to disclose;
+ * `room_deleted` when the refusal is a 410 for a Session its Judge room's deletion took.
+ */
+function refused(error: unknown): 'room_deleted' | null {
+  if (roomGone(error) === 'room_deleted') return 'room_deleted'
   if (error instanceof RequestFailed && error.status !== null && error.status < 500) return null
   throw error
 }
@@ -41,8 +45,9 @@ function refused(error: unknown): null {
  * surface ever shows without its Disclosure lines. While a request fails the page body holds only the centered
  * status strip, retried every 2000 ms; nothing is guessed in the meantime. A session the server refuses (4xx) has
  * no Room, so its route shows the global lines: `#/play/<session_id>` and `#/done/<session_id>` hold the Session-gone
- * line with "Start again", which goes to `#/` since the refusal names no Room to start again; `#/triggers/<session_id>`
- * holds an empty body.
+ * line with "Start again", which goes to `#/` since the refusal names no Room to start again, or, for a Session its
+ * Judge room's deletion took (410 `room_deleted`), the Deleted Judge room notice; `#/triggers/<session_id>` holds an
+ * empty body.
  * The top bar's mode indicator counts the Room results of the `?profile=` profile (web/profile) and is rewritten as
  * soon as one is recorded. In Local mode `#/` also waits for `GET /rooms`, read afresh on every visit: the browser keeps no list of its own;
  * it is the Capture screen, its Retention summary the `retention` text of the same `GET /meta`. In Hosted mode `#/` is
@@ -113,10 +118,12 @@ export function startShell(root: HTMLElement): void {
       content = { name: 'view', state, meta, profile, onBack: back, onRetry: () => void render() }
     } else if (place.route.name === 'play' || place.route.name === 'done' || place.route.name === 'triggers') {
       const { name, sessionId } = place.route
-      const state = await answered(mine, () => getSession(sessionId).catch(refused))
-      if (state === undefined) return
+      const answer = await answered(mine, () => getSession(sessionId).catch(refused))
+      if (answer === undefined) return
+      const state = answer === 'room_deleted' ? null : answer
       if (state !== null) disclosure = state.disclosure
       if (state !== null) content = { name, session: state, guide: meta.guide, mode: meta.mode, profile: place.profile }
+      else if (answer === 'room_deleted' && name !== 'triggers') content = { name: 'roomDeleted', mode: meta.mode, profile: place.profile }
       else if (name !== 'triggers') content = { name: 'gone', profile: place.profile }
     } else if (place.route.name === 'build') {
       content = { name: 'build', jobId: place.route.jobId, profile: place.profile, mode: meta.mode, retention: meta.retention }
@@ -193,6 +200,7 @@ type Content =
   | { name: 'capture'; buildsLeft: number; sample: RoomSummary | undefined; profile: string; mode: Meta['mode']; retention: string }
   | { name: 'build'; jobId: string; profile: string; mode: Meta['mode']; retention: string }
   | { name: 'gone'; profile: string }
+  | { name: 'roomDeleted'; mode: Meta['mode']; profile: string }
   | { name: 'empty' }
 
 /**
@@ -224,6 +232,16 @@ function surface(content: Content, bar: TopBar): Surface {
       }),
     )
     return { element }
+  }
+  if (content.name === 'roomDeleted') {
+    const { profile, mode } = content
+    return {
+      element,
+      mount: () => {
+        showRoomGone(element, 'room_deleted', mode, profile)
+        return () => {}
+      },
+    }
   }
   if (content.name === 'view') {
     const { state, meta, profile } = content

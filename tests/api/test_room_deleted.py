@@ -8,6 +8,7 @@ read is the one the purge writes; no test reaches Modal.
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,8 @@ NOV_10 = date(2026, 11, 10)
 UNKNOWN_JOB = "job_01ARZ3NDEKTSV4RRFFQ69G5FAV"
 ROOM_DELETED = {"error": {"code": "room_deleted", "message": ANY, "stage": None}}
 JOB_NOT_FOUND = {"error": {"code": "job_not_found", "message": ANY, "stage": None}}
+UNKNOWN_SESSION = "sess_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+SESSION_NOT_FOUND = {"error": {"code": "session_not_found", "message": ANY, "stage": None}}
 
 
 class Scene:
@@ -140,6 +143,70 @@ def test_a_session_still_open_on_a_deleted_judge_room_answers_410_on_its_room_re
     scene.delete_judge_room()
     response = scene.client.get(f"/api/sessions/{session_id}/room")
     assert (response.status_code, response.json()) == (410, ROOM_DELETED)
+
+
+def session_calls(client: TestClient, session_id: str) -> dict[str, Response]:
+    """Each session-keyed route a bookmarked Play or Done page reaches, called with `session_id`."""
+    return {
+        "GET /sessions/<id>": client.get(f"/api/sessions/{session_id}"),
+        "GET /sessions/<id>/room": client.get(f"/api/sessions/{session_id}/room"),
+        "GET /sessions/<id>/result": client.get(f"/api/sessions/{session_id}/result"),
+        "POST /sessions/<id>/events": client.post(f"/api/sessions/{session_id}/events", json={"type": "hint_request"}),
+        "POST /sessions/<id>/trickster": client.post(f"/api/sessions/{session_id}/trickster"),
+    }
+
+
+def started_session(scene: Scene) -> str:
+    started = scene.client.post("/api/sessions", json={"room_id": scene.judge_room_id})
+    assert started.status_code == 200, started.text
+    return started.json()["id"]
+
+
+def test_every_session_route_of_a_session_still_open_on_a_deleted_judge_room_answers_410(tmp_path: Path, four_lock_room: Room, code_and_find_room: Room):
+    """Decision 58: the Play and Done paths of a session open in this process show the deletion notice, never a blank 404."""
+    scene = Scene(tmp_path, four_lock_room, code_and_find_room)
+    session_id = started_session(scene)
+    scene.delete_judge_room()
+    found = answers(session_calls(scene.client, session_id))
+    assert found == dict.fromkeys(found, (410, ROOM_DELETED))
+
+
+def test_a_restarted_app_answers_410_for_a_session_its_judge_rooms_deletion_took(tmp_path: Path, four_lock_room: Room, code_and_find_room: Room):
+    """The session's log and header are gone; the ids-only deletion record still names it, so a bookmark tells deleted from unknown."""
+    scene = Scene(tmp_path, four_lock_room, code_and_find_room)
+    session_id = started_session(scene)
+    record = scene.delete_judge_room()
+    assert record.session_ids == [session_id] and scene.handles.sessions == {}
+    restarted = TestClient(make_hosted_app(tmp_path, scene.handles, settings=hosted_settings(ACCESS_CODE=CODE)))
+    found = answers(session_calls(restarted, session_id))
+    assert found == dict.fromkeys(found, (410, ROOM_DELETED))
+    assert all(scene.judge_room_id in body["error"]["message"] for _, body in found.values())
+
+
+def test_the_record_keeps_only_ids_and_the_date_for_the_sessions_it_routes(tmp_path: Path, four_lock_room: Room, code_and_find_room: Room):
+    scene = Scene(tmp_path, four_lock_room, code_and_find_room)
+    first, second = started_session(scene), started_session(scene)
+    scene.delete_judge_room()
+    raw = json.loads((scene.handles.root / deletion_record_path(scene.judge_room_id)).read_bytes())
+    assert raw == {"room_id": scene.judge_room_id, "job_id": scene.judge_job.id, "deleted_on": "2026-11-10", "session_ids": sorted([first, second])}
+    artifacts = hosted_stores(scene.handles).artifacts
+    assert artifacts.deleted_room(first) == artifacts.deleted_room(second) == scene.judge_room_id
+
+
+def test_an_unknown_session_stays_404_session_not_found_beside_a_deletion_record(tmp_path: Path, four_lock_room: Room, code_and_find_room: Room):
+    scene = Scene(tmp_path, four_lock_room, code_and_find_room)
+    started_session(scene)
+    scene.delete_judge_room()
+    found = answers(session_calls(scene.client, UNKNOWN_SESSION))
+    assert found == dict.fromkeys(found, (404, SESSION_NOT_FOUND))
+
+
+def test_a_session_on_the_demo_room_plays_on_once_a_judge_room_is_deleted(tmp_path: Path, four_lock_room: Room, code_and_find_room: Room):
+    scene = Scene(tmp_path, four_lock_room, code_and_find_room)
+    started = scene.client.post("/api/sessions", json={"room_id": scene.demo_room.id})
+    scene.delete_judge_room()
+    calls = session_calls(scene.client, started.json()["id"])
+    assert {name: r.status_code for name, r in calls.items()} == dict.fromkeys(calls, 200), [r.text for r in calls.values()]
 
 
 # --- An id with no Room and no record: 404 -------------------------------------------------

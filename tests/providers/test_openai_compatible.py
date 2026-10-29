@@ -244,7 +244,29 @@ def test_a_second_failure_is_a_provider_error_after_two_requests(failure):
         h.chat()
     assert len(h.host.requests) == 2 and len(h.waits) == 1
     assert info.value.status == (None if isinstance(failure, type) else failure.status_code)
-    assert [e.status for e in h.store.rows] == ["reserved"] and h.cache.rows == {}
+    assert h.store.rows[0].status == "reserved" and h.cache.rows == {}
+
+
+@pytest.mark.parametrize("second", [httpx.ConnectError, httpx.ConnectTimeout])
+def test_a_call_that_never_reached_the_host_settles_at_zero_and_keeps_its_entry(second):
+    h = Harness(httpx.ConnectError, second, reply(DRAFT))
+    with pytest.raises(ProviderError) as info:
+        h.chat()
+    assert info.value.dispatched is False
+    assert [(e.status, e.usd) for e in h.store.rows] == [("reserved", SEED_USD["riddler"]), ("settled", 0.0)]
+    assert len(fold(h.store.rows)) == 1
+
+
+@pytest.mark.parametrize("items", [
+    (error(429, "rate_limit_error"), error(429, "rate_limit_error")), (httpx.ReadTimeout,), (error(400, "invalid_request_error"),),
+    (httpx.ConnectError, error(503)), (error(503), httpx.ConnectError),
+], ids=["429-429", "ReadTimeout", "400", "ConnectError-503", "503-ConnectError"])
+def test_a_call_that_may_have_reached_the_host_keeps_its_reserved_estimate(items):
+    h = Harness(*items, reply(DRAFT))
+    with pytest.raises(ProviderError) as info:
+        h.chat()
+    assert info.value.dispatched is True
+    assert [(e.status, e.usd) for e in h.store.rows] == [("reserved", SEED_USD["riddler"])]
 
 
 @pytest.mark.parametrize("failure", [error(502), error(504, "gateway_timeout"), error(501), error(400, "invalid_request_error"), httpx.ReadTimeout, httpx.RemoteProtocolError],

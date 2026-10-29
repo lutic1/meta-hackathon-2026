@@ -127,7 +127,8 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * region once. An input posted meanwhile never reached the server and is dropped (the Code field keeps its value);
  * the next state the server sends re-renders everything and removes the strip. A poll answered 404 ends the
  * play-through: the photo dims under the Session-gone line, whose "Start again" starts a new Session on the same
- * Room. A Room, or that start, answered 410 `room_deleted` or 404 `room_not_found` replaces the page body with the
+ * Room. A Room, or that start, answered 410 `room_deleted` or 404 `room_not_found`, or a poll answered 410
+ * `room_deleted` (the Session went with its deleted Judge room), replaces the page body with the
  * Deleted Judge room notice or the unknown-room card (`showRoomGone`), focused on its heading. Returns the teardown.
  */
 export function mountPlay(
@@ -214,6 +215,7 @@ export function mountPlay(
       if (before === replies) receive(state)
     } catch (error) {
       if (error instanceof RequestFailed && error.status === 404) endPlay()
+      else if (roomGone(error) === 'room_deleted') roomMissing('room_deleted')
       else missed()
     } finally {
       polling = false

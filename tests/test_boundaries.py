@@ -253,6 +253,41 @@ def test_ledger_imports_only_stdlib_and_pydantic_and_no_clock():
     assert "src.domain.clock" not in names
 
 
+CLOCK_MODULES = frozenset({"time", "secrets", "random", "uuid", "zoneinfo", "calendar"})
+"""Modules that read the wall clock or mint randomness: a time-based id needs one, so none may reach src/domain."""
+CLOCK_READS = frozenset({"now", "utcnow", "today", "fromtimestamp", "time", "time_ns", "monotonic", "monotonic_ns", "perf_counter"})
+"""Calls that read a clock, as `datetime.now()` or `date.today()`; `datetime` itself stays importable as a type."""
+
+
+def clock_reads(src_root: Path) -> list[str]:
+    """Every src/domain module that imports a clock or randomness module, or calls a clock reading (decision 35)."""
+    out: list[str] = []
+    for path in sorted((src_root / "domain").rglob("*.py")):
+        module = _module_name(path, src_root)
+        tops = {name.split(".")[0] for name in _imports(path, module, src_root)}
+        out.extend(f"{module} imports {top}" for top in sorted(tops & CLOCK_MODULES))
+        calls = {node.func.attr for node in ast.walk(ast.parse(path.read_text())) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)}
+        out.extend(f"{module} calls .{name}()" for name in sorted(calls & CLOCK_READS))
+    return out
+
+
+def test_no_domain_module_reads_the_wall_clock_or_mints_an_id():
+    """Decision 35: time-based ids are minted outside the domain and passed in; every module in src/domain is checked."""
+    assert len(list((REPO / "src" / "domain").glob("*.py"))) >= 10
+    assert clock_reads(REPO / "src") == []
+
+
+def test_a_domain_clock_read_or_minter_is_named(tmp_path):
+    src = _tree(tmp_path, {
+        "domain/ids.py": "import time\nimport secrets\n\ndef new_ulid():\n    return time.time_ns(), secrets.token_bytes(10)\n",
+        "domain/schema.py": "from datetime import datetime\n\ndef stamp():\n    return datetime.now()\n",
+        "domain/rungs.py": "from datetime import date\n\ndef rung(events):\n    now = len(events) - 1\n    return now, date.today\n",
+    })
+    assert clock_reads(src) == [
+        "src.domain.ids imports secrets", "src.domain.ids imports time", "src.domain.ids calls .time_ns()", "src.domain.schema calls .now()",
+    ]
+
+
 def test_a_second_greet_caller_is_named(tmp_path):
     src = _tree(tmp_path, {
         "council/greeting.py": "def compose(phraser, derived):\n    return phraser.greet(derived)\n",

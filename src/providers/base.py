@@ -17,7 +17,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from src.domain.schema import CallId, Derived, GuideModel, JobId, Polygon, Stage
+from src.domain.schema import CallId, Derived, GuideModel, JobId, Polygon, SessionId, Stage
 
 ReasoningEffort = Literal["minimal", "low", "medium", "high", "xhigh"]
 REASONING_EFFORTS: tuple[ReasoningEffort, ...] = ("minimal", "low", "medium", "high", "xhigh")
@@ -35,13 +35,16 @@ class ProviderError(Exception):
     `status` is the HTTP status, or `None` when no response came back (a
     transport error or a timeout); `code` is the API's error code or type, or
     the adapter's own name for what went wrong (`timeout`, `transport_error`,
-    `retry_wait_s`, `incomplete`, ...).
+    `retry_wait_s`, `incomplete`, ...). `dispatched` is False only when the
+    adapter proves the request never left: every attempt failed to connect,
+    so nothing reached the host and nothing was billed (AD-6, AD-13).
     """
 
-    def __init__(self, status: int | None, code: str, message: str) -> None:
+    def __init__(self, status: int | None, code: str, message: str, *, dispatched: bool = True) -> None:
         super().__init__(f"{status if status is not None else 'transport'} {code}: {message}")
         self.status = status
         self.code = code
+        self.dispatched = dispatched
 
 
 @dataclass
@@ -112,13 +115,15 @@ class ModelProvider(ABC):
         attempt: int = 0,
         job_id: JobId | None = None,
         stage: Stage | None = None,
+        session_id: SessionId | None = None,
     ) -> ChatResponse:
         """Send a conversation, with the stored JPEG bytes as its images, and return the reply.
 
         `attempt` joins the AD-6 cache key: the Regeneration count on a
         Riddler or Dry run call, so attempt n is never served attempt n-1's
         answer; 0 everywhere else. `job_id` and `stage` tag the call's ledger
-        entry, so provenance sums spend per stage (AD-16).
+        entry, so provenance sums spend per stage (AD-16); `session_id` tags a
+        live Trickster window's entry with its session.
         """
         raise NotImplementedError
 

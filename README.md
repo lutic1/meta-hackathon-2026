@@ -99,8 +99,14 @@ Python 3.13 and uv 0.11.32 or newer (`.python-version`, `uv.lock`);
 Node 24 (`.nvmrc`, `web/package-lock.json`) for the web client. `python3
 scripts/doctor.py` checks the machine.
 
-Configuration: copy `.env.example` to `.env`. `MODEL_PROVIDER=mock`
-today, `MODEL_PROVIDER=meta` once the API is wired on Mon Oct 26. See
+Configuration: copy `.env.example` to `.env`. Playing needs no key: the
+server starts without `MODEL_API_KEY`, builds a paid model adapter only
+when a Build first calls it, and plays the stored rooms and the fixture
+rooms `uv run scripts/load_fixtures.py` stores. `MODEL_PROVIDER=mock` runs
+Builds on the deterministic mock (fixture work and the tests; its call
+rows name the `mock` host, never a live one); `MODEL_PROVIDER=meta` runs
+live Builds, and a Build whose provider setting is missing ends `failed`
+naming it. See
 [docs/MONDAY.md](docs/MONDAY.md) for the kickoff checklist (no paid call on Oct 26; the first live
 calls run Tue Oct 27 behind the spend cap through `scripts/sit.py`).
 

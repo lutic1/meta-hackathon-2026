@@ -10,7 +10,7 @@ import pytest
 
 from src.domain.ledger import SEED_USD, SpendCapExceeded, fold
 from src.domain.schema import ArchitectResponse, DryRunAnswers
-from src.providers.base import ChatMessage, ChatResponse, ImageResponse
+from src.providers.base import ChatMessage, ChatResponse, ImageResponse, ProviderError
 from src.providers.cache import CallReceipt, GuardedCalls, cache_key, schema_hash
 from src.providers.mock import MockProvider
 from src.providers.spend import SpendLedger, new_call_id
@@ -183,6 +183,20 @@ def test_a_call_that_raises_keeps_its_reservation_and_stores_nothing():
     with pytest.raises(ConnectionError):
         guarded(store, cache).chat(riddler_key(), "riddler", model="muse-spark-1.3", call=failing)
     assert [e.status for e in store.rows] == ["reserved"] and cache.rows == {}
+
+
+@pytest.mark.parametrize(("dispatched", "rows"), [(False, [("reserved", 0.03), ("settled", 0.0)]), (True, [("reserved", 0.03)])])
+def test_a_provider_error_settles_at_zero_only_when_the_call_never_left(dispatched, rows):
+    store = MemoryLedgerStore()
+    cache = MemoryCache()
+
+    def failing() -> tuple[ChatResponse, float]:
+        raise ProviderError(None, "transport_error", "refused", dispatched=dispatched)
+
+    with pytest.raises(ProviderError):
+        guarded(store, cache).chat(riddler_key(), "riddler", model="muse-spark-1.3", call=failing, session_id=SESSION)
+    assert [(e.status, e.usd) for e in store.rows] == rows and cache.rows == {}
+    assert {e.call_id for e in store.rows} == {store.rows[0].call_id} and {e.session_id for e in store.rows} == {SESSION}
 
 
 # --- Attempts and CACHE=off ---------------------------------------------------

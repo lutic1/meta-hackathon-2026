@@ -74,7 +74,7 @@ class JobNotFound(ApiError):
 
 
 class BuildNotReady(ApiError):
-    """`GET /builds/<job_id>/view` of a job not yet `done` (AD-3, AD-13): 409 with the job `status` in the envelope."""
+    """`GET /builds/<job_id>/view` or `/room` of a known job not yet `done` (AD-3, AD-13): 409 with the job `status` in the envelope."""
 
     status = 409
     code = "build_not_ready"
@@ -152,7 +152,7 @@ class InvalidProfile(ApiError):
 
 
 class InvalidRequest(ApiError):
-    """A request whose body, path or query failed validation; the message names each failing location."""
+    """A request whose body, path or query failed validation; the message names each failing location and never echoes a value sent."""
 
     status = 422
     code = "invalid_request"

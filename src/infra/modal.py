@@ -61,7 +61,8 @@ store writes every key of the port (`<room_id>/room.json`,
 is true only for a Room under `rooms/demo/`, `is_judge_room(room_id)` only
 for one under `rooms/judge/`, and `deleted_room(id_)` reads
 the deletion records under `rooms/deleted/` for one naming that room id or
-job id, so a route answers a deleted Judge room with 410. Cache entries live at
+job id or one of the session ids its deletion took, so a route answers a
+deleted Judge room with 410. Cache entries live at
 `/data/cache/<key>.json`. `run_build` runs a Judge build
 through `run_judge_build`, with a `CacheKeyLog` as the providers' Cache: the
 log adds each key to `rooms/judge/<room_id>/cache-keys.json`, committed,
@@ -74,7 +75,8 @@ calls. `delete_judge_room(handles, room_id, today=...)` deletes a Judge
 room together: its Sessions (`SessionStore.list_ids` and `read_all`, then
 `delete`), every Cache entry its `cache-keys.json` lists, and its folder
 under `rooms/judge/` (Room, photos, originals), committing the Volume; only
-then does it write the ids-only `DeletionRecord` to
+then does it write the ids-only `DeletionRecord` (the room id, the job id,
+the date and the ids of the Sessions it took) to
 `rooms/deleted/<room_id>.json`, and after it remove the folder's final
 record and pop the job keys in `keyframe-jobs`. It refuses a Demo room id,
 and a Room whose job may still be running, deleting nothing. Every step
@@ -114,7 +116,7 @@ from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol
 
-from pydantic import ConfigDict, TypeAdapter, ValidationError
+from pydantic import ConfigDict, Field, TypeAdapter, ValidationError
 
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import (
@@ -362,9 +364,9 @@ class VolumeArtifactStore:
         return self.files.exists(f"{self.judge}/{self._clean(room_key(room_id))}")
 
     def deleted_room(self, id_: str) -> RoomId | None:
-        """The Room id of the deletion record under `rooms/deleted/` that names `id_` as its room id or job id, after one reload; `None` when none does."""
+        """The Room id of the deletion record under `rooms/deleted/` that names `id_` as its room id, job id or one of its session ids, after one reload; `None` when none does."""
         records = map(DeletionRecord.model_validate_json, self.files.read_glob(f"{ROOMS_DIR}/{DELETED_PARTITION}/*.json"))
-        return next((record.room_id for record in records if id_ in (record.room_id, record.job_id)), None)
+        return next((record.room_id for record in records if id_ in (record.room_id, record.job_id, *record.session_ids)), None)
 
 
 class VolumeCache:
@@ -771,6 +773,9 @@ class DeletionRecord(Model):
     """What a deleted Judge room leaves at `rooms/deleted/<room_id>.json` (AD-9): ids and the date only, no label, Clue, name or photo.
 
     `job_id` is `None` only when no job record names the Room any more.
+    `session_ids` are the Sessions the deletion took, the minimal routing
+    tombstone that lets a bookmarked Play or Done page answer 410 rather
+    than 404 once their logs and headers are gone (decision 58).
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -778,6 +783,7 @@ class DeletionRecord(Model):
     room_id: RoomId
     job_id: JobId | None
     deleted_on: date
+    session_ids: list[SessionId] = Field(default_factory=list)
 
 
 def deletion_record_path(room_id: str) -> str:
@@ -816,11 +822,12 @@ def delete_judge_room(handles: ModalHandles, room_id: str, *, today: date) -> De
         if state.status in IN_FLIGHT and wall_ms() - minted_ms(job_id) <= DEADLINE_S * 1000:
             raise ValueError(f"{room_id} has a {state.status} job {job_id}; delete it once the job has ended")
     room = _judge_room(files, folder)
-    if room is not None:
-        _delete_room_sessions(DictSessionStore(handles.sessions), room)
+    session_ids = [] if room is None else _delete_room_sessions(DictSessionStore(handles.sessions), room)
     files.remove(*(f"{CACHE_DIR}/{key}.json" for key in _listed_cache_keys(files, folder)))
     files.remove(*(f"{folder}/{name}" for name in files.names(folder) if name != JOB_FILE))
-    record = _stored_record(files, room_id) or DeletionRecord(room_id=room_id, job_id=job_id, deleted_on=today)
+    record = _stored_record(files, room_id) or DeletionRecord(
+        room_id=room_id, job_id=job_id, deleted_on=today, session_ids=session_ids
+    )
     files.write(deletion_record_path(room_id), record.model_dump_json().encode())
     files.remove(folder)
     _pop_job_keys(handles.jobs, record.job_id)
@@ -895,13 +902,16 @@ def _on_room(sessions: DictSessionStore, session_id: SessionId, room_id: str) ->
         return False
 
 
-def _delete_room_sessions(sessions: DictSessionStore, room: Room) -> None:
-    """Delete every Session whose header names the Room or whose events name one of its interactables or puzzles, whatever its age."""
+def _delete_room_sessions(sessions: DictSessionStore, room: Room) -> list[SessionId]:
+    """Delete every Session whose header names the Room or whose events name one of its interactables or puzzles, whatever its age; their ids, sorted."""
     ids = {ix.id for ix in room.interactables} | {pz.id for pz in room.puzzles}
+    deleted: list[SessionId] = []
     for session_id in sessions.list_ids():
         with suppress(KeyError):  # another sweep may have deleted it meanwhile
             if _on_room(sessions, session_id, room.id) or any(_named_ids(event) & ids for event in sessions.read_all(session_id)):
                 sessions.delete(session_id)
+                deleted.append(session_id)
+    return deleted
 
 
 def last_event_ms(session_id: SessionId, events: list[Event]) -> int:

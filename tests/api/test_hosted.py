@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient
 
 from src.api import wiring
 from src.api.app import trigger_events
-from src.api.meta import HOSTED_LINE, RETENTION_HOSTED
+from src.api.meta import HOSTED_LINE, RETENTION_HOSTED, disclosure_lines
 from src.api.wiring import hint_phraser
 from src.domain.schema import Derived, JobState, RungChangeEvent
 from src.domain.session import SessionStateMachine
@@ -187,7 +187,10 @@ def test_a_hosted_session_computes_every_threshold_from_fresh_and_shows_the_rung
     assert started.status_code == 200, started.text
     session_id = started.json()["id"]
     assert started.json()["thresholds"] == FRESH_THRESHOLDS.model_dump()
-    assert started.json()["opening_line"]["kind"] == "welcome" and started.json()["disclosure"] == [HOSTED_LINE]
+    # A Demo room, as the store names it, carries the earlier-builds line after the hosted one (decision 56).
+    demo_lines = disclosure_lines(hosted_settings(), code_and_find_room, demo_room=True)
+    assert demo_lines[0] == HOSTED_LINE and len(demo_lines) == 2
+    assert started.json()["opening_line"]["kind"] == "welcome" and started.json()["disclosure"] == demo_lines
 
     ticker.advance(4_000)
     hinted = post(client, session_id, {"type": "hint_request"})
@@ -211,7 +214,7 @@ def test_a_hosted_session_computes_every_threshold_from_fresh_and_shows_the_rung
     replayed = SessionStateMachine(code_and_find_room, opening="welcome", thresholds=FRESH_THRESHOLDS).replay(
         session_id, sessions.read_all(session_id)
     )
-    served = {"disclosure": [HOSTED_LINE], "trigger_events": trigger_events(replayed, sessions.read_all(session_id))}
+    served = {"disclosure": demo_lines, "trigger_events": trigger_events(replayed, sessions.read_all(session_id))}
     assert live == replayed.model_copy(update=served).model_dump(mode="json")
 
     stored = json.dumps(handles.sessions[session_id])

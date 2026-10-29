@@ -3,7 +3,9 @@
 One instance per process. `guard` runs the 2.2 arithmetic under a lock, so
 reserved plus settled spend never passes the cap, and appends a `reserved`
 entry under a fresh `call_` ULID; `settle` replaces it with the observed
-cost under the same id after the call. A refused call raises
+cost under the same id after the call, or with 0 USD when the call provably
+never left (every attempt failed to connect); any other failure keeps the
+reserved estimate. A refused call raises
 `SpendCapExceeded` and is never made. Hosted adapters call `guard` only on
 a cache miss, inside `src/providers`; the mock provider never touches it.
 The cap is injected from `Settings.spend_cap_usd` (AD-14), a per-store,

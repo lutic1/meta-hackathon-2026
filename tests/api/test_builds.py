@@ -299,7 +299,9 @@ def test_job_state_never_carries_a_room_and_only_the_room_route_returns_one(
     posted = post(client, make_uploads(6)).json()
     assert entered.wait(5)
     seen = [client.get(f"/api/builds/{posted['id']}").json()]
-    assert client.get(f"/api/builds/{posted['id']}/room").json()["error"]["code"] == "room_not_found"
+    assert client.get(f"/api/builds/{posted['id']}/room").json()["error"] == {
+        "code": "build_not_ready", "message": ANY, "stage": None, "status": "running",
+    }
     release.set()
     final = wait_terminal(client, posted["id"], seen)
 
@@ -316,12 +318,13 @@ def test_job_state_never_carries_a_room_and_only_the_room_route_returns_one(
 
 
 @pytest.mark.parametrize("status", sorted(set(get_args(JobStatus)) - {"done"}))
-def test_the_room_route_answers_room_not_found_until_the_job_is_done(tmp_path: Path, stages: Stages, status: JobStatus):
+def test_the_room_route_answers_409_build_not_ready_with_the_status_until_the_job_is_done(tmp_path: Path, stages: Stages, status: JobStatus):
+    """Decision 37: a known job not yet `done` is not an unknown Room; its envelope carries the job status, as the Build view's does."""
     state = _persisted(status)
     job_store(tmp_path / "rooms").put(state)
     response = TestClient(builds_app(tmp_path, stages)).get(f"/api/builds/{state.id}/room")
-    assert response.status_code == 404
-    assert response.json() == {"error": {"code": "room_not_found", "message": ANY, "stage": None}}
+    assert response.status_code == 409
+    assert response.json() == {"error": {"code": "build_not_ready", "message": ANY, "stage": None, "status": status}}
 
 
 # --- A restarted API resumes every job left queued or running ----------------

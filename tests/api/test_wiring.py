@@ -57,7 +57,8 @@ from src.infra.modal import (
 )
 from src.pipeline.build import STAGES, Build, StageFn, StageResult
 from src.pipeline.ports import ArtifactStore, room_key
-from src.providers.base import HintPhraser, ModelProvider
+from src.providers.base import HintPhraser, ModelProvider, ProviderError
+from src.providers.lazy import LazyProvider
 from src.providers.meta_api import MetaModelProvider
 from src.providers.mock import ChatCall, MockProvider, MockScript, SegmentCall
 from src.providers.ollama import DEFAULT_HOST, OllamaPhraser
@@ -75,7 +76,7 @@ from tests.pipeline.uploads import make_uploads
 SRC = Path(__file__).resolve().parents[2] / "src"
 ADAPTERS = (
     DiskArtifactStore, JsonJobStore, ThreadJobRunner, JsonSessionStore, JsonlLedgerStore, DiskCache, SessionClock, BuildClock,
-    VerbatimPhraser, OllamaPhraser, MockProvider, MetaModelProvider, OpenAICompatibleProvider,
+    VerbatimPhraser, OllamaPhraser, MockProvider, MetaModelProvider, OpenAICompatibleProvider, LazyProvider,
 )
 """Every class under `src/infra` and `src/providers` that implements a port."""
 
@@ -149,7 +150,7 @@ def test_wiring_is_the_only_module_that_constructs_an_adapter():
     assert constructors == {"api/wiring.py": {
         "DiskArtifactStore", "JsonJobStore", "ThreadJobRunner", "JsonSessionStore", "JsonlLedgerStore", "DiskCache",
         "SessionClock", "BuildClock", "VerbatimPhraser", "OllamaPhraser", "MockProvider", "MetaModelProvider",
-        "OpenAICompatibleProvider",
+        "OpenAICompatibleProvider", "LazyProvider",
     }}
 
 
@@ -184,8 +185,33 @@ FALLBACK = {"OPENAI_COMPATIBLE_BASE_URL": "https://inference.baseten.co/v1", "OP
 
 
 def _providers(tmp_path: Path, env: dict[str, str]) -> dict[Role, ModelProvider]:
+    """The per-role providers, each paid one built now as its first call would build it."""
     settings = Settings.from_env(env)
-    return model_providers(settings, model_cache(tmp_path / CACHE_ROOT), spend_ledger(settings, ledger_store(tmp_path / LEDGER_PATH)))
+    providers = model_providers(settings, model_cache(tmp_path / CACHE_ROOT), spend_ledger(settings, ledger_store(tmp_path / LEDGER_PATH)))
+    return {role: built(p) for role, p in providers.items()}
+
+
+def built(provider: ModelProvider) -> ModelProvider:
+    """The adapter a `LazyProvider` builds on its first call; any other provider as it is."""
+    return provider.provider if isinstance(provider, LazyProvider) else provider
+
+
+def test_a_paid_role_is_built_on_its_first_call_and_reused_and_the_mock_at_once(tmp_path):
+    settings = Settings.from_env({"MODEL_PROVIDER": "meta", "PROVIDER_IMAGE": "mock"})
+    providers = model_providers(settings, model_cache(tmp_path / CACHE_ROOT), spend_ledger(settings, ledger_store(tmp_path / LEDGER_PATH)))
+    assert type(providers["image"]) is MockProvider
+    lazy = providers["riddler"]
+    assert type(lazy) is LazyProvider and lazy.name == "meta" and lazy._built is None
+    assert type(lazy.provider) is MetaModelProvider and lazy.provider is lazy.provider
+
+
+def test_a_refused_paid_setting_fails_the_call_that_needs_it_by_name_and_nothing_else(tmp_path):
+    settings = Settings.from_env({"MODEL_PROVIDER": "mock", "PROVIDER_RIDDLER": "openai_compatible"})
+    providers = model_providers(settings, model_cache(tmp_path / CACHE_ROOT), spend_ledger(settings, ledger_store(tmp_path / LEDGER_PATH)))
+    with pytest.raises(ProviderError, match="OPENAI_COMPATIBLE_BASE_URL is not set") as info:
+        providers["riddler"].chat([])
+    assert info.value.code == "not_configured"
+    assert all(type(p) is MockProvider for role, p in providers.items() if role != "riddler")
 
 
 def test_model_provider_mock_gives_each_role_its_own_mock(tmp_path):

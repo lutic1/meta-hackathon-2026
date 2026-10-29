@@ -142,7 +142,9 @@ class Counting:
         self.calls: list[tuple[str, int]] = []
         self.inputs: list[tuple[RoomView, GameStateSummary]] = []
 
-    def propose(self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary) -> TricksterProposal | None:
+    def propose(
+        self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary, *, session_id: str | None = None
+    ) -> TricksterProposal | None:
         self.calls.append((room_id, window))
         self.inputs.append((room_view, summary))
         time.sleep(self.pause)
@@ -155,7 +157,9 @@ class Raising:
     def __init__(self, error: Exception) -> None:
         self.error = error
 
-    def propose(self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary) -> TricksterProposal | None:
+    def propose(
+        self, room_id: str, window: int, room_view: RoomView, summary: GameStateSummary, *, session_id: str | None = None
+    ) -> TricksterProposal | None:
         raise self.error
 
 

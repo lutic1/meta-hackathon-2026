@@ -10,9 +10,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.api.app import DEMO_ROOM_WELCOME, FIRST_ROOM_WELCOME
 from src.api.meta import (
     CUT1_LINE,
     EARLIER_BUILD_LINE,
+    HOSTED_LINE,
     SCRIPTED_LINE,
     TIMESCALE_LINE,
     disclosure_lines,
@@ -21,7 +23,8 @@ from src.api.wiring import artifact_store, job_store, session_store
 from src.config import Settings
 from src.domain.schema import CallRow, Derived, JobState, Room
 from src.infra.clocks import NS_PER_MS, SessionClock
-from tests.api.test_app import make_app, store_room
+from tests.api.hosted import hosted_handles, hosted_settings, make_hosted_app
+from tests.api.test_app import fixture_proposals, make_app, store_room
 from tests.domain.test_redact import json_keys
 from tests.fixtures.rooms import (
     IX,
@@ -33,6 +36,7 @@ from tests.fixtures.rooms import (
     SENTINEL_PAIR,
     with_sentinel_solutions,
 )
+from tests.infra.test_modal import seed_demo
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 JOB = "job_01ARZ3NDEKTSV4RRFFQ69G5FAA"
@@ -107,7 +111,7 @@ def test_every_list_holds_at_most_the_one_trickster_line_its_source_names(
     env = {"DEMO_TIMESCALE": "6", "DEMO_TRICKSTER": source}
     client = TestClient(app_over(tmp_path, demo_room, job(demo_room, call(1, cached=True)), env))
     meta_body = client.get("/api/meta").json()
-    lists = [meta_body["disclosure"], start(client, demo_room)["disclosure"], disclosure_lines(settings(**env), demo_room)]
+    lists = [meta_body["disclosure"], start(client, demo_room)["disclosure"], disclosure_lines(settings(**env), demo_room, demo_room=True)]
     assert meta_body["trickster"] == trickster
     for lines in lists:
         assert [x for x in lines if x in (SCRIPTED_LINE, CUT1_LINE)] == ([line] if line else [])
@@ -117,13 +121,27 @@ def test_every_list_holds_at_most_the_one_trickster_line_its_source_names(
 # --- The per-Room line --------------------------------------------------------
 
 
-def test_a_demo_rooms_session_carries_the_global_lines_and_the_earlier_builds_line(tmp_path: Path, demo_room: Room):
-    client = TestClient(app_over(tmp_path, demo_room, job(demo_room, call(1, cached=False)), DEMO_ENV))
-    started = start(client, demo_room)
-    expected = [TIMESCALE_LINE.format(n=6), SCRIPTED_LINE, EARLIER]
+def test_a_demo_rooms_session_carries_the_global_lines_and_the_earlier_builds_line(tmp_path: Path, built_room: Room):
+    """Decision 56: a Demo room is the one `ArtifactStore.is_demo_room` names, the welcome's own rule, whatever its `name`."""
+    handles = hosted_handles(tmp_path)
+    seed_demo(handles, built_room, job(built_room, call(1, cached=False)))
+    client = TestClient(make_hosted_app(tmp_path, handles, settings=hosted_settings(**DEMO_ENV), proposals_dir=fixture_proposals(tmp_path)))
+    started = start(client, built_room)
+    expected = [TIMESCALE_LINE.format(n=6), SCRIPTED_LINE, HOSTED_LINE, EARLIER]
+    assert started["opening_line"]["text"] == DEMO_ROOM_WELCOME
     assert started["disclosure"] == client.get(f"/api/sessions/{started['id']}").json()["disclosure"] == expected
-    assert disclosure_lines(settings(**DEMO_ENV), demo_room) == expected
-    assert client.get("/api/meta").json()["disclosure"] == expected[:2]
+    assert client.get(f"/api/builds/{JOB}/view").json()["disclosure"] == expected
+    assert disclosure_lines(hosted_settings(**DEMO_ENV), built_room, demo_room=True) == expected
+    assert client.get("/api/meta").json()["disclosure"] == expected[:3]
+
+
+def test_a_named_room_the_store_calls_no_demo_room_gets_no_earlier_builds_line_from_its_name(tmp_path: Path, demo_room: Room):
+    """`Room.name` is display data, not a room kind: a named local Room is greeted as a First room and disclosed as one (decision 56)."""
+    client = TestClient(app_over(tmp_path, demo_room, job(demo_room, call(1, cached=False)), {}))
+    assert client.get(f"/api/builds/{JOB}/view").json()["disclosure"] == []
+    started = start(client, demo_room)
+    assert (started["opening_line"]["text"], started["disclosure"]) == (FIRST_ROOM_WELCOME, [])
+    assert disclosure_lines(settings(), demo_room) == []
 
 
 def test_a_build_with_any_cached_call_carries_the_earlier_builds_line_on_its_first_session(tmp_path: Path, built_room: Room):
@@ -158,13 +176,13 @@ def test_a_session_on_another_room_is_not_an_earlier_session(tmp_path: Path, bui
 def test_the_date_is_the_rooms_build_time(built_room: Room):
     for created, date in [(BUILT, "Sat Oct 31"), (datetime(2026, 11, 2, 23, 0, tzinfo=UTC), "Mon Nov 2")]:
         room = built_room.model_copy(update={"created": created, "name": "The study"})
-        assert disclosure_lines(settings(), room) == [EARLIER_BUILD_LINE.format(date=date)]
+        assert disclosure_lines(settings(), room, demo_room=True) == [EARLIER_BUILD_LINE.format(date=date)]
 
 
 def test_without_a_room_the_function_composes_only_the_global_lines(demo_room: Room):
     for env in ({}, DEMO_ENV, {"DEMO_TRICKSTER": "authored"}):
-        assert disclosure_lines(settings(**env)) == disclosure_lines(settings(**env), demo_room)[:-1]
-        assert not any(line.startswith("This room was built earlier") for line in disclosure_lines(settings(**env), None, job(demo_room, call(1, cached=True)), earlier_session=True))
+        assert disclosure_lines(settings(**env)) == disclosure_lines(settings(**env), demo_room, demo_room=True)[:-1]
+        assert not any(line.startswith("This room was built earlier") for line in disclosure_lines(settings(**env), None, job(demo_room, call(1, cached=True)), earlier_session=True, demo_room=True))
 
 
 # --- BuildView: the same function fills its Disclosure list ---------------------

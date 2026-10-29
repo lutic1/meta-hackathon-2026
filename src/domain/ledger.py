@@ -102,8 +102,12 @@ def fold(entries: Iterable[LedgerEntry]) -> list[LedgerEntry]:
 
 
 def estimate_usd(kind: CallKind, entries: Iterable[LedgerEntry]) -> float:
-    """The last observed cost of `kind` among `entries`, or its seed before any."""
-    observed = [e.usd for e in fold(entries) if e.kind == kind and e.status == "settled"]
+    """The last observed cost of `kind` among `entries`, or its seed before any.
+
+    A settlement at 0 USD (a call that failed before it was sent) is no
+    observed price, so it never seeds the estimate.
+    """
+    observed = [e.usd for e in fold(entries) if e.kind == kind and e.status == "settled" and e.usd > 0]
     return observed[-1] if observed else SEED_USD[kind]
 
 

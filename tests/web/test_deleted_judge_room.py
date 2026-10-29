@@ -181,3 +181,19 @@ def test_a_session_the_server_no_longer_holds_shows_the_session_gone_state_with_
     assert "element.classList.add('session-gone-layout')" in body
     assert "playEnded(() => {" in body and "location.hash = placeHref({ route: { name: 'home' }, profile })" in body
     assert _rules("shell.css")[".session-gone-layout"]["position"] == "relative"
+
+
+def test_a_bookmarked_play_or_done_page_of_a_session_its_judge_rooms_deletion_took_shows_the_deleted_notice():
+    """Decision 58: the session routes answer 410 `room_deleted` for such a session, and the client shows the notice, not Session gone."""
+    shell, play, completion = _code("shell.ts"), _code("play.ts"), _code("completion.ts")
+    render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
+    # A cold load: the refusal names a deleted Room, so the body is the Deleted Judge room notice; Triggers stays empty.
+    assert "if (roomGone(error) === 'room_deleted') return 'room_deleted'" in shell
+    assert "getSession(sessionId).catch(refused)" in render and "const state = answer === 'room_deleted' ? null : answer" in render
+    assert "else if (answer === 'room_deleted' && name !== 'triggers') content = { name: 'roomDeleted', mode: meta.mode, profile: place.profile }" in render
+    assert "showRoomGone(element, 'room_deleted', mode, profile)" in shell
+    # A session open on the Play screen whose poll is refused so, and the Completion screen's result read.
+    poll = play.split("async function poll(): Promise<void> {", 1)[1].split("\n  }\n", 1)[0]
+    assert "else if (roomGone(error) === 'room_deleted') roomMissing('room_deleted')" in poll
+    load = completion.split("async function load(): Promise<void> {", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (roomGone(error) === 'room_deleted') return gone('room_deleted')" in load
