@@ -55,7 +55,7 @@ REPLAY_LINE = "Replay: this room has been played before."
 """The session-specific line (decision record item 72): labelled apart from the build fact, which it never changes."""
 DATES_TZ = ZoneInfo("America/New_York")
 """Every shown date is ET (decision record item 71), as the client's build times are."""
-HOSTED_LINE = "Hosted mode: hints are shown as written; no hint model runs here."
+HOSTED_LINE = "Hints on this site come exactly as the Riddler wrote them; no live model writes them."
 MODE_LINES: dict[Mode, tuple[str, ...]] = {"local": (), "hosted": (HOSTED_LINE,)}
 """The global Disclosure lines the running mode adds (AD-15)."""
 

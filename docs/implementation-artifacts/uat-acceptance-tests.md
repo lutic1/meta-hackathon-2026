@@ -456,7 +456,7 @@ Luis Ticas · 2026-10-21
   3. Try `POST /api/builds`.
 - **Pass (part A):**
   - `GET /api/meta` answers `mode: hosted`, `guide: verbatim` and `guide_model: null`.
-  - The banner reads "Hosted mode: hints are shown as written; no hint model runs here.".
+  - The banner reads "Hints on this site come exactly as the Riddler wrote them; no live model writes them.".
   - The Scene renders and a Hotspot click is accepted. Rungs show as written, with no thinking state.
   - The Session start carries a fresh Derived block.
   - `POST /api/builds` is refused.

@@ -1,5 +1,6 @@
-/* {components.disclosure-banner}: the one cool grey strip, the full-width footer under the body, part of the grid,
-   one 32 px line per Disclosure, rounded.none, no icon and no close control. */
+/* {components.disclosure-banner}: the chrome strip under a gilt rule, in the study's own palette (owner decision
+   Oct 29), the full-width footer under the body, part of the grid, one 32 px line per Disclosure, rounded.none, no icon
+   and no close control. */
 .disclosure-banner {
   flex: none;
   background: var(--disclosure-surface);

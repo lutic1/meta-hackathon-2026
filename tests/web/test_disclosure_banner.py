@@ -13,7 +13,8 @@ from typing import Any
 
 import pytest
 
-from tests.web.design import REPO, WEB_SRC, css_rules, source_css, source_ts
+from tests.web.design import REPO, WEB_SRC, css_custom_properties, css_rules, frontmatter, source_css, source_ts
+from tests.web.test_contrast import _hex, contrast
 
 COMPONENTS = WEB_SRC / "components"
 EXPERIENCE = REPO / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md"
@@ -172,3 +173,17 @@ def test_how_hints_work_never_opens_by_itself_under_a_disclosure():
     assert "disclosure" not in panel and "auto" not in panel
     assert "list.element.hidden = true" in panel and "list.element.hidden = !on" in panel
     assert "onOpen(false)" in panel
+
+def test_the_strip_belongs_to_the_room_in_its_own_palette_at_seven_to_one():
+    """Owner decision Oct 29: the strip leaves the cool grey for the study's chrome, text and gilt, and keeps its height."""
+    design, props = frontmatter(), css_custom_properties()
+    bases = {"disclosure-surface": "chrome", "disclosure-text": "text", "disclosure-edge": "gilt"}
+    for name, base in bases.items():
+        assert design["bases"].get(name) == base, f"DESIGN.md should mark {name} as `# = {base}`"
+        assert props[name] == props[base] == design["colors"][base], f"--{name} must repeat --{base}"
+    assert contrast(_hex(props["disclosure-text"])[0], _hex(props["disclosure-surface"])[0]) >= 7
+    design_md = EXPERIENCE.with_name("DESIGN.md").read_text()
+    assert "cool grey" not in design_md and "cool, grey" not in design_md
+    rules = css_rules((COMPONENTS / "disclosure-banner.css").read_text())
+    assert rules[".disclosure-banner p"]["min-height"] == "var(--spacing-disclosure-min)"
+    assert rules[".disclosure-banner p"]["padding"] == "6px var(--spacing-frame-margin)"

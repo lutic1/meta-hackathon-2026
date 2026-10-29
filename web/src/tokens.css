@@ -91,9 +91,9 @@
   --error-surface: #3D1B16;
   --error-text: #F29A88;
   --error-edge: #B8503E;
-  --disclosure-surface: #23272C;
-  --disclosure-text: #E4E8EC;
-  --disclosure-edge: #3A4048;
+  --disclosure-surface: #1E1812; /* = chrome */
+  --disclosure-text: #F0E6D2; /* = text */
+  --disclosure-edge: #B08A4E; /* = gilt */
   /* colors: role tokens repeat a base token's hex (named in the comment); change both together */
   --card-accepted-surface: #E8DBBE; /* = parchment */
   --card-accepted-edge: #275A2C; /* = success-ink */

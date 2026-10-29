@@ -72,8 +72,8 @@ def test_the_landing_top_bar_has_no_timer_and_no_play_control():
 
 
 def test_the_disclosure_banner_renders_the_served_hosted_line():
-    assert "Hosted mode: hints are shown" not in _ts("landing.ts")
-    assert HOSTED_LINE == "Hosted mode: hints are shown as written; no hint model runs here."
+    assert "as the Riddler wrote them" not in _ts("landing.ts")
+    assert HOSTED_LINE == "Hints on this site come exactly as the Riddler wrote them; no live model writes them."
     assert "let disclosure = meta.disclosure" in _render()
 
 

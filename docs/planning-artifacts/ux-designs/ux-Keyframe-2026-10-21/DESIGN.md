@@ -58,9 +58,9 @@ colors:
   error-surface: '#3D1B16'
   error-text: '#F29A88'
   error-edge: '#B8503E'
-  disclosure-surface: '#23272C'
-  disclosure-text: '#E4E8EC'
-  disclosure-edge: '#3A4048'
+  disclosure-surface: '#1E1812' # = chrome
+  disclosure-text: '#F0E6D2' # = text
+  disclosure-edge: '#B08A4E' # = gilt
   # Role tokens below repeat a base token's hex (named in the comment) so every
   # color value stays a hex string; change the base and its role tokens together.
   # Trickster Cards
@@ -701,7 +701,7 @@ The palette is three materials and one light. Contrast ratios are WCAG 2.x relat
 - **Warning (Spend cap, quota, queued):** `warning-surface` `#3A2D12`, `warning-text` `#F2D488`, `warning-edge` `#C9A04A`.
 - **Error (format and count, `failed`, `needs_more_photos`, `needs_recapture`, refused Access code):** `error-surface` `#3D1B16`, `error-text` `#F29A88`, `error-edge` `#B8503E`.
 
-**Disclosure.** **Disclosure surface (`#23272C`)**, **disclosure text (`#E4E8EC`)**, **disclosure edge (`#3A4048`)**: the only cool, grey surface in the product. It reads as outside the study on purpose, because Disclosures are always plain and out of character (PRD §7, FR-26). The departure from Lamplit warmth is deliberate and was confirmed by the builder on Oct 21.
+**Disclosure.** **Disclosure surface (`#1E1812`, the same hex as `chrome`)**, **disclosure text (`#F0E6D2`, the same hex as `text`)**, **disclosure edge (`#B08A4E`, the same hex as `gilt`)**: the strip belongs to the study, a chrome band under a gilt hairline like the top bar's ground, with its lines in full `text` (14.19:1). Disclosures stay plain and out of character in their words and their sans type, never in a separate palette (PRD §7, FR-26). Owner decision Oct 29 retired the grey strip of Oct 21, which read as a break in the room.
 
 **Cards.** Accepted and rejected Cards are parchment (`card-*-surface`, the same hex as `parchment`) with a 4 px left edge in `success-ink` or `wrong-ink`; the edge is never the only cue, the Card also names its outcome in words. Skipped Cards drop off the paper entirely: `card-skipped-surface` (`chrome-raised`), `card-skipped-text` (`text-muted`), dashed `card-skipped-edge` (`hairline`).
 
@@ -748,7 +748,7 @@ The palette is three materials and one light. Contrast ratios are WCAG 2.x relat
 | `text` | `error-surface` | 12.40 | Error banner body | pass |
 | `warning-text` #F2D488 | `warning-surface` #3A2D12 | 9.30 | Spend cap / quota heading | pass |
 | `text` | `warning-surface` | 10.84 | Warning banner body | pass |
-| `disclosure-text` #E4E8EC | `disclosure-surface` #23272C | 12.20 | Disclosure banner | pass |
+| `disclosure-text` (= `text` #F0E6D2) | `disclosure-surface` (= `chrome` #1E1812) | 14.19 | Disclosure banner | pass |
 | `graph-node-ink` | `graph-node` | 11.94 | Graph node labels | pass |
 | `graph-fail` (= `wrong` #E58A6C) | `chrome` | 6.85 | Fail verdicts | pass |
 | `text-muted` | `scrim` over the Scene (≈ #0A0806) | 8.67 | Tip under the First-room welcome card | pass |
@@ -922,7 +922,7 @@ Mocks: [mockups/completion-greeting.html](mockups/completion-greeting.html), the
 | Keep Hotspots invisible at rest; reveal them on hover, focus and "Show all objects" | Outline Hotspots at rest or simplify their polygons |
 | Set in-character lines in the EB Garamond body styles, signed with the speaker's portrait; set every heading in the serif | Put a portrait or a serif body line on an error, a Disclosure, a quota or a deletion message |
 | Keep plain messages on chrome, banners or the Disclosure strip; let plain labels and chips sit on paper in the sans | Put an error, warning, deletion, privacy or Disclosure message on parchment |
-| Make Disclosures the one cool grey strip, always visible, never covering the Scene | Style a Disclosure in the study palette, give it a close control or overlay it on Hotspots |
+| Make Disclosures the plain chrome strip under a gilt rule, always visible, never covering the Scene | Set a Disclosure in a palette outside the study, give it a close control or overlay it on Hotspots |
 | Keep real and Decoy Evidence cards pixel-identical in a stable order | Highlight, badge or animate a newly added Evidence card |
 | Use lamp for the one thing that responds or is current | Fill large areas with lamp or use it on plain messages |
 | Use `lamp-ink`, `success-ink` and `wrong-ink` on parchment | Put `lamp`, `success` or `wrong` on parchment (they fail AA there) |

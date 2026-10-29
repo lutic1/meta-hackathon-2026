@@ -149,7 +149,7 @@ def _string_constants(path: Path) -> set[str]:
 
 def test_meta_py_is_the_only_module_that_writes_a_disclosure_line():
     """No other module under `src/` holds a Disclosure line or a piece of one."""
-    pieces = ("the Validator ran live", "the build timer is real time", "This room was built earlier", "no hint model runs here")
+    pieces = ("the Validator ran live", "the build timer is real time", "This room was built earlier", "no live model writes them")
     holders = {
         path.relative_to(SRC).as_posix()
         for path in SRC.rglob("*.py")
@@ -244,7 +244,7 @@ def test_meta_reads_the_mode_from_settings():
 def test_hosted_meta_reports_verbatim_with_no_guide_model_and_the_hosted_line():
     hosted = meta(Settings.from_env({"MODE": "hosted"}))
     assert (hosted.mode, hosted.guide, hosted.guide_model) == ("hosted", "verbatim", None)
-    assert HOSTED_LINE == "Hosted mode: hints are shown as written; no hint model runs here."
+    assert HOSTED_LINE == "Hints on this site come exactly as the Riddler wrote them; no live model writes them."
     assert hosted.disclosure == [HOSTED_LINE]
     assert HOSTED_LINE not in meta(settings()).disclosure
 

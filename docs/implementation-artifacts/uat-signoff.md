@@ -96,7 +96,7 @@ Disclosure lines in force for the video settings (tick each; text as served by `
 - [ ] "Hint and Trickster timings run at 6× speed; the build timer is real time."
 - [ ] "Trickster proposals replayed from a recording; the Validator ran live." (scripted) or [ ] "Trickster proposals were written in advance; the Validator ran live on each." (cut 1)
 - [ ] "This room was built earlier, on <date>."
-- [ ] Hosted: "Hosted mode: hints are shown as written; no hint model runs here."
+- [ ] Hosted: "Hints on this site come exactly as the Riddler wrote them; no live model writes them."
 
 ## 5. SIT status
 

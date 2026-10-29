@@ -210,7 +210,7 @@ def test_client_strings_live_only_in_the_strings_module():
 
 def test_served_lines_are_never_in_the_client():
     served = [TIMESCALE_LINE.split("{n}")[0], TIMESCALE_LINE.split("{n}")[1], SCRIPTED_LINE, CUT1_LINE,
-              RETENTION_LOCAL[:60], FIRST_ROOM_WELCOME, DEMO_ROOM_WELCOME, "This room was built earlier", "Hosted mode: hints are shown"]
+              RETENTION_LOCAL[:60], FIRST_ROOM_WELCOME, DEMO_ROOM_WELCOME, "This room was built earlier", "as the Riddler wrote them; no live model"]
     for path, text in source_ts().items():
         for line in served:
             assert line not in text, f"{path} holds the served line {line!r}; render it as received"
