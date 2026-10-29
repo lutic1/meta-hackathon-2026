@@ -238,9 +238,9 @@ def test_the_thumbnail_strip_has_one_96_by_72_button_per_photo_in_upload_order()
     assert rules[".thumbnail[aria-current='true']"] == {"border-color": "var(--lamp)", "opacity": "1"}
 
 
-# Builds the shipped Thumbnail strip with a stand-in `document` (stylesheet imports load as empty modules) and prints,
-# per thumbnail, its badge, whether it is dimmed and its description, before and after `setCounts`.
-STRIP_RUNNER = """
+# A stand-in `document` and `ResizeObserver` for the shipped Thumbnail strip (stylesheet imports load as empty
+# modules); each element keeps its listeners, and every observer callback is kept in `observers`.
+STRIP_STUB = """
 import { register } from 'node:module'
 import { readFileSync } from 'node:fs'
 register('data:text/javascript,' + encodeURIComponent(`
@@ -261,11 +261,19 @@ const node = (tag) => {
     setAttribute(name, value) { this.attributes[name] = String(value) },
     removeAttribute(name) { delete this.attributes[name] },
     append(...children) { this.children.push(...children) },
-    addEventListener() {},
+    listeners: {},
+    addEventListener(type, listener) { (this.listeners[type] ??= []).push(listener) },
   }
 }
 globalThis.document = { createElement: node }
+const observers = []
+globalThis.ResizeObserver = class { constructor(callback) { observers.push(callback) } observe() {} }
 const { objectCounts, thumbnailStrip } = await import(process.argv[1])
+"""
+
+# Builds the strip and prints, per thumbnail, its badge, whether it is dimmed and its description, before and after
+# `setCounts`.
+STRIP_RUNNER = STRIP_STUB + """
 const { view, later } = JSON.parse(readFileSync(0, 'utf8'))
 const counts = objectCounts(view)
 const strip = thumbnailStrip('room', counts, () => undefined)
@@ -316,6 +324,70 @@ def test_each_thumbnail_carries_a_badge_counting_the_objects_on_its_photo_and_a_
     assert [t["badge"] for t in out["after"]] == ["3", "1", "1", "2"]
     assert [t["empty"] for t in out["after"]] == [False, False, False, False]
     assert out["after"][2]["description"] == "1 object"
+
+
+# Builds an 8-photo strip, gives it the replay's 832 px of thumbnails in a 656 px row, and records the edge cues and
+# what a vertical wheel does at each step.
+STRIP_WHEEL_RUNNER = STRIP_STUB + """
+const strip = thumbnailStrip('room', [3, 1, 0, 2, 0, 0, 0, 0], () => undefined).element
+const fire = (type, init = {}) => {
+  let prevented = false
+  for (const listener of strip.listeners[type] ?? []) listener({ ...init, preventDefault: () => { prevented = true } })
+  return prevented
+}
+const look = () => ({ left: strip.classList.contains('has-more-left'), right: strip.classList.contains('has-more-right'),
+                      at: strip.scrollLeft })
+const wheel = (deltaX, deltaY) => {
+  const prevented = fire('wheel', { deltaX, deltaY })
+  fire('scroll')
+  return { prevented, ...look() }
+}
+let position = 0  // a browser clamps scrollLeft to the scrollable range
+Object.defineProperty(strip, 'scrollLeft', {
+  get: () => position,
+  set: (value) => { position = Math.max(0, Math.min(value, strip.scrollWidth - strip.clientWidth)) },
+})
+Object.assign(strip, { scrollWidth: 832, clientWidth: 656 })
+for (const observed of observers) observed([])
+const steps = { start: look(), down: wheel(0, 100), sideways: wheel(40, 10), end: wheel(0, 500), up: wheel(0, -500) }
+Object.assign(strip, { scrollWidth: 656, clientWidth: 656, scrollLeft: 0 })
+for (const observed of observers) observed([])
+steps.fits = wheel(0, 100)
+process.stdout.write(JSON.stringify(steps))
+"""
+
+
+@needs_node
+def test_an_overflowing_strip_fades_the_edges_with_more_photos_and_scrolls_sideways_on_a_vertical_wheel():
+    """Replay Oct 29: at 1440 x 900 the strip held 832 px of thumbnails in a 656 px row, so photos 7 and 8 were hidden
+    with no cue, and a vertical wheel left it where it was. A strip that overflows now fades the edge with more
+    thumbnails beyond it, and a mostly vertical wheel scrolls it sideways; a strip that fits leaves the wheel alone."""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", STRIP_WHEEL_RUNNER, (WEB_SRC / "components/thumbnail-strip.ts").as_uri()],
+        cwd=REPO, capture_output=True, text=True, check=True,
+    )
+    steps = json.loads(result.stdout)
+    assert steps["start"] == {"left": False, "right": True, "at": 0}
+    assert steps["down"] == {"prevented": True, "left": True, "right": True, "at": 100}
+    # A wheel that moves sideways more than down is the browser's own horizontal scroll: left alone.
+    assert steps["sideways"] == {"prevented": False, "left": True, "right": True, "at": 100}
+    assert steps["end"] == {"prevented": True, "left": True, "right": False, "at": 176}
+    assert steps["up"] == {"prevented": True, "left": False, "right": True, "at": 0}
+    assert steps["fits"] == {"prevented": False, "left": False, "right": False, "at": 0}
+
+
+def test_the_edge_cues_are_masks_as_wide_as_the_scroll_padding():
+    rules = _rules("components/thumbnail-strip.css")
+    assert rules[".thumbnail-strip"]["scroll-padding-inline"] == "var(--spacing-6)"
+    fade = "transparent, var(--canvas) var(--spacing-6)"
+    assert rules[".thumbnail-strip.has-more-right"] == {"mask-image": f"linear-gradient(to left, {fade})"}
+    assert rules[".thumbnail-strip.has-more-left"] == {"mask-image": f"linear-gradient(to right, {fade})"}
+    both = rules[".thumbnail-strip.has-more-left.has-more-right"]["mask-image"]
+    assert both == ("linear-gradient(to right, transparent, var(--canvas) var(--spacing-6), "
+                    "var(--canvas) calc(100% - var(--spacing-6)), transparent)")
+    strip = _ts("components/thumbnail-strip.ts")
+    assert "new ResizeObserver(edges).observe(element)" in strip
+    assert "element.addEventListener('scroll', edges, { passive: true })" in strip
 
 
 def test_the_count_badge_is_a_parchment_caption_chip_and_a_photo_with_no_objects_sits_at_half_opacity():

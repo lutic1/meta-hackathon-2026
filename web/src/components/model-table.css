@@ -22,26 +22,40 @@
   overflow-wrap: break-word;
 }
 /* Below 1280 px the cells' longest words add up to more than the right third (285 px at 1024 x 768), so the auto
-   layout ran past the panel: there the columns take fixed shares sized to their words and a word too long for its
-   column ("deterministic") breaks inside it. From 1280 px the auto layout fits and is unchanged. */
+   layout ran past the panel: there the panel's sides take 8 px and the cells 4 px, which leaves 301 px of table, and
+   the columns take fixed shares sized to their longest words ("Architect", "deterministic", "server", "generation",
+   "billed"). Neither the Model column nor a header label breaks a word: the last label's "Cached" runs at most 5 px
+   into the panel's side padding. Elsewhere a longer word still breaks inside its column. From 1280 px the auto
+   layout fits and is unchanged. */
 @media (max-width: 1279px) {
+  .model-table-panel {
+    padding-inline: var(--spacing-2);
+  }
   .model-table {
     table-layout: fixed;
   }
+  .model-table th,
+  .model-table td {
+    padding-inline: var(--spacing-1);
+  }
+  .model-table thead th,
+  .model-table td:nth-child(2) {
+    overflow-wrap: normal;
+  }
   .model-table thead th:nth-child(1) {
-    width: 19%;
+    width: 18%;
   }
   .model-table thead th:nth-child(2) {
-    width: 20%;
+    width: 29%;
   }
   .model-table thead th:nth-child(3) {
-    width: 17%;
+    width: 15%;
   }
   .model-table thead th:nth-child(4) {
-    width: 26%;
+    width: 24%;
   }
   .model-table thead th:nth-child(5) {
-    width: 18%;
+    width: 14%;
   }
 }
 .model-table th:first-child,

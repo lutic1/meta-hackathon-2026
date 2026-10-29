@@ -28,8 +28,12 @@ def _code(text: str) -> str:
 
 
 def _css(name: str) -> dict[str, dict[str, str]]:
-    """The stylesheet's rules, a selector list spread over several lines read as one line."""
-    return {" ".join(selector.split()): rule for selector, rule in css_rules((WEB_SRC / name).read_text()).items()}
+    """The stylesheet's rules, a selector list spread over several lines read as one line (rules that then share a
+    selector merge, as `css_rules` merges a repeated one)."""
+    rules: dict[str, dict[str, str]] = {}
+    for selector, rule in css_rules((WEB_SRC / name).read_text()).items():
+        rules.setdefault(" ".join(selector.split()), {}).update(rule)
+    return rules
 
 
 def _render() -> str:
@@ -143,8 +147,14 @@ def test_below_1280_px_the_table_lays_out_fixed_so_it_stays_inside_its_panel_at_
     block = css_rules(narrow)
     assert block[".model-table"] == {"table-layout": "fixed"}
     shares = [block[f".model-table thead th:nth-child({n})"]["width"] for n in range(1, 6)]
-    assert shares == ["19%", "20%", "17%", "26%", "18%"]
+    assert shares == ["18%", "29%", "15%", "24%", "14%"]
     assert sum(int(share.rstrip("%")) for share in shares) == 100
+    # Replay Oct 29: "deterministic" broke mid-word in the 20% Model column. The longest words need about 300 px with
+    # 4 px cell padding, so below 1280 px the panel's sides take 8 px and the cells 4 px (301 px of table at
+    # 1024 x 768); the Model column, sized to "deterministic", and the header labels never break a word.
+    assert block[".model-table-panel"] == {"padding-inline": "var(--spacing-2)"}
+    assert block[".model-table th,\n  .model-table td"] == {"padding-inline": "var(--spacing-1)"}
+    assert block[".model-table thead th,\n  .model-table td:nth-child(2)"] == {"overflow-wrap": "normal"}
     assert css.count("@media") == 1 and "table-layout" not in css.split("@media", 1)[0]
 
 

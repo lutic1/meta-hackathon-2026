@@ -149,7 +149,8 @@ async function roomJob(session: SessionState): Promise<string | null> {
  * `GET /sessions/<id>/result`: the heading "The room is open.", the Guide's sign-off beside its 48 px portrait, "Time",
  * "Hints used" (the Rungs used) and "Wrong attempts" three across in `mono-timer`, counting up once from 0 when the
  * result arrives (instant under reduced motion), the filmstrip of the Room's photos with each solved object's outline
- * lit, the "Time per puzzle" table and "Built by" over the four wizards' 32 px portraits and names.
+ * lit, the "Time per puzzle" table with its plain caption (each Puzzle is timed from when it appeared, so the times
+ * overlap) and "Built by" over the four wizards' 32 px portraits and names.
  * Until the result returns the stats show as pending; while the request fails a plain line says so and it is asked
  * again every 2000 ms, nothing recorded. The returned `RoomResult` is put into the `profile` once per Session (web/profile
  * keys it by `room_id` and remembers the Session, so mounting this route again records nothing new, and reopening an
@@ -240,7 +241,10 @@ export function mountCompletion(
   table.setAttribute('aria-labelledby', timesLabel.id)
   const rows = document.createElement('tbody')
   table.append(rows)
-  times.append(timesLabel, table)
+  const timesNote = document.createElement('p')
+  timesNote.className = 'completion-times-note body-sm'
+  timesNote.textContent = strings.timePerPuzzleNote
+  times.append(timesLabel, table, timesNote)
 
   const failed = document.createElement('p')
   failed.className = 'completion-error body-sm'

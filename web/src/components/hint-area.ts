@@ -89,7 +89,7 @@ function paragraph(className: string): HTMLParagraphElement {
  * notes, up to `{spacing.hint-area-max}`, its upper part scrolling (the Cards, then the Rung line) over a lower part
  * that never scrolls: the primary "Get a hint for Puzzle {n}" and the slot of "How hints work". While that panel is
  * open (`is-triggers-open`) or a Card is stacked, the tray may grow past its cap until the Wizard notes reach
- * `{spacing.notes-min}`; short of room the open panel gives way first, to its newest row, and then the upper part
+ * `{spacing.notes-min}`; short of room the open panel gives way first, from its opening lines, and then the upper part
  * scrolls to its end: the line that arrives, or the Card that enters over it (its sentence, its outcome and the Rung
  * line in one frame, the introduction a scroll above). Each time a Card enters or is dismissed the bands are
  * restacked, so `onStacked` is called for the panel to scroll its newest row back into view; its button reveals the
@@ -111,7 +111,8 @@ function paragraph(className: string): HTMLParagraphElement {
  * the player asked for never glows, and a Rung its ask opened is drawn and announced once, by the reply. The line the
  * Rung line no longer shows moves into its Puzzle's opened Rungs, through `onOpened`; a Rung a Loosen card opened shows
  * there at once as well. The first state is only read: the latest `rung_change`, else the opening line, is drawn
- * without a fade, a glow or an announcement, so a reload rebuilds the Rungs and re-announces nothing. The Guide's
+ * without a fade, a glow or an announcement, so a reload rebuilds the Rungs and re-announces nothing; a latest Rung
+ * whose Puzzle is already open is not drawn (the unlock aside replaced it in play), so the line stays empty. The Guide's
  * asides of the unlock moment (lock-opened.ts) show the same way as the opening line, with no label, no glow (the Scene
  * frame carries that light) and no announcement (the feedback line already is one); the Rung line it replaces keeps its
  * place in its Puzzle's opened Rungs, and the next Rung line replaces it.
@@ -385,8 +386,13 @@ export function hintArea(
 
   render(latest)
   const last = latest.rung_changes.at(-1)
-  if (last !== undefined) draw(changeLine(last))
-  else if (play.openingLine !== null) draw({ label: null, text: play.openingLine, shown: null })
+  // A solved Puzzle's Rung is not drawn: in play the unlock aside replaced it, so the line stays empty until the next.
+  const solved = last !== undefined && latest.locks_open.includes(last.puzzle_id)
+  if (last !== undefined && !solved) draw(changeLine(last))
+  else if (solved) {
+    onOpened(openedRungs(latest.rung_changes, null, latest.trigger_events))
+    think(false)
+  } else if (play.openingLine !== null) draw({ label: null, text: play.openingLine, shown: null })
   else think(false)
 
   return {

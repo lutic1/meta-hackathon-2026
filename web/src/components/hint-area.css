@@ -3,8 +3,8 @@
    lights its edge with the portrait's ring. On a short window it stops where the Wizard notes reach notes-min, so
    its upper part scrolls and the pinned controls stay in view. The tray's bands are its flex items: the upper part,
    then the hint button, "How hints work" and its open panel, 8 px apart (the lower part and the panel's slot are
-   display: contents), so short of room the panel gives way first, to its newest row, and only then does the upper
-   part scroll; the controls never shrink. */
+   display: contents), so short of room the panel gives way first, scrolling from its opening lines, and only then
+   does the upper part scroll; the controls never shrink. */
 .hint-area {
   box-sizing: border-box;
   display: flex;
@@ -29,7 +29,7 @@
   box-shadow: var(--elevation-lamp-glow);
 }
 /* The upper part scrolls inside the tray, 16 px above the hint button; it gives way only once the panel is at its
-   newest row. */
+   least height. */
 .hint-upper {
   display: flex;
   flex: 1 1 auto;
@@ -43,7 +43,7 @@
   display: none;
 }
 /* The open panel (its rows already capped at triggers-panel-max) shrinks first, weighted 1000 to the upper part's 1,
-   and never below one body-sm row (14 px at 1.45) inside its padding: the newest row, which it scrolls to. */
+   and never below one body-sm row (14 px at 1.45) inside its padding. */
 .hint-area .triggers-panel {
   flex-shrink: 1000;
   min-height: calc(1.45 * 14px);

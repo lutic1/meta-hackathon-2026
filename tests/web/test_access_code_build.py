@@ -83,6 +83,9 @@ def test_the_panel_sits_in_the_landing_right_column_with_its_heading_label_field
     field = rules[".access-build-field"]
     assert (field["height"], field["background"], field["color"]) == ("44px", "var(--chrome)", "var(--text)")
     assert field["border-radius"] == "var(--rounded-md)"
+    # Replay Oct 29: at 0.2em a 10-character code ran past the 168 px field at 1024 px; the field takes the free row
+    # width and tracks its code at 0.1em, so "meta_2026x" shows whole.
+    assert (field["flex"], field["min-width"], field["letter-spacing"]) == ("1", "0", "0.1em")
     assert rules[".access-build"]["background"] == "var(--chrome-raised)"
     assert rules[".access-build-status.is-accepted"]["color"] == "var(--success)"
     assert "access-code-field:\n    background: '{colors.chrome}'" in design_text()

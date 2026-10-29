@@ -183,3 +183,10 @@ def test_the_toggle_meets_the_accessibility_floor_and_every_panel_pair_is_in_the
             for line in table.splitlines() if line.startswith("| `")]
     for fg, bg in (("text", "chrome"), ("text-muted", "chrome"), ("text-muted", "chrome-raised"), ("text", "chrome-raised")):
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
+
+
+def test_reveal_scrolls_only_the_rows_so_the_opening_lines_never_clip():
+    """Replay Oct 29: at 1024 x 768 the open panel scrolled itself 28 px, hiding the start of its first line."""
+    reveal = _code(_ts(PANEL)).split("function reveal(): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "rows.scrollTop = rows.scrollHeight" in reveal
+    assert "element.scrollTop" not in reveal

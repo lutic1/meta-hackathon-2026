@@ -469,6 +469,17 @@ def test_the_photos_crossfade_on_the_attract_token_about_every_four_seconds_and_
     assert "@keyframes" not in (WEB_SRC / "components/attract-frame.css").read_text()
 
 
+def test_the_clue_lines_hand_over_in_turn_so_two_clues_never_show_at_once():
+    """Replay Oct 29: both clue lines faded at once over 600 ms, so for about half a second two clues overlapped. The
+    old line now fades out in the first half and the new one in after it; the photos keep the 600 ms crossfade, and
+    under reduced motion both halves are 0 ms."""
+    rules = _attract_rules()
+    assert rules[".attract-clue-line"]["transition"] == "opacity var(--motion-overlay) var(--motion-ease)"
+    assert rules[".attract-clue-line.is-shown"] == {"opacity": "1", "transition-delay": "var(--motion-overlay)"}
+    assert css_custom_properties()["motion-overlay"] == "300ms" and css_custom_properties()["motion-attract"] == "600ms"
+    assert rules[".attract-slide"]["transition"] == "opacity var(--motion-attract) var(--motion-ease)"
+
+
 def test_the_photos_load_lazily_and_the_frame_is_skipped_without_a_first_photo():
     ts = _attract()
     assert "if (slides.length === 0) return null" in ts
@@ -602,7 +613,10 @@ def test_hover_rings_the_card_in_lamp_with_the_glow_and_keeps_the_focus_ring():
 def test_hover_and_state_fades_are_instant_under_reduced_motion():
     for path in ("components/demo-room-card.css", "components/attract-frame.css", "landing.css"):
         for selector, declarations in css_rules((WEB_SRC / path).read_text()).items():
-            for value in (v for k, v in declarations.items() if k.startswith("transition")):
+            for key, value in ((k, v) for k, v in declarations.items() if k.startswith("transition")):
+                if key == "transition-delay":  # a motion token too, 0 ms under reduced motion
+                    assert re.fullmatch(r"var\(--motion-\w+\)", value), (path, selector)
+                    continue
                 assert re.fullmatch(r"(?:[\w-]+ var\(--motion-\w+\) var\(--motion-ease\),? ?)+", value), (path, selector)
 
 

@@ -281,7 +281,7 @@ def test_the_first_state_is_only_read_so_a_reload_rebuilds_the_rungs_and_announc
     assert "let heard = latest.rung_changes.length" in hint
     start = hint.split("  render(latest)\n", 1)[1]
     assert "const last = latest.rung_changes.at(-1)" in start
-    assert "if (last !== undefined) draw(changeLine(last))" in start
+    assert "if (last !== undefined && !solved) draw(changeLine(last))" in start
     assert "else if (play.openingLine !== null) draw({ label: null, text: play.openingLine, shown: null })" in start
     # draw never fades, glows or announces.
     draw = _function(hint, "draw")
@@ -338,3 +338,16 @@ def test_every_hint_area_color_pair_is_in_the_contrast_table():
              ("on-lamp", "lamp")}
     for fg, bg in pairs:
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
+
+
+def test_a_reload_draws_the_newest_rung_only_while_its_puzzle_is_still_locked():
+    """Replay Oct 29: after a reload the Rung line showed "Puzzle 2 · Direction" next to Puzzle 2 Solved, until a new
+    Rung arrived. In live play the unlock aside replaces that line, so a reload leaves the line empty instead, and the
+    solved Puzzle's Rungs stay in its Wizard notes entry."""
+    hint = _code(_ts("components/hint-area.ts"))
+    tail = hint.split("\n  render(latest)\n", 1)[1].split("\n  return {", 1)[0]
+    assert "const solved = last !== undefined && latest.locks_open.includes(last.puzzle_id)" in tail
+    assert "if (last !== undefined && !solved) draw(changeLine(last))" in tail
+    # Nothing on the line: every Rung change goes to the notes, and the line stays hidden.
+    assert "onOpened(openedRungs(latest.rung_changes, null, latest.trigger_events))" in tail
+    assert tail.index("if (last !== undefined && !solved)") < tail.index("else if (play.openingLine !== null)")

@@ -20,7 +20,9 @@
   display: flex;
   gap: var(--spacing-2);
 }
-/* {components.access-code-field}: chrome, text, mono-code (the class carries the type), 44 px, rounded md. */
+/* {components.access-code-field}: chrome, text, mono-code (the class carries the type), 44 px, rounded md. It takes
+   the free row width and tracks its code at 0.1em, not mono-code's 0.2em, so a 10-character code shows whole in the
+   168 px it has at 1024 px. */
 .access-build-field {
   box-sizing: border-box;
   flex: 1;
@@ -32,6 +34,7 @@
   border-radius: var(--rounded-md);
   background: var(--chrome);
   color: var(--text);
+  letter-spacing: 0.1em;
 }
 .access-build-status {
   margin: 0;

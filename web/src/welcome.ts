@@ -88,8 +88,15 @@ export function mountWelcome(
   let line: string | null = null
   /** Where focus stays: the heading until the line and "Begin" arrive. */
   const target = (): HTMLElement => (line === null ? heading : begin)
-  /** No pointer press anywhere moves focus off the card's target; a click on "Begin" still fires. */
-  const keepFocus = (event: MouseEvent): void => event.preventDefault()
+  /**
+   * No pointer press anywhere moves focus off the card's target; a click on "Begin" still fires. A press on "Begin"
+   * lets the pointer focus it again, so the first Hotspot it focuses shows no focus reveal: Chromium carries
+   * :focus-visible from the script-focused "Begin" over to that focus, and ignores `focus({ focusVisible: false })`.
+   */
+  const keepFocus = (event: MouseEvent): void => {
+    if (event.target instanceof Node && begin.contains(event.target)) begin.blur()
+    else event.preventDefault()
+  }
   const trap = (event: KeyboardEvent): void => {
     if (event.key !== 'Tab') return
     event.preventDefault()

@@ -55,6 +55,22 @@ def test_the_completion_strings_are_the_experience_lines():
     assert strings["puzzleHeading"].format(n=3) == "Puzzle 3" and strings["speakerGuide"] == "The Guide:"
 
 
+def test_a_caption_under_time_per_puzzle_says_the_times_overlap():
+    """Replay Oct 29: "Time per puzzle" added up to far more than "Time", since each Puzzle is timed from when it
+    appeared and Puzzles open together count the same seconds. One plain line under the table says so; the result
+    data is unchanged."""
+    strings = _strings()
+    assert strings["timePerPuzzleNote"] == "Each puzzle is timed from when it appeared, so some overlap."
+    code = _code("completion.ts")
+    assert "timesNote.className = 'completion-times-note body-sm'" in code
+    assert "timesNote.textContent = strings.timePerPuzzleNote" in code
+    assert "times.append(timesLabel, table, timesNote)" in code
+    rules = _rules()
+    assert rules[".completion-times-note"]["color"] == "var(--ink-muted)"
+    assert '"Each puzzle is timed from when it appeared, so some overlap."' in (
+        Path(__file__).parents[2] / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md").read_text()
+
+
 def test_the_sign_off_is_chosen_from_the_rungs_used_alone():
     sign_off = _function(_code("completion.ts"), "signOff")
     assert "if (rungsUsed === 0) return strings.signOffNoHints" in sign_off

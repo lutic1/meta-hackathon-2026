@@ -118,13 +118,25 @@ def test_begin_is_the_only_control_and_the_only_way_out_with_focus_trapped_on_it
     assert "begin.focus()" in welcome
     assert "const target = (): HTMLElement => (line === null ? heading : begin)" in welcome
     assert "document.addEventListener('mousedown', keepFocus, true)" in welcome  # a scrim click keeps focus on it
-    assert "const keepFocus = (event: MouseEvent): void => event.preventDefault()" in welcome
+    keep = welcome.split("const keepFocus = (event: MouseEvent): void => {", 1)[1].split("\n  }\n", 1)[0]
+    assert "else event.preventDefault()" in keep
     trap = welcome.split("const trap = ", 1)[1].split("\n  }\n", 1)[0]
     assert "if (event.key !== 'Tab') return" in trap and "event.preventDefault()" in trap and "target().focus()" in trap
     # The only listener that closes the card is "Begin"'s click; teardown removes every document listener.
     assert welcome.count("    close()\n") == 1 and "begin.addEventListener('click', () => {" in welcome
     assert "document.removeEventListener('mousedown', keepFocus, true)" in welcome
     assert "document.removeEventListener('keydown', trap, true)" in welcome
+
+
+def test_a_pointer_press_on_begin_refocuses_it_by_pointer_so_the_first_hotspot_shows_no_focus_reveal():
+    """Replay Oct 29: after a mouse click on "Begin" the first Hotspot showed its outline and label chip, though the
+    pointer was elsewhere. "Begin" was focused by script, so Chromium carried :focus-visible over to the script focus
+    of the first Hotspot. A press on "Begin" now lets the pointer focus it again (Chromium ignores
+    `focus({ focusVisible: false })`), so the focus reveal follows a keyboard "Begin" only."""
+    welcome = _code(_ts("welcome.ts"))
+    keep = welcome.split("const keepFocus = (event: MouseEvent): void => {", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (event.target instanceof Node && begin.contains(event.target)) begin.blur()" in keep
+    assert keep.index("begin.blur()") < keep.index("else event.preventDefault()")
 
 
 def test_the_dialog_is_labelled_by_its_heading_only():

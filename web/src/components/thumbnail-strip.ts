@@ -28,8 +28,9 @@ let made = 0
 
 /**
  * The Thumbnail strip (UX-DR25): one 96 x 72 `{components.thumbnail}` per photo of the Room, in upload order (A-12),
- * scrolling inside its own row. Each is a native button named "Photo {n}", so Tab reaches it and Enter or a click
- * switches the Scene; the current one carries `aria-current` and the 2 px lamp border. Each carries the count of
+ * scrolling inside its own row: while more thumbnails sit beyond an edge, that edge fades, and a vertical mouse wheel
+ * scrolls the row sideways (replay Oct 29). Each is a native button named "Photo {n}", so Tab reaches it and Enter or
+ * a click switches the Scene; the current one carries `aria-current` and the 2 px lamp border. Each carries the count of
  * objects its photo holds (`counts`, from `objectCounts`) on a parchment badge at its bottom-right corner, read out as
  * its description ("{k} objects"); a photo with none has no badge and is dimmed (playtest Oct 29).
  */
@@ -60,6 +61,21 @@ export function thumbnailStrip(roomId: string, counts: readonly number[], onSele
     return { thumbnail, badge, description }
   })
   element.append(...thumbnails.map(({ thumbnail }) => thumbnail))
+
+  /** Marks each edge with more thumbnails beyond it, which the stylesheet fades. */
+  function edges(): void {
+    const end = element.scrollWidth - element.clientWidth
+    element.classList.toggle('has-more-left', element.scrollLeft > 0)
+    element.classList.toggle('has-more-right', element.scrollLeft < end - 1)
+  }
+  element.addEventListener('scroll', edges, { passive: true })
+  new ResizeObserver(edges).observe(element)
+  // A mostly vertical wheel scrolls an overflowing strip sideways; a sideways one is the browser's own scroll.
+  element.addEventListener('wheel', (event) => {
+    if (element.scrollWidth <= element.clientWidth || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+    event.preventDefault()
+    element.scrollLeft += event.deltaY
+  })
 
   function setCurrent(index: number): void {
     thumbnails.forEach(({ thumbnail }, i) => {

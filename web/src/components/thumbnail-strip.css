@@ -1,5 +1,7 @@
-/* The Thumbnail strip: a row of {components.thumbnail} 8 px apart that scrolls inside its own row; 4 px of padding,
-   and as much scroll padding when a focused thumbnail scrolls into view, keep the focus ring inside the scroller. Others sit at 80% opacity, hover borders lamp-strong, current lamp.
+/* The Thumbnail strip: a row of {components.thumbnail} 8 px apart that scrolls inside its own row; 4 px of padding
+   keep the focus ring inside the scroller. While more thumbnails sit beyond an edge, that edge fades out over 32 px
+   (a mask, so it fades to whatever is behind), and a focused thumbnail scrolls in clear of the fade. Others sit at
+   80% opacity, hover borders lamp-strong, current lamp.
    Each carries its photo's object count on a parchment caption badge at its bottom-right corner; a photo with no
    objects has no badge and sits at 50% opacity, unless it is the current one. */
 .thumbnail-strip {
@@ -8,9 +10,18 @@
   gap: var(--spacing-2);
   min-width: 0;
   padding: 0 var(--spacing-1);
-  scroll-padding-inline: var(--spacing-1);
+  scroll-padding-inline: var(--spacing-6);
   overflow-x: auto;
   overflow-y: hidden;
+}
+.thumbnail-strip.has-more-right {
+  mask-image: linear-gradient(to left, transparent, var(--canvas) var(--spacing-6));
+}
+.thumbnail-strip.has-more-left {
+  mask-image: linear-gradient(to right, transparent, var(--canvas) var(--spacing-6));
+}
+.thumbnail-strip.has-more-left.has-more-right {
+  mask-image: linear-gradient(to right, transparent, var(--canvas) var(--spacing-6), var(--canvas) calc(100% - var(--spacing-6)), transparent);
 }
 .thumbnail {
   position: relative;

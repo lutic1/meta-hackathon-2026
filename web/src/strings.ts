@@ -200,6 +200,7 @@ export const strings = {
   statHints: 'Hints used',
   statWrong: 'Wrong attempts',
   timePerPuzzle: 'Time per puzzle',
+  timePerPuzzleNote: 'Each puzzle is timed from when it appeared, so some overlap.',
   buildAnotherRoom: 'Build another room',
   copyResult: 'Copy your result',
   resultCopied: 'Result copied. Gloat gently.',

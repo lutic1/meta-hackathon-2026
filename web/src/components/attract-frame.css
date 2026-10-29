@@ -53,7 +53,9 @@
   opacity: 1;
 }
 /* The clue under the frame: parchment on the paper elevation, the Riddler's 32 px portrait beside the clue lines,
-   which share one cell and crossfade with the photos; the "Lock n of m" tag at the right end of each. */
+   which share one cell and change with the photos in turn: the old line fades out over the first 300 ms (the overlay
+   token) of the photos' 600 ms crossfade and the new one in over the next 300, so two clues never show at once; the
+   "Lock n of m" tag at the right end of each. */
 .attract-clue {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
@@ -75,10 +77,11 @@
   justify-content: space-between;
   gap: var(--spacing-3);
   opacity: 0;
-  transition: opacity var(--motion-attract) var(--motion-ease);
+  transition: opacity var(--motion-overlay) var(--motion-ease);
 }
 .attract-clue-line.is-shown {
   opacity: 1;
+  transition-delay: var(--motion-overlay);
 }
 .attract-clue-line p {
   margin: 0;

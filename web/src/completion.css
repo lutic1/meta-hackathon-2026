@@ -99,6 +99,11 @@
 .completion-times tr:first-child td {
   border-top: 0;
 }
+/* Under the table, one plain line: each Puzzle is timed from when it appeared, so the times overlap. */
+.completion-times-note {
+  margin: var(--spacing-2) 0 0;
+  color: var(--ink-muted);
+}
 
 /* The result failed: one plain line, retried every 2000 ms. */
 .completion-error {

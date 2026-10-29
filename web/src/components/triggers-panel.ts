@@ -80,9 +80,9 @@ export function triggersList(room: PlayView): TriggersList {
   element.append(header, empty, rows)
   let drawn = -1
 
+  /** Scrolls the rows only: the panel itself stays at its opening lines, which a short Hint area would clip. */
   function reveal(): void {
     rows.scrollTop = rows.scrollHeight
-    element.scrollTop = element.scrollHeight // the panel scrolls only on a Hint area short even of one row
   }
 
   function render(state: SessionState): void {
