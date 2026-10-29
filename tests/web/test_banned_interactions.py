@@ -12,6 +12,7 @@ from tests.web.design import REPO, source_css, source_ts
 
 BANS = {
     # `video.play()` is the landing clip's Play toggle; that video is muted (test_landing_clip.py), so it plays no sound.
+    # The intro's video starts muted too; its music plays only once the player presses "Sound on" (test_intro.py).
     "plays audio": r"\bnew Audio\(|\bAudioContext\b|\bwebkitAudioContext\b|<audio\b|(?<!\bvideo)\.play\(\)|\bspeechSynthesis\b",
     "uses the Notification API": r"\bNotification\b|\bshowNotification\b|\bpushManager\b",
     "registers a service worker": r"\bserviceWorker\b|\bworkbox\b|\bimportScripts\(|\bCacheStorage\b|\bcaches\.open\(",

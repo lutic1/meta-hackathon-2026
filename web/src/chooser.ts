@@ -6,6 +6,7 @@ import { CLIP_CARD, DEMO_VIDEO, DEMO_VIDEO_ASPECT, type VideoSources } from './c
 import { ACCESS_CODE_FIELD, accessCodeBuild } from './components/access-code-build.ts'
 import { primaryButton, secondaryButton } from './components/button.ts'
 import { roomTitle } from './components/stored-room-row.ts'
+import { type Intro, introDue, openIntro } from './intro.ts'
 import { announce } from './live-region.ts'
 import { buildViewHref, CUT_0 } from './router.ts'
 import { fill, strings } from './strings.ts'
@@ -227,7 +228,9 @@ type State = 'arriving' | 'rest' | 'choosing' | 'chosen' | 'returning'
  * room, its hosts, how to play and "Play this room" (the guarded start, "Opening the room…" while pending); Build holds
  * the three steps and the Access-code build. Escape, Back or a click on the bare stage turns it home, focus returning
  * to the card. The cards are one Tab stop, Play first; arrows, Home and End move between them; Tab is trapped in the
- * dialog and everything outside it is inert. The footer holds the key hints and Pause motion, which holds every loop still. Under reduced motion nothing
+ * dialog and everything outside it is inert. The footer holds the key hints, "Watch the intro", which reopens the
+ * full-screen intro (`intro.ts`), and Pause motion, which holds every loop still. On the first visit the intro shows by
+ * itself on mount and the cards are dealt in once it is gone. Under reduced motion nothing
  * deals, spins or loops and every change is a 160 ms crossfade. With no Demo room listed, or a failed listing, Watch and
  * Build stay whole and the Play back holds the no-room line or the failed line with "Try again".
  */
@@ -609,7 +612,9 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   stillToggle.type = 'button'
   stillToggle.setAttribute('aria-pressed', String(still))
   stillToggle.append(...Array.from(art(`<span>${STILL_ICONS}</span>`).childNodes), strings.pauseMotion)
-  const keys = element('footer', 'chooser-keys body-sm', hints, stillToggle)
+  const introButton = element('button', 'chooser-intro-toggle label', strings.watchIntro)
+  introButton.type = 'button'
+  const keys = element('footer', 'chooser-keys body-sm', hints, element('div', 'chooser-keys-end', introButton, stillToggle))
 
   section.append(atmos, pitch, stage, keys)
 
@@ -621,6 +626,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   let queuedHome = false
   let clipPausedByUser = false
   let mounted = false
+  let introShown: Intro | null = null
   let raf = 0
   let announceTimer: ReturnType<typeof setTimeout> | undefined
   let lastAnnounced = ''
@@ -1244,6 +1250,11 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     if (state === 'chosen' && chosen === 1) panelCycler.start()
   })
 
+  // ---- the intro, reopened by hand: no countdown at its end ----
+  introButton.addEventListener('click', () => {
+    introShown = openIntro(false)
+  })
+
   // ---- the arrival: dealt in from below with a 540-degree spin, the centre first ----
   function arrive(): void {
     layout()
@@ -1303,7 +1314,9 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       })
       document.addEventListener('keydown', onKey, true) // capture: the video's own controls keep Escape otherwise
       document.addEventListener('visibilitychange', onVisibility)
-      document.fonts.ready.then(
+      if (introDue(reduced)) introShown = openIntro(true)
+      // The cards are dealt in once the fonts are in and the intro that showed by itself is gone.
+      Promise.all([document.fonts.ready, introShown?.closed]).then(
         () => {
           if (!mounted) return
           arrive()
@@ -1328,6 +1341,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
         document.removeEventListener('keydown', onKey, true)
         document.removeEventListener('visibilitychange', onVisibility)
         if (chosen !== -1) setModal(false)
+        introShown?.remove()
       }
     },
   }

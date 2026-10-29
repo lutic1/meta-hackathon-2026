@@ -102,7 +102,8 @@ def test_the_play_card_reads_the_first_demo_room_and_its_photos_from_the_api_at_
     assert "fact(strings.photoCount, urls.length)" in ts
     # The photos come from the API at runtime; nothing under web/ is a room photo.
     for path in (WEB_SRC.parent / "public").rglob("*"):
-        assert path.suffix.lower() not in {".jpg", ".jpeg"} or path.parent.name == "clip", path
+        # The clip's posters and the intro's title frame are stills of the owner's videos, not room photos.
+        assert path.suffix.lower() not in {".jpg", ".jpeg"} or path.parent.name in {"clip", "intro"}, path
 
 
 def test_play_this_room_is_the_guarded_start_with_its_pending_label_so_no_session_starts_twice():
