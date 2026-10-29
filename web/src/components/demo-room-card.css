@@ -1,6 +1,6 @@
 /* {components.demo-room-card}: chrome-raised, rounded lg, the 4:3 cover on top (rounded lg top corners), then the
-   name, the meta line and the portraits, and a footer with the thumbnail and the Build view link. Hover rings the card
-   in lamp with the lamp glow (a border, so the global focus ring keeps the outline and its inner ring). */
+   name, the meta line and the portraits, and a footer with the thumbnail beside "Play this room" and the Build view
+   link. Hover rings the card in lamp with the lamp glow. */
 .demo-room-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -71,8 +71,17 @@
   margin-top: auto;
   padding: 0 var(--spacing-4) var(--spacing-4);
 }
-/* In a narrow card the link's label wraps inside its border rather than running past the card. */
-.demo-room-footer > .button-secondary {
+/* "Play this room" and the Build view link, wrapping under each other beside the thumbnail in a narrow card. */
+.demo-room-actions {
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  min-width: 0;
+}
+/* In a narrow card a label wraps inside its border rather than running past the card. */
+.demo-room-actions > .button-secondary {
   max-width: 100%;
   height: auto;
   min-height: 40px;

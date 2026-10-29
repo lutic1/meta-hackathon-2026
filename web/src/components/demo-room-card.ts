@@ -2,6 +2,7 @@ import './demo-room-card.css'
 import type { BuildView, RoomSummary } from '../../types'
 import { photoUrl } from '../api/index.ts'
 import { buildViewLink } from '../build-view.ts'
+import { secondaryButton } from './button.ts'
 import { hotspotPath, type Size } from '../scene/geometry.ts'
 import { fill, strings } from '../strings.ts'
 import { type Wizard, wizardPortrait } from '../wizards/portrait.ts'
@@ -71,9 +72,7 @@ export function buildThumbnail(view: BuildView, coverPhoto: number): HTMLElement
 
 export interface DemoRoomCard {
   element: HTMLLIElement
-  /** The card itself: the Tab stop that starts a Session, and the landing's initial focus when it is the first. */
-  card: HTMLElement
-  /** Puts the mask-and-graph thumbnail in the footer, before the Build view link; absent under cut 0. */
+  /** Puts the mask-and-graph thumbnail in the footer, before the card's buttons; absent under cut 0. */
   showThumbnail: (view: BuildView) => void
 }
 
@@ -81,17 +80,18 @@ export interface DemoRoomCard {
  * `{components.demo-room-card}` (UX-DR58): a `chrome-raised` card per `RoomSummary` with the 4:3 cover photo, the
  * Room's name (or its build time) in `display-sm`, "{n} puzzles · 15 to 25 min" in `body-sm`, the four Wizard portraits
  * at 24 px under one accessible name, and a footer holding the thumbnail, once the landing has the Build view to draw
- * it from, and "How this room was built" (secondary). Under cut 0 the footer is absent, link and thumbnail both.
+ * it from, beside "Play this room" and "How this room was built" (both secondary). Under cut 0 the footer holds
+ * "Play this room" alone, with no link and no thumbnail.
  *
- * The card is one Tab stop named by its title: a click anywhere on it but the link, or Enter on the card itself,
- * calls `onStart`. The link is its own Tab stop with its own focus ring, and opens that Room's Build view.
+ * "Play this room" calls `onStart`, as does a click anywhere else on the card but the link; the card is named by its
+ * title and is no Tab stop itself, so its two controls are its Tab stops, each with its own focus ring. The link opens
+ * that Room's Build view.
  */
 export function demoRoomCard(room: RoomSummary, profile: string, onStart: () => void): DemoRoomCard {
   const element = document.createElement('li')
   element.className = 'demo-room-item'
   const card = document.createElement('article')
   card.className = 'demo-room-card'
-  card.tabIndex = 0
   const cover = document.createElement('img')
   cover.className = 'demo-room-cover'
   cover.src = photoUrl(room.room_id, room.cover_photo)
@@ -112,27 +112,24 @@ export function demoRoomCard(room: RoomSummary, profile: string, onStart: () => 
   portraits.setAttribute('aria-label', strings.demoRoomPortraits)
   portraits.append(...WIZARDS.map((wizard) => wizardPortrait(wizard, 24)))
   body.append(title, meta, portraits)
-  card.append(cover, body)
 
   const link = buildViewLink(room.job_id, profile)
+  const actions = document.createElement('div')
+  actions.className = 'demo-room-actions'
+  actions.append(secondaryButton({ label: strings.playThisRoom, onActivate: onStart }))
+  if (link !== null) actions.append(link)
   const footer = document.createElement('div')
   footer.className = 'demo-room-footer'
-  if (link !== null) {
-    footer.append(link)
-    card.append(footer)
-  }
+  footer.append(actions)
+  card.append(cover, body, footer)
 
   card.addEventListener('click', (event) => {
-    if (event.target instanceof Element && event.target.closest('a') !== null) return
+    if (event.target instanceof Element && event.target.closest('a, button') !== null) return
     onStart()
-  })
-  card.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && event.target === card) onStart()
   })
   element.append(card)
   return {
     element,
-    card,
     showThumbnail: (view) => {
       if (link !== null) footer.prepend(buildThumbnail(view, room.cover_photo))
     },

@@ -254,6 +254,7 @@ export const strings = {
   riddlersNotes: "From the Riddler's notes",
   attractFrame: 'Play {name}',
   lockOfM: 'Lock {n} of {m}',
+  howToPlay: 'How to play',
   howArchitect: 'reads your photos with muse-spark-1.3 and outlines every object with sam-3.1.',
   howRiddler: 'writes {n} locks from what was found; a test run that never sees the answers checks each one opens.',
   howRiddlerUncounted: 'writes the locks from what was found; a test run that never sees the answers checks each one opens.',

@@ -1,6 +1,7 @@
 """Story 7.16: the Hosted landing (FR-31, UX-DR57, UX-DR58, UX-DR68, UX-DR81, NFR-10), as a title screen: the hero
-line, one primary verb, the cast of four, then the first Demo room's card, a page of the Riddler's notes and "How a
-room is built" in three steps, beside the Access-code build.
+line, one primary verb, the attract frame beside its clue and "How to play", the cast of four, then a page of the
+Riddler's notes and "How a room is built" in three steps; the right column holds the Access-code build over the first
+Demo room's card.
 
 The client has no test runner (a runner is added only through bmad-correct-course), so most checks read the
 TypeScript and the stylesheets; `npm run build` and `tsc --noEmit` prove they compile. The last checks run the hosted
@@ -102,6 +103,7 @@ def test_the_landing_strings_are_the_experience_lines():
     assert roles == ["Finds the objects", "Writes the locks", "Hints, never answers", "Changes the rules"]
     assert all(len(role.split()) <= 4 for role in roles)
     assert strings["riddlersNotes"] == "From the Riddler's notes"
+    assert strings["howToPlay"] == "How to play" and strings["playThisRoom"] == "Play this room"
     assert strings["howArchitect"] == "reads your photos with muse-spark-1.3 and outlines every object with sam-3.1."
     assert strings["howRiddler"].format(n=4) == (
         "writes 4 locks from what was found; a test run that never sees the answers checks each one opens.")
@@ -211,7 +213,8 @@ def test_the_riddlers_sample_page_shows_the_first_waiting_free_puzzle_from_the_p
 def test_how_a_room_is_built_is_three_steps_naming_the_wizards_and_the_models():
     ts = _code("landing.ts")
     how = ts.split("function howARoomIsBuilt(", 1)[1].split("\n}\n", 1)[0]
-    assert "heading.textContent = strings.howARoomIsBuilt" in how
+    assert "section('landing-how', 'landing-how-heading', strings.howARoomIsBuilt, numberedSteps(words))" in how
+    assert "heading.textContent = title" in ts.split("function section(", 1)[1].split("\n}\n", 1)[0]
     steps = ts.split("function steps(locks: number | undefined)", 1)[1].split("\n}\n", 1)[0]
     assert "[strings.architect, strings.howArchitect]" in steps
     # The Riddler's step counts the first Demo room's locks, its Puzzle count, and names no number without one.
@@ -219,7 +222,8 @@ def test_how_a_room_is_built_is_three_steps_naming_the_wizards_and_the_models():
             "fill(strings.howRiddler, { n: locks })") in steps
     assert "[strings.riddler, riddler]" in steps
     assert "[strings.guide, strings.howGuide, strings.trickster, strings.howTrickster]" in steps
-    assert "step.className = 'landing-how-step body-sm'" in how and "steps(locks).forEach(" in how
+    assert "steps(locks).map(" in how
+    assert "step.className = 'landing-how-step body-sm'" in ts.split("function numberedSteps(", 1)[1].split("\n}\n", 1)[0]
     rules = _landing_rules()
     assert rules[".landing-how-n"]["color"] == "var(--lamp)"
 
@@ -227,20 +231,61 @@ def test_how_a_room_is_built_is_three_steps_naming_the_wizards_and_the_models():
 # --- Two states: a Demo room listed, or none ------------------------------------------
 
 
-def test_with_a_demo_room_listed_the_card_the_sample_page_and_the_steps_sit_in_a_row_under_the_cast():
+def test_with_a_demo_room_listed_its_card_sits_under_the_access_code_build_and_the_sample_page_and_steps_under_the_cast():
     ts = _code("landing.ts")
-    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), attract, cast())" in ts
-    listed = ts.split("const below = document.createElement('div')", 1)[1]
+    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), stage, cast())" in ts
+    listed = ts.split("const cards: DemoRoomCard[]", 1)[1]
+    # The first card stands in the right column, under the Access-code build, so it is above the fold.
+    assert "right.append(sample)" in listed
+    assert ts.index("right.append(accessCodeBuild(onAccepted))") < ts.index("right.append(sample)")
     assert "below.className = 'landing-below'" in listed
-    assert "below.append(sample, notes, howARoomIsBuilt(first.puzzle_count))" in listed
-    # Further Demo rooms keep their cards three across under the row, in served order.
+    assert "below.append(notes, howARoomIsBuilt(first.puzzle_count))" in listed
+    # Further Demo rooms keep their cards three across in the left area under the row, in served order.
     assert "rooms.slice(1).map((room) => demoRoomCard(room, profile, () => void start(room)))" in listed
     rules = _landing_rules()
     text = _ts("landing.css")
-    assert ".landing-below {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));" in text
-    assert "@media (max-width: 1279px) {\n  .landing-below {\n    grid-template-columns: repeat(2, minmax(0, 1fr));" in text
-    assert rules[".landing-below > .demo-room-list"]["grid-template-columns"] == "minmax(0, 1fr)"
+    assert ".landing-below {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));" in text
+    assert rules[".landing-right > .demo-room-list"]["grid-template-columns"] == "minmax(0, 1fr)"
     assert rules[".landing-notes-slot"]["display"] == "contents"
+
+
+def test_with_a_demo_room_listed_how_to_play_sits_beside_the_attract_frame_in_the_welcome_s_three_steps():
+    ts = _code("landing.ts")
+    play = ts.split("function howToPlay(", 1)[1].split("\n}\n", 1)[0]
+    assert "section('landing-how landing-play', 'landing-play-heading', strings.howToPlay, numberedSteps(words))" in play
+    # The same three steps as the First-room welcome, from the same strings.
+    assert "[strings.howToPlay1, strings.howToPlay2, strings.howToPlay3]" in play
+    assert "[strings.howToPlay1, strings.howToPlay2, strings.howToPlay3]" in _code("components/greeting-overlay.ts")
+    listed = ts.split("const cards: DemoRoomCard[]", 1)[1]
+    # With a Demo room only: the frame plays it and the steps speak of "these photos".
+    assert "stage.append(attract, howToPlay())" in listed and "stage.className = 'landing-stage'" in ts
+    rules = _landing_rules()
+    stage = rules[".landing-stage"]
+    assert stage["display"] == "grid" and stage["grid-template-columns"] == "auto minmax(0, 1fr)"
+    assert stage["container-type"] == "inline-size"
+    assert rules[".landing-stage:empty"] == {"display": "none"}  # no Demo room: no stage, no gap
+    # The frame spans the stage's first column; its clue and then "How to play" stack beside it.
+    assert rules[".landing-stage .attract"] == {"display": "contents"}
+    assert rules[".landing-stage .attract-frame"]["grid-row"] == "1 / span 2"
+    assert rules[".landing-stage .attract-clue"]["grid-column"] == "2" and rules[".landing-stage .attract-clue"]["grid-row"] == "1"
+    assert rules[".landing-play"]["grid-column"] == "2" and rules[".landing-play"]["grid-row"] == "2"
+
+
+def test_the_attract_frame_takes_its_photos_aspect_so_a_portrait_room_shows_no_wide_bars():
+    ts = _attract()
+    loaded = ts.split("const first = await load(0).catch(() => null)", 1)[1]
+    assert "frame.style.setProperty('--attract-aspect', `${first.width} / ${first.height}`)" in loaded
+    frame = _attract_rules()[".attract-frame"]
+    # The ratio holds for the ground inside the 12 px mat, where the photo is contained.
+    assert frame["box-sizing"] == "content-box" and frame["aspect-ratio"] == "var(--attract-aspect)"
+    assert "height" not in frame
+    rules = _landing_rules()
+    assert rules[".landing-stage .attract-frame"]["width"] == (
+        "min(calc(var(--attract-height) * var(--attract-aspect)), calc(100cqi - var(--landing-side-min) - 50px))")
+    text = _ts("landing.css")
+    # Tall enough to fill the fold under the hero at 1440 x 900, 1536 x 864 and 1920 x 1080, never past it.
+    assert "--attract-height: clamp(280px, calc(100vh - 320px), 760px);" in text
+    assert "@media (max-width: 1279px) {\n  .landing-stage {\n    --attract-height: clamp(240px, calc(100vh - 380px), 760px);" in text
 
 
 def test_with_no_demo_room_the_cast_and_the_hero_stay_and_no_no_demo_rooms_line_shows():
@@ -446,7 +491,7 @@ def test_the_frame_is_one_focusable_control_named_for_the_room_that_starts_a_ses
     assert "if (event.key === 'Enter' && event.target === frame) onStart()" in ts
     assert "img.alt = ''" in ts  # the photos are decorative under the one accessible name
     landing = _code("landing.ts")
-    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), attract, cast())" in landing
+    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), stage, cast())" in landing
     rules = _attract_rules()
     frame = rules[".attract-frame"]
     assert frame["cursor"] == "pointer"
@@ -458,6 +503,10 @@ def test_the_contract_records_the_attract_frame_and_the_motion_carve_out():
     experience = (REPO / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md").read_text()
     design = design_text()
     assert "attract frame" in experience and "attract frame" in design
+    landing = experience.split("| Hosted landing | A title screen", 1)[1].split("\n", 1)[0]
+    assert "How to play" in landing and "right column" in landing
+    hosted = design.split("**Hosted landing.**", 1)[1].split("\n", 1)[0]
+    assert "aspect" in hosted and "How to play" in hosted and "Play this room" in hosted
     motion = design.split("**Motion.**", 1)[1].split("\n\n", 1)[0]
     assert "600 ms" in motion and "4 s" in motion and "reduced motion" in motion
     assert "Nothing loops" in motion and "attract frame" in motion
@@ -526,8 +575,10 @@ def test_the_thumbnail_comes_from_the_build_view_and_a_failed_read_leaves_the_ca
 def test_under_cut_0_the_card_has_no_link_no_thumbnail_and_still_starts_sessions():
     ts = _code("components/demo-room-card.ts")
     assert "if (CUT_0) return null" in _ts("build-view.ts")
-    assert "if (link !== null) {\n    footer.append(link)\n    card.append(footer)\n  }" in ts
-    assert "card.addEventListener('click'" in ts.split("if (link !== null) {", 1)[1]  # outside the cut-0 branch
+    assert "if (link !== null) actions.append(link)" in ts
+    # The footer and its "Play this room" stand under cut 0 too; only the link and the thumbnail go.
+    assert "card.append(body, footer)" in ts or "card.append(cover, body, footer)" in ts
+    assert "card.addEventListener('click'" in ts.split("if (link !== null) actions.append(link)", 1)[1]
 
 
 def test_hover_rings_the_card_in_lamp_with_the_glow_and_keeps_the_focus_ring():
@@ -540,9 +591,10 @@ def test_hover_rings_the_card_in_lamp_with_the_glow_and_keeps_the_focus_ring():
     assert rules[".demo-room-card:hover"] == {"border-color": "var(--lamp)", "box-shadow": "var(--elevation-lamp-glow)"}
     assert rules[".demo-room-card:hover:focus-visible"] == {
         "box-shadow": "0 0 0 2px var(--focus-ring-inner), var(--elevation-lamp-glow)"}
-    # The card and the link are separate Tab stops, each keeping the global two-tone ring.
+    # "Play this room" and the link are the card's Tab stops, each keeping the global two-tone ring; the card itself
+    # is no Tab stop, so no control nests inside another.
     ts = _code("components/demo-room-card.ts")
-    assert "card.tabIndex = 0" in ts and "card.setAttribute('aria-labelledby', title.id)" in ts
+    assert "tabIndex" not in ts and "card.setAttribute('aria-labelledby', title.id)" in ts
     assert not any("outline" in prop for rule in rules.values() for prop in rule)
 
 
@@ -556,11 +608,13 @@ def test_hover_and_state_fades_are_instant_under_reduced_motion():
 # --- Starting a Session from a card -----------------------------------------------------
 
 
-def test_click_or_enter_on_the_card_starts_a_session_and_the_link_does_not():
+def test_play_this_room_or_a_click_on_the_card_starts_a_session_and_the_link_does_not():
     ts = _code("components/demo-room-card.ts")
+    assert "secondaryButton({ label: strings.playThisRoom, onActivate: onStart })" in ts
     click = ts.split("card.addEventListener('click', (event) => {", 1)[1].split("})", 1)[0]
-    assert "event.target.closest('a') !== null) return" in click and "onStart()" in click
-    assert "if (event.key === 'Enter' && event.target === card) onStart()" in ts
+    # A click on the link or on "Play this room" is theirs alone, so a Session never starts twice.
+    assert "event.target.closest('a, button') !== null) return" in click and "onStart()" in click
+    assert "keydown" not in ts  # Enter on "Play this room" is the button's own
     landing = _code("landing.ts")
     assert "const start = roomStarter(profile, mode, banners)" in landing
     assert "demoRoomCard(room, profile, () => void start(room))" in landing

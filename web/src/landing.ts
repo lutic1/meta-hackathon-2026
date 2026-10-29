@@ -164,38 +164,57 @@ function riddlersNotes(view: PlayView): HTMLElement | null {
   return sheet
 }
 
-/** "How a room is built": the heading over the three numbered steps, the wizards' names in `label`. */
-function howARoomIsBuilt(locks?: number): HTMLElement {
-  const section = document.createElement('section')
-  section.className = 'landing-how'
-  const heading = document.createElement('h2')
-  heading.id = 'landing-how-heading'
-  heading.className = 'landing-how-heading display-sm'
-  heading.textContent = strings.howARoomIsBuilt
-  section.setAttribute('aria-labelledby', heading.id)
+/** The three numbered steps of a landing section, the number in `mono-sm` lamp beside each step's words. */
+function numberedSteps(steps: readonly (readonly (Node | string)[])[]): HTMLOListElement {
   const list = document.createElement('ol')
   list.className = 'landing-how-steps'
-  steps(locks).forEach((parts, index) => {
+  steps.forEach((words, index) => {
     const step = document.createElement('li')
     step.className = 'landing-how-step body-sm'
     const n = span('landing-how-n mono-sm', String(index + 1))
     n.setAttribute('aria-hidden', 'true')
-    const words = parts.flatMap((part, at) => [at === 0 ? '' : ' ', at % 2 === 0 ? span('label', part) : part])
     step.append(n, paragraph('landing-how-text', ...words))
     list.append(step)
   })
-  section.append(heading, list)
-  return section
+  return list
+}
+
+/** A landing section: its `display-sm` heading, named by id, over `body`. */
+function section(className: string, id: string, title: string, body: HTMLElement): HTMLElement {
+  const element = document.createElement('section')
+  element.className = className
+  const heading = document.createElement('h2')
+  heading.id = id
+  heading.className = 'landing-how-heading display-sm'
+  heading.textContent = title
+  element.setAttribute('aria-labelledby', heading.id)
+  element.append(heading, body)
+  return element
+}
+
+/** "How a room is built": the heading over the three numbered steps, the wizards' names in `label`. */
+function howARoomIsBuilt(locks?: number): HTMLElement {
+  const words = steps(locks).map((parts) =>
+    parts.flatMap((part, at) => [at === 0 ? '' : ' ', at % 2 === 0 ? span('label', part) : part]),
+  )
+  return section('landing-how', 'landing-how-heading', strings.howARoomIsBuilt, numberedSteps(words))
+}
+
+/** "How to play": the heading over the First-room welcome's three steps, beside the attract frame. */
+function howToPlay(): HTMLElement {
+  const words = [strings.howToPlay1, strings.howToPlay2, strings.howToPlay3].map((step) => [step])
+  return section('landing-how landing-play', 'landing-play-heading', strings.howToPlay, numberedSteps(words))
 }
 
 /**
  * The Hosted landing (UX-DR57, UX-DR68), a title screen: the left area holds the banner slot, the hero with the one
- * primary verb, the first Demo room's attract frame (once its `PlayView` and first photo have answered; its slot
- * takes no space before), the cast, then a row with that room's card, the Riddler's sample page from the same
+ * primary verb, the stage (the first Demo room's attract frame, once its `PlayView` and first photo have answered,
+ * with its clue and "How to play" beside it), the cast, then a row with the Riddler's sample page from the same
  * `PlayView` and "How a room is built", with any further cards three across under it in served order; the right
- * column holds the Access-code build, whose accepted code calls `onAccepted` with the builds left. `rooms` is null
- * when `GET /rooms` failed: the plain failed line with "Try again" (`onRetry`) stands in the row's place. An empty
- * list keeps the hero and the cast, notes that the sample room opens soon and makes the verb "Build your own room".
+ * column holds the Access-code build, whose accepted code calls `onAccepted` with the builds left, over the first
+ * Demo room's card. `rooms` is null when `GET /rooms` failed: the plain failed line with "Try again" (`onRetry`)
+ * stands in the row's place. An empty list keeps the hero and the cast, notes that the sample room opens soon and
+ * makes the verb "Build your own room".
  * In every case the Access-code build stays usable. The verb and a card start a Session through `roomStarter`, so a
  * refused start shows the session-start-refused banner in the slot, focused.
  */
@@ -218,7 +237,9 @@ export function hostedLanding(
   const verb = primaryVerb(first, start, () => right.querySelector(`#${ACCESS_CODE_FIELD}`))
   const attract = document.createElement('div')
   attract.className = 'landing-attract-slot'
-  left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), attract, cast())
+  const stage = document.createElement('div')
+  stage.className = 'landing-stage'
+  left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), stage, cast())
 
   if (rooms === null) {
     const failed = document.createElement('div')
@@ -245,14 +266,16 @@ export function hostedLanding(
   }
 
   const cards: DemoRoomCard[] = [demoRoomCard(first, profile, () => void start(first))]
+  stage.append(attract, howToPlay())
   const sample = document.createElement('ul')
   sample.className = 'demo-room-list'
   sample.append(cards[0].element)
+  right.append(sample)
   const notes = document.createElement('div')
   notes.className = 'landing-notes-slot'
   const below = document.createElement('div')
   below.className = 'landing-below'
-  below.append(sample, notes, howARoomIsBuilt(first.puzzle_count))
+  below.append(notes, howARoomIsBuilt(first.puzzle_count))
   left.append(below)
   if (rooms.length > 1) {
     cards.push(...rooms.slice(1).map((room) => demoRoomCard(room, profile, () => void start(room))))

@@ -1,6 +1,7 @@
-/* The Hosted landing (UX-DR57), a title screen: the left area (the banner slot, the hero, the attract frame over its
-   clue, the cast, then the row with the first Demo room's card, the Riddler's sample page and "How a room is built")
-   beside the right column at 400, 360 or 340 px, as on the Capture screen; the body scrolls. */
+/* The Hosted landing (UX-DR57), a title screen: the left area (the banner slot, the hero, the stage with the attract
+   frame beside its clue and "How to play", the cast, then the row with the Riddler's sample page and "How a room is
+   built") beside the right column at 400, 360 or 340 px, as on the Capture screen, which holds the Access-code build
+   over the first Demo room's card; the body scrolls. */
 .landing-layout {
   position: relative; /* its hidden speaker prefixes scroll inside it, never past the Disclosure footer */
   display: grid;
@@ -61,10 +62,49 @@
   align-items: center;
   gap: var(--spacing-3);
 }
+/* The stage under the hero: the attract frame in the first column, as wide as its photos' aspect needs at the stage's
+   height (portrait photos make a narrow frame, never one with wide bars), and beside it the clue on parchment over
+   "How to play", which keep at least 320 px. The height fills the fold under the hero: about 580 px at 1440 x 900, 544
+   at 1536 x 864 and 760 at 1920 x 1080 (the hero wraps taller below 1280 px). Empty, with no Demo room, it takes no
+   space. */
+.landing-stage {
+  --attract-height: clamp(280px, calc(100vh - 320px), 760px);
+  --landing-side-min: 320px;
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  gap: var(--spacing-4) var(--spacing-5);
+  align-items: start;
+}
+@media (max-width: 1279px) {
+  .landing-stage {
+    --attract-height: clamp(240px, calc(100vh - 380px), 760px);
+  }
+}
+.landing-stage:empty {
+  display: none;
+}
 /* The attract frame's slot is empty until the first Demo room's PlayView and first photo answer, taking no space of
-   its own meanwhile, so the hero sits straight over the cast until then. */
+   its own meanwhile; the frame and its clue then take the stage's cells. */
 .landing-attract-slot {
   display: contents;
+}
+.landing-stage .attract {
+  display: contents;
+}
+.landing-stage .attract-frame {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: min(calc(var(--attract-height) * var(--attract-aspect)), calc(100cqi - var(--landing-side-min) - 50px));
+}
+.landing-stage .attract-clue {
+  grid-column: 2;
+  grid-row: 1;
+}
+.landing-play {
+  grid-column: 2;
+  grid-row: 2;
 }
 /* The cast: two across, four from 1440 px; each wizard the 96 px portrait beside its name and role. Hover lifts the
    row to chrome with the lamp glow and turns the ring lamp; keyboard focus does the same under the focus ring. */
@@ -143,20 +183,16 @@
 .landing-wizard:focus-visible .landing-wizard-voice {
   opacity: 1;
 }
-/* The row under the cast: the first Demo room's card, the sample page and the steps, three across (two at 1024 px,
-   the steps wrapping under); any further cards keep the list three across beneath. */
+/* The row under the cast: the sample page and "How a room is built", two across; any further cards keep the list
+   three across beneath. */
 .landing-below {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-5);
   align-items: start;
 }
-@media (max-width: 1279px) {
-  .landing-below {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-.landing-below > .demo-room-list {
+/* The first Demo room's card fills the right column under the Access-code build. */
+.landing-right > .demo-room-list {
   grid-template-columns: minmax(0, 1fr);
 }
 /* The sample page's slot is empty until the Room's PlayView answers, taking no cell of its own meanwhile. */
@@ -204,7 +240,8 @@
   border-top: 1px solid var(--parchment-rule);
   color: var(--ink-muted);
 }
-/* "How a room is built": the heading over three numbered steps, the number in mono lamp beside each. */
+/* "How a room is built" and "How to play": the heading over three numbered steps, the number in mono lamp beside
+   each. */
 .landing-how {
   display: flex;
   flex-direction: column;

@@ -74,14 +74,15 @@ function slideElement(view: PlayView, slide: AttractSlide): Slide {
 
 /**
  * The attract frame of the Hosted landing (DESIGN.md Hosted landing, Motion): a Scene frame that plays the Demo
- * room `view` by itself. Its photos crossfade in order, each held 4 s, over the frame's ground, contained as the
- * Scene contains them; on each lies the lit Hotspot reveal and label chip of its first scenery Interactable, drawn
- * from the polygons as the Scene draws them, and under the frame, on parchment, a Riddler's clue whose Evidence is not
- * on that photo with its "Lock {n} of {m}" tag (`attractSlides`; a photo without either shows the photo alone, the
- * clue row keeping its height). The frame is one control named "Play {name}": a click or Enter calls `onStart`, the verb's
- * path. The cycle pauses while the pointer is over the frame or it has focus, and while the tab is hidden; under
- * reduced motion the first photo stays, with its Hotspot and clue, and nothing cycles. Photos load one ahead of the
- * cycle, never all at once; a photo that fails is passed over. Resolves once the first photo has loaded, with the
+ * room `view` by itself. Its photos crossfade in order, each held 4 s, over the frame's ground, which takes the first
+ * photo's aspect (`--attract-aspect`), so the photos fill it without wide bars, contained as the Scene contains them;
+ * on each lies the lit Hotspot reveal and label chip of its first scenery Interactable, drawn from the polygons as the
+ * Scene draws them, and with the frame, on parchment, a Riddler's clue whose Evidence is not on that photo with its
+ * "Lock {n} of {m}" tag (`attractSlides`; a photo without either shows the photo alone, the clue row keeping its
+ * height). The frame is one control named "Play {name}": a click or Enter calls `onStart`, the verb's path. The
+ * cycle pauses while the pointer is over the frame or it has focus, and while the tab is hidden; under reduced motion
+ * the first photo stays, with its Hotspot and clue, and nothing cycles. Photos load one ahead of the cycle, never all
+ * at once; a photo that fails is passed over. Resolves once the first photo has loaded, with the
  * frame, or null when the Room has no photos or that photo fails to load, so the landing keeps its layout without it.
  * Everything shown is read from the `PlayView`, so no solution or Derived field reaches the page.
  */
@@ -209,6 +210,7 @@ export async function attractFrame(view: PlayView, name: string, onStart: () => 
 
   const first = await load(0).catch(() => null)
   if (first === null) return null
+  frame.style.setProperty('--attract-aspect', `${first.width} / ${first.height}`)
   for (const slide of slides) slide.line.setAttribute('aria-hidden', 'true')
   show(0)
   const observer = new ResizeObserver(() => slides.forEach(place))
