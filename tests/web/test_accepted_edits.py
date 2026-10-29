@@ -117,10 +117,10 @@ def test_the_notes_keep_their_entries_and_redraw_the_evidence_cards_and_count_in
     reshape = _nested(notes, "function reshape(view: PlayView): void {")
     assert "for (const puzzle of view.puzzles) entries.get(puzzle.id)?.evidence(view, puzzle)" in reshape
     assert "entry(" not in reshape  # no entry is rebuilt, so the Code field and focus stay
-    evidence = _nested(notes, "function drawEvidence(view: PlayView, shown: PlayPuzzle): void {")
-    assert "if (key === drawnEvidence) return" in evidence
+    evidence = _nested(notes, "function drawEvidence(view: PlayView, shown: PlayPuzzle): HTMLLIElement[] {")
+    assert "if (key === drawnEvidence) return []" in evidence
     assert "shown.evidence_cards.flatMap((card) => {" in evidence  # in the order PlayView gives
-    assert "[evidenceCard(view.id, interactable, card)]" in evidence
+    assert "[evidenceCard(view.id, interactable, card, solved)]" in evidence
     assert "count.textContent = cards.length === 1 ? strings.evidenceCard : fill(strings.evidenceCards, { k: cards.length })" in evidence
     assert "evidence.replaceChildren(...cards)" in evidence
     # No highlight, badge, animation or announcement marks the new card or the count.
@@ -130,7 +130,9 @@ def test_the_notes_keep_their_entries_and_redraw_the_evidence_cards_and_count_in
 
 def test_a_decoy_card_is_drawn_like_any_other_and_nothing_in_the_client_tells_it_apart():
     card = _ts("components/evidence-card.ts")
-    assert "element.className = 'evidence-card'" in card and card.count("className =") == 3
+    # The note and the whole card are the only two drawings, chosen by `solved` alone.
+    assert "element.className = 'evidence-card'" in card and card.count("className =") == 5
+    assert "if (!solved) {" in card
     assert set(_keys(_interfaces()["Evidence"])) == {"interactable", "visible_attribute"}
     for path in ("components/evidence-card.ts", "components/wizard-notes.ts", "scene/index.ts", "play.ts"):
         assert "decoy" not in _ts(path).lower(), path

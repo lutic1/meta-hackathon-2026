@@ -6,8 +6,12 @@ TypeScript and the stylesheets; `npm run build` and `tsc --noEmit` prove they co
 four-lock fixture room the way the Play screen reads it.
 """
 
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,7 +19,7 @@ from fastapi.testclient import TestClient
 from src.domain.schema import Room
 from tests.api.test_app import make_app
 from tests.fixtures.rooms import IX
-from tests.web.design import WEB_SRC, css_rules, design_text
+from tests.web.design import REPO, WEB_SRC, css_rules, design_text
 from tests.web.test_contrast import PROPS, _hex, contrast
 
 
@@ -146,7 +150,9 @@ def test_open_locks_collapse_their_entry_and_wrong_attempts_show_the_servers_cou
     notes = _ts("components/wizard-notes.ts")
     update = notes.split("function update(", 1)[1].split("\n  }\n", 1)[0]
     assert "const open = state.locks_open.includes(puzzle.id)" in update
-    assert "body.hidden = open" in update and "opened.hidden = !open" in update and "count.hidden = open" in update
+    assert "for (const part of [clue, lore, rungs, lock]) part.hidden = open" in update  # the Evidence cards stay
+    assert "opened.hidden = !open" in update and "count.hidden = open" in update
+    assert _rules("components/wizard-notes.css")[".notes-entry-body > [hidden]"] == {"display": "none"}
     assert "opened.textContent = strings.solved" in notes
     assert "wrong.textContent = fill(strings.notThis, { n: attempts })" in update
     rules = _rules("components/wizard-notes.css")
@@ -155,7 +161,7 @@ def test_open_locks_collapse_their_entry_and_wrong_attempts_show_the_servers_cou
     assert rules[".chip"]["border-radius"] == "var(--rounded-sm)"
 
 
-def test_evidence_cards_are_inset_rows_with_a_64px_crop_cut_from_the_polygons_bounds_and_one_state():
+def test_evidence_cards_are_inset_rows_a_note_until_solved_then_a_64px_crop_cut_from_the_polygons_bounds():
     card, crop, geometry = _ts("components/evidence-card.ts"), _ts("components/crop.ts"), _ts("scene/geometry.ts")
     assert "const THUMB_PX = 64" in card and "crop(roomId, interactable, THUMB_PX)" in card
     assert "label.className = 'evidence-card-label label'" in card and "label.textContent = interactable.label" in card
@@ -168,12 +174,69 @@ def test_evidence_cards_are_inset_rows_with_a_64px_crop_cut_from_the_polygons_bo
     row = rules[".evidence-card"]
     assert row["background"] == "var(--parchment-shade)" and row["color"] == "var(--ink)"
     assert row["border-radius"] == "var(--rounded-md)" and row["grid-template-columns"] == "64px minmax(0, 1fr)"
+    assert rules[".evidence-card-note"] == {"grid-template-columns": "minmax(0, 1fr)"}  # the note has no crop
+    assert "note.className = 'evidence-card-note-text wizard-line'" in card
     assert rules[".evidence-card .crop"] == {"border-radius": "var(--rounded-sm)"}
     assert rules[".evidence-card-attribute"] == {"color": "var(--ink-muted)"}
-    # One state: no hover, focus, animation, highlight or announcement on a card.
+    # The whole card's reward fade is the only motion: no hover, focus, animation, highlight or announcement.
+    assert row["transition"] == "opacity var(--motion-state) var(--motion-ease)"
+    assert rules[".evidence-card.is-arriving"] == {"opacity": "0"}
     css = (WEB_SRC / "components/evidence-card.css").read_text()
-    assert not re.search(r":hover|:focus|animation|transition|\.is-", css)
+    assert not re.search(r":hover|:focus|animation|\.is-(?!arriving)", css)
     assert "aria-live" not in card and "classList" not in card
+    notes = _ts("components/wizard-notes.ts")
+    opening = notes.split("function opening(): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "solved = true" in opening and "for (const card of drawEvidence(...source)) fadeIn(card)" in opening
+
+
+# Builds the shipped `evidenceCard` with a stand-in `document` (stylesheet imports load as empty modules) and prints
+# the markup each card gives as a tree of tags, classes, text and children.
+EVIDENCE_RUNNER = """
+import { register } from 'node:module'
+register('data:text/javascript,' + encodeURIComponent(`
+  export async function load(url, context, next) {
+    return url.endsWith('.css') ? { format: 'module', source: '', shortCircuit: true } : next(url, context)
+  }
+`))
+const node = (tag) => ({
+  tag, className: '', textContent: '', children: [], style: {}, attributes: {},
+  setAttribute(name, value) { this.attributes[name] = value },
+  append(...children) { this.children.push(...children) },
+})
+globalThis.window = { devicePixelRatio: 1 }
+globalThis.document = { createElement: node }
+const { evidenceCard } = await import(process.argv[1])
+const tree = (element) => typeof element === 'string' ? element : {
+  tag: element.tag, className: element.className, text: element.textContent, children: element.children.map(tree),
+}
+const interactable = { id: 'ix', label: 'throw pillows', photo: 2, polygons: [], instances: 1, attributes: [] }
+const evidence = { interactable: 'ix', visible_attribute: 'on sofa' }
+process.stdout.write(JSON.stringify([false, true].map((solved) => tree(evidenceCard('room', interactable, evidence, solved)))))
+"""
+needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs the client's Evidence card")
+
+
+def _flat(tree: dict[str, Any]) -> list[dict[str, Any]]:
+    return [tree, *(node for child in tree["children"] for node in _flat(child))]
+
+
+@needs_node
+def test_an_unsolved_puzzle_s_evidence_card_is_the_riddler_s_note_alone_and_the_solved_one_names_the_object():
+    """Playtest Oct 29: a find lock's Evidence card named its own answer. Until the Puzzle is solved the card shows
+    only the read attribute as the Riddler's quoted note: no label and no crop; solved, the whole card is the reward."""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", EVIDENCE_RUNNER, (WEB_SRC / "components/evidence-card.ts").as_uri()],
+        cwd=REPO, capture_output=True, text=True, check=True,
+    )
+    unsolved, solved = json.loads(result.stdout)
+    note = _flat(unsolved)
+    assert [node["text"] for node in note if node["text"]] == ["The Riddler's note: \u201con sofa\u201d"]
+    assert not any(node["tag"] in ("canvas", "img") for node in note)
+    assert not any("throw pillows" in node["text"] for node in note)
+    assert "evidence-card-label" not in json.dumps(unsolved)
+    whole = _flat(solved)
+    assert [node["tag"] for node in whole].count("canvas") == 1
+    assert {node["text"] for node in whole} >= {"throw pillows", "on sofa"}
 
 
 def test_the_wizard_portrait_is_a_gilt_ringed_circle_at_four_sizes_reading_web_public_portraits():

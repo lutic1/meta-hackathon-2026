@@ -1,5 +1,6 @@
-/* {components.evidence-card}: an inset parchment-shade row, rounded md: the 64 px crop at rounded sm beside the
-   label (label, ink) over the read attribute (body-sm, ink-muted). One state only. */
+/* {components.evidence-card}: an inset parchment-shade row, rounded md. Unsolved, the Riddler's note alone: the
+   quoted attribute in wizard-line, ink. Solved, the whole card: the 64 px crop at rounded sm beside the label (label,
+   ink) over the read attribute (body-sm, ink-muted), fading in (200 ms) as the reward; instant under reduced motion. */
 .evidence-card {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
@@ -9,12 +10,20 @@
   border-radius: var(--rounded-md);
   background: var(--parchment-shade);
   color: var(--ink);
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+.evidence-card.is-arriving {
+  opacity: 0;
+}
+.evidence-card-note {
+  grid-template-columns: minmax(0, 1fr);
 }
 .evidence-card .crop {
   border-radius: var(--rounded-sm);
 }
 .evidence-card-label,
-.evidence-card-attribute {
+.evidence-card-attribute,
+.evidence-card-note-text {
   margin: 0;
 }
 .evidence-card-attribute {

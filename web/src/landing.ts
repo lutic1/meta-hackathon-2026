@@ -135,9 +135,9 @@ function cast(): HTMLElement {
 
 /**
  * A page of the Riddler's notes from `view`, the first Demo room's `PlayView`: the first Puzzle that waits on nothing,
- * headed "Puzzle {n}" (n = its place in the Room), with its Evidence cards, the Riddler's portrait beside the Clue and
- * the Lore, as the Wizard notes draw them. The view holds no solution; no Session is open, so no Current marker.
- * null when no Puzzle is free to start with.
+ * headed "Puzzle {n}" (n = its place in the Room), with its Evidence cards (the Riddler's notes of an unsolved Puzzle),
+ * the Riddler's portrait beside the Clue and the Lore, as the Wizard notes draw them. The view holds no solution; no
+ * Session is open, so no Current marker. null when no Puzzle is free to start with.
  */
 function riddlersNotes(view: PlayView): HTMLElement | null {
   const puzzle = view.puzzles.find((puzzle) => puzzle.requires.length === 0)
@@ -154,7 +154,7 @@ function riddlersNotes(view: PlayView): HTMLElement | null {
   evidence.append(
     ...puzzle.evidence_cards.flatMap((card) => {
       const interactable = interactables.get(card.interactable)
-      return interactable === undefined ? [] : [evidenceCard(view.id, interactable, card)]
+      return interactable === undefined ? [] : [evidenceCard(view.id, interactable, card, false)]
     }),
   )
   const clue = document.createElement('div')

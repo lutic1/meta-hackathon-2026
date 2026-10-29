@@ -83,7 +83,8 @@
   flex-direction: column;
   gap: var(--spacing-3);
 }
-.notes-entry-body[hidden] {
+/* An open entry hides all but its Evidence cards. */
+.notes-entry-body > [hidden] {
   display: none;
 }
 /* The Riddler's 32 px portrait beside the Clue, 8 px apart. */

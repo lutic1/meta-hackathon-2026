@@ -194,7 +194,7 @@ def test_the_riddlers_sample_page_shows_the_first_waiting_free_puzzle_from_the_p
     assert "view.puzzles.find((puzzle) => puzzle.requires.length === 0)" in notes
     assert "sheet.setAttribute('aria-label', strings.riddlersNotes)" in notes
     assert "fill(strings.puzzleHeading, { n: view.puzzles.indexOf(puzzle) + 1 })" in notes
-    assert "evidenceCard(view.id, interactable, card)" in notes
+    assert "evidenceCard(view.id, interactable, card, false)" in notes  # no Session: the Riddler's notes
     assert "wizardPortrait('riddler', 32)" in notes and "speakerPrefix('riddler'), puzzle.clue" in notes
     assert "paragraph('landing-notes-lore lore', speakerPrefix('riddler'), puzzle.lore)" in notes
     assert "strings.current" not in ts  # the Active puzzle marker is never guessed; no Session is open

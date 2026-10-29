@@ -29,7 +29,7 @@ interface Entry {
   n: number
   heading: HTMLHeadingElement
   update: (state: SessionState) => void
-  /** The lock just opened: the lock input gives way to the Solved chip while the entry stays expanded. */
+  /** The lock just opened: the lock input gives way to the Solved chip and the whole Evidence cards fade in. */
   opening: () => void
   /** Draws the entry's opened Rungs from all the opened Rungs of the Room. */
   rungs: (lines: readonly RungChangeEvent[]) => void
@@ -112,7 +112,12 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
     current.hidden = !isCurrent
     count.hidden = open
     opened.hidden = !open
-    body.hidden = open
+    // An open entry keeps only its whole Evidence cards under the heading row.
+    for (const part of [clue, lore, rungs, lock]) part.hidden = open
+    if (open !== solved) {
+      solved = open
+      drawEvidence(...source)
+    }
     if (code !== undefined) {
       code.update(state)
       return
@@ -133,6 +138,8 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
     chip.hidden = false
     lock.replaceChildren(chip)
     fadeIn(chip)
+    solved = true
+    for (const card of drawEvidence(...source)) fadeIn(card)
   }
 
   let drawnRungs = ''
@@ -156,18 +163,25 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
     )
   }
 
+  /** Whether the cards are drawn whole: the Riddler's notes until the lock opens (playtest Oct 29). */
+  let solved = false
+  /** The Room and Puzzle the cards were last drawn from, redrawn whole from them when the lock opens. */
+  let source: [PlayView, PlayPuzzle] = [room, puzzle]
   let drawnEvidence = ''
-  function drawEvidence(view: PlayView, shown: PlayPuzzle): void {
-    const key = JSON.stringify(shown.evidence_cards)
-    if (key === drawnEvidence) return
+  /** Draws the cards as `view` gives them, notes or whole as `solved` says; returns the cards it drew, else none. */
+  function drawEvidence(view: PlayView, shown: PlayPuzzle): HTMLLIElement[] {
+    source = [view, shown]
+    const key = JSON.stringify([shown.evidence_cards, solved])
+    if (key === drawnEvidence) return []
     drawnEvidence = key
     const interactables = new Map(view.interactables.map((interactable) => [interactable.id, interactable]))
     const cards = shown.evidence_cards.flatMap((card) => {
       const interactable = interactables.get(card.interactable)
-      return interactable === undefined ? [] : [evidenceCard(view.id, interactable, card)]
+      return interactable === undefined ? [] : [evidenceCard(view.id, interactable, card, solved)]
     })
     count.textContent = cards.length === 1 ? strings.evidenceCard : fill(strings.evidenceCards, { k: cards.length })
     evidence.replaceChildren(...cards)
+    return cards
   }
   drawEvidence(room, puzzle)
 
@@ -185,15 +199,16 @@ function waitingLine(n: number): HTMLParagraphElement {
  * The Wizard notes (`{components.wizard-notes}`, FR-11, UX-DR27): a parchment sheet scrolling inside the side
  * column with one entry per Puzzle whose prerequisites are open, in Room order, each headed "Puzzle {n}"
  * (n = its fixed place in the Room) with its evidence count at the right end, then the Riddler's portrait beside the
- * Clue, the Evidence cards in `PlayView` order, the Lore, the opened Rungs (each a Rung the Hint area's Rung line
- * showed and gave up, with the Guide's 32 px portrait, its "Puzzle {n} · {Rung name}" label and its line, as
- * `rung_changes[]` carries it) and the lock-input slot (the Code field of a `code` Puzzle, the Order click progress
- * of an `order` one, else the Not this chip a `use_on` verdict shows). The Active puzzle's entry carries the
- * `{components.active-puzzle-marker}`, read from `active_puzzle_id` and never guessed; an open entry collapses to its
- * heading with the Solved chip. When a state shows a lock newly open, "Solved" takes the lock input's place for 1200 ms
- * (UX-DR38), fading in lifted on the paper shadow (the unlock moment; the Scene and the Hint area play their parts
- * from lock-opened.ts), then the notes draw the latest state: the entry collapses, newly available entries fade in
- * and are announced once in the live region ("Puzzle {n} is now in the notes."), and "Current" moves with
+ * Clue, the Evidence cards in `PlayView` order (the Riddler's notes until the lock opens), the Lore, the opened Rungs
+ * (each a Rung the Hint area's Rung line showed and gave up, with the Guide's 32 px portrait, its "Puzzle {n} · {Rung
+ * name}" label and its line, as `rung_changes[]` carries it) and the lock-input slot (the Code field of a `code`
+ * Puzzle, the Order click progress of an `order` one, else the Not this chip a `use_on` verdict shows). The Active
+ * puzzle's entry carries the `{components.active-puzzle-marker}`, read from `active_puzzle_id` and never guessed; an
+ * open entry collapses to its heading with the Solved chip over its whole Evidence cards. When a state shows a lock
+ * newly open, "Solved" takes the lock input's place for 1200 ms (UX-DR38), fading in lifted on the paper shadow (the
+ * unlock moment; the Scene and the Hint area play their parts from lock-opened.ts) as the whole cards fade in where
+ * the notes stood, then the notes draw the latest state: the entry collapses, newly available entries fade in and are
+ * announced once in the live region ("Puzzle {n} is now in the notes."), and "Current" moves with
  * `active_puzzle_id`. Focus is never taken: it stays where the player left it, and focus inside the entry whose lock
  * input gave way to the Solved chip moves to that entry's heading, which stays drawn. Everything follows session
  * state; nothing follows a click.
