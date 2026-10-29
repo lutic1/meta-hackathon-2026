@@ -14,8 +14,9 @@ TYPE_STYLES = ("display-lg", "display-md", "display-sm", "wizard-line-lg", "wiza
 FAMILY_VAR = {"EB Garamond": "var(--font-serif)", "Source Sans 3": "var(--font-sans)", "IBM Plex Mono": "var(--font-mono)"}
 ROLE_PREFIXES = ("card-", "clue-card-", "graph-", "mask-overlay-")
 FADE_OR_GLOW = {"opacity", "box-shadow", "background-color", "border-color", "color", "outline-color"}
-MOTION = {"motion-hover": "150ms", "motion-state": "200ms", "motion-overlay": "300ms", "motion-attract": "600ms",
-          "motion-count": "800ms"}
+MOTION = {"motion-hover": "150ms", "motion-state": "200ms", "motion-overlay": "300ms", "motion-count": "800ms"}
+CHOOSER = "web/src/chooser.css"
+"""The Hosted landing chooser, the owner's one exception to the motion rule (DESIGN.md Motion, test_chooser.py)."""
 
 
 @pytest.fixture(scope="module")
@@ -132,7 +133,10 @@ def test_italic_only_on_lore_and_sentence_case_everywhere():
 def test_motion_tokens_and_every_transition_is_a_fade_or_glow_with_ease_out(props):
     assert props["motion-ease"] == "ease-out"
     assert {name: props[name] for name in MOTION} == MOTION
+    assert "motion-attract" not in props  # the attract frame is gone with its cycle (owner decision Oct 29)
     for path, text in source_css().items():
+        if path.endswith(CHOOSER):
+            continue
         assert not re.search(r"@keyframes|animation|transform|translate|scale\(", text), f"{path}: nothing slides, bounces, shakes or loops"
         for value in re.findall(r"transition:\s*([^;]+);", text):
             for part in value.split(","):
@@ -158,7 +162,9 @@ def test_focus_ring_is_two_tone_at_2px_offset_on_focus_visible_and_never_removed
         assert not re.search(r"outline:\s*(none|0)", text), f"{path} removes a focus outline"
         for selector, rule in css_rules(text).items():
             if ":focus-visible" in selector and "box-shadow" in rule:
-                assert rule["box-shadow"].startswith("0 0 0 2px var(--focus-ring-inner)"), f"{path}: {selector} loses the inner ring"
+                # The chooser's card ring stands 4 px out at 3 px, so its inner ring fills that gap (DESIGN.md Chooser).
+                inner = "0 0 0 4px" if selector == ".chooser-choose:focus-visible" else "0 0 0 2px"
+                assert rule["box-shadow"].startswith(f"{inner} var(--focus-ring-inner)"), f"{path}: {selector} loses the inner ring"
             if ":hover" in selector and ":focus-visible" not in selector and "box-shadow" in rule:
                 assert f"{selector}:focus-visible" in css_rules(text), f"{path}: the hover glow on {selector} replaces the focus ring"
 

@@ -156,11 +156,12 @@ def test_demo_settings_are_read_only_by_the_mode_indicator_the_triggers_header_a
                "web/src/components/in-play-block.ts"}
     assert readers and readers <= allowed, readers - allowed
     # No demo-only path: no client route, flag or branch names the scripted or cut-1 source or a timescale. The In play
-    # block names its source, and strings.ts holds that row's text.
+    # block names its source, and strings.ts holds that row's text. `DEMO_VIDEO` (clip.ts) is the Watch back's video
+    # file, not a demo setting.
     for path, code in _client_code().items():
         if path in {"web/src/components/in-play-block.ts", "web/src/strings.ts"}:
             continue
-        assert not re.search(r"\bscripted\b|\bcut1\b|timescale|DEMO_", code, flags=re.IGNORECASE), path
+        assert not re.search(r"\bscripted\b|\bcut1\b|timescale|DEMO_(?!VIDEO)", code, flags=re.IGNORECASE), path
     router = _code((WEB_SRC / "router.ts").read_text())
     assert set(re.findall(r"name: '(\w+)'", router)) <= {"home", "build", "view", "play", "done", "triggers"}
 

@@ -1,161 +1,18 @@
-/* The Hosted landing (UX-DR57), a title screen: the left area (the banner slot, the hero, the stage with the attract
-   frame beside its clue and "How to play", the cast, then the row with the Riddler's sample page and "How a room is
-   built") beside the right column at 400, 360 or 340 px, as on the Capture screen, which holds the Access-code build
-   over the first Demo room's card; the body scrolls. */
+/* The Hosted landing (UX-DR57): the chooser fills the scroll viewport exactly (the height between the top bar and the
+   Disclosure footer); below the fold, in the same scroll, the cast, the row with the Riddler's sample page and "How a
+   room is built", then any further Demo room cards. While a card is chosen the scroll is locked. */
 .landing-layout {
   position: relative; /* its hidden speaker prefixes scroll inside it, never past the Disclosure footer */
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
-  column-gap: var(--spacing-column-gap);
-  align-content: start;
-  align-items: start;
-  padding: var(--spacing-frame-margin);
   overflow-y: auto;
 }
-@media (max-width: 1439px) {
-  .landing-layout {
-    grid-template-columns: minmax(0, 1fr) 360px;
-  }
+.landing-layout.is-locked {
+  overflow: hidden;
 }
-@media (max-width: 1279px) {
-  .landing-layout {
-    grid-template-columns: minmax(0, 1fr) 340px;
-  }
-}
-.landing-left,
-.landing-right {
+.landing-more {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-5);
-  min-width: 0;
-}
-/* The hero: the display-lg line over the tagline (text-muted) and the sample-room note (text), with the primary verb
-   and "How a room is built" at the right end, wrapping under on a narrow left area. */
-.landing-hero {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--spacing-4) var(--spacing-5);
-}
-.landing-hero-words {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  max-width: 60ch;
-}
-.landing-heading {
-  margin: 0;
-  color: var(--text);
-}
-.landing-line {
-  margin: 0;
-  color: var(--text-muted);
-}
-.landing-note {
-  margin: 0;
-  color: var(--text);
-}
-.landing-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-3);
-}
-/* The stage under the hero: the attract frame in the first column, as wide as its photos' aspect needs at the stage's
-   height (portrait photos make a narrow frame, never one with wide bars), and beside it the clue on parchment over
-   "How to play", which keep at least 320 px. The height fills the fold under the hero: about 580 px at 1440 x 900, 544
-   at 1536 x 864 and 760 at 1920 x 1080 (the hero wraps taller below 1280 px). Empty, with no Demo room, it takes no
-   space. */
-.landing-stage {
-  --attract-height: clamp(280px, calc(100vh - 320px), 760px);
-  --landing-side-min: 320px;
-  container-type: inline-size;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
-  gap: var(--spacing-4) var(--spacing-5);
-  align-items: start;
-}
-@media (max-width: 1279px) {
-  .landing-stage {
-    --attract-height: clamp(240px, calc(100vh - 380px), 760px);
-  }
-}
-.landing-stage:empty {
-  display: none;
-}
-/* The attract frame's slot is empty until the first Demo room's PlayView and first photo answer, taking no space of
-   its own meanwhile; the frame and its clue then take the stage's cells. */
-.landing-attract-slot {
-  display: contents;
-}
-.landing-stage .attract {
-  display: contents;
-}
-.landing-stage .attract-frame {
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  width: min(calc(var(--attract-height) * var(--attract-aspect)), calc(100cqi - var(--landing-side-min) - 50px));
-}
-.landing-stage .attract-clue {
-  grid-column: 2;
-  grid-row: 1;
-}
-.landing-play {
-  grid-column: 2;
-  grid-row: 2;
-}
-/* The ten-second clip under "How to play", while the first Demo room is the room it shows: the stage takes a third
-   row for it and the frame spans all three; the box keeps the clip's 960 x 454 aspect at the column's width, so
-   nothing shifts while it loads, under the gilt rule, with its caption in label type. */
-.landing-stage:has(> .landing-clip) {
-  grid-template-rows: auto auto 1fr;
-}
-.landing-stage:has(> .landing-clip) .attract-frame {
-  grid-row: 1 / span 3;
-}
-.landing-clip {
-  grid-column: 2;
-  grid-row: 3;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  margin: 0;
-}
-.landing-clip-video {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  aspect-ratio: 960 / 454;
-  border: 1px solid var(--gilt);
-  border-radius: var(--rounded-sm);
-  background: var(--canvas);
-  box-shadow: var(--elevation-vignette);
-}
-.landing-clip-frame {
-  position: relative;
-}
-/* The Pause toggle: a chrome chip in the clip's bottom-right corner, in normal Tab order after the column's controls;
-   drawn only while the clip plays by itself (not under reduced motion, where the native controls show). */
-.landing-clip-toggle {
-  position: absolute;
-  right: var(--spacing-2);
-  bottom: var(--spacing-2);
-  min-height: 24px;
-  padding: var(--spacing-1) var(--spacing-2);
-  border: 1px solid var(--hairline);
-  border-radius: var(--rounded-sm);
-  background: var(--chrome);
-  color: var(--text);
-  cursor: pointer;
-  transition: border-color var(--motion-hover) var(--motion-ease);
-}
-.landing-clip-toggle:hover {
-  border-color: var(--lamp);
-}
-.landing-clip-caption {
-  color: var(--text-muted);
+  gap: var(--spacing-6);
+  padding: var(--spacing-6) var(--spacing-frame-margin) var(--spacing-7);
 }
 /* The cast: two across, four from 1440 px; each wizard the 96 px portrait beside its name and role. Hover lifts the
    row to chrome with the lamp glow and turns the ring lamp; keyboard focus does the same under the focus ring. */
@@ -242,10 +99,6 @@
   gap: var(--spacing-5);
   align-items: start;
 }
-/* The first Demo room's card fills the right column under the Access-code build. */
-.landing-right > .demo-room-list {
-  grid-template-columns: minmax(0, 1fr);
-}
 /* The sample page's slot is empty until the Room's PlayView answers, taking no cell of its own meanwhile. */
 .landing-notes-slot {
   display: contents;
@@ -291,8 +144,7 @@
   border-top: 1px solid var(--parchment-rule);
   color: var(--ink-muted);
 }
-/* "How a room is built" and "How to play": the heading over three numbered steps, the number in mono lamp beside
-   each. */
+/* "How a room is built": the heading over three numbered steps, the number in mono lamp beside each. */
 .landing-how {
   display: flex;
   flex-direction: column;
@@ -322,17 +174,5 @@
   color: var(--lamp);
 }
 .landing-how-text {
-  margin: 0;
-}
-/* Failed: one plain line on the canvas in the row's place, with "Try again" under it. */
-.landing-state {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--spacing-3);
-  margin: 0;
-  color: var(--text);
-}
-.landing-state p {
   margin: 0;
 }

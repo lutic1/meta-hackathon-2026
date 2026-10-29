@@ -389,6 +389,8 @@ def test_the_fades_are_200_ms_opacity_transitions_instant_under_reduced_motion()
     reduced = tokens.split("@media (prefers-reduced-motion: reduce)", 1)[1]
     assert "--motion-state: 0ms;" in reduced and "transition-duration: 0ms !important;" in reduced
     for path, text in source_css().items():
+        if path.endswith("web/src/chooser.css"):  # the owner's one exception (DESIGN.md Motion), test_chooser.py
+            continue
         assert "@keyframes" not in text and "animation" not in text, path
 
 

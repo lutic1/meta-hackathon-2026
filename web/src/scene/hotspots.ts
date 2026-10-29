@@ -69,7 +69,7 @@ function path(className: string, d: string): SVGPathElement {
 
 /**
  * The reveal of a Hotspot whose union path is `d`: the glow fill, the dark halo and the lamp outline
- * (`{components.hotspot}`), which the Scene lights on hover and focus and the Hosted landing's attract frame keeps lit.
+ * (`{components.hotspot}`), which the Scene lights on hover and focus.
  */
 export function hotspotReveal(d: string): SVGGElement {
   const reveal = document.createElementNS(SVG, 'g')

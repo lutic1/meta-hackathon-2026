@@ -1,6 +1,7 @@
-"""Story 7.16, owner decision Oct 28: a ten-second clip of the sample room on the Hosted landing, under "How to play",
-so a judge sees the game played before clicking. Shown only when the first Demo room is the room the clip shows;
-autoplaying muted and looping unless reduced motion is set, then paused with native controls over its poster.
+"""Story 7.16, owner decisions Oct 28 and Oct 29: the ten-second clip of the sample room on the Hosted landing. Since
+the chooser (Oct 29) it plays twice: on the Watch card's front as its own derived loop (the Scene photo only, muted,
+under a pause toggle) and on the Watch back larger, with native controls, as the demo video until the full one is set.
+Autoplaying muted and looping unless reduced motion or Pause motion is set.
 
 As in test_hosted_landing.py, the client checks read the TypeScript and the stylesheet (the client has no test
 runner); the last check serves the committed files from the hosted app with their media types.
@@ -18,6 +19,7 @@ from tests.web.test_strings import _section, _strings
 
 CLIP = REPO / "web/public/clip"
 ROOM_ID = "room_01M61TZ74F0FP3X9HHTMXGTPB9"
+FILES = ("play.webm", "play.mp4", "poster.jpg", "card.webm", "card.mp4", "card-poster.jpg")
 
 
 def _code(name: str) -> str:
@@ -25,23 +27,33 @@ def _code(name: str) -> str:
     return re.sub(r"/\*.*?\*/|//[^\n]*", "", (WEB_SRC / name).read_text(), flags=re.DOTALL)
 
 
-def _clip_figure() -> str:
-    return _code("components/sample-clip.ts").split("export function sampleClip(", 1)[1]
+def _chooser() -> str:
+    return _code("chooser.ts")
 
 
 def test_the_clip_files_are_committed_under_web_public_clip():
-    webm, mp4, poster = (CLIP / name for name in ("play.webm", "play.mp4", "poster.jpg"))
-    assert webm.read_bytes()[:4] == b"\x1a\x45\xdf\xa3"  # EBML: a WebM file
-    assert mp4.read_bytes()[4:8] == b"ftyp"
-    assert poster.read_bytes()[:3] == b"\xff\xd8\xff"
-    assert all(path.stat().st_size < 600_000 for path in (webm, mp4, poster))
+    for stem in ("play", "card"):
+        poster = "poster.jpg" if stem == "play" else "card-poster.jpg"
+        webm, mp4, still = CLIP / f"{stem}.webm", CLIP / f"{stem}.mp4", CLIP / poster
+        assert webm.read_bytes()[:4] == b"\x1a\x45\xdf\xa3"  # EBML: a WebM file
+        assert mp4.read_bytes()[4:8] == b"ftyp"
+        assert still.read_bytes()[:3] == b"\xff\xd8\xff"
+    assert all((CLIP / name).stat().st_size < 600_000 for name in FILES)
 
 
-def test_one_module_names_the_room_the_clip_shows_and_its_three_files():
+def test_one_module_names_the_clip_the_card_loop_and_the_demo_video():
     clip = _code("clip.ts")
     assert f"roomId: '{ROOM_ID}'" in clip
     assert "webm: '/clip/play.webm'" in clip and "mp4: '/clip/play.mp4'" in clip
     assert "poster: '/clip/poster.jpg'" in clip
+    # The card's loop is derived from the clip; the lines that make it stay beside it, in its doc comment.
+    assert "webm: '/clip/card.webm'" in clip and "mp4: '/clip/card.mp4'" in clip and "poster: '/clip/card-poster.jpg'" in clip
+    doc = (WEB_SRC / "clip.ts").read_text()
+    assert "crop=236:334:218:18" in doc and "between(n\\,46\\,48)+between(n\\,144\\,148)+between(n\\,212\\,214)" in doc
+    # The full demo video is unset for now, so the Watch back falls back to the clip; its aspect sizes the panel.
+    assert "const FULL_DEMO_VIDEO: VideoSources | null = null" in clip
+    assert "export const DEMO_VIDEO: VideoSources = FULL_DEMO_VIDEO ?? CLIP" in clip
+    assert "export const DEMO_VIDEO_ASPECT: number = FULL_DEMO_VIDEO_ASPECT ?? 960 / 454" in clip
 
 
 def test_the_clip_strings_are_the_experience_lines():
@@ -51,102 +63,81 @@ def test_the_clip_strings_are_the_experience_lines():
         "A ten-second play-through of this room: a wrong click, a pickup, a lock opening, the way out.")
     voice = _section("Voice and Tone")
     assert strings["clipCaption"] in voice and strings["clipLabel"] in voice
+    assert "clipPause" not in strings  # the card's toggle is an icon, named by its accessible name alone
 
 
-def test_the_figure_shows_only_when_the_first_demo_room_is_the_clip_s_room():
-    landing = _code("landing.ts")
-    listed = landing.split("const cards: DemoRoomCard[]", 1)[1]
-    assert "stage.append(attract, howToPlay())\n  if (first.room_id === CLIP.roomId) stage.append(sampleClip())" in listed
-    # Never on the failed or empty paths, which return before the listed branch.
-    before = landing.split("const cards: DemoRoomCard[]", 1)[0]
-    assert "sampleClip(" not in before.split("export function hostedLanding(", 1)[1]
-    assert landing.count("sampleClip()") == 1
-    assert "import { CLIP } from './clip.ts'" in landing
-    assert "import { sampleClip } from './components/sample-clip.ts'" in landing
-    assert "import { CLIP } from '../clip.ts'" in _code("components/sample-clip.ts")
+def test_the_watch_card_plays_its_own_loop_muted_and_looping_and_shows_in_every_landing_state():
+    chooser = _chooser()
+    card = chooser.split("const frontVideo = element('video')", 1)[1].split("const watch = card(", 1)[0]
+    for line in ("frontVideo.defaultMuted = true", "frontVideo.muted = true", "frontVideo.loop = true",
+                 "frontVideo.playsInline = true", "frontVideo.tabIndex = -1", "hidden(frontVideo)",
+                 "sourced(frontVideo, CLIP_CARD)"):
+        assert line in card, line
+    # It plays only once mounted, with no reduced motion, no Pause motion, no pause of the player's and no card chosen.
+    start = chooser.split("function startFrontVideo(): void {", 1)[1].split("\n  }", 1)[0]
+    assert "if (!mounted || reduced || still || clipPausedByUser || document.hidden || chosen !== -1) return" in start
+    assert "play(frontVideo)" in start
+    # The Watch card stands whatever `GET /rooms` answered: it is built before any branch on the rooms.
+    assert chooser.index("const watch = card(") < chooser.index("if (first !== undefined) {")
+    # webm first, then mp4, with the poster shown until it plays.
+    sourced = chooser.split("function sourced(", 1)[1].split("\n}\n", 1)[0]
+    assert "video.poster = sources.poster" in sourced
+    assert sourced.index("sources.webm, 'video/webm'") < sourced.index("sources.mp4, 'video/mp4'")
+    rules = css_rules((WEB_SRC / "chooser.css").read_text())
+    assert rules[".chooser-vwin video"]["object-fit"] == "cover" and rules[".chooser-vwin video"]["object-position"] == "50% 40%"
 
 
-def test_the_video_autoplays_muted_and_looping_only_without_reduced_motion():
-    figure = _clip_figure()
-    assert "const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches" in figure
-    assert "video.autoplay = !reduced" in figure and "video.controls = reduced" in figure
-    assert "video.muted = true" in figure and "video.defaultMuted = true" in figure
-    assert "video.loop = true" in figure and "video.playsInline = true" in figure
-    assert "video.preload = 'metadata'" in figure and "video.poster = CLIP.poster" in figure
-    assert "video.setAttribute('aria-label', strings.clipLabel)" in figure
-
-
-def test_the_webm_source_comes_first_and_a_failed_load_removes_the_figure():
-    figure = _clip_figure()
-    assert "const mp4 = source(CLIP.mp4, 'video/mp4')" in figure
-    assert "video.append(source(CLIP.webm, 'video/webm'), mp4)" in figure
-    # A failed <source> fires its error on the source, never on the video; the last one failing means none played.
-    assert "mp4.addEventListener('error', () => element.remove())" in figure
-    assert "video.addEventListener('error', () => element.remove())" in figure
-    assert "element.className = 'landing-clip'" in figure
-    assert "caption.className = 'landing-clip-caption label'" in figure and "caption.textContent = strings.clipCaption" in figure
-
-
-def test_the_figure_sits_in_the_stage_s_second_column_under_how_to_play_with_no_shift_while_it_loads():
-    rules = css_rules((WEB_SRC / "landing.css").read_text())
-    figure = rules[".landing-clip"]
-    assert figure["grid-column"] == "2" and figure["grid-row"] == "3"
-    video = rules[".landing-clip-video"]
-    assert video["aspect-ratio"] == "960 / 454" and video["width"] == "100%" and video["box-sizing"] == "border-box"
-    assert video["border"] == "1px solid var(--gilt)" and video["border-radius"] == "var(--rounded-sm)"
-    # Only with the clip does the stage take a third row and the frame span it; without it, the layout is unchanged.
-    assert rules[".landing-stage:has(> .landing-clip)"] == {"grid-template-rows": "auto auto 1fr"}
-    assert rules[".landing-stage:has(> .landing-clip) .attract-frame"] == {"grid-row": "1 / span 3"}
-    assert rules[".landing-stage"]["grid-template-rows"] == "auto 1fr"
-    assert rules[".landing-stage .attract-frame"]["grid-row"] == "1 / span 2"
+def test_the_watch_back_plays_the_demo_video_larger_with_native_controls():
+    chooser = _chooser()
+    back = chooser.split("const panelVideo = element('video')", 1)[1].split("const watchActions", 1)[0]
+    for line in ("panelVideo.controls = true", "panelVideo.muted = true", "panelVideo.loop = true",
+                 "panelVideo.tabIndex = 0", "panelVideo.setAttribute('aria-label', strings.clipLabel)",
+                 "sourced(panelVideo, DEMO_VIDEO)"):
+        assert line in back, line
+    assert "head(strings.clipCaption, tagChip(strings.watchBackTag))" in chooser
+    # It plays from the start once the panel is open, never under reduced motion or Pause motion.
+    finish = chooser.split("const finish = (): void => {", 1)[1].split("\n    }\n", 1)[0]
+    assert "if (i === 0 && !reduced && !still) {\n        panelVideo.currentTime = 0\n        play(panelVideo)" in finish
+    # The panel takes the video's aspect: Watch is as wide as the aspect allows at the panel's height.
+    assert "let watchWidth = Math.round(videoHeight * DEMO_VIDEO_ASPECT) + 60" in chooser
 
 
 def test_the_toggle_strings_are_the_experience_lines():
     strings = _strings()
-    assert (strings["clipPause"], strings["play"]) == ("Pause", "Play")
     assert (strings["clipPauseName"], strings["clipPlayName"]) == ("Pause the clip", "Play the clip")
-    row = next(line for line in _section("Voice and Tone").splitlines() if line.startswith("| Ten-second clip"))
-    assert all(f'"{strings[key]}"' in row for key in ("clipPause", "play", "clipPauseName", "clipPlayName"))
+    row = next(line for line in _section("Voice and Tone").splitlines() if line.startswith("| Watch card"))
+    assert all(f'"{strings[key]}"' in row for key in ("clipPauseName", "clipPlayName"))
 
 
-def test_a_pause_toggle_sits_over_the_clip_only_without_reduced_motion():
-    """WCAG 2.2.2: a loop over five seconds needs a pause. Under reduced motion the native controls cover it."""
-    figure = _clip_figure()
-    assert "frame.className = 'landing-clip-frame'" in figure and "frame.append(video)" in figure
-    assert "if (!reduced) frame.append(clipToggle(video))" in figure
-    assert "element.append(frame, caption)" in figure
-    toggle = _code("components/sample-clip.ts").split("function clipToggle(", 1)[1]
-    assert "toggle.type = 'button'" in toggle and "toggle.className = 'landing-clip-toggle label'" in toggle
-    # The word on the button and its accessible name follow what the video is doing; it starts as playing.
-    assert "toggle.textContent = paused ? strings.play : strings.clipPause" in toggle
-    assert "toggle.setAttribute('aria-label', paused ? strings.clipPlayName : strings.clipPauseName)" in toggle
-    assert "show(false)" in toggle
-    assert "video.addEventListener('play', () => show(false))" in toggle
-    assert "video.addEventListener('pause', () => show(true))" in toggle
-    # A pause holds for the page: only the toggle starts the video again.
-    assert "if (video.paused) void video.play().catch(() => undefined)\n    else video.pause()" in toggle
-
-
-def test_the_toggle_is_a_chrome_chip_in_the_clip_s_bottom_right_corner():
-    rules = css_rules((WEB_SRC / "landing.css").read_text())
-    assert rules[".landing-clip-frame"] == {"position": "relative"}
-    toggle = rules[".landing-clip-toggle"]
-    assert toggle["position"] == "absolute"
-    assert toggle["right"] == "var(--spacing-2)" and toggle["bottom"] == "var(--spacing-2)"
-    assert toggle["background"] == "var(--chrome)" and toggle["color"] == "var(--text)"
-    assert toggle["border"] == "1px solid var(--hairline)" and toggle["border-radius"] == "var(--rounded-sm)"
-    assert toggle["min-height"] == "24px"  # WCAG 2.5.8 target size
-    assert rules[".landing-clip-toggle:hover"] == {"border-color": "var(--lamp)"}
+def test_a_pause_toggle_sits_on_the_watch_card_only_without_reduced_motion():
+    """WCAG 2.2.2: a loop over five seconds needs a pause. Under reduced motion the clip waits on its poster."""
+    chooser = _chooser()
+    assert "clipToggle.type = 'button'" in chooser and "clipToggle.hidden = reduced" in chooser
+    assert "watch.front.append(clipToggle)" in chooser
+    shown = chooser.split("function showClipState(): void {", 1)[1].split("\n  }", 1)[0]
+    assert "clipToggle.setAttribute('aria-label', playing ? strings.clipPauseName : strings.clipPlayName)" in shown
+    assert "frontVideo.addEventListener('play', showClipState)" in chooser
+    assert "frontVideo.addEventListener('pause', showClipState)" in chooser
+    # A pause holds for the page: only the toggle starts the clip again.
+    click = chooser.split("clipToggle.addEventListener('click', () => {", 1)[1].split("})", 1)[0]
+    assert "clipPausedByUser = !frontVideo.paused" in click and "else play(frontVideo)" in click
+    rules = css_rules((WEB_SRC / "chooser.css").read_text())
+    toggle = rules[".chooser-clip-toggle"]
+    assert toggle["width"] == "36px" and toggle["height"] == "36px" and toggle["pointer-events"] == "auto"
+    assert rules[".chooser-clip-toggle[hidden]"] == {"display": "none"}
+    # Muted, so its `play()` makes no sound (test_banned_interactions.py allows `video.play()` alone).
+    assert "function play(video: HTMLVideoElement): void {\n  void video.play().catch(() => undefined)\n}" in chooser
 
 
 def test_the_hosted_app_serves_the_clip_files_with_their_media_types(tmp_path: Path):
     dist = tmp_path / "dist"
     (dist / "clip").mkdir(parents=True)
     (dist / "index.html").write_text('<!doctype html><div id="app"></div>')
-    for name in ("play.webm", "play.mp4", "poster.jpg"):
+    for name in FILES:
         shutil.copyfile(CLIP / name, dist / "clip" / name)
     client = TestClient(make_hosted_app(tmp_path, hosted_handles(tmp_path), web_dist=dist))
-    for name, media in (("play.webm", "video/webm"), ("play.mp4", "video/mp4"), ("poster.jpg", "image/jpeg")):
+    media = {".webm": "video/webm", ".mp4": "video/mp4", ".jpg": "image/jpeg"}
+    for name in FILES:
         response = client.get(f"/clip/{name}")
-        assert response.status_code == 200 and response.headers["content-type"] == media, name
+        assert response.status_code == 200 and response.headers["content-type"] == media[Path(name).suffix], name
         assert response.content == (CLIP / name).read_bytes()

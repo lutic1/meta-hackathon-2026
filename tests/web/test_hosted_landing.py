@@ -1,7 +1,6 @@
-"""Story 7.16: the Hosted landing (FR-31, UX-DR57, UX-DR58, UX-DR68, UX-DR81, NFR-10), as a title screen: the hero
-line, one primary verb, the attract frame beside its clue and "How to play", the cast of four, then a page of the
-Riddler's notes and "How a room is built" in three steps; the right column holds the Access-code build over the first
-Demo room's card.
+"""Story 7.16: the Hosted landing (FR-31, UX-DR57, UX-DR58, UX-DR68, UX-DR81, NFR-10). Owner decision Oct 29: the
+hero-select chooser fills the first screen (test_chooser.py); below the fold, in the same scroll, the cast of four, a
+page of the Riddler's notes and "How a room is built" in three steps, then any further Demo room cards.
 
 The client has no test runner (a runner is added only through bmad-correct-course), so most checks read the
 TypeScript and the stylesheets; `npm run build` and `tsc --noEmit` prove they compile. The last checks run the hosted
@@ -9,25 +8,17 @@ app over plain dicts and a temporary Volume, so the three reads the landing make
 sends, answer as the landing expects.
 """
 
-import json
 import re
-import shutil
-import subprocess
-from itertools import pairwise
 from pathlib import Path
-from typing import Any
-
-import pytest
 
 from fastapi.testclient import TestClient
 
 from src.api.meta import HOSTED_LINE
-from src.domain.redact import to_play_view
-from src.domain.schema import Derived, PlayView, Room
+from src.domain.schema import Derived, Room
 from tests.api.hosted import hosted_handles, make_hosted_app
 from tests.domain.test_redact import done_job
 from tests.infra.test_modal import seed_demo
-from tests.web.design import REPO, WEB_SRC, css_custom_properties, css_rules, design_text
+from tests.web.design import WEB_SRC, css_rules, design_text
 from tests.web.test_contrast import PROPS, _hex, contrast
 from tests.web.test_strings import _strings
 
@@ -86,15 +77,14 @@ def test_the_disclosure_banner_renders_the_served_hosted_line():
     assert "let disclosure = meta.disclosure" in _render()
 
 
-# --- The hero, the primary verb and the cast ------------------------------------------
+# --- The first screen, the strings and the cast -------------------------------------
 
 
 def test_the_landing_strings_are_the_experience_lines():
     strings = _strings()
     assert strings["wordmark"] == "Keyframe"
     assert strings["landingSubtitle"] == "An escape room built from your own photos."
-    assert strings["landingTagline"] == (
-        "Snap a room. Four wizards hide riddles in your photos, and you play by clicking the objects they point at.")
+    assert "landingTagline" not in strings  # the tagline went with the hero (owner decision Oct 29)
     assert strings["playSampleRoom"] == "Play the sample room"
     assert strings["sampleRoomSoon"] == "The sample room opens soon."
     assert strings["howARoomIsBuilt"] == "How a room is built"
@@ -119,47 +109,29 @@ def test_the_landing_strings_are_the_experience_lines():
     # No line promises a number of locks: the one count shown is the Demo room's own.
     assert not any(re.search(r"(?i)\b(?:five|four|six|\d+) locks\b", value) for value in strings.values())
     # The hero names no model and the no-demo-rooms sentence is gone for good.
-    for key in ("landingSubtitle", "landingTagline", "sampleRoomSoon"):
+    for key in ("landingSubtitle", "sampleRoomSoon"):
         assert "muse" not in strings[key] and "sam-" not in strings[key] and "Llama" not in strings[key]
     assert not any("No demo rooms are open" in value for value in strings.values())
     assert "pipelineLine" not in strings and "landingLeadIn" not in strings and "noDemoRooms" not in strings
 
 
-def test_the_hero_holds_the_display_lg_line_the_tagline_the_verb_and_the_build_view_link():
+def test_the_chooser_takes_the_first_screen_and_the_rest_follows_below_the_fold():
     ts = _code("landing.ts")
-    hero = ts.split("function hero(", 1)[1].split("\n}\n", 1)[0]
-    assert "title.className = 'landing-heading display-lg'" in hero and "title.textContent = strings.landingSubtitle" in hero
-    assert "paragraph('landing-line body-md', strings.landingTagline)" in hero
-    assert "if (soon) words.append(paragraph('landing-note body-md', strings.sampleRoomSoon))" in hero
-    assert "actions.append(verb)" in hero
-    # "How a room is built" (secondary) opens the first Demo room's Build view; absent without one and under cut 0.
-    assert "if (first !== undefined && !CUT_0) {" in hero
-    guarded = hero.split("if (first !== undefined && !CUT_0) {", 1)[1]
-    assert "secondaryLink({ label: strings.howARoomIsBuilt, href: buildViewHref(first.job_id, profile) })" in guarded
-    assert "strings.pipelineLine" not in ts and "strings.landingLeadIn" not in ts and "strings.noDemoRooms" not in ts
+    assert "const screen = chooser({ first, failed: rooms === null, profile, start, banners, onRetry, onAccepted })" in ts
+    assert "more.className = 'landing-more'" in ts and "more.append(cast())" in ts
+    assert ts.count("children: [screen.element, more]") == 2  # with and without a Demo room
+    # Nothing of the old title screen is left: no hero, no primary verb, no attract frame, no right column.
+    for gone in ("function hero(", "function primaryVerb(", "attractFrame", "sampleClip", "landing-right", "landing-left"):
+        assert gone not in ts, gone
+    for name in ("components/attract-frame.ts", "components/attract-slides.ts", "components/attract-frame.css",
+                 "components/sample-clip.ts"):
+        assert not (WEB_SRC / name).exists(), name
+    # One scroll: the chooser fills it exactly and the sections follow it; a chosen card locks it.
     rules = _landing_rules()
-    assert rules[".landing-heading"]["color"] == "var(--text)"
-    assert rules[".landing-line"]["color"] == "var(--text-muted)"
-    assert rules[".landing-hero-words"]["max-width"] == "60ch"
-
-
-def test_with_a_demo_room_the_verb_plays_the_sample_room_through_the_card_s_own_start():
-    ts = _code("landing.ts")
-    assert "const start = roomStarter(profile, mode, banners)" in ts
-    verb = ts.split("function primaryVerb(", 1)[1].split("\n}\n", 1)[0]
-    assert "primaryButton({ label: strings.playSampleRoom, pendingLabel: strings.openingRoom, onActivate: () => start(first) })" in verb
-    assert "demoRoomCard(first, profile, () => start(first))" in ts  # the same start the card uses
-
-
-def test_with_no_demo_room_the_verb_is_build_your_own_room_and_moves_focus_to_the_access_code_field():
-    ts = _code("landing.ts")
-    verb = ts.split("function primaryVerb(", 1)[1].split("\n}\n", 1)[0]
-    assert "if (first === undefined) {" in verb
-    none = verb.split("if (first === undefined) {", 1)[1].split("\n  }\n", 1)[0]
-    assert "label: strings.buildYourOwnRoom" in none and "pendingLabel: strings.buildYourOwnRoom" in none
-    assert "field()?.focus()" in none
-    assert "`#${ACCESS_CODE_FIELD}`" in ts and "export const ACCESS_CODE_FIELD = 'access-code'" in _code("components/access-code-build.ts")
-    assert "field.id = ACCESS_CODE_FIELD" in _code("components/access-code-build.ts")
+    assert rules[".landing-layout"] == {"position": "relative", "overflow-y": "auto"}
+    assert rules[".landing-layout.is-locked"] == {"overflow": "hidden"}
+    assert css_rules(_ts("chooser.css"))[".chooser"]["height"] == "100%"
+    assert rules[".landing-more"]["padding"] == "var(--spacing-6) var(--spacing-frame-margin) var(--spacing-7)"
 
 
 def test_the_cast_is_the_four_96px_portraits_with_name_four_word_role_and_voice_line_on_hover_and_focus():
@@ -232,314 +204,39 @@ def test_how_a_room_is_built_is_three_steps_naming_the_wizards_and_the_models():
 # --- Two states: a Demo room listed, or none ------------------------------------------
 
 
-def test_with_a_demo_room_listed_its_card_sits_under_the_access_code_build_and_the_sample_page_and_steps_under_the_cast():
+def test_with_a_demo_room_listed_the_sample_page_and_steps_sit_under_the_cast_then_the_further_cards():
     ts = _code("landing.ts")
-    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), stage, cast())" in ts
-    listed = ts.split("const cards: DemoRoomCard[]", 1)[1]
-    # The first card stands in the right column, under the Access-code build, so it is above the fold.
-    assert "right.append(sample)" in listed
-    assert ts.index("right.append(accessCodeBuild(onAccepted))") < ts.index("right.append(sample)")
-    assert "below.className = 'landing-below'" in listed
-    assert "below.append(notes, howARoomIsBuilt(first.puzzle_count))" in listed
-    # Further Demo rooms keep their cards three across in the left area under the row, in served order.
-    assert "rooms.slice(1).map((room) => demoRoomCard(room, profile, () => start(room)))" in listed
+    assert "below.className = 'landing-below'" in ts
+    assert "below.append(notes, howARoomIsBuilt(first.puzzle_count))" in ts
+    # The first Demo room is the Play card; further Demo rooms keep their cards three across, in served order, with
+    # their own starter and banner slot above their list.
+    assert "const others = rooms?.slice(1) ?? []" in ts
+    assert "const startMore = roomStarter(profile, mode, moreBanners)" in ts
+    assert "cards.push(...others.map((room) => demoRoomCard(room, profile, () => startMore(room))))" in ts
+    assert "more.append(moreBanners, list)" in ts
+    assert not re.search(r"\.sort\(|\.reverse\(|\.filter\(", ts), "the cards keep the served order"
+    assert _card_rules()[".demo-room-list"]["grid-template-columns"] == "repeat(3, minmax(0, 1fr))"
     rules = _landing_rules()
     text = _ts("landing.css")
     assert ".landing-below {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));" in text
-    assert rules[".landing-right > .demo-room-list"]["grid-template-columns"] == "minmax(0, 1fr)"
     assert rules[".landing-notes-slot"]["display"] == "contents"
 
 
-def test_with_a_demo_room_listed_how_to_play_sits_beside_the_attract_frame_in_the_welcome_s_three_steps():
+def test_the_first_demo_room_s_play_view_gives_the_play_card_its_photos_and_the_sample_page():
     ts = _code("landing.ts")
-    play = ts.split("function howToPlay(", 1)[1].split("\n}\n", 1)[0]
-    assert "section('landing-how landing-play', 'landing-play-heading', strings.howToPlay, numberedSteps(words))" in play
-    # The same three steps as the First-room welcome, from the same strings.
-    assert "[strings.howToPlay1, strings.howToPlay2, strings.howToPlay3]" in play
-    assert "[strings.howToPlay1, strings.howToPlay2, strings.howToPlay3]" in _code("components/greeting-overlay.ts")
-    listed = ts.split("const cards: DemoRoomCard[]", 1)[1]
-    # With a Demo room only: the frame plays it and the steps speak of "these photos".
-    assert "stage.append(attract, howToPlay())" in listed and "stage.className = 'landing-stage'" in ts
-    rules = _landing_rules()
-    stage = rules[".landing-stage"]
-    assert stage["display"] == "grid" and stage["grid-template-columns"] == "auto minmax(0, 1fr)"
-    assert stage["container-type"] == "inline-size"
-    assert rules[".landing-stage:empty"] == {"display": "none"}  # no Demo room: no stage, no gap
-    # The frame spans the stage's first column; its clue and then "How to play" stack beside it.
-    assert rules[".landing-stage .attract"] == {"display": "contents"}
-    assert rules[".landing-stage .attract-frame"]["grid-row"] == "1 / span 2"
-    assert rules[".landing-stage .attract-clue"]["grid-column"] == "2" and rules[".landing-stage .attract-clue"]["grid-row"] == "1"
-    assert rules[".landing-play"]["grid-column"] == "2" and rules[".landing-play"]["grid-row"] == "2"
+    mounted = ts.split("mount: () => {", 1)[1]
+    assert "const unmountChooser = screen.mount()" in mounted
+    loaded = mounted.split("getRoom(first.room_id).then(", 1)[1].split("() => undefined,", 1)[0]
+    assert "screen.showPhotos(view.photos.length)" in loaded and "notes.replaceChildren(sheet)" in loaded
+    assert "unmountChooser()" in mounted.split("return () => {", 1)[1]
 
 
-def test_the_attract_frame_takes_its_photos_aspect_so_a_portrait_room_shows_no_wide_bars():
-    ts = _attract()
-    loaded = ts.split("const first = await load(0).catch(() => null)", 1)[1]
-    assert "frame.style.setProperty('--attract-aspect', `${first.width} / ${first.height}`)" in loaded
-    frame = _attract_rules()[".attract-frame"]
-    # The ratio holds for the ground inside the 12 px mat, where the photo is contained.
-    assert frame["box-sizing"] == "content-box" and frame["aspect-ratio"] == "var(--attract-aspect)"
-    assert "height" not in frame
-    rules = _landing_rules()
-    assert rules[".landing-stage .attract-frame"]["width"] == (
-        "min(calc(var(--attract-height) * var(--attract-aspect)), calc(100cqi - var(--landing-side-min) - 50px))")
-    text = _ts("landing.css")
-    # Tall enough to fill the fold under the hero at 1440 x 900, 1536 x 864 and 1920 x 1080, never past it.
-    assert "--attract-height: clamp(280px, calc(100vh - 320px), 760px);" in text
-    assert "@media (max-width: 1279px) {\n  .landing-stage {\n    --attract-height: clamp(240px, calc(100vh - 380px), 760px);" in text
-
-
-def test_with_no_demo_room_the_cast_and_the_hero_stay_and_no_no_demo_rooms_line_shows():
+def test_with_no_demo_room_the_cast_and_the_steps_stay_and_no_no_demo_rooms_line_shows():
     ts = _code("landing.ts")
-    empty = ts.split("if (first === undefined) {", 2)[2].split("\n  }\n", 1)[0]  # after the verb's own branch
-    assert "children: [left, right]" in empty and "demoRoomCard" not in empty and "howARoomIsBuilt" in empty
-    assert "landing-state" not in empty  # no plain line in place of the cards
+    empty = ts.split("if (first === undefined) {", 1)[1].split("\n  }\n", 1)[0]
+    assert "more.append(howARoomIsBuilt())" in empty and "return { children: [screen.element, more], mount: screen.mount }" in empty
+    assert "demoRoomCard" not in empty and "getRoom" not in empty
     assert "No demo rooms" not in _ts("landing.ts") and "No demo rooms" not in _ts("strings.ts")
-
-
-def test_initial_focus_is_on_the_primary_verb_the_first_tab_stop_after_the_top_bar():
-    ts = _code("landing.ts")
-    assert ts.count("verb.focus()") == 2  # the listed and the empty states; the failed state focuses "Try again"
-    # The verb comes before the cast and the row in the left area, which comes before the right column.
-    assert ts.index("left.append(hero(") < ts.index("left.append(below")
-    assert "tabIndex" not in _code("components/top-bar.ts")  # the top bar has no Tab stop on the landing
-
-
-# --- The attract frame: the Demo room plays itself above the fold ----------------------
-
-
-def _attract() -> str:
-    return _code("components/attract-frame.ts")
-
-
-def _attract_rules() -> dict[str, dict[str, str]]:
-    return css_rules((WEB_SRC / "components/attract-frame.css").read_text())
-
-
-def test_the_attract_frame_strings_are_the_experience_lines():
-    strings = _strings()
-    assert strings["attractFrame"] == "Play {name}"
-    assert strings["lockOfM"].format(n=1, m=5) == "Lock 1 of 5"
-
-
-# Runs the shipped `attractSlides` on the PlayViews read from stdin and prints the slides it returns.
-SLIDES_RUNNER = """
-import { readFileSync } from 'node:fs'
-const { attractSlides } = await import(process.argv[1])
-const views = JSON.parse(readFileSync(0, 'utf8'))
-process.stdout.write(JSON.stringify(views.map((view) => attractSlides(view))))
-"""
-needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs the client's attract slides module")
-
-
-def _slides(*views: PlayView) -> list[list[dict[str, Any]]]:
-    result = subprocess.run(
-        ["node", "--input-type=module", "-e", SLIDES_RUNNER, (WEB_SRC / "components/attract-slides.ts").as_uri()],
-        input=json.dumps([view.model_dump(mode="json") for view in views]), cwd=REPO, capture_output=True, text=True,
-        check=True,
-    )
-    return json.loads(result.stdout)
-
-
-def _front_hall() -> PlayView:
-    """Shaped like the Demo room "The front hall and the lounge": eight photos, every lock's object on its own photo."""
-    def ix(n: int, label: str, photo: int) -> dict[str, Any]:
-        square = [[100 * n, 100], [100 * n + 80, 100], [100 * n + 80, 180], [100 * n, 180]]
-        return {"id": f"ix_{n:026d}", "label": label, "photo": photo, "polygons": [square], "instances": 1, "attributes": []}
-
-    def pz(n: int, lock_type: str, evidence: int, is_exit: bool = False) -> dict[str, Any]:
-        return {
-            "id": f"pz_{n:026d}", "lock_type": lock_type, "requires": [], "is_exit": is_exit, "clue": f"clue {n}",
-            "lore": "", "evidence_cards": [{"interactable": f"ix_{evidence:026d}", "visible_attribute": "seen"}],
-            "sequence_length": None,
-        }
-
-    return PlayView.model_validate({
-        "id": f"room_{1:026d}", "created": "2026-10-29T12:00:00Z", "name": "The front hall and the lounge",
-        "photos": [{"hash": f"{n:064x}", "size": 1} for n in range(8)],
-        "interactables": [
-            ix(1, "entryway rug", 0), ix(2, "floor vent", 0), ix(3, "ceiling light", 0), ix(4, "double front door", 1),
-            ix(5, "throw pillows", 2), ix(6, "potted tree", 3), ix(7, "sectional sofa", 5),
-        ],
-        "puzzles": [pz(1, "find", 5), pz(2, "find", 2), pz(3, "use_on", 7), pz(4, "find", 4, is_exit=True)],
-    })
-
-
-def _assert_spoils_nothing(view: PlayView, slides: list[dict[str, Any]]) -> None:
-    """No lit Interactable is named by an Evidence card, and no photo's clue has its Evidence on that photo."""
-    photo_of = {interactable.id: interactable.photo for interactable in view.interactables}
-    named = {card.interactable for puzzle in view.puzzles for card in puzzle.evidence_cards}
-    assert [slide["photo"] for slide in slides] == list(range(len(view.photos)))
-    for slide in slides:
-        if slide["interactable"] is not None:
-            assert slide["interactable"]["id"] not in named, slide
-        if slide["puzzle"] is not None:
-            assert all(photo_of[card["interactable"]] != slide["photo"] for card in slide["puzzle"]["evidence_cards"]), slide
-
-
-@needs_node
-def test_the_frame_never_lights_a_lock_s_object_or_pairs_a_clue_with_the_photo_that_holds_its_answer(four_lock_room: Room):
-    hall, four_lock = _front_hall(), to_play_view(four_lock_room)
-    hall_slides, four_lock_slides = _slides(hall, four_lock)
-    _assert_spoils_nothing(hall, hall_slides)
-    _assert_spoils_nothing(four_lock, four_lock_slides)
-    # Scenery is lit where a photo has it (the rug, the tree); a photo holding only a lock's object shows no outline.
-    lit = [slide["interactable"] and slide["interactable"]["label"] for slide in hall_slides]
-    assert lit == ["entryway rug", None, None, "potted tree", None, None, None, None]
-    assert [slide["interactable"] and slide["interactable"]["label"] for slide in four_lock_slides] == [
-        None, None, None, "iron lantern", None, "woven rug",
-    ]
-    # Every photo has a clue, never the Exit's while another lock's is eligible, and successive photos show different ones.
-    clues = [slide["puzzle"]["clue"] for slide in hall_slides]
-    assert "clue 4" not in clues and all(a != b for a, b in pairwise(clues)), clues
-    four_lock_clues = [slide["puzzle"]["clue"] for slide in four_lock_slides]
-    assert all(a != b for a, b in pairwise(four_lock_clues)), four_lock_clues
-    assert not any(slide["puzzle"]["is_exit"] for slide in four_lock_slides)
-
-
-@needs_node
-def test_a_photo_holding_every_lock_s_evidence_shows_no_clue_and_the_exit_s_clue_is_the_last_choice():
-    hall = _front_hall()
-
-    def moved(door_photo: int) -> PlayView:
-        """Two photos: every object on photo 0 but the front door, which is on `door_photo`."""
-        interactables = [
-            ix.model_copy(update={"photo": door_photo if ix.label == "double front door" else 0}) for ix in hall.interactables
-        ]
-        return hall.model_copy(update={"photos": hall.photos[:2], "interactables": interactables})
-
-    crowded, exit_left = _slides(moved(0), moved(1))
-    # Photo 0 holds every lock's object: no clue; photo 1 holds none, so its clue is a lock's, not the Exit's.
-    assert crowded[0]["puzzle"] is None and crowded[0]["interactable"]["label"] == "entryway rug"
-    assert crowded[1]["puzzle"] is not None and crowded[1]["puzzle"]["is_exit"] is False
-    # Photo 0 holds every lock's object but the Exit's, so the Exit's clue is the only one it may show.
-    assert exit_left[0]["puzzle"]["is_exit"] is True and exit_left[1]["puzzle"]["is_exit"] is False
-
-
-def test_the_frame_reads_the_play_view_alone():
-    ts = _code("components/attract-slides.ts") + _attract()
-    # Drawn from the PlayView alone: the modules name no solution, rung or Derived field, and never a box.
-    assert "solution" not in ts and "rung" not in ts and "derived" not in ts.lower() and ".box" not in ts
-    assert "import type { PlayInteractable, PlayPuzzle, PlayView } from '../../types'" in _code("components/attract-slides.ts")
-    assert "import { attractSlides, type AttractSlide } from './attract-slides.ts'" in _attract()
-
-
-def test_the_frame_draws_the_scene_s_hotspot_reveal_and_label_chip_over_each_photo():
-    ts = _attract()
-    assert "hotspotReveal(hotspotPath(interactable.polygons ?? []))" in ts
-    assert "svg.setAttribute('class', 'scene-hotspots')" in ts and "svg.setAttribute('preserveAspectRatio', 'none')" in ts
-    assert "slide.svg?.setAttribute('viewBox', `0 0 ${slide.size.width} ${slide.size.height}`)" in ts  # the photo's pixel space
-    assert "chip.className = 'hotspot-label-chip label is-shown'" in ts and "chip.textContent = interactable.label" in ts
-    hotspots = _code("scene/hotspots.ts")
-    assert "export function hotspotReveal(d: string): SVGGElement" in hotspots
-    assert "reveal.append(path('hotspot-glow', d), path('hotspot-halo', d), path('hotspot-outline', d))" in hotspots
-    rules = _attract_rules()
-    assert rules[".attract-frame .hotspot-reveal"] == {"opacity": "1"}  # lit, as the Scene lights a hovered Hotspot
-    assert "import '../scene/scene.css'" in _ts("components/attract-frame.ts")
-
-
-def test_the_clue_sits_on_parchment_under_the_frame_with_the_lock_tag():
-    ts = _attract()
-    assert "wizardPortrait('riddler', 32)" in ts and "speakerPrefix('riddler'), puzzle.clue" in ts
-    assert "fill(strings.lockOfM, { n: view.puzzles.indexOf(puzzle) + 1, m: view.puzzles.length })" in ts
-    assert "tag.className = 'chip chip-current label'" in ts
-    rules = _attract_rules()
-    clue = rules[".attract-clue"]
-    assert clue["background"] == "var(--parchment)" and clue["color"] == "var(--ink)" and clue["box-shadow"] == "var(--elevation-paper)"
-    assert rules[".chip-current"] == {"border": "1px solid var(--lamp-ink)", "color": "var(--lamp-ink)"}
-
-
-def test_the_photos_crossfade_on_the_attract_token_about_every_four_seconds_and_pause_on_hover_focus_and_a_hidden_tab():
-    ts = _attract()
-    assert "export const HOLD_MS = 4000" in ts
-    assert "timer = setTimeout(() => void next(), HOLD_MS)" in ts
-    assert "if (reduced || hovered || focused || document.hidden || slides.length < 2) return" in ts
-    assert "const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches" in ts
-    for event in ("pointerenter", "pointerleave", "focusin", "focusout"):
-        assert f"frame.addEventListener('{event}'" in ts, event
-    assert "document.addEventListener('visibilitychange', schedule)" in ts
-    assert "document.removeEventListener('visibilitychange', schedule)" in ts
-    props = css_custom_properties()
-    assert props["motion-attract"] == "600ms"
-    tokens = (WEB_SRC / "tokens.css").read_text()
-    assert "--motion-attract: 0ms;" in tokens.split("@media (prefers-reduced-motion: reduce)", 1)[1]
-    rules = _attract_rules()
-    assert rules[".attract-slide"]["opacity"] == "0" and rules[".attract-slide"]["transition"] == "opacity var(--motion-attract) var(--motion-ease)"
-    assert rules[".attract-slide.is-shown"] == {"opacity": "1"}
-    assert "@keyframes" not in (WEB_SRC / "components/attract-frame.css").read_text()
-
-
-def test_the_clue_lines_hand_over_in_turn_so_two_clues_never_show_at_once():
-    """Replay Oct 29: both clue lines faded at once over 600 ms, so for about half a second two clues overlapped. The
-    old line now fades out in the first half and the new one in after it; the photos keep the 600 ms crossfade, and
-    under reduced motion both halves are 0 ms."""
-    rules = _attract_rules()
-    assert rules[".attract-clue-line"]["transition"] == "opacity var(--motion-overlay) var(--motion-ease)"
-    assert rules[".attract-clue-line.is-shown"] == {"opacity": "1", "transition-delay": "var(--motion-overlay)"}
-    assert css_custom_properties()["motion-overlay"] == "300ms" and css_custom_properties()["motion-attract"] == "600ms"
-    assert rules[".attract-slide"]["transition"] == "opacity var(--motion-attract) var(--motion-ease)"
-
-
-def test_the_photos_load_lazily_and_the_frame_is_skipped_without_a_first_photo():
-    ts = _attract()
-    assert "if (slides.length === 0) return null" in ts
-    assert "const first = await load(0).catch(() => null)" in ts and "if (first === null) return null" in ts
-    # One photo ahead, never all at once: the next slide is asked for once the current one shows.
-    assert "void load((index + 1) % slides.length).catch(() => undefined)" in ts
-    landing = _code("landing.ts")
-    assert "attractFrame(view, roomTitle(first), () => verb.click()).then(" in landing  # the verb's path and pending label
-    assert "playing = frame\n              attract.replaceChildren(frame.element)" in landing
-    assert "if (!mounted) {\n                frame.unmount()" in landing  # a frame that answers after the landing left
-    assert "playing?.unmount()" in landing.split("return () => {", 1)[1]
-    assert "attract.className = 'landing-attract-slot'" in landing
-    assert _landing_rules()[".landing-attract-slot"]["display"] == "contents"
-
-
-def test_the_frame_is_one_focusable_control_named_for_the_room_that_starts_a_session_on_click_or_enter():
-    ts = _attract()
-    assert "frame.setAttribute('role', 'button')" in ts and "frame.tabIndex = 0" in ts
-    assert "frame.setAttribute('aria-label', fill(strings.attractFrame, { name }))" in ts
-    assert "frame.addEventListener('click', onStart)" in ts
-    assert "if (event.key === 'Enter' && event.target === frame) onStart()" in ts
-    assert "img.alt = ''" in ts  # the photos are decorative under the one accessible name
-    landing = _code("landing.ts")
-    assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), stage, cast())" in landing
-    rules = _attract_rules()
-    frame = rules[".attract-frame"]
-    assert frame["cursor"] == "pointer"
-    assert rules[".attract-frame:hover"]["border-color"] == "var(--lamp)"
-    assert rules[".attract-frame:hover:focus-visible"]["box-shadow"].startswith("0 0 0 2px var(--focus-ring-inner)")
-
-
-def test_the_contract_records_the_attract_frame_and_the_motion_carve_out():
-    experience = (REPO / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md").read_text()
-    design = design_text()
-    assert "attract frame" in experience and "attract frame" in design
-    landing = experience.split("| Hosted landing | A title screen", 1)[1].split("\n", 1)[0]
-    assert "How to play" in landing and "right column" in landing
-    hosted = design.split("**Hosted landing.**", 1)[1].split("\n", 1)[0]
-    assert "aspect" in hosted and "How to play" in hosted and "Play this room" in hosted
-    motion = design.split("**Motion.**", 1)[1].split("\n\n", 1)[0]
-    assert "600 ms" in motion and "4 s" in motion and "reduced motion" in motion
-    assert "Nothing loops" in motion and "attract frame" in motion
-
-
-# --- Layout: cards three across beside the 400 px right column -----------------------
-
-
-def test_cards_sit_three_across_in_the_left_area_beside_the_right_column():
-    rules = _landing_rules()
-    layout = rules[".landing-layout"]
-    assert layout["grid-template-columns"] in {"minmax(0, 1fr) var(--spacing-side-column)", "minmax(0, 1fr) 340px"}
-    assert layout["padding"] == "var(--spacing-frame-margin)" and layout["column-gap"] == "var(--spacing-column-gap)"
-    text = (WEB_SRC / "landing.css").read_text()
-    assert "@media (max-width: 1439px) {\n  .landing-layout {\n    grid-template-columns: minmax(0, 1fr) 360px;" in text
-    assert "@media (max-width: 1279px) {\n  .landing-layout {\n    grid-template-columns: minmax(0, 1fr) 340px;" in text
-    assert _card_rules()[".demo-room-list"]["grid-template-columns"] == "repeat(3, minmax(0, 1fr))"
-    ts = _code("landing.ts")
-    assert "left.append(banners)" in ts and "left.append(below" in ts
-    assert "right.className = 'landing-right'" in ts and "children: [left, right]" in ts
-    assert not re.search(r"\.sort\(|\.reverse\(|\.filter\(", ts), "the cards keep the served order"
 
 
 # --- The Demo room card ----------------------------------------------------------------
@@ -611,7 +308,7 @@ def test_hover_rings_the_card_in_lamp_with_the_glow_and_keeps_the_focus_ring():
 
 
 def test_hover_and_state_fades_are_instant_under_reduced_motion():
-    for path in ("components/demo-room-card.css", "components/attract-frame.css", "landing.css"):
+    for path in ("components/demo-room-card.css", "landing.css"):
         for selector, declarations in css_rules((WEB_SRC / path).read_text()).items():
             for key, value in ((k, v) for k, v in declarations.items() if k.startswith("transition")):
                 if key == "transition-delay":  # a motion token too, 0 ms under reduced motion
@@ -634,8 +331,7 @@ def test_play_this_room_or_a_click_on_the_card_starts_a_session_and_the_link_doe
     assert "keydown" not in ts  # Enter on "Play this room" is the button's own
     landing = _code("landing.ts")
     assert "const start = roomStarter(profile, mode, banners)" in landing
-    assert "demoRoomCard(room, profile, () => start(room))" in landing
-    assert "demoRoomCard(first, profile, () => start(first))" in landing
+    assert "demoRoomCard(room, profile, () => startMore(room))" in landing
 
 
 def test_a_start_in_flight_shows_opening_the_room_and_ignores_repeat_activation_until_the_play_screen_opens():
@@ -659,7 +355,7 @@ def test_a_start_in_flight_shows_opening_the_room_and_ignores_repeat_activation_
     assert routed.index("location.hash = ") < routed.index("return new Promise<never>(() => undefined)")
 
 
-def test_the_start_sends_the_fresh_derived_block_and_a_refusal_shows_the_banner_at_the_top_of_the_left_area():
+def test_the_start_sends_the_fresh_derived_block_and_a_refusal_shows_the_banner_in_the_play_back():
     starter = _code("stored-rooms.ts").split("export function roomStarter(", 1)[1].split("\n}\n", 1)[0]
     assert "await startSession(await sessionStart(room.room_id, profile, mode))" in starter
     assert "location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })" in starter
@@ -667,21 +363,21 @@ def test_the_start_sends_the_fresh_derived_block_and_a_refusal_shows_the_banner_
     assert "heading: strings.sessionStartRefused" in refused and "sentence: strings.sessionStartRefusedBody" in refused
     assert "actions: [{ label: strings.tryAgain, onActivate: () => void start(room) }]" in refused
     landing = _code("landing.ts")
-    assert "const banners = bannerSlot()" in landing
-    assert landing.index("left.append(banners)") < landing.index("left.append(hero(")
+    assert "const banners = bannerSlot()" in landing and "const start = roomStarter(profile, mode, banners)" in landing
+    # One slot for the first Demo room, at the top of the Play back's details, where the click was.
+    info = _code("chooser.ts").split("'chooser-play-info',", 1)[1]
+    assert info.lstrip().startswith("banners,")
     assert "element.focus()" in _ts("components/error-banner.ts")  # the banner takes focus
 
 
 # --- Failed and empty lists -------------------------------------------------------------
 
 
-def test_a_failed_list_shows_the_failed_line_with_try_again_in_place_of_the_cards():
-    ts = _code("landing.ts")
-    failed = ts.split("if (rooms === null) {", 1)[1].split("\n  }\n", 1)[0]
-    assert "paragraph('body-md', strings.demoRoomsFailed)" in failed
-    assert "secondaryButton({ label: strings.tryAgain, onActivate: onRetry })" in failed
-    assert "children: [left, right]" in failed  # the hero, the cast and the right column stay
-    assert "demoRoomCard" not in failed and "retry.focus()" in failed
+def test_a_failed_list_shows_the_failed_line_with_try_again_in_the_play_back():
+    chooser = _code("chooser.ts")
+    assert "playLine = [failed ? strings.demoRoomsFailed : strings.sampleRoomSoon]" in chooser
+    assert "? secondaryButton({ label: strings.tryAgain, onActivate: onRetry })" in chooser
+    assert "element('p', 'body-md', failed ? strings.demoRoomsFailed : strings.sampleRoomSoon), playFocus" in chooser
     assert "await listRooms().catch(() => null)" in _render()  # never the unreachable strip
 
 
@@ -693,12 +389,12 @@ def test_every_landing_text_pair_meets_the_contrast_table():
     rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]
             for line in table.splitlines() if line.startswith("| `")]
     pairs = {("text", "canvas"), ("text-muted", "canvas"), ("text", "chrome"), ("text-muted", "chrome"),
-             ("text", "chrome-raised"), ("text-muted", "chrome-raised"),
+             ("text", "chrome-raised"), ("text-muted", "chrome-raised"), ("lamp", "chrome"), ("lamp-strong", "chrome"),
              ("lamp", "chrome-raised"), ("error-text", "error-surface"), ("text", "error-surface"),
              ("lamp", "error-surface"), ("disclosure-text", "disclosure-surface")}
     for fg, bg in pairs:
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
-    # The title block's link sits on the canvas, darker than the chrome the table's "links on dark" row measures.
+    # The landing's links sit on the canvas, darker than the chrome the table's "links on dark" row measures.
     canvas = _hex(PROPS["canvas"])[0]
     assert contrast(_hex(PROPS["lamp"])[0], canvas) >= contrast(_hex(PROPS["lamp"])[0], _hex(PROPS["chrome"])[0]) >= 4.5
     for bg in ("canvas", "chrome-raised"):

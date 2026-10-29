@@ -68,17 +68,22 @@ def test_the_access_code_and_hosted_capture_strings_are_the_experience_lines():
 # --- The panel ---------------------------------------------------------------------------
 
 
-def test_the_panel_sits_in_the_landing_right_column_with_its_heading_label_field_and_button():
-    landing = _code("landing.ts")
-    assert "right.append(accessCodeBuild(onAccepted))" in landing
-    # The panel stands in every landing state: before the failed and empty branches return.
-    assert landing.index("right.append(accessCodeBuild(onAccepted))") < landing.index("if (rooms === null) {")
+def test_the_panel_sits_in_the_chooser_s_build_back_with_its_label_field_and_button():
+    chooser = _code("chooser.ts")
+    # The panel stands in every landing state: the Build back is built whatever `GET /rooms` answered.
+    build = chooser.split("const buildView = element(", 1)[1].split("const views = ", 1)[0]
+    assert "accessCodeBuild(onAccepted, { heading: false })" in build
+    assert "if (first !== undefined) {" not in build and "failed" not in build
+    assert "onAccepted" in _code("landing.ts").split("chooser({", 1)[1].split("})", 1)[0]
     panel = _panel()
     assert "heading.className = 'access-build-heading display-sm'" in panel and "heading.textContent = strings.buildYourOwnRoom" in panel
     assert "label.htmlFor = field.id" in panel and "label.textContent = strings.accessCode" in panel
     assert "field.className = 'access-build-field mono-code'" in panel
     assert "primaryButton({ label: strings.checkCode, pendingLabel: strings.checkingCode, onActivate: check })" in panel
-    assert "panel.append(heading, label, row, banners, status)" in panel
+    # The heading is the panel's own only where nothing around it names it; the Build back's heading does there.
+    assert "export function accessCodeBuild(onAccepted: (buildsLeft: number) => void, { heading: titled = true } = {})" in panel
+    assert "panel.append(label, row, banners, status)" in panel
+    assert "if (titled) {\n    panel.prepend(heading)\n    panel.setAttribute('aria-labelledby', heading.id)\n  }" in panel
     rules = css_rules((WEB_SRC / "components/access-code-build.css").read_text())
     field = rules[".access-build-field"]
     assert (field["height"], field["background"], field["color"]) == ("44px", "var(--chrome)", "var(--text)")
@@ -131,11 +136,12 @@ def test_refused_and_too_many_tries_are_compact_banners_and_quota_is_the_warning
     assert rules[".banner-actions:empty"] == {"display": "none"}
 
 
-def test_quota_from_the_check_leaves_the_demo_room_cards_active():
-    landing = _code("landing.ts")
-    # Nothing the panel does reaches the cards: they keep their own start handler and are never disabled.
-    assert "inert" not in landing and "disabled" not in landing and "disabled" not in _panel()
-    assert "demoRoomCard(room, profile, () => start(room))" in landing
+def test_quota_from_the_check_leaves_the_demo_rooms_playable():
+    landing, chooser = _code("landing.ts"), _code("chooser.ts")
+    # Nothing the panel does reaches the Play back or the further cards: they keep their own start and are never disabled.
+    assert "disabled" not in landing and "disabled" not in _panel() and ".disabled = " not in chooser
+    assert "primaryButton({ label: strings.playThisRoom, pendingLabel: strings.openingRoom, onActivate: () => start(first) })" in chooser
+    assert "demoRoomCard(room, profile, () => startMore(room))" in landing
 
 
 # --- Accepted: the Capture screen, the code in memory only --------------------------------

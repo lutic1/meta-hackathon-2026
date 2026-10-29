@@ -149,7 +149,10 @@ def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_feedback_l
         "web/src/components/hint-area.ts",  # Rung and No-hint lines
         "web/src/components/wizard-notes.ts",  # the Puzzles a lock opening made available (owner decision 68)
         "web/src/components/narrow-screen-message.ts",  # the copied-link confirmation
+        "web/src/chooser.ts",  # the Hosted landing's card announcement, once the pointer settles on a card
     }
+    assert "announce(line)" in sources["web/src/chooser.ts"]
+    assert "const line = fill(strings.cardAnnounce, { title: titles[i], n: i + 1 })" in sources["web/src/chooser.ts"]
     assert "announce(strings.reconnectingBuild)" in sources["web/src/build-progress.ts"]
     assert "announce(strings.reconnectingPlay)" in sources["web/src/play.ts"]
     # The sign-off is a Guide line, so it is heard with its speaker prefix.
@@ -188,6 +191,15 @@ def test_keyboard_order_follows_the_page_and_there_are_no_single_key_shortcuts()
         assert "accessKey" not in code and "accesskey" not in code, path
         keys = set(re.findall(r"event\.key [!=]== '([^']+)'", code))
         assert keys <= {"Enter", "Tab", "Escape"}, f"{path} listens for {keys}"
+        if not path.endswith("web/src/chooser.ts"):
+            assert not re.search(r"\b(?:ArrowRight|ArrowLeft|ArrowUp|ArrowDown|Home|End):", code), path
+    # The one roving group: the Hosted landing's three cards take the arrows, Home and End, only while a card has focus
+    # (owner decision Oct 29); no other key moves anything.
+    roving = _code(_ts("chooser.ts")).split("button.addEventListener('keydown', (event) => {", 1)[1].split("\n    })", 1)[0]
+    for key in ("ArrowRight: (i + 1) % 3", "ArrowDown: (i + 1) % 3", "ArrowLeft: (i + 2) % 3", "ArrowUp: (i + 2) % 3",
+                "Home: 0", "End: 2"):
+        assert key in roving
+    assert "if (state !== 'rest') return" in roving and "cards[next[event.key]].choose.focus()" in roving
 
 
 def test_every_surface_control_keeps_the_two_tone_focus_ring():

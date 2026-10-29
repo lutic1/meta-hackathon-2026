@@ -156,13 +156,12 @@
   --elevation-vignette: inset 0 0 80px #000000A6;
 
   /* motion: fades and glows only, ease-out; hover 150, state fades 200, overlays and the arrival glow 300; the
-     Hosted landing's attract frame crossfades its photos over 600 (content, the one cycle: DESIGN.md Motion); the
-     Completion stats count up once over 800 (a number change, read by completion.ts) */
+     Completion stats count up once over 800 (a number change, read by completion.ts). The Hosted landing's chooser
+     keeps its own timings in chooser.css (DESIGN.md Motion, the owner exception for that screen alone). */
   --motion-ease: ease-out;
   --motion-hover: 150ms;
   --motion-state: 200ms;
   --motion-overlay: 300ms;
-  --motion-attract: 600ms;
   --motion-count: 800ms;
 }
 
@@ -172,7 +171,6 @@
     --motion-hover: 0ms;
     --motion-state: 0ms;
     --motion-overlay: 0ms;
-    --motion-attract: 0ms;
     --motion-count: 0ms;
   }
   *,

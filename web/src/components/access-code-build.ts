@@ -48,25 +48,24 @@ export function buildsLeftLine(buildsLeft: number): HTMLParagraphElement {
 }
 
 /**
- * The Access-code build (`{components.access-code-field}`, FR-32, UX-DR59) in the Hosted landing's right column: the
- * heading "Build your own room", the visible label "Access code" over a 44 px `mono-code` field beside "Check code"
- * (primary), its compact banner slot, then the `body-sm` status line, plain page content and the field's description.
+ * The Access-code build (`{components.access-code-field}`, FR-32, UX-DR59) on the Hosted landing's Build back: the
+ * heading "Build your own room" (left out with `heading: false`, where the dialog around it carries that name), the
+ * visible label "Access code" over a 44 px `mono-code` field beside "Check code" (primary), its compact banner slot,
+ * then the `body-sm` status line, plain page content and the field's description.
  *
  * Enter in the field or "Check code" submits. An empty field shows the empty-submit line and sends nothing; otherwise
  * the button reads "Checking code…" while `POST /access/check {code}` is in flight. A wrong code shows the compact
  * error banner, too many tries the compact warning, a check that gets no answer or a 5xx the failed-check banner, and
- * `builds_left` 0 the Build quota warning, each taking focus; the Demo room cards beside the panel stay active
- * throughout. An accepted code is held in memory for this tab (`access-code.ts`), the status line reads "{n} of 20
+ * `builds_left` 0 the Build quota warning, each taking focus; the Demo rooms stay playable throughout. An accepted code is held in memory for this tab (`access-code.ts`), the status line reads "{n} of 20
  * builds left" with the server's count in `success`, and `onAccepted` opens the Capture screen.
  */
-export function accessCodeBuild(onAccepted: (buildsLeft: number) => void): HTMLElement {
+export function accessCodeBuild(onAccepted: (buildsLeft: number) => void, { heading: titled = true } = {}): HTMLElement {
   const panel = document.createElement('section')
   panel.className = 'access-build'
   const heading = document.createElement('h2')
   heading.id = 'access-build-heading'
   heading.className = 'access-build-heading display-sm'
   heading.textContent = strings.buildYourOwnRoom
-  panel.setAttribute('aria-labelledby', heading.id)
 
   const field = document.createElement('input')
   field.id = ACCESS_CODE_FIELD
@@ -88,7 +87,11 @@ export function accessCodeBuild(onAccepted: (buildsLeft: number) => void): HTMLE
   const row = document.createElement('div')
   row.className = 'access-build-row'
   row.append(field, button)
-  panel.append(heading, label, row, banners, status)
+  panel.append(label, row, banners, status)
+  if (titled) {
+    panel.prepend(heading)
+    panel.setAttribute('aria-labelledby', heading.id)
+  }
 
   async function check(): Promise<void> {
     const code = field.value.trim()
