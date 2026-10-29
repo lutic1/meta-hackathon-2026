@@ -30,7 +30,7 @@ from src.domain.session import SessionStateMachine
 from src.infra.modal import DictSessionStore, ModalHandles, call_key, hosted_stores
 from src.providers.verbatim import VerbatimPhraser
 from tests.api.hosted import hosted_handles, hosted_settings, make_hosted_app
-from tests.api.test_app import make_app
+from tests.api.test_app import assert_cache_headers, built_dist, make_app
 from tests.api.test_builds import post as post_build
 from tests.api.test_sessions import FRESH_THRESHOLDS, Ticker, click, code, post
 from tests.domain.test_redact import json_keys
@@ -111,6 +111,10 @@ def test_web_dist_is_served_at_the_root_and_the_api_under_api_from_one_origin_wi
     assert all(middleware.cls is not CORSMiddleware for middleware in app.user_middleware)
     response = client.get("/api/meta", headers={"Origin": "https://elsewhere.example"})
     assert response.json()["mode"] == "hosted" and "access-control-allow-origin" not in response.headers
+
+
+def test_the_hosted_app_serves_web_dist_with_the_same_cache_headers(tmp_path: Path, handles: ModalHandles):
+    assert_cache_headers(TestClient(make_hosted_app(tmp_path, handles, web_dist=built_dist(tmp_path))))
 
 
 def test_the_hosted_app_starts_without_the_local_export_or_a_job_restart(tmp_path: Path, handles: ModalHandles):

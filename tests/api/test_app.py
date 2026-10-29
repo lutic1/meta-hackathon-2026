@@ -201,6 +201,44 @@ def test_web_dist_is_mounted_at_the_root_behind_the_api_routes(tmp_path: Path, f
     assert client.get(f"/api/rooms/{UNKNOWN}").json() == ROOM_NOT_FOUND
 
 
+REVALIDATE = "no-cache"
+IMMUTABLE = "public, max-age=31536000, immutable"
+BUILT_FILES = {
+    "index.html": "<!doctype html><div id=\"app\"></div>",
+    "assets/index-abc123.js": "console.log('keyframe')",
+    "clip/play.webm": "webm",
+    "portraits/guide.webp": "webp",
+}
+
+
+def built_dist(tmp_path: Path) -> Path:
+    """A `web/dist` with the shell, one hashed bundle and two files Vite copies from `web/public` under their own names."""
+    dist = tmp_path / "web" / "dist"
+    for name, text in BUILT_FILES.items():
+        (dist / name).parent.mkdir(parents=True, exist_ok=True)
+        (dist / name).write_text(text)
+    return dist
+
+
+def assert_cache_headers(client: TestClient) -> None:
+    """The shell and every unhashed file revalidate each time, a hashed bundle is kept for a year, and `/api` is left alone."""
+    expected = {"/": REVALIDATE, "/index.html": REVALIDATE, "/assets/index-abc123.js": IMMUTABLE}
+    expected |= {"/clip/play.webm": REVALIDATE, "/portraits/guide.webp": REVALIDATE}
+    for path, cache_control in expected.items():
+        response = client.get(path)
+        assert response.status_code == 200 and response.headers["cache-control"] == cache_control, path
+        assert response.headers["etag"], path
+        again = client.get(path, headers={"If-None-Match": response.headers["etag"]})
+        assert again.status_code == 304 and again.headers["cache-control"] == cache_control, path
+    assert client.get("/index.html").headers["content-type"].startswith("text/html")
+    api = client.get("/api/meta")
+    assert api.status_code == 200 and "cache-control" not in api.headers and "last-modified" not in api.headers
+
+
+def test_the_client_shell_revalidates_and_hashed_bundles_are_immutable(tmp_path: Path, four_lock_room: Room):
+    assert_cache_headers(TestClient(make_app(tmp_path, four_lock_room, web_dist=built_dist(tmp_path))))
+
+
 def test_the_default_app_points_at_web_dist_and_rooms():
     from src.api.app import app
     from src.infra.local import ROOMS_ROOT

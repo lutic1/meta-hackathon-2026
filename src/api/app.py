@@ -2,7 +2,8 @@
 
 `create_app(settings)` takes every adapter from `wire` in
 `src/api/wiring.py`, which selects them by `MODE` (AD-9), and mounts
-`web/dist` at `/` when it exists (one origin, no CORS); without a build the
+`web/dist` at `/` when it exists (one origin, no CORS), the shell revalidated
+on every load and the hashed bundles cached for a year; without a build the
 mount is skipped and the API still serves. The hosted route table is the
 local one without the profile routes, and wiring's access guard runs first
 on `POST /builds` and `GET /builds/<job_id>/room`. Room routes return `PlayView` and the stored downscaled JPEG bytes, never a
@@ -161,6 +162,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
@@ -178,6 +180,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import TypeAdapter, ValidationError
 from pydantic.json_schema import models_json_schema
 from starlette.concurrency import run_in_threadpool
+from starlette.staticfiles import PathLike
+from starlette.types import Scope
 
 from src.api.errors import (
     ApiError,
@@ -281,6 +285,10 @@ from src.providers.verbatim import greeting_template
 
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 """The Vite build; `vite.config.ts` proxies `/api/*` to uvicorn in development instead."""
+HASHED_ASSETS = "assets"
+"""The folder of `web/dist` whose bundles Vite names by content hash, so a changed file is a new URL."""
+REVALIDATE = "no-cache"
+IMMUTABLE = "public, max-age=31536000, immutable"
 PROFILES = "profiles"
 """The profile files, `rooms/profiles/<name>.json`; only the profile routes read or write under it."""
 
@@ -1051,6 +1059,27 @@ def unknown_api_routes() -> APIRouter:
     return router
 
 
+class WebDist(StaticFiles):
+    """`web/dist` with an explicit `Cache-Control` on every file it serves, so no browser caches by heuristic.
+
+    The files carry no Cache-Control of their own and, in the Modal image, a
+    1970 `Last-Modified`, from which a browser may keep a stale shell for
+    years. A hashed bundle under `assets/` never changes under its URL, so it
+    is kept for a year; the shell and every file copied from `web/public`
+    under its own name revalidate on each load, cheaply against the ETag.
+    """
+
+    def __init__(self, directory: Path) -> None:
+        super().__init__(directory=directory, html=True)
+        self.hashed = directory.resolve() / HASHED_ASSETS
+
+    def file_response(self, full_path: PathLike, stat_result: os.stat_result, scope: Scope, status_code: int = 200) -> Response:
+        """Starlette's response (a 304 on a matching ETag) with the policy for the file it resolved, symlinks followed."""
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        response.headers["Cache-Control"] = IMMUTABLE if Path(full_path).parent == self.hashed else REVALIDATE
+        return response
+
+
 def create_app(
     settings: Settings,
     *,
@@ -1141,7 +1170,7 @@ def create_app(
     )
     app.include_router(unknown_api_routes())
     if web_dist.is_dir():
-        app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
+        app.mount("/", WebDist(web_dist), name="web")
     return app
 
 
