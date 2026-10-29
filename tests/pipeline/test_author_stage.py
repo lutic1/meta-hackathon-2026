@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from src.council import architect as architect_prompt
+from src.council import storyteller as storyteller_prompt
 from src.council.riddler import build_author_prompt, response_schema
 from src.domain.ledger import LedgerEntry
 from src.domain.schema import JobState, Puzzle, RoomDraft, StageRecord
@@ -349,7 +350,9 @@ def test_the_provenance_of_a_passing_draft_holds_ids_hashes_timings_count_spend_
     view = prompt_view(state.room_id, four_lock_room.interactables)
     provenance = assemble_provenance(state, entries, prompt_hashes(view))
     riddler_hash = hashlib.sha256(build_author_prompt(view).system.encode()).hexdigest()
-    assert provenance.prompt_hashes == {"architect": architect_prompt.prompt_hash(), "riddler": riddler_hash}
+    assert provenance.prompt_hashes == {
+        "architect": architect_prompt.prompt_hash(), "riddler": riddler_hash, "storyteller": storyteller_prompt.prompt_hash(),
+    }
     assert provenance.model_ids == {"architect": "muse-spark-1.3", "riddler": "muse-spark-1.3"}
     assert provenance.stage_timings_ms == {"ingest": 0, "architect": 12_000, "segment": 8_000, "author": 50_000}
     assert provenance.regeneration_count == 1

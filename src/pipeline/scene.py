@@ -1,8 +1,8 @@
 """The scene stage (AD-7, AD-12, AD-16): the Room written once, then immutable, and the Dry run skipped under cut 4.
 
 The runner reaches scene only after `validate` passed and, unless
-`DRY_RUN=off`, the Dry run passed on the same attempt. `run_scene` assembles
-the Room from the stored photos, Interactables and mapped Puzzles with its
+`DRY_RUN=off`, the Dry run passed on the same attempt, and the story stage wrote the story. `run_scene` assembles
+the Room from the stored photos, Interactables, mapped Puzzles and story with its
 provenance (model ids, prompt hashes, stage timings, the Regeneration count,
 spend per stage from the ledger) and writes it through `ArtifactStore` under
 `<room_id>/room.json`, the one `room` artifact play routes read. A Room
@@ -25,6 +25,7 @@ from src.pipeline.author import assemble_room, read_puzzles
 from src.pipeline.build import StageFn, StageResult
 from src.pipeline.ingest import read_photos
 from src.pipeline.ports import ArtifactStore, LedgerStore, room_key
+from src.pipeline.story import read_story
 
 SCENE_BUDGET_MS = 10_000
 """`budgets.md`: the scene build's 10 s, measured through the stage timing, never enforced."""
@@ -50,7 +51,8 @@ def run_scene(state: JobState, *, artifacts: ArtifactStore, ledger: LedgerStore)
     photos = read_photos(room_id, artifacts)
     key = room_key(room_id)
     if not _stored(key, artifacts):
-        artifacts.put(key, assemble_room(state, artifacts, ledger).model_dump_json().encode())
+        room = assemble_room(state, artifacts, ledger).model_copy(update={"story": read_story(room_id, artifacts)})
+        artifacts.put(key, room.model_dump_json().encode())
     return StageResult(count=len(photos))
 
 

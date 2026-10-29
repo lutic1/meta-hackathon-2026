@@ -17,7 +17,7 @@ from pydantic import ConfigDict, Field
 
 from .schema import CallId, JobId, Model, SessionId, Stage
 
-CallKind = Literal["vision", "sam", "riddler", "dryrun", "trickster", "image", "reconstruct3d"]
+CallKind = Literal["vision", "sam", "riddler", "dryrun", "storyteller", "trickster", "image", "reconstruct3d"]
 EntryStatus = Literal["reserved", "settled"]
 
 SPARK_INPUT_USD_PER_M = 1.25
@@ -34,6 +34,7 @@ SEED_USD: dict[CallKind, float] = {
     "sam": 0.0025,
     "riddler": 0.03,
     "dryrun": 0.03,
+    "storyteller": 0.03,
     "trickster": 0.01,
     "image": 0.01,
     "reconstruct3d": 0.02,

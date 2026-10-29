@@ -17,6 +17,7 @@ from src.domain.ledger import spark_cost_usd
 from src.domain.schema import JobState, MaskPreview
 from src.infra.local import CACHE_ROOT, LEDGER_PATH
 from src.providers.base import ChatMessage
+from src.providers.mock import canned_story
 from tests.fixtures.rooms import INTERACTABLES, IX, PZ
 from tests.pipeline.test_author_stage import DRAFT_FILE
 from tests.providers.replay import Fixture, load
@@ -404,7 +405,7 @@ class Vendors:
     The Riddler answers with the scripted draft, its fixed `ix_` ids rewritten, by label, to the ids the
     prompt lists, so the full Build's minted ids match, in the envelope of its recorded reply; the Dry run
     replays its recorded reply over the synthetic room, and over a Build's room answers each listed Puzzle
-    with the last draft's solution.
+    with the last draft's solution. A story request gets the mock's canned story, sized to the brief.
     """
 
     def __init__(self) -> None:
@@ -436,6 +437,8 @@ class Vendors:
             return httpx.Response(200, json=self.riddler(_user_text(body)))
         if schema == "DryRunAnswers":
             return httpx.Response(200, json=self.dry_run(_user_text(body)))
+        if schema == "StoryResponse":
+            return httpx.Response(200, json=_chat(canned_story(json.loads(_user_text(body))["riddles"])))
         if schema == "TricksterProposal":
             return httpx.Response(200, json=load("muse-spark-1.3/chat-trickster").body)
         if schema == "ArchitectResponse" and _images(body) == BUILD_PHOTOS:
@@ -465,6 +468,7 @@ BUILD_PATHS = [
     *["api.meta.ai/v1/responses"] * len(INTERACTABLES),  # one segment call per object
     "api.meta.ai/v1/chat/completions",  # its Riddler
     "api.meta.ai/v1/chat/completions",  # its Dry run
+    "api.meta.ai/v1/chat/completions",  # its story
 ]
 
 
@@ -521,11 +525,11 @@ def test_the_shipped_cases_pass_end_to_end_on_replayed_responses_and_record_thei
     calls = ("vision", "vision", "sam", "sam", "image", "riddler", "riddler", "dryrun")
     assert kinds[: 2 * len(calls)] == [(k, s) for k in calls for s in ("reserved", "settled")]
     built = [e for e in entries[2 * len(calls):] if e.status == "settled"]
-    assert [e.kind for e in built if e.kind != "sam"] == ["vision", "riddler", "dryrun", "trickster"]
-    assert len(built) == 4 + len(INTERACTABLES)
+    assert [e.kind for e in built if e.kind != "sam"] == ["vision", "riddler", "dryrun", "storyteller", "trickster"]
+    assert len(built) == 5 + len(INTERACTABLES)
     tagged = [(e.kind, e.stage) for e in built if e.job_id is not None]
     segment = [("sam", "segment")] * len(INTERACTABLES)
-    assert tagged == [("vision", "architect"), *segment, ("riddler", "author"), ("dryrun", "dryrun")]  # the Build's own calls, tagged for provenance
+    assert tagged == [("vision", "architect"), *segment, ("riddler", "author"), ("dryrun", "dryrun"), ("storyteller", "story")]  # the Build's own calls, tagged for provenance
     for name in ("chat-architect-two-photos", "chat-sit-ok"):
         assert Fixture.model_validate_json((tmp_path / f"tests/fixtures/providers/muse-spark-1.3/{name}.json").read_bytes()).status == 200
     full_build = {

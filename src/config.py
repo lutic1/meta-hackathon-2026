@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_va
 
 load_dotenv()
 
-ROLES = ("architect", "riddler", "dryrun", "trickster", "image")
+ROLES = ("architect", "riddler", "dryrun", "storyteller", "trickster", "image")
 
 ENV_KEYS = (
     "MODE",
@@ -109,11 +109,13 @@ class Settings(BaseModel, frozen=True):
     provider_architect: str = "meta"
     provider_riddler: str = "meta"
     provider_dryrun: str = "meta"
+    provider_storyteller: str = "meta"
     provider_trickster: str = "meta"
     provider_image: str = "meta"
     model_architect: str = MUSE_SPARK
     model_riddler: str = MUSE_SPARK
     model_dryrun: str = MUSE_SPARK
+    model_storyteller: str = MUSE_SPARK
     model_trickster: str = MUSE_SPARK
     model_image: str = MUSE_IMAGE
     model_api_key: str | None = None

@@ -91,10 +91,10 @@ function roleLineRow(text: string): HTMLTableRowElement {
 /**
  * `{components.model-table}` (UX-DR53): a real `<table>` of the Build-time calls, from `BuildView.models` (AD-16).
  * The Architect's and the Riddler's rows (one per model, the 24 px portrait and name on the first, the role line as a
- * full-width row under them), then three fixed lines: the Validator (deterministic code, run where the API runs:
+ * full-width row under them), then four fixed lines: the Validator (deterministic code, run where the API runs:
  * "this Mac" in Local mode, "this server" in Hosted mode, by `meta.mode`; "checked 8 rules" only when the Build
  * recorded its verdicts; no cached-or-billed count), the Dry run (its model and host, or "skipped" with neither under
- * cut 4) and Muse Image, a one-time generation whose count is only this Build's own image calls, so it reads none. No
+ * cut 4), the Storyteller (its model and host; empty on a Room built before story mode) and Muse Image, a one-time generation whose count is only this Build's own image calls, so it reads none. No
  * Guide or Trickster row: the In play block carries both. Its caption sits under it, and the table is a Tab stop.
  */
 export function modelTable(view: BuildView, meta: Meta): HTMLElement {
@@ -135,6 +135,7 @@ export function modelTable(view: BuildView, meta: Meta): HTMLElement {
     ...(dryRunOff
       ? [bodyRow({ role: roleCell(strings.dryRun), model: '', id: true, host: '', did: DRY_RUN_OFF, billing: '', first: true })]
       : roleLines(models('dryrun'), () => roleCell(strings.dryRun)).map(bodyRow)),
+    ...roleLines(models('storyteller'), () => roleCell(strings.storyteller)).map(bodyRow),
     bodyRow({
       role: roleCell(strings.museImage),
       model: strings.museImageModel,

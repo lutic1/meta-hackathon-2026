@@ -46,7 +46,7 @@ def test_a_full_play_session_makes_no_image_call(tmp_path: Path, code_and_find_r
         assert client.get(f"/api/sessions/{session_id}").status_code == 200
         assert client.get(f"/api/sessions/{session_id}/result").status_code == 200
 
-    assert set(providers) == {"architect", "riddler", "dryrun", "trickster", "image"}
+    assert set(providers) == {"architect", "riddler", "dryrun", "storyteller", "trickster", "image"}
     assert all(type(p) is MockProvider for p in providers.values())
     assert [call for p in providers.values() for call in p.calls if isinstance(call, ImageCall)] == []
 

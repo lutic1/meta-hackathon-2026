@@ -111,6 +111,19 @@ def _leaks(text: str, puzzle: Puzzle, labels: list[str]) -> int:
     return sum(_names_label(text, label) for label in labels)
 
 
+def gives_away(text: str, room: Room) -> bool:
+    """Whether `text` holds any Puzzle's solution token or a word of any evidence attribute, by rule 5's matching.
+
+    For lines that speak for no single Puzzle (the story): every code and its
+    digits, every label a solution names (targets and items) and every word
+    longer than the label floor of every `evidence.visible_attribute`.
+    """
+    return any(
+        _leaks(text, puzzle, _solution_labels(room, puzzle)) or _names_label(text, puzzle.evidence.visible_attribute)
+        for puzzle in room.puzzles
+    )
+
+
 # --- Rules -----------------------------------------------------------------
 
 

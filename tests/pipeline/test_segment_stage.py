@@ -141,7 +141,7 @@ def test_four_or_fewer_survivors_end_needs_more_photos_with_zero_authoring_calls
 def test_exactly_five_survivors_continue_to_author(jobs, artifacts, ticker, doubles, uploads):
     candidates = labels(5)
     done = _run(jobs, artifacts, ticker, doubles, uploads, candidates, Segmenter({c["label"]: [INSIDE] for c in candidates}))
-    assert done.status == "done" and doubles.calls == ["author", "validate", "dryrun", "scene"]
+    assert done.status == "done" and doubles.calls == ["author", "validate", "dryrun", "story", "scene"]
     assert len(doubles.seen["author"].mask_preview) == 5 and doubles.seen["author"].stages[-1].count == 5
 
 
@@ -161,7 +161,7 @@ def test_a_runner_resumed_at_segment_reads_the_stored_architect_response(jobs, a
     second = build_over(jobs, artifacts, ticker, second_doubles, architect=architect, segmenter=segmenter)
     done = second.run(queued.id)
     assert done.status == "done" and architect.calls == [] and len(segmenter.calls) == 6
-    assert [r.stage for r in done.stages] == list(STAGES) and second_doubles.calls == ["author", "validate", "dryrun", "scene"]
+    assert [r.stage for r in done.stages] == list(STAGES) and second_doubles.calls == ["author", "validate", "dryrun", "story", "scene"]
 
 
 # --- Survivors: ix_ ids minted here, boxes in frame pixels, polygons, and the Mask preview ---

@@ -357,7 +357,7 @@ def test_a_restarted_api_resumes_each_unfinished_job_after_its_last_persisted_st
         assert wait_terminal(client, running.id)["status"] == "done"
 
     assert second.of(queued.id) == list(STAGES[1:])
-    assert second.of(running.id) == ["segment", "author", "validate", "dryrun", "scene"]
+    assert second.of(running.id) == ["segment", "author", "validate", "dryrun", "story", "scene"]
     assert second.of(done.id) == [] and first.of(running.id).count("architect") == 1
 
 

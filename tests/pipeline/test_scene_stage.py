@@ -116,7 +116,7 @@ def test_the_room_carries_its_provenance_with_the_regeneration_count(build, uplo
     assert provenance.regeneration_count == 1 and provenance.applied_edits == []
     assert provenance.model_ids == {"riddler": "mock-chat-1", "dryrun": "mock-chat-1"}
     assert list(provenance.stage_timings_ms) == list(STAGES[:-1])
-    assert set(provenance.prompt_hashes) == {"architect", "riddler"}
+    assert set(provenance.prompt_hashes) == {"architect", "riddler", "storyteller"}
 
 
 def test_run_scene_never_writes_over_a_room_already_stored(build, uploads, artifacts):

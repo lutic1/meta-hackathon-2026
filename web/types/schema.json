@@ -265,6 +265,7 @@
             "architect",
             "riddler",
             "dryrun",
+            "storyteller",
             "trickster",
             "image"
           ],
@@ -613,6 +614,7 @@
                 "author",
                 "validate",
                 "dryrun",
+                "story",
                 "scene"
               ],
               "type": "string"
@@ -1065,6 +1067,7 @@
                 "author",
                 "validate",
                 "dryrun",
+                "story",
                 "scene"
               ],
               "type": "string"
@@ -1528,6 +1531,7 @@
             "architect",
             "riddler",
             "dryrun",
+            "storyteller",
             "trickster",
             "image"
           ],
@@ -2065,6 +2069,16 @@
           },
           "title": "Puzzles",
           "type": "array"
+        },
+        "story": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Story"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -2072,7 +2086,8 @@
         "created",
         "photos",
         "interactables",
-        "puzzles"
+        "puzzles",
+        "story"
       ],
       "title": "PlayView",
       "type": "object"
@@ -2135,6 +2150,7 @@
               "architect",
               "riddler",
               "dryrun",
+              "storyteller",
               "trickster",
               "image"
             ]
@@ -2151,6 +2167,7 @@
               "architect",
               "riddler",
               "dryrun",
+              "storyteller",
               "trickster",
               "image"
             ]
@@ -2171,6 +2188,7 @@
               "author",
               "validate",
               "dryrun",
+              "story",
               "scene"
             ]
           },
@@ -2195,6 +2213,7 @@
               "author",
               "validate",
               "dryrun",
+              "story",
               "scene"
             ]
           },
@@ -2638,6 +2657,17 @@
         },
         "provenance": {
           "$ref": "#/$defs/Provenance"
+        },
+        "story": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Story"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -3182,6 +3212,7 @@
             "author",
             "validate",
             "dryrun",
+            "story",
             "scene"
           ],
           "title": "Stage",
@@ -3223,6 +3254,90 @@
         "duration_ms"
       ],
       "title": "StageRecord",
+      "type": "object"
+    },
+    "Story": {
+      "additionalProperties": false,
+      "description": "The Room's wizard lines, written by the storyteller at build time or filled from the fixed templates (story mode, 29 Oct 2026).\n\n`riddles` holds one entry per Puzzle, the exit last; the client adds the\nwhere-line to an opening and a solve line itself.",
+      "properties": {
+        "architect_welcome": {
+          "title": "Architect Welcome",
+          "type": "string"
+        },
+        "trickster_trap": {
+          "title": "Trickster Trap",
+          "type": "string"
+        },
+        "riddler_entrance": {
+          "title": "Riddler Entrance",
+          "type": "string"
+        },
+        "guide_chest": {
+          "title": "Guide Chest",
+          "type": "string"
+        },
+        "riddles": {
+          "items": {
+            "$ref": "#/$defs/StoryRiddle"
+          },
+          "title": "Riddles",
+          "type": "array"
+        },
+        "trickster_closing": {
+          "title": "Trickster Closing",
+          "type": "string"
+        },
+        "riddler_closing": {
+          "title": "Riddler Closing",
+          "type": "string"
+        },
+        "guide_closing_no_hints": {
+          "title": "Guide Closing No Hints",
+          "type": "string"
+        },
+        "guide_closing_hints": {
+          "title": "Guide Closing Hints",
+          "type": "string"
+        }
+      },
+      "required": [
+        "architect_welcome",
+        "trickster_trap",
+        "riddler_entrance",
+        "guide_chest",
+        "riddles",
+        "trickster_closing",
+        "riddler_closing",
+        "guide_closing_no_hints",
+        "guide_closing_hints"
+      ],
+      "title": "Story",
+      "type": "object"
+    },
+    "StoryRiddle": {
+      "additionalProperties": false,
+      "description": "The Riddler's two lines for one Puzzle: one to open it and one once it is solved; flavour only, never a place or an object.",
+      "properties": {
+        "puzzle_id": {
+          "pattern": "^pz_[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Puzzle Id",
+          "type": "string"
+        },
+        "opening": {
+          "title": "Opening",
+          "type": "string"
+        },
+        "solved": {
+          "title": "Solved",
+          "type": "string"
+        }
+      },
+      "required": [
+        "puzzle_id",
+        "opening",
+        "solved"
+      ],
+      "title": "StoryRiddle",
       "type": "object"
     },
     "Thresholds": {

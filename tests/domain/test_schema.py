@@ -130,7 +130,10 @@ def test_room_parses_schema_v1():
     parsed = Room.model_validate(room())
     assert parsed.name is None and parsed.decoys == [] and parsed.provenance.applied_edits == []
     assert parsed.photos[0].hash == SHA and parsed.photos[0].downscaled_path.endswith("0.jpg")
-    assert {f for f in Room.model_fields} == {"id", "created", "name", "photos", "interactables", "puzzles", "decoys", "provenance"}
+    assert {f for f in Room.model_fields} == {
+        "id", "created", "name", "photos", "interactables", "puzzles", "decoys", "provenance", "story",
+    }
+    assert parsed.story is None
     assert set(schema.Provenance.model_fields) == {
         "model_ids", "prompt_hashes", "stage_timings_ms", "regeneration_count", "spend_per_stage_usd", "applied_edits",
     }

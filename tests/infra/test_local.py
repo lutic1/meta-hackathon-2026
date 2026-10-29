@@ -323,7 +323,7 @@ def test_a_restarted_process_resumes_at_segment_and_never_runs_architect_again(t
     ThreadJobRunner(second.run).start(queued.id)
 
     done = _wait_terminal(jobs, queued.id)
-    assert second_doubles.calls == ["segment", "author", "validate", "dryrun", "scene"]
+    assert second_doubles.calls == ["segment", "author", "validate", "dryrun", "story", "scene"]
     assert "architect" not in second_doubles.calls and done.calls == [ARCHITECT_ROW]
     assert second_doubles.seen["segment"] == before
     assert [record.stage for record in done.stages] == list(STAGES) and done.status == "done"

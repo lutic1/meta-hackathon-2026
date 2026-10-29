@@ -215,10 +215,10 @@ def test_the_runner_is_the_only_writer_of_the_record_and_a_web_read_never_writes
     for stage in STAGES[1:]:
         doubles.hooks[stage] = poll_from_the_web
     done = _runner_build(handles, ticker, doubles).run(queued.id)
-    assert done.status == "done" and web_writes == [0] * 6
-    assert web.read(queued.id) == done and len(_job_writes(handles, queued.id)) == 1 + 2 * 6 + 1  # queued, then the runner's
+    assert done.status == "done" and web_writes == [0] * 7
+    assert web.read(queued.id) == done and len(_job_writes(handles, queued.id)) == 1 + 2 * 7 + 1  # queued, then the runner's
     # the build slot is claimed before the queued record (7.11); it is its own key, never the record
-    assert [key for key, _ in handles.jobs.writes] == [slot_key(1), queued.id, call_key(queued.id), *[queued.id] * 13]
+    assert [key for key, _ in handles.jobs.writes] == [slot_key(1), queued.id, call_key(queued.id), *[queued.id] * 15]
     artifacts = handles.root / "rooms" / "judge" / queued.room_id
     assert sorted(p.relative_to(artifacts).as_posix() for p in artifacts.rglob("*") if p.is_file()) == sorted(
         [*(f"photos/{i}.jpg" for i in range(6)), *(f"originals/{i}.jpg" for i in range(6)), "photos.json", JOB_FILE]
@@ -430,7 +430,7 @@ def test_a_runner_restarted_after_author_resumes_at_validate_with_no_repeated_mo
 
     second_doubles = Doubles(ticker)
     done = _resumable_build(handles, ticker, second_doubles, architect, segmenter, riddler).run(queued.id)
-    assert second_doubles.calls == ["validate", "dryrun", "scene"]
+    assert second_doubles.calls == ["validate", "dryrun", "story", "scene"]
     assert second_doubles.seen["validate"] == left
     assert (len(architect.calls), len(segmenter.calls), len(riddler.calls)) == calls
     assert done.status == "done" and done.stages[:4] == left.stages

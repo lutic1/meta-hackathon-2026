@@ -14,7 +14,9 @@ from src.pipeline.build import Build
 from src.pipeline.ingest import MIN_PHOTOS
 from src.pipeline.ports import room_key
 from src.providers.cache import GuardedCalls
+from src.providers.base import ModelProvider
 from src.providers.meta_api import MetaModelProvider
+from src.providers.mock import MockProvider
 from src.providers.spend import SpendLedger
 from tests.infra.test_clocks import Ticker
 from tests.pipeline.test_build import MemoryJobStore
@@ -84,7 +86,7 @@ def test_the_recorded_full_build_replays_through_the_wired_stages_to_its_recorde
     job = job_record()
     dry_run = any(verdict.verdict != "skipped" for verdict in job.dry_run)  # cut 4 records no Dry run reply
     replay, ledger = Replay(job), MemoryLedgerStore()
-    providers: dict[Role, MetaModelProvider] = {
+    providers: dict[Role, ModelProvider] = {
         role: MetaModelProvider(
             "test-key",
             calls=GuardedCalls(MemoryCache(), SpendLedger(ledger, cap_usd=60.0), host="api.meta.ai"),
@@ -94,6 +96,7 @@ def test_the_recorded_full_build_replays_through_the_wired_stages_to_its_recorde
         )
         for role in ("architect", "riddler", "dryrun")
     }
+    providers["storyteller"] = MockProvider("storyteller")  # SIT-03 predates the story stage: no reply was recorded
     artifacts = DiskArtifactStore(tmp_path / "rooms")
     stages = build_stages(providers, artifacts, ledger, dry_run=dry_run)
     build = Build(jobs=MemoryJobStore(), artifacts=artifacts, clock=BuildClock(monotonic_ns=Ticker()), stages=stages, regen_max=job.regen_max)
@@ -106,7 +109,7 @@ def test_the_recorded_full_build_replays_through_the_wired_stages_to_its_recorde
     assert replayed.validator == job.validator and all(verdict.passed for verdict in replayed.validator)
     assert [verdict.verdict for verdict in replayed.dry_run] == [verdict.verdict for verdict in job.dry_run]
     assert [preview.label for preview in replayed.mask_preview] == [preview.label for preview in job.mask_preview]
-    counts = {record.stage: record.count for record in replayed.stages}
+    counts = {record.stage: record.count for record in replayed.stages if record.stage != "story"}
     assert counts == {record.stage: record.count for record in job.stages}
     assert artifacts.read(room_key(replayed.room_id))
 

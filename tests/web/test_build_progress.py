@@ -138,15 +138,15 @@ def test_the_architect_introduction_sits_at_the_top_from_the_first_render():
     assert "initial.setAttribute('aria-hidden', 'true')" in portrait and "image.alt = ''" in portrait
 
 
-def test_the_five_stage_names_cover_the_seven_pipeline_stages():
+def test_the_six_stage_names_cover_the_eight_pipeline_stages():
     stages = _code("build-stages.ts")
     kinds = dict(re.findall(r"^  (\w+): '(\w+)',$", stages.split("const KIND", 1)[1].split("}", 1)[0], re.MULTILINE))
     assert kinds == {"ingest": "reading", "architect": "finding", "segment": "finding", "author": "writing",
-                     "validate": "testing", "dryrun": "testing", "scene": "scene"}
+                     "validate": "testing", "dryrun": "testing", "story": "story", "scene": "scene"}
     assert set(kinds) == set(get_args(Stage)) == set(STAGES)
     name = _function(stages, "name")
     for kind, key in (("reading", "readingPhotos"), ("finding", "findingObjects"), ("testing", "testingRoom"),
-                      ("scene", "sceneLoading")):
+                      ("story", "writingStory"), ("scene", "sceneLoading")):
         assert f"if (kind === '{kind}') return strings.{key}" in name
     assert "if (attempt === 0) return strings.writingPuzzles" in name
 
@@ -308,7 +308,7 @@ def test_the_found_objects_line_stays_on_finding_objects_from_the_first_poll_wit
         _job("running", "architect", ["ingest"], preview=False),
         _job("running", "author", ["ingest", "architect", "segment"], preview=True),
         _job("running", "validate", ["ingest", "architect", "segment", "author"], preview=True),
-        _job("done", None, ["ingest", "architect", "segment", "author", "validate", "dryrun", "scene"], preview=True),
+        _job("done", None, ["ingest", "architect", "segment", "author", "validate", "dryrun", "story", "scene"], preview=True),
     )
     for rows in (author, testing, done):
         row = next(row for row in rows if row["key"] == "finding")
@@ -319,6 +319,22 @@ def test_the_found_objects_line_stays_on_finding_objects_from_the_first_poll_wit
     assert [row["key"] for row in done if row["line"] is not None] == ["finding"]
     assert "segmentFrame" not in _code("build-progress.ts")
     assert "stages.update(stageRows(job))" in _function(_code("build-progress.ts"), "apply")
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs build-stages.ts as it ships")
+def test_writing_the_story_runs_between_testing_and_the_scene_with_its_line_count_and_model():
+    """Story mode (29 Oct 2026): the story stage has its own row, its Architect line while running, then its result and model."""
+    through = ["ingest", "architect", "segment", "author", "validate", "dryrun"]
+    done = _job("done", None, through, preview=True)
+    done["stages"] += [{"stage": "story", "duration_ms": 2000, "count": 18, "model": "muse-spark-1.3"},
+                       {"stage": "scene", "duration_ms": 1000, "count": 6, "model": None}]
+    running, rows = _stage_rows(_job("running", "story", through, preview=True), done)
+    assert [row["key"] for row in running] == ["reading", "finding", "writing-0", "testing-0", "story", "scene"]
+    story = next(row for row in running if row["key"] == "story")
+    assert (story["name"], story["state"]) == ("Writing the story", "running")
+    assert story["line"] == "The others are learning their lines. The Trickster wants a bigger part."
+    story = next(row for row in rows if row["key"] == "story")
+    assert (story["state"], story["results"], story["model"]) == ("done", ["18 story lines"], "muse-spark-1.3")
 
 
 def test_the_mask_preview_has_no_heading_and_no_interaction():

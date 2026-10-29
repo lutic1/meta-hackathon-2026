@@ -233,16 +233,18 @@ def test_the_timer_strings_are_the_experience_lines():
 
 def test_the_stage_list_strings_are_the_experience_lines():
     strings = _strings()
-    names = [strings[key] for key in ("readingPhotos", "findingObjects", "writingPuzzles", "testingRoom", "sceneLoading")]
-    assert names == ["Reading your photos", "Finding objects", "Writing puzzles", "Testing the room", "Setting the scene"]
-    for name, stage in zip(names, ("ingest", "architect, segment", "author", "validate, dry run", "scene"), strict=True):
+    keys = ("readingPhotos", "findingObjects", "writingPuzzles", "testingRoom", "writingStory", "sceneLoading")
+    names = [strings[key] for key in keys]
+    assert names == ["Reading your photos", "Finding objects", "Writing puzzles", "Testing the room", "Writing the story",
+                     "Setting the scene"]
+    for name, stage in zip(names, ("ingest", "architect, segment", "author", "validate, dry run", "story", "scene"), strict=True):
         assert f'"{name}" ({stage})' in _voice_and_tone()
     assert strings["rewritingPuzzles"].format(n=1, max=1) == "Rewriting puzzles, attempt 1 of 1"
     assert strings["sentBack"].format(messages="A puzzle cites something the Architect never saw.") == (
         "Sent back: A puzzle cites something the Architect never saw.")
     assert strings["stageDuration"].format(s="33.1") == "33.1 s"
-    assert [strings[key].format(n=8) for key in ("photoCount", "objectCount", "scenesReady")] == [
-        "8 photos", "8 objects", "8 scenes ready"]
+    assert [strings[key].format(n=8) for key in ("photoCount", "objectCount", "storyLines", "scenesReady")] == [
+        "8 photos", "8 objects", "8 story lines", "8 scenes ready"]
     assert strings["rulesPassed"].format(passed=8, total=8) == "Rules: 8 of 8 passed"
     assert strings["testRunReached"].format(reached=5, total=5) == "Test run: reached 5 of 5 answers"
     assert strings["playThisRoom"] == "Play this room"

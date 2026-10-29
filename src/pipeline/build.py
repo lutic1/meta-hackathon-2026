@@ -59,7 +59,7 @@ from src.providers.base import CallReceipt, ModelProvider, new_ulid
 
 logger = logging.getLogger(__name__)
 
-STAGES: tuple[Stage, ...] = ("ingest", "architect", "segment", "author", "validate", "dryrun", "scene")
+STAGES: tuple[Stage, ...] = ("ingest", "architect", "segment", "author", "validate", "dryrun", "story", "scene")
 TERMINAL: frozenset[JobStatus] = frozenset(get_args(JobStatus)) - {"queued", "running"}
 """Every status a job stays in; the runner reaches `done` and `failed` itself."""
 

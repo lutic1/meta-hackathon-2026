@@ -91,6 +91,7 @@ def done_job(room: Room, job_id: JobId, result: ValidatorResult, regen_max: int)
         "author": len(room.puzzles),
         "validate": None,
         "dryrun": len(room.puzzles),
+        "story": None,
         "scene": len(room.photos),
     }
     models = {stage: provenance.model_ids.get(role) for stage, role in STAGE_ROLES.items()}

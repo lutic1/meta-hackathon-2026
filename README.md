@@ -117,7 +117,7 @@ Builds on the deterministic mock (fixture work and the tests; its call
 rows name the `mock` host, never a live one); `MODEL_PROVIDER=meta` runs
 live Builds, and a Build whose provider setting is missing ends `failed`
 naming it. Keys beyond the obvious: `MODEL_ARCHITECT`, `MODEL_RIDDLER`,
-`MODEL_DRYRUN`, `MODEL_TRICKSTER` and `MODEL_IMAGE` (per-role model ids,
+`MODEL_DRYRUN`, `MODEL_STORYTELLER` (story mode), `MODEL_TRICKSTER` and `MODEL_IMAGE` (per-role model ids,
 default `muse-spark-1.3`, and `muse-image-1.0` for images);
 `DEMO_PROPOSALS_DIR` (the folder of recorded and authored Trickster
 proposals that `DEMO_TRICKSTER=scripted`, `authored` and `record` use;

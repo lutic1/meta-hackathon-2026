@@ -221,6 +221,8 @@ def test_the_fixed_rows_and_no_guide_or_trickster_row():
     assert "billing: ''" in validator
     assert "did: DRY_RUN_OFF, billing: ''" in ts and "model: '', id: true, host: ''" in ts
     assert "roleLines(models('dryrun'), () => roleCell(strings.dryRun))" in ts
+    # Story mode (29 Oct 2026): the story stage's calls get their own fixed row, after the Dry run.
+    assert "...roleLines(models('storyteller'), () => roleCell(strings.storyteller)).map(bodyRow)," in ts
     # A Build with no Dry run verdict at all reads "skipped" here too, as the Dry run rows and the graph read it.
     assert "const dryRunOff = view.dry_run.every(({ verdict }) => verdict === DRY_RUN_OFF)" in ts
     assert "dry_run.length" not in ts

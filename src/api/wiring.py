@@ -1,7 +1,7 @@
 """`Settings` to adapters: the one place an adapter is chosen (AD-5, AD-7, AD-9, AD-14).
 
 `model_providers` resolves one `ModelProvider` per council role (`architect`,
-`riddler`, `dryrun`, `trickster`, `image`) from that role's
+`riddler`, `dryrun`, `storyteller`, `trickster`, `image`) from that role's
 `PROVIDER_<ROLE>`, which `Settings` defaults to `MODEL_PROVIDER`, so setting
 one role's key replaces that role's provider and no other. Every hosted
 adapter shares the process's one `SpendLedger` and the disk cache through
@@ -82,7 +82,8 @@ and validate reads the ledger for provenance; scene (2.22) writes the Room
 with its provenance from the ledger. With `DRY_RUN=on` the dryrun stage
 (2.24) runs on the `dryrun` role's provider and reads the ledger for the
 attempt's Room; with `DRY_RUN=off` (cut 4) the slot records every Puzzle
-`skipped` and makes no call.
+`skipped` and makes no call. The story stage runs on the `storyteller`
+role's provider and reads the ledger for the attempt's Room.
 """
 
 from __future__ import annotations
@@ -129,6 +130,7 @@ from src.pipeline.dryrun import dry_run_stage
 from src.pipeline.ports import ArtifactStore, AttemptStore, Cache, JobRunner, JobStore, LedgerStore, SessionStore
 from src.pipeline.scene import scene_stage, skipped_dry_run_stage
 from src.pipeline.segment import segment_stage
+from src.pipeline.story import story_stage
 from src.providers.base import HintPhraser, ModelProvider
 from src.providers.cache import GuardedCalls
 from src.providers.lazy import LazyProvider
@@ -151,13 +153,14 @@ ROLE_CALLS: dict[Role, tuple[CallKind, float]] = {
     "architect": ("vision", 15.0),
     "riddler": ("riddler", 45.0),
     "dryrun": ("dryrun", 30.0),
+    "storyteller": ("storyteller", 30.0),
     "trickster": ("trickster", 30.0),
     "image": ("image", IMAGE_BUDGET_S),
 }
 """Per role: the ledger kind its chat calls are priced as, and the budget a retry wait must fit in.
 
 Architect 15 s, Riddler 45 s and Dry run 30 s are the `budgets.md` rows; the
-Trickster has no row and takes its 30 s window; the image role makes no chat
+storyteller has no row and takes the Dry run's 30 s; the Trickster has no row and takes its 30 s window; the image role makes no chat
 call, so it carries the portrait budget of the Meta adapter.
 """
 
@@ -303,6 +306,7 @@ def build_stages(
         "author": author_stage(providers["riddler"], artifacts),
         "validate": validate_stage(artifacts, ledger),
         "dryrun": dry_run_stage(providers["dryrun"], artifacts, ledger) if dry_run else skipped_dry_run_stage(artifacts),
+        "story": story_stage(providers["storyteller"], artifacts, ledger),
         "scene": scene_stage(artifacts, ledger),
     }
 

@@ -79,7 +79,7 @@ def _sequence_length(puzzle: Puzzle) -> int | None:
 
 
 def to_play_view(room: Room) -> PlayView:
-    """The client shape: masks, photo hashes and evidence cards; never a solution, a Rung, a decoy mark or a path."""
+    """The client shape: masks, photo hashes, evidence cards and the story; never a solution, a Rung, a decoy mark or a path."""
     return PlayView(
         id=room.id,
         created=room.created,
@@ -94,6 +94,7 @@ def to_play_view(room: Room) -> PlayView:
             })
             for puzzle in room.puzzles
         ],
+        story=room.story,
     )
 
 
@@ -101,6 +102,7 @@ ROLE_STAGES: dict[Role, tuple[Stage, ...]] = {
     "architect": ("architect", "segment"),
     "riddler": ("author",),
     "dryrun": ("dryrun",),
+    "storyteller": ("story",),
 }
 """The stages whose done row a role's Model table row counts; segment's SAM calls run under the `architect` role."""
 DONE_ROWS: dict[Stage, str] = {
@@ -108,6 +110,7 @@ DONE_ROWS: dict[Stage, str] = {
     "segment": "outlined {n} object{s}",
     "author": "wrote {n} puzzle{s}",
     "dryrun": "tried {n} puzzle{s} blind",
+    "story": "wrote {n} story line{s}",
 }
 """The provenance count a stage's done row reads as in the Model table's "what it did" column."""
 

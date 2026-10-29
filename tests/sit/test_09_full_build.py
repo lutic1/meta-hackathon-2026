@@ -26,7 +26,7 @@ from src.providers.verbatim import VerbatimPhraser
 if TYPE_CHECKING:
     from scripts.sit import RecordingTransport, Sit
 
-BUILD_ROLES: tuple[Role, ...] = ("architect", "riddler", "dryrun")
+BUILD_ROLES: tuple[Role, ...] = ("architect", "riddler", "dryrun", "storyteller")
 """The council roles a Build calls; the Trickster and the image role never run in one."""
 FIXTURES: dict[Role, str] = {
     "architect": "chat-full-build-architect",

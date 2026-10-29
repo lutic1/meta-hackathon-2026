@@ -1,6 +1,9 @@
 """Scripted mock adapter: one per council role, no keys, no network (AD-5, AD-17).
 
-`MockProvider(role)` answers every call with a canned, clearly marked reply.
+`MockProvider(role)` answers every call with a canned, clearly marked reply,
+except a story request (`StoryResponse`), which it answers with one fixed
+story sized to the riddle count in the brief, so a mock Build keeps a
+storyteller's story and two runs over one Room write the same lines.
 `MockProvider(role, script=MockScript(...))` answers each call kind from that
 role's script in order and raises once a kind runs out, so a test is never
 served a reply it did not write. The mock bypasses the cache and the ledger
@@ -9,11 +12,12 @@ served a reply it did not write. The mock bypasses the cache and the ledger
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel
 
-from src.domain.schema import JobId, Polygon, Role, SessionId, Stage
+from src.domain.schema import JobId, Polygon, Role, SessionId, Stage, StoryResponse, StoryRiddleLines
 
 from .base import (
     ChatMessage,
@@ -26,6 +30,22 @@ from .base import (
 )
 
 CANNED_POLYGON: Polygon = [(0.0, 0.0), (64.0, 0.0), (64.0, 64.0), (0.0, 64.0)]
+
+
+def canned_story(riddles: int) -> str:
+    """The mock's story: fixed lines that name no object, no number and no answer, one riddle pair per riddle."""
+    return StoryResponse(
+        architect_welcome="Thank you for the photos. I measured every corner twice and grumbled only once.",
+        trickster_trap="Oh no, you seem to be trapped! I locked the way out and gave the key to the Riddler.",
+        riddler_entrance="Don't mind him; he thinks a locked door is a party. Answer my riddles, one at a time.",
+        guide_chest="Stuck? I keep two hints for the whole game. Choose your moment.",
+        riddles=[StoryRiddleLines(opening="Here is the next one. Take your time.", solved="Well done. The house noticed.")
+                 for _ in range(riddles)],
+        trickster_closing="Fine. Out you go. I'll lock it again for the next guest.",
+        riddler_closing="Clever mind. I'll write harder ones next time.",
+        guide_closing_no_hints="Not a single hint. I'm almost offended.",
+        guide_closing_hints="You let me help a little. I enjoyed every word.",
+    ).model_dump_json()
 
 
 @dataclass
@@ -92,6 +112,9 @@ class MockProvider(ModelProvider):
         self.calls.append(ChatCall(list(messages), list(images), response_schema, reasoning_effort, model, attempt, job_id, stage))
         if self._script is not None:
             text = self._next("chat", self._script.chat)
+        elif response_schema is StoryResponse:
+            brief = next(m.content for m in messages if m.role == "user")
+            text = canned_story(int(json.loads(brief)["riddles"]))
         else:
             last_user = next((m.content for m in reversed(messages) if m.role == "user"), "")
             text = f"[mock {self.role}] You said: {last_user!r}. This is a canned response."

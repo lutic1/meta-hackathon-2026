@@ -33,6 +33,8 @@ Added after the freeze:
 - `edit_bounds`: the named category in `ValidatorReason.rule` and `TricksterCard.reason` for a `validate_edit` refusal (payload paragraph above).
 - `ErrorEnvelope` {`error`: `ErrorDetail` {`code`, `message`, `stage` or null, `status`}}: `status` is the job status, set only on `build_not_ready` and left out of every other answer. A 422 `invalid_request` or `invalid_profile` message names declared field paths only and never echoes a sent value, a key inside a dict field or a room id.
 
+- `Room.story` and `PlayView.story` (amended 29 Oct 2026, story mode): a `Story` {`architect_welcome`, `trickster_trap`, `riddler_entrance`, `guide_chest`, `riddles[]` (`{puzzle_id, opening, solved}`, one per Puzzle, the exit last), `trickster_closing`, `riddler_closing`, `guide_closing_no_hints`, `guide_closing_hints`}, the wizards' lines the story stage writes once per Build (the storyteller's, or the fixed template lines filled from the Room); optional on `Room` and null on a Room built before story mode, so every stored Room still parses; `PlayView` always carries the key, null for such a Room. No line holds a solution token, a target or item label, an evidence attribute or a code. The storyteller's reply, `StoryResponse`, carries the same slots with `riddles` a list of `{opening, solved}` in riddle order and no map-typed field; it stays on the server, like the other model-response schemas.
+
 `HintReply` and `TriggerEvent` are not listed models of their own; they reach `GET /schema` and `web/types` inside `SessionState`. (amended 29 Oct 2026, correct-course record)
 
 ## Lock input and inventory

@@ -43,8 +43,8 @@ LockType = Literal["code", "order", "use_on", "find"]
 RungName = Literal["nudge", "direction", "near_answer"]
 RungLevel = Annotated[int, Field(ge=0, le=3)]
 EditType = Literal["decoy", "merge", "loosen", "shortcut"]
-Stage = Literal["ingest", "architect", "segment", "author", "validate", "dryrun", "scene"]
-Role = Literal["architect", "riddler", "dryrun", "trickster", "image"]
+Stage = Literal["ingest", "architect", "segment", "author", "validate", "dryrun", "story", "scene"]
+Role = Literal["architect", "riddler", "dryrun", "storyteller", "trickster", "image"]
 JobStatus = Literal["queued", "running", "done", "failed", "needs_more_photos", "needs_recapture"]
 OrdinalKey = Literal["p1", "p2", "p3", "p4", "p5", "p6"]
 """The Riddler's puzzle keys, mapped to `pz_` ids by the author stage (AD-18)."""
@@ -169,6 +169,34 @@ class Provenance(Model):
     """Ids of accepted Trickster edits folded into a session's effective Room; empty on the stored build Room."""
 
 
+class StoryRiddle(Model):
+    """The Riddler's two lines for one Puzzle: one to open it and one once it is solved; flavour only, never a place or an object."""
+
+    puzzle_id: PuzzleId
+    opening: str
+    solved: str
+
+
+class Story(Model):
+    """The Room's wizard lines, written by the storyteller at build time or filled from the fixed templates (story mode, 29 Oct 2026).
+
+    `riddles` holds one entry per Puzzle, the exit last; the client adds the
+    where-line to an opening and a solve line itself.
+    """
+
+    architect_welcome: str
+    trickster_trap: str
+    riddler_entrance: str
+    guide_chest: str
+    riddles: list[StoryRiddle]
+    trickster_closing: str
+    riddler_closing: str
+    guide_closing_no_hints: str
+    """The Guide's sign-off when the chest was never opened."""
+    guide_closing_hints: str
+    """The Guide's sign-off when at least one hint was spent."""
+
+
 class Room(Model):
     id: RoomId
     created: datetime
@@ -180,6 +208,8 @@ class Room(Model):
     decoys: list[Decoy] = Field(default_factory=list)
     """Empty on the stored build Room; written only by `apply_edit`."""
     provenance: Provenance
+    story: Story | None = None
+    """Written by the story stage; null on a Room built before story mode, where the client fills the templates."""
 
 
 # --- Model-response schemas: no map-typed field (AD-2) ---------------------
@@ -224,6 +254,25 @@ class RoomDraft(Model):
     """The Riddler's raw output, kept for provenance (AD-7)."""
 
     puzzles: list[PuzzleDraft]
+
+
+class StoryRiddleLines(Model):
+    opening: str
+    solved: str
+
+
+class StoryResponse(Model):
+    """The storyteller's reply: the `Story` slots, its riddles a list in riddle order, the exit last (no map field, AD-2)."""
+
+    architect_welcome: str
+    trickster_trap: str
+    riddler_entrance: str
+    guide_chest: str
+    riddles: list[StoryRiddleLines]
+    trickster_closing: str
+    riddler_closing: str
+    guide_closing_no_hints: str
+    guide_closing_hints: str
 
 
 class DryRunAnswer(Model):
@@ -515,6 +564,8 @@ class PlayView(Model):
     photos: list[PhotoView]
     interactables: list[PlayInteractable]
     puzzles: list[PlayPuzzle]
+    story: Story | None
+    """The Room's wizard lines; null on a Room built before story mode, where the client fills the templates."""
 
 
 # --- Job state (AD-7) and the Build view (AD-3) ----------------------------

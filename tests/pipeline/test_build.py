@@ -146,14 +146,14 @@ def test_the_stages_run_in_order_and_the_job_ends_done(jobs, artifacts, ticker, 
     done = build.run(queued.id)
     assert doubles.calls == list(AFTER_INGEST)
     assert [record.stage for record in done.stages] == list(STAGES) == [
-        "ingest", "architect", "segment", "author", "validate", "dryrun", "scene",
+        "ingest", "architect", "segment", "author", "validate", "dryrun", "story", "scene",
     ]
     assert done.status == "done" and done.stage is None and done.error is None
     assert jobs.read(queued.id) == done
 
 
-def test_the_stage_literal_lists_the_same_seven_stages():
-    assert set(STAGES) == set(get_args(Stage)) and len(STAGES) == 7
+def test_the_stage_literal_lists_the_same_eight_stages():
+    assert set(STAGES) == set(get_args(Stage)) and len(STAGES) == 8
 
 
 def test_job_state_is_persisted_through_the_store_after_every_stage(jobs, artifacts, ticker, doubles, uploads):
@@ -191,7 +191,7 @@ def test_ingest_persists_the_photos_as_stage_artifacts_under_the_room(jobs, arti
 def test_each_stage_timing_comes_from_the_build_clock(jobs, artifacts, ticker, doubles, uploads):
     build = _build(jobs, artifacts, ticker, doubles)
     doubles.advance_ms = 0
-    expected = {"architect": 12_345, "segment": 9_000, "author": 30_000, "validate": 2, "dryrun": 25_000, "scene": 7}
+    expected = {"architect": 12_345, "segment": 9_000, "author": 30_000, "validate": 2, "dryrun": 25_000, "story": 4_000, "scene": 7}
     for stage, ms in expected.items():
         doubles.hooks[stage] = lambda _state, ms=ms: ticker.advance_ms(ms)
     done = build.run(build.submit(uploads).id)
@@ -209,16 +209,17 @@ def test_job_state_carries_counts_model_ids_call_rows_and_the_build_time(jobs, a
         "author": StageResult(count=5, model="muse-spark-1.3", calls=[riddler_row]),
         "validate": StageResult(count=8),
         "dryrun": StageResult(count=5, model="muse-spark-1.3"),
+        "story": StageResult(count=18, model="muse-spark-1.3"),
         "scene": StageResult(count=1),
     }
     done = build.run(build.submit(uploads).id)
     assert [(r.stage, r.count, r.model) for r in done.stages] == [
         ("ingest", 6, None), ("architect", 9, "muse-spark-1.3"), ("segment", 9, "sam-3.1"), ("author", 5, "muse-spark-1.3"),
-        ("validate", 8, None), ("dryrun", 5, "muse-spark-1.3"), ("scene", 1, None),
+        ("validate", 8, None), ("dryrun", 5, "muse-spark-1.3"), ("story", 18, "muse-spark-1.3"), ("scene", 1, None),
     ]
     assert done.calls == [ARCHITECT_ROW, sam_row, riddler_row]
     assert done.sent_back == []  # the regeneration loop is its only writer
-    assert done.build_time_ms == sum(record.duration_ms for record in done.stages) == 6_000
+    assert done.build_time_ms == sum(record.duration_ms for record in done.stages) == 7_000
     assert done.regen_max == 2 and done.regeneration_count == 0
 
 
@@ -229,7 +230,7 @@ def test_demo_timescale_6_leaves_every_timing_unchanged(jobs, artifacts, ticker,
     doubles.advance_ms = 90_000
     done = build.run(build.submit(uploads).id)
     assert all(record.duration_ms == 90_000 for record in done.stages[1:])
-    assert done.build_time_ms == 6 * 90_000 + done.stages[0].duration_ms
+    assert done.build_time_ms == 7 * 90_000 + done.stages[0].duration_ms
     code = (REPO / "src" / "pipeline" / "build.py").read_text().split('"""', 2)[2]  # past the module docstring
     assert "timescale" not in code.lower() and "Settings" not in code
     assert "timescale" not in inspect.signature(Build).parameters
@@ -253,7 +254,7 @@ def test_a_new_runner_resumes_at_segment_and_never_repeats_the_architect_call(jo
     second_doubles = Doubles(ticker)
     second = _build(jobs, artifacts, ticker, second_doubles)
     done = second.run(queued.id)
-    assert second_doubles.calls == ["segment", "author", "validate", "dryrun", "scene"]
+    assert second_doubles.calls == ["segment", "author", "validate", "dryrun", "story", "scene"]
     assert second_doubles.seen["segment"] == left.model_copy(update={"status": "running", "stage": "segment"})
     assert done.status == "done" and done.calls == [ARCHITECT_ROW]
     assert [record.stage for record in done.stages] == list(STAGES)
@@ -268,7 +269,7 @@ def test_the_runner_rereads_job_state_from_the_store_on_entry(jobs, artifacts, t
     edited = queued.model_copy(update={"status": "running", "stage": "validate", "stages": [*queued.stages, architect, segment, author]})
     jobs.put(edited)
     done = build.run(queued.id)
-    assert doubles.calls == ["validate", "dryrun", "scene"]
+    assert doubles.calls == ["validate", "dryrun", "story", "scene"]
     assert [record.stage for record in done.stages] == list(STAGES) and done.stages[1:4] == [architect, segment, author]
 
 
@@ -432,8 +433,8 @@ def test_each_stage_writes_exactly_one_json_log_line(jobs, artifacts, ticker, do
     lines = _lines(caplog, done.id)
     assert [line["stage"] for line in lines] == list(STAGES)
     assert all(set(line) == {"job_id", "stage", "duration_ms", "spend_usd"} for line in lines)
-    assert [line["duration_ms"] for line in lines] == [0] + [2_500] * 6
-    assert [line["spend_usd"] for line in lines] == [0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert [line["duration_ms"] for line in lines] == [0] + [2_500] * 7
+    assert [line["spend_usd"] for line in lines] == [0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 
 def test_a_failed_stage_logs_its_one_line_with_the_code(jobs, artifacts, ticker, doubles, uploads, caplog):

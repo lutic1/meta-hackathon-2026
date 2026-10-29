@@ -118,7 +118,7 @@ def test_a_failing_draft_is_rewritten_from_the_reason_list_only_and_a_pass_proce
     assert done.sent_back == [SentBack(attempt=0, stage="validate", messages=[RULES[5].message])]
     assert all(verdict.passed for verdict in done.validator)
     assert [record.stage for record in done.stages] == [
-        "ingest", "architect", "segment", "author", "validate", "author", "validate", "dryrun", "scene",
+        "ingest", "architect", "segment", "author", "validate", "author", "validate", "dryrun", "story", "scene",
     ]
     assert len([row for row in done.calls if row.role == "riddler"]) == 2
     assert doubles.seen["dryrun"].regeneration_count == 1
@@ -273,7 +273,7 @@ def test_a_dry_run_failure_sends_the_job_back_to_author_and_a_pass_proceeds(loop
     done = runner.run(runner.submit(uploads).id)
     assert (done.status, done.regeneration_count) == ("done", 1)
     assert done.sent_back == [SentBack(attempt=0, stage="dryrun", messages=[DRY_MESSAGE])]
-    assert [record.stage for record in done.stages][3:] == ["author", "validate", "dryrun", "author", "validate", "dryrun", "scene"]
+    assert [record.stage for record in done.stages][3:] == ["author", "validate", "dryrun", "author", "validate", "dryrun", "story", "scene"]
 
 
 def test_regenerate_is_the_only_writer_of_the_count():
@@ -306,4 +306,4 @@ def test_a_new_runner_resumes_a_regeneration_at_author_with_the_advanced_count(l
     resumed = loop(provider).run(queued.id)
     assert (resumed.status, resumed.regeneration_count) == ("done", 1)
     assert [call.attempt for call in chat_calls(provider)] == [0, 1]
-    assert [record.stage for record in resumed.stages][3:] == ["author", "validate", "author", "validate", "dryrun", "scene"]
+    assert [record.stage for record in resumed.stages][3:] == ["author", "validate", "author", "validate", "dryrun", "story", "scene"]

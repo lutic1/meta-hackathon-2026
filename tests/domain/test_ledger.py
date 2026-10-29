@@ -65,7 +65,7 @@ def test_sam_and_image_calls_are_priced_per_image():
 
 
 def test_estimate_is_the_seed_before_any_observation():
-    assert SEED_USD == {"vision": 0.03, "sam": 0.0025, "riddler": 0.03, "dryrun": 0.03,
+    assert SEED_USD == {"vision": 0.03, "sam": 0.0025, "riddler": 0.03, "dryrun": 0.03, "storyteller": 0.03,
                         "trickster": 0.01, "image": 0.01, "reconstruct3d": 0.02}
     for kind, seed in SEED_USD.items():
         assert estimate_usd(kind, []) == seed

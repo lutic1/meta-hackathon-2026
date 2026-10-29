@@ -1,5 +1,5 @@
-// The Stage list's rows read from job state (FR-5, UX-DR16, AR-31): the five A-11 stage names over the seven
-// pipeline stages, a "Rewriting puzzles" row and a second "Testing the room" row per Regeneration, and each done
+// The Stage list's rows read from job state (FR-5, UX-DR16, AR-31): the six stage names over the eight
+// pipeline stages (A-11, and "Writing the story" since story mode), a "Rewriting puzzles" row and a second "Testing the room" row per Regeneration, and each done
 // row's duration, result and model id exactly as `GET /builds/<job_id>` records them. Nothing here is guessed: a
 // row shows what its stage records carry and leaves out what they do not.
 import type { JobState, StageRecord } from '../types'
@@ -8,7 +8,7 @@ import { fill, strings } from './strings.ts'
 export type RowState = 'pending' | 'running' | 'done' | 'failed'
 
 export interface StageRow {
-  /** Stable across polls: `reading`, `finding`, `writing-<k>`, `testing-<k>` or `scene`, k the attempt. */
+  /** Stable across polls: `reading`, `finding`, `writing-<k>`, `testing-<k>`, `story` or `scene`, k the attempt. */
   key: string
   name: string
   state: RowState
@@ -30,7 +30,7 @@ export interface StageRow {
 }
 
 type Stage = StageRecord['stage']
-type Kind = 'reading' | 'finding' | 'writing' | 'testing' | 'scene'
+type Kind = 'reading' | 'finding' | 'writing' | 'testing' | 'story' | 'scene'
 
 const KIND: Record<Stage, Kind> = {
   ingest: 'reading',
@@ -39,6 +39,7 @@ const KIND: Record<Stage, Kind> = {
   author: 'writing',
   validate: 'testing',
   dryrun: 'testing',
+  story: 'story',
   scene: 'scene',
 }
 
@@ -131,6 +132,7 @@ export function stageRows(job: JobState | null): StageRow[] {
     if (kind === 'reading') return strings.readingPhotos
     if (kind === 'finding') return strings.findingObjects
     if (kind === 'testing') return strings.testingRoom
+    if (kind === 'story') return strings.writingStory
     if (kind === 'scene') return strings.sceneLoading
     if (attempt === 0) return strings.writingPuzzles
     return fill(strings.rewritingPuzzles, { n: attempt, max: job?.regen_max ?? 0 })
@@ -149,6 +151,7 @@ export function stageRows(job: JobState | null): StageRow[] {
     if (kind === 'reading') return counted(strings.photoCount, count('ingest'))
     if (kind === 'finding') return counted(strings.objectCount, count('segment'))
     if (kind === 'writing') return counted(strings.puzzleCount, count('author'), strings.onePuzzle)
+    if (kind === 'story') return counted(strings.storyLines, count('story'))
     if (kind === 'scene') return counted(strings.scenesReady, count('scene'))
     const lines: string[] = []
     const validator = job?.validator ?? []
@@ -173,6 +176,7 @@ export function stageRows(job: JobState | null): StageRow[] {
     if (kind === 'finding') return found ?? reading
     if (kind === 'writing') return attempt === 0 ? strings.writingLine : strings.regenerationLine
     if (kind === 'testing') return strings.testingLine
+    if (kind === 'story') return strings.storyLine
     return strings.sceneLine
   }
 
@@ -183,6 +187,6 @@ export function stageRows(job: JobState | null): StageRow[] {
     const untested = attempt < attempts - 1 && !byKey.has(key('testing', attempt))
     if (!untested) rows.push(row('testing', attempt))
   }
-  rows.push(row('scene', 0))
+  rows.push(row('story', 0), row('scene', 0))
   return rows
 }

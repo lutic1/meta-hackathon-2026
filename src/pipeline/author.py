@@ -42,6 +42,7 @@ import pydantic
 from pydantic import TypeAdapter
 
 from src.council import architect as architect_prompt
+from src.council import storyteller as storyteller_prompt
 from src.council.riddler import PUZZLE_KEYS, DraftReason, build_author_prompt
 from src.domain.ledger import LedgerEntry, fold
 from src.domain.schema import (
@@ -84,7 +85,7 @@ PUZZLES = TypeAdapter(list[Puzzle])
 PUZZLE_COUNT = range(4, 7)
 """A Room holds four to six Puzzles. The response schema already requires `p1`..`p4` and allows only `p5`
 and `p6` beyond them, so the count check in `run_validate` is defence for stored Puzzles that bypassed it."""
-STAGE_ROLES: dict[Stage, Role] = {"architect": "architect", "author": "riddler", "dryrun": "dryrun"}
+STAGE_ROLES: dict[Stage, Role] = {"architect": "architect", "author": "riddler", "dryrun": "dryrun", "story": "storyteller"}
 """The council role whose model a stage record names, for `Provenance.model_ids`."""
 
 SHAPE_MESSAGE = "The draft did not follow the response shape."
@@ -202,9 +203,13 @@ def draft_reasons(reasons: Iterable[ValidatorReason], keys: dict[str, OrdinalKey
 
 
 def prompt_hashes(view: RoomView) -> dict[Role, str]:
-    """sha256 of each fixed prefix the Build sent: the Architect's instructions and the Riddler's system message."""
+    """sha256 of each fixed prefix the Build sent: the Architect's instructions and the Riddler's and the storyteller's system messages."""
     riddler = build_author_prompt(view).system
-    return {"architect": architect_prompt.prompt_hash(), "riddler": hashlib.sha256(riddler.encode()).hexdigest()}
+    return {
+        "architect": architect_prompt.prompt_hash(),
+        "riddler": hashlib.sha256(riddler.encode()).hexdigest(),
+        "storyteller": storyteller_prompt.prompt_hash(),
+    }
 
 
 def assemble_provenance(state: JobState, entries: Iterable[LedgerEntry], hashes: dict[Role, str]) -> Provenance:

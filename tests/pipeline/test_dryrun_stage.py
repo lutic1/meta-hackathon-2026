@@ -184,7 +184,7 @@ def test_one_dryrun_chat_call_over_the_2_23_prompt_with_the_photos_reaches_every
     done = runner.run(runner.submit(uploads).id)
 
     assert done.status == "done" and done.error is None and stored(artifacts, room_key(done.room_id))
-    assert [r.stage for r in done.stages][-2:] == ["dryrun", "scene"]
+    assert [r.stage for r in done.stages][-3:] == ["dryrun", "story", "scene"]
     assert len(solver.calls) == 1
     call = solver.calls[0]
     prompt = build_dry_run_prompt(to_prompt_view(assemble_room(done, artifacts, ledger)), DryRunAnswers)
@@ -257,7 +257,7 @@ def test_a_failed_dry_run_sends_the_job_back_to_author_and_the_retry_carries_the
     assert done.status == "done" and done.regeneration_count == 1
     assert [call.attempt for call in solver.calls] == [0, 1]
     assert done.sent_back == [SentBack(attempt=0, stage="dryrun", messages=[MISMATCH_MESSAGE])]
-    assert [r.stage for r in done.stages][3:] == ["author", "validate", "dryrun", "author", "validate", "dryrun", "scene"]
+    assert [r.stage for r in done.stages][3:] == ["author", "validate", "dryrun", "author", "validate", "dryrun", "story", "scene"]
     assert {v.verdict for v in done.dry_run} == {"pass"} and reached(done) == (5, 5)
     assert {v.puzzle_id for v in done.dry_run} == {p.id for p in read_puzzles(done.room_id, artifacts)}
 

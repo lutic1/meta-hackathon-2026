@@ -180,7 +180,7 @@ def test_session_clock_takes_the_timescale_from_settings(env, timescale):
 
 # --- One ModelProvider per council role (Story 2.12) ------------------------
 
-ROLES: tuple[Role, ...] = ("architect", "riddler", "dryrun", "trickster", "image")
+ROLES: tuple[Role, ...] = ("architect", "riddler", "dryrun", "storyteller", "trickster", "image")
 FALLBACK = {"OPENAI_COMPATIBLE_BASE_URL": "https://inference.baseten.co/v1", "OPENAI_COMPATIBLE_API_KEY": "test-fallback-key"}
 
 
@@ -319,7 +319,7 @@ def test_dry_run_on_runs_the_dryrun_stage_on_its_role_before_scene_writes_the_ro
 
     assert done.status == "done" and len(solver.calls) == 1
     assert {verdict.verdict for verdict in done.dry_run} == {"pass"} and len(done.dry_run) == 5
-    assert [row.role for row in done.calls] == ["riddler", "dryrun"]
+    assert [row.role for row in done.calls] == ["riddler", "dryrun", "storyteller"]
     assert artifacts.read(room_key(done.room_id))
 
 
