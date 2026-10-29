@@ -42,18 +42,29 @@ def test_the_chooser_strings_are_the_experience_lines():
     assert (strings["watchCardPrompt"], strings["watchBackTag"]) == ("Watch it bigger", "muted · 0:10")
     assert (strings["playCardEyebrow"], strings["playCardPrompt"]) == ("The sample room", "Step inside")
     assert (strings["buildCardEyebrow"], strings["buildCardTitle"], strings["buildCardTag"]) == ("Your photos", "Build your own", "~3 min")
-    assert strings["buildCardLine"] == "Six to ten photos of one room in. Four wizards build a room from them in about three minutes."
+    assert strings["buildCardLine"] == (
+        "Six to ten photos of one room. Four wizards, Meta's Muse Spark and SAM underneath, find the objects, write the riddles"
+        " and test every lock. About three minutes.")
     assert strings["buildCardPrompt"] == "See how it works"
     assert [strings[f"buildStep{n}"] for n in (1, 2, 3)] == [
         "Six to ten photos in", "Four wizards build a room", "Three minutes later, you play"]
+    assert strings["buildStep2Body"] == (
+        "With Meta's Muse Spark and SAM underneath, they find the objects, write the riddles and test that every lock opens.")
     assert strings["accessCodeAsk"] == "Have an access code?"
     assert strings["accessCodeNote"] == "Building a room needs the code from the submission."
     assert (strings["back"], strings["backToCards"], strings["pauseMotion"]) == ("Back", "Back to the three cards", "Pause motion")
     assert strings["cardAnnounce"].format(title="Watch the demo", n=1) == "Watch the demo, card 1 of 3. Click or press Enter to choose."
-    # No line on the first screen names AI, an assistant, an agent or a model.
-    first_screen = [value for key, value in strings.items() if key.startswith(("chooser", "watch", "play", "build", "hero", "keys"))]
-    for value in first_screen:
-        assert not re.search(r"(?i)\b(AI|assistant|agent|model|muse|sam-|llama)\b", value), value
+    # No line on the first screen names AI, an assistant, an agent or a model, but the Build card and its second step
+    # say what the four wizards stand on: Meta's Muse Spark and SAM, by name, never a model id (owner decision Oct 29).
+    named = {"buildCardLine", "buildStep2Body"}
+    first_screen = {key: value for key, value in strings.items() if key.startswith(("chooser", "watch", "play", "build", "hero", "keys"))}
+    for key, value in first_screen.items():
+        assert not re.search(r"(?i)\b(AI|assistant|agent|model|llama)\b|\b(muse|sam)-", value), value
+        assert ("Meta's Muse Spark and SAM" in value) == (key in named), key
+    rows = {row.split(" |", 1)[0]: row for row in _section("Voice and Tone").split("\n| ")}
+    assert f'"{strings["buildCardLine"]}"' in rows["Build card"]
+    assert f'"{strings["buildStep2"]}" / "{strings["buildStep2Body"]}"' in rows["Build back"]
+    assert "except the Build card and its second step" in rows["Chooser pitch (the wordmark \"Keyframe\" stays in the top bar)"]
     for key in ("chooserSubline", "watchCardLine", "buildCardLine", "cardAnnounce", "backToCards", "accessCodeNote"):
         assert strings[key].replace("{title}", "").replace("{n}", "") .split(",")[0][:20] in _section("Voice and Tone"), key
 
