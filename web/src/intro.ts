@@ -73,13 +73,14 @@ function control(className: string, label: string): HTMLButtonElement {
  * skips. At its end it holds the title and offers "Replay" and "Enter Keyframe"; the intro that showed by itself (`first`)
  * counts down "Entering in 4…" and enters by itself unless Replay is chosen. Entering or skipping fades it out over
  * 600 ms; ending, skipping or entering marks it seen. Under reduced motion it never plays by itself: it shows the native
- * controls and leaves the out instant. A video that errors or will not play falls straight through to the landing.
+ * controls, moves "Skip intro" to the top right, off their bar, and leaves the out instant. A video that errors or will not play falls straight through to the landing.
  * Everything else in the page is inert while it shows, and focus goes back where it was.
  */
 export function openIntro(first: boolean): Intro {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
   const overlay = document.createElement('div')
   overlay.className = 'intro'
+  overlay.classList.toggle('is-reduced', reduced)
   overlay.setAttribute('role', 'dialog')
   overlay.setAttribute('aria-modal', 'true')
   overlay.setAttribute('aria-label', strings.introLabel)

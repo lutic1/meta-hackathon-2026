@@ -141,6 +141,11 @@ def test_reduced_motion_skips_the_auto_show_and_the_control_reopens_it_with_nati
     intro = _intro()
     assert "video.controls = reduced" in intro and "sound.hidden = reduced" in intro
     assert "if (!reduced) video.play().catch(() => close(false))" in intro
+    # The native control bar runs along the bottom, so "Skip intro" moves to the top right, where "Sound on" would be.
+    assert "overlay.classList.toggle('is-reduced', reduced)" in intro
+    rules = css_rules((WEB_SRC / "intro.css").read_text())
+    assert rules[".intro-skip"]["bottom"] == "var(--spacing-5)"
+    assert rules[".intro.is-reduced .intro-skip"] == {"top": "var(--spacing-5)", "bottom": "auto"}
     chooser = _code("chooser.ts")
     assert "const introButton = element('button', 'chooser-intro-toggle label', strings.watchIntro)" in chooser
     reopen = chooser.split("introButton.addEventListener('click', () => {", 1)[1].split("\n  })", 1)[0]

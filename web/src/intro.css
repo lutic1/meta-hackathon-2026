@@ -1,5 +1,6 @@
 /* The full-screen intro (owner decision Oct 29): above everything, on black, the teaser covering the viewport (held
-   whole, letterboxed, when the window's aspect is extreme); "Sound on" top right, "Skip intro" bottom right, and at
+   whole, letterboxed, when the window's aspect is extreme); "Sound on" top right, "Skip intro" bottom right (top right,
+   clear of the native controls, under reduced motion), and at
    its end the countdown line over "Replay" and "Enter Keyframe" under the title. Its fade out runs in intro.ts.
    Below 1024 px the Narrow-screen message replaces the app, and the intro with it. */
 .intro {
@@ -51,6 +52,11 @@
 }
 .intro-skip {
   bottom: var(--spacing-5);
+}
+/* Under reduced motion the native control bar runs along the bottom: Skip takes the top right, where "Sound on" would be. */
+.intro.is-reduced .intro-skip {
+  top: var(--spacing-5);
+  bottom: auto;
 }
 /* The end: under the title, centred, over the dark last frame. */
 .intro-end {
