@@ -83,6 +83,7 @@ export const strings = {
   submit: 'Submit',
   checking: 'Checking',
   inHand: '{label} · in hand',
+  found: '{label} · found',
   startSequence: 'Start the sequence',
   stopSequence: 'Stop the sequence',
   sequenceProgress: '{filled} of {length}',

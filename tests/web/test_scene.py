@@ -161,7 +161,8 @@ def test_a_pressed_hotspot_fills_solid_lamp_and_a_click_shows_checking_beside_it
     scene = _ts("scene/index.ts")
     activate = scene.split("async function activate(", 1)[1].split("\n  }\n", 1)[0]
     assert "const pending = layer?.showPending(interactable)" in activate
-    assert "const reply = await play.post({ type: 'click', interactable_id: interactable.id }).finally(pending)" in activate
+    assert "const click: PostedEvent = { type: 'click', interactable_id: interactable.id }" in activate
+    assert "const reply = await play.post(click).finally(pending)" in activate
     assert activate.index("const pending = layer?.showPending(") < activate.index("await play.post(")
     # The same held chip as a use_on: no dwell, timeout, pointer leave or blur clears it before the reply.
     layer = _ts("scene/hotspots.ts")
@@ -173,7 +174,8 @@ def test_a_click_inside_a_polygon_posts_exactly_one_click_and_a_click_outside_po
     layer, scene, api = _ts("scene/hotspots.ts"), _ts("scene/index.ts"), _ts("api/index.ts")
     assert layer.count("addEventListener('click'") == 1
     assert "hotspot.addEventListener('click', () => handlers.onActivate(interactable))" in layer
-    assert "play.post({ type: 'click', interactable_id: interactable.id })" in scene
+    assert "const click: PostedEvent = { type: 'click', interactable_id: interactable.id }" in scene
+    assert "play.post(click)" in scene
     # The one other post is a select-then-click's or a drop's `use_on` (Story 1.26), which never sends a click.
     assert scene.count("play.post(") == 2 and "postEvent(" not in scene
     play = _ts("play.ts")
@@ -193,11 +195,13 @@ def test_a_non_target_click_shows_only_the_label_chip_8px_above_for_2s_or_until_
     scene, layer = _ts("scene/index.ts"), _ts("scene/hotspots.ts")
     activate = scene.split("async function activate(", 1)[1].split("\n  }\n", 1)[0]
     # Judged against the state before this click was posted, so a poll landing in between cannot hide the chip.
-    assert activate.index("const before = play.state().locks_open") < activate.index("await play.post(")
-    assert "const opened = reply.locks_open.some((id) => !before.includes(id))" in activate
+    assert activate.index("const before = play.state()") < activate.index("await play.post(")
+    assert "const opened = reply.locks_open.some((id) => !before.locks_open.includes(id))" in activate
     assert "if (mounted && !opened) layer?.showLabel(interactable)" in activate
     assert "export const CHIP_OFFSET_PX = 8" in layer and "export const CHIP_MS = 2000" in layer
-    assert "showChip(interactable, held ? fill(strings.inHand, { label: interactable.label }) : interactable.label, hold)" in layer
+    assert "? fill(strings.inHand, { label: interactable.label })" in layer
+    assert ": foundIds.includes(interactable.id) ? fill(strings.found, { label: interactable.label }) : interactable.label" in layer
+    assert "showChip(interactable, text, hold)" in layer
     assert "chip.textContent = text" in layer
     assert "rendered.height - top * scale + CHIP_OFFSET_PX" in layer
     assert "setTimeout(() => hide?.(), CHIP_MS)" in layer

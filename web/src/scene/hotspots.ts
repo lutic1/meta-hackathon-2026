@@ -34,11 +34,15 @@ export interface HotspotLayer {
   elements: [SVGSVGElement, HTMLElement]
   /**
    * Shows the Interactable's label on the chip after a click: until 2 s pass or the pointer leaves its Hotspot, or
-   * for as long as its Hotspot keeps keyboard focus. "{label} · in hand" for an Interactable the Inventory holds.
+   * for as long as its Hotspot keeps keyboard focus. "{label} · in hand" for an Interactable the Inventory holds,
+   * "{label} · found" for a found target.
    */
   showLabel: (interactable: PlayInteractable) => void
-  /** Marks the Hotspots of the Interactables `inventory` holds: a collected one's glow fades out and stays out. */
-  setCollected: (inventory: readonly string[]) => void
+  /**
+   * Marks the Hotspots of the Interactables `inventory` holds and of the `foundIds` targets (solved `find` targets no
+   * `use_on` needs): the glow of either fades out and stays out.
+   */
+  setCollected: (inventory: readonly string[], foundIds: readonly string[]) => void
   /**
    * Shows the Interactable's label on the chip with the "Checking" chip beside it, held (no dwell, timeout, pointer
    * leave or blur replaces it) until the returned function clears it: a `click` or `use_on` waiting for its reply.
@@ -83,7 +87,7 @@ export function hotspotReveal(d: string): SVGGElement {
  * shows on hover, with the label chip once the pointer has dwelt 400 ms and until it leaves, and keyboard focus
  * traces the focus ring along it with the label chip shown at once, for as long as it keeps focus (UX-DR69). A
  * collected `find` target stays in the Scene, still a Hotspot, but its glow fill fades out over 200 ms and no longer
- * shows (FR-12). An Inventory item dragged over a Hotspot shows the same reveal as hover, and dropped there it is
+ * shows (FR-12), and so does a found one, which no `use_on` needs and the Inventory never holds. An Inventory item dragged over a Hotspot shows the same reveal as hover, and dropped there it is
  * handed to `onDrop`; a drop anywhere else reaches no Hotspot (UX-DR36). `bloom` plays the unlock moment on a
  * solved target: its bloom path, the polygon filled solid lamp under the lamp drop shadow, fades in and out whatever
  * hover, focus, "Show all objects" or the collected state show on the Hotspot.
@@ -143,6 +147,7 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
   /** Clears the chip held for a pending click or `use_on`, which no focus, dwell, timeout or pointer leave replaces. */
   let release: (() => void) | undefined
   let collected: readonly string[] = []
+  let foundIds: readonly string[] = []
 
   /**
    * Shows `text` (a label, or a label and the Checking chip) on the chip over the Interactable's Hotspot: until the
@@ -184,14 +189,20 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     return done
   }
 
-  function setCollected(inventory: readonly string[]): void {
+  function setCollected(inventory: readonly string[], found: readonly string[]): void {
     collected = inventory
-    for (const [id, hotspot] of hotspots) hotspot.classList.toggle('is-collected', inventory.includes(id))
+    foundIds = found
+    for (const [id, hotspot] of hotspots) {
+      hotspot.classList.toggle('is-collected', inventory.includes(id) || foundIds.includes(id))
+    }
   }
 
   function showLabel(interactable: PlayInteractable, hold: ChipHold = 'click'): void {
     const held = collected.includes(interactable.id)
-    showChip(interactable, held ? fill(strings.inHand, { label: interactable.label }) : interactable.label, hold)
+    const text = held
+      ? fill(strings.inHand, { label: interactable.label })
+      : foundIds.includes(interactable.id) ? fill(strings.found, { label: interactable.label }) : interactable.label
+    showChip(interactable, text, hold)
   }
 
   function showPending(interactable: PlayInteractable): () => void {

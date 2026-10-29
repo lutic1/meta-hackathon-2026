@@ -47,6 +47,7 @@ def test_the_lock_strings_are_the_experience_lines():
     assert strings["checking"] == "Checking" and strings["submit"] == "Submit"
     assert strings["notThis"].format(n=3) == "Not this · 3" and strings["solved"] == "Solved"
     assert strings["inHand"].format(label="brass key") == "brass key · in hand"
+    assert strings["found"].format(label="floor vent") == "floor vent · found"
 
 
 def test_a_code_puzzle_entry_holds_the_code_field_in_its_lock_slot():
@@ -166,11 +167,13 @@ def test_open_is_held_1200_ms_then_the_entry_collapses_and_the_next_entry_fades_
 
 def test_a_find_click_posts_only_the_click_and_the_collected_target_fades_into_the_inventory():
     scene, layer = _ts("scene/index.ts"), _ts("scene/hotspots.ts")
-    assert "play.post({ type: 'click', interactable_id: interactable.id })" in scene
+    assert "const click: PostedEvent = { type: 'click', interactable_id: interactable.id }" in scene
+    assert "play.post(click)" in scene
     assert scene.count("play.post(") == 2  # the click, and a `use_on` (Story 1.26), never both for one activation
-    assert "layer?.setCollected(state.inventory)" in scene and "layer.setCollected(play.state().inventory)" in scene
+    assert "layer?.setCollected(state.inventory, foundTargets(play.id))" in scene
+    assert "layer.setCollected(play.state().inventory, foundTargets(play.id))" in scene
     assert "onState: (render) => {\n      parts.push(render)" in _ts("play.ts")
-    assert "hotspot.classList.toggle('is-collected', inventory.includes(id))" in layer
+    assert "hotspot.classList.toggle('is-collected', inventory.includes(id) || foundIds.includes(id))" in layer
     rules = _rules("scene/scene.css")
     assert rules[".hotspot-glow"]["transition"] == "opacity var(--motion-state) var(--motion-ease)"
     assert rules[".hotspot.is-collected .hotspot-glow"] == {"opacity": "0"}
@@ -190,6 +193,21 @@ def test_a_later_click_on_a_collected_hotspot_shows_label_in_hand():
     show = _body(layer, "function showLabel(")
     assert "const held = collected.includes(interactable.id)" in show
     assert "fill(strings.inHand, { label: interactable.label })" in show
+
+
+def test_a_found_target_no_use_on_needs_settles_like_a_collected_one_and_answers_found():
+    # Owner decision Oct 29: a click that opened a find lock and carried nothing records its target as found in the
+    # page, so its Hotspot's glow settles and a later click reads "{label} · found" on the chip and the feedback line.
+    scene, layer = _ts("scene/index.ts"), _ts("scene/hotspots.ts")
+    activate = _body(scene, "async function activate(")
+    assert "const before = play.state()" in activate
+    assert "const target = room === undefined ? null : foundBy(room, click, before, reply)" in activate
+    assert "found.set(play.id, [...foundTargets(play.id), target])" in activate
+    assert "layer?.setCollected(reply.inventory, foundTargets(play.id))" in activate
+    show = _body(layer, "function showLabel(")
+    assert "foundIds.includes(interactable.id) ? fill(strings.found, { label: interactable.label })" in show
+    # The Completion filmstrip still lights a target never carried: it reads the bloomed targets beside the Inventory.
+    assert "new Set([...session.inventory, ...solvedTargets(session.id)])" in _ts("completion.ts")
 
 
 def test_every_lock_color_pair_is_in_the_contrast_table_and_passes():
@@ -235,7 +253,7 @@ def test_a_find_click_opens_the_lock_and_a_later_click_on_its_target_changes_not
     session = client.post("/api/sessions", json={"room_id": four_lock_room.id}).json()
     events = f"/api/sessions/{session['id']}/events"
     first = client.post(events, json={"type": "click", "interactable_id": IX["key"]}).json()
-    assert first["locks_open"] == [PZ["find_key"]] and first["inventory"] == [IX["key"]]
+    assert first["locks_open"] == [PZ["find_key"]] and first["inventory"] == [IX["key"]]  # the chest needs the key
     again = client.post(events, json={"type": "click", "interactable_id": IX["key"]}).json()
     assert again["locks_open"] == first["locks_open"] and again["inventory"] == first["inventory"]
     assert again["wrong_attempts"] == first["wrong_attempts"]  # a click is never a Wrong attempt

@@ -10,12 +10,13 @@ import {
   TextureLoader,
   WebGLRenderer,
 } from 'three'
-import type { PlayInteractable, PlayView } from '../../types'
+import type { PlayInteractable, PlayView, PostedEvent } from '../../types'
 import { photoUrl } from '../api/index.ts'
 import { feedbackLine } from '../components/feedback-line.ts'
 import { GLOW_MS, GLOW_REDUCED_MS } from '../components/hint-area.ts'
 import { objectCounts, type ThumbnailStrip, thumbnailStrip } from '../components/thumbnail-strip.ts'
 import { glowOnce } from '../fade.ts'
+import { foundBy } from '../feedback.ts'
 import type { PlaySession } from '../play.ts'
 import { strings } from '../strings.ts'
 import { useOnChip } from '../use-on.ts'
@@ -49,6 +50,14 @@ export function solvedTargets(sessionId: string): string[] {
   return solved.get(sessionId) ?? []
 }
 
+/** The targets each session's clicks found in this page (`foundBy`): solved `find` targets no `use_on` needs. */
+const found = new Map<string, string[]>()
+
+/** The targets the clicks of `sessionId` found in this page, in order; none after a reload. */
+export function foundTargets(sessionId: string): string[] {
+  return found.get(sessionId) ?? []
+}
+
 /** The mounted Scene: its teardown, and the redraw for the refetched Effective room. */
 export interface MountedScene {
   unmount: () => void
@@ -76,8 +85,9 @@ function firstPointerResponse(sessionId: string): void {
  * space. The frame shows its loading line until a photo and its Hotspots are live. A Hotspot click posts one `click`
  * naming its Interactable and nothing else, its label chip showing with "Checking" beside it until the reply; when
  * the reply opened no lock, the click hit no target and the label chip stays ("{label} · in hand" on an Interactable
- * the Inventory holds). The Hotspots of collected Interactables
- * follow `inventory` in every state the server sends, so a solved `find` target's glow fades out. An Inventory item
+ * the Inventory holds, "{label} · found" on a found target). The Hotspots of collected Interactables follow
+ * `inventory` in every state the server sends, so a solved `find` target's glow fades out; a click that found a target
+ * no `use_on` needs (`foundBy`) keeps it in `foundTargets`, and its glow fades out the same way. An Inventory item
  * dropped on a Hotspot, or a Hotspot activated while an item is selected (whose "Using {item label}" chip is pinned
  * to the frame's top-left), posts one `use_on` lock input naming the item and the Hotspot's Interactable, never a
  * `click` and never a Puzzle (AD-4), and clears the selection; until the reply, the target's label chip shows with
@@ -178,10 +188,16 @@ export function mountScene(
     const item = play.useOn.selected()
     if (item !== null) return useOn(item, interactable)
     lastTarget = interactable.id
-    const before = play.state().locks_open
+    const before = play.state()
+    const click: PostedEvent = { type: 'click', interactable_id: interactable.id }
     const pending = layer?.showPending(interactable)
-    const reply = await play.post({ type: 'click', interactable_id: interactable.id }).finally(pending)
-    const opened = reply.locks_open.some((id) => !before.includes(id))
+    const reply = await play.post(click).finally(pending)
+    const target = room === undefined ? null : foundBy(room, click, before, reply)
+    if (target !== null) {
+      found.set(play.id, [...foundTargets(play.id), target])
+      if (mounted) layer?.setCollected(reply.inventory, foundTargets(play.id))
+    }
+    const opened = reply.locks_open.some((id) => !before.locks_open.includes(id))
     if (mounted && !opened) layer?.showLabel(interactable)
   }
 
@@ -200,7 +216,7 @@ export function mountScene(
         },
       },
     )
-    layer.setCollected(play.state().inventory)
+    layer.setCollected(play.state().inventory, foundTargets(play.id))
     photo.replaceChildren(renderer.domElement, ...layer.elements)
   }
 
@@ -253,7 +269,7 @@ export function mountScene(
   }
 
   play.onState((state) => {
-    if (mounted) layer?.setCollected(state.inventory)
+    if (mounted) layer?.setCollected(state.inventory, foundTargets(play.id))
   })
 
   function bloom(target: string | null): void {

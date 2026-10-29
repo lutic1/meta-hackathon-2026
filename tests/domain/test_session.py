@@ -96,11 +96,42 @@ def applied(machine: SessionStateMachine, log: list[Event]) -> list[SessionState
 # --- find locks ---------------------------------------------------------------
 
 
-def test_a_click_on_the_target_of_an_available_find_puzzle_opens_it_into_the_inventory(code_and_find_room):
+def test_a_click_on_the_target_of_an_available_find_puzzle_opens_it(code_and_find_room):
     machine = SessionStateMachine(code_and_find_room)
     state = run(machine, click("key"))
-    assert state.locks_open == [PZ["find_key"]] and state.inventory == [IX["key"]]
+    assert state.locks_open == [PZ["find_key"]] and state.inventory == []  # no use_on needs the key in this room
     assert all(count == 0 for count in state.wrong_attempts.values())
+
+
+# --- Found or carried (owner decision, Oct 29) ------------------------------------
+
+
+def test_a_find_target_a_later_use_on_needs_is_carried_in_the_inventory(four_lock_room):
+    state = run(SessionStateMachine(four_lock_room), click("key"))
+    assert state.locks_open == [PZ["find_key"]] and state.inventory == [IX["key"]]
+
+
+def test_a_find_target_no_use_on_needs_is_found_its_lock_opens_and_nothing_is_carried(code_and_find_room):
+    state = run(SessionStateMachine(code_and_find_room), click("key"), click("lantern"))
+    assert state.locks_open == [PZ["find_key"], PZ["find_lantern"]] and state.inventory == []
+
+
+def exit_find_log() -> list[Event]:
+    """The four-lock room with a `find` Exit on the door, solved through: the key is carried, the door only found."""
+    return [click("key", 1000), use_on("key", "chest", 2000), code("clock_code", "415", 3000),
+            order_start("shelf_order", 4000), click("candle", 5000), click("lantern", 6000),
+            click("hourglass", 7000), click("door", 8000)]
+
+
+def test_the_exit_find_is_found_never_carried_and_replay_reproduces_the_inventory(four_lock_room):
+    room = with_puzzle(four_lock_room, "door_code", lock_type="find", solution={"lock_type": "find", "target": IX["door"]})
+    machine = SessionStateMachine(room)
+    log = exit_find_log()
+    states = applied(machine, log)
+    for n, state in enumerate(states, start=1):
+        assert machine.replay(SESSION, log[:n]) == state
+    live = states[-1]
+    assert machine.is_complete(live) and live.inventory == [IX["key"]]
 
 
 def test_the_same_click_while_a_required_puzzle_is_closed_opens_nothing_and_is_not_a_wrong_attempt(code_and_find_room):
@@ -109,7 +140,7 @@ def test_the_same_click_while_a_required_puzzle_is_closed_opens_nothing_and_is_n
     assert state.locks_open == [] and state.inventory == []
     assert sum(state.wrong_attempts.values()) == 0
     after = run(machine, click("lantern"), click("key"), click("lantern"))
-    assert after.locks_open == [PZ["find_key"], PZ["find_lantern"]] and after.inventory == [IX["key"], IX["lantern"]]
+    assert after.locks_open == [PZ["find_key"], PZ["find_lantern"]] and after.inventory == []
 
 
 def test_a_click_on_any_other_hotspot_changes_no_lock_and_counts_nothing(code_and_find_room):
@@ -426,8 +457,11 @@ def test_a_resolved_pair_that_does_not_match_counts_one_wrong_attempt_and_target
 
 
 def test_a_pair_matching_no_item_resolves_by_target(four_lock_room):
-    # The clock becomes a find Puzzle, built directly as a Room, so a second item can reach the inventory.
+    # The clock becomes a find Puzzle whose target a use_on still waiting on the chest names, built directly as a
+    # Room, so a second item reaches the inventory with no available use_on Puzzle naming it.
     room = with_puzzle(four_lock_room, "clock_code", lock_type="find", solution={"lock_type": "find", "target": IX["clock"]})
+    room = with_puzzle(room, "shelf_order", lock_type="use_on", requires=[PZ["clock_code"], PZ["key_on_chest"]],
+                       solution={"lock_type": "use_on", "item": IX["clock"], "target": IX["hourglass"]})
     machine = SessionStateMachine(room)
     events = [click("key"), click("clock"), use_on("clock", "chest")]
     state = run(machine, *events)
@@ -524,7 +558,7 @@ def test_the_replayed_state_equals_the_state_built_live(code_and_find_room):
     assert machine.replay(SESSION, full_log()) == live
     assert machine.is_complete(live) and live.active_puzzle_id is None
     assert live.locks_open == [PZ["find_key"], PZ["clock_code"], PZ["find_lantern"], PZ["door_code"]]
-    assert live.inventory == [IX["key"], IX["lantern"]]
+    assert live.inventory == []  # found, never carried: no use_on in this room
     assert live.wrong_attempts == {PZ["find_key"]: 0, PZ["clock_code"]: 2, PZ["find_lantern"]: 0, PZ["door_code"]: 1}
     assert live.current_rung == {PZ["find_key"]: 0, PZ["clock_code"]: 1, PZ["find_lantern"]: 0, PZ["door_code"]: 1}
     assert live.rungs_used == 2 and [r.t_ms for r in live.rung_changes] == [16000, 26000]

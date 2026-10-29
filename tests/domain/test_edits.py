@@ -443,6 +443,28 @@ def test_an_accepted_merge_hiding_the_active_puzzle_moves_it_in_the_cards_step(f
     assert live == states[-1]
 
 
+
+# --- The Inventory across edits (owner decision, Oct 29) ----------------------------
+
+
+def test_after_every_accepted_edit_each_open_find_target_a_use_on_names_is_carried_and_nothing_held_leaves(four_lock_room):
+    machine = SessionStateMachine(four_lock_room)
+    found: list[Event] = [click_key(1_000)]
+    log, room = list(found), four_lock_room
+    edits = [merge(71, "clock_code", "key_on_chest"), shortcut(72, "shelf_order", "clock_code"),
+             decoy(73, "shelf_order", "rug", "faded red"), loosen(74, "clock_code", "nudge")]
+    for revision, edit in enumerate(edits, start=1):
+        accepted = card(edit, check_edit(room, window_state(room), edit), revision, 1_000 + revision)
+        assert accepted.accepted, edit.type
+        log, room = [*log, accepted], apply_edit(room, edit)
+        assert machine.replay(SESSION, log).inventory == [IX["key"]], edit.type
+    # The key found while no use_on named it (no edit type changes a solution today): the edit's step carries it.
+    edit = loosen(75, "clock_code", "nudge")
+    accepted = card(edit, check_edit(four_lock_room, window_state(four_lock_room), edit), 1, 2_000)
+    uncarried = machine.replay(SESSION, found).model_copy(update={"inventory": []})
+    after = machine.apply(uncarried, accepted, history=machine.history(SESSION, found))
+    assert after.locks_open == [PZ["find_key"]] and after.inventory == [IX["key"]]
+
 # --- Loosen: the Rung opens at once --------------------------------------------------
 
 

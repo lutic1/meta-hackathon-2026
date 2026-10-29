@@ -167,7 +167,7 @@ def test_the_game_state_summary_holds_exactly_the_open_locks_the_elapsed_time_an
     log = sentinel_log()
     state = run(machine, *log)
     assert state.locks_open == [PZ["clock_code"], PZ["find_key"]] and state.rungs_used == 1
-    assert SENTINEL_FIND in state.inventory  # the state holds it; the summary never does
+    assert SENTINEL_FIND not in state.inventory  # found, not carried: no use_on names it as its item
     summary = game_state_summary(state, 200_000)
     assert summary == GameStateSummary(locks_open=[PZ["clock_code"], PZ["find_key"]], elapsed_ms=200_000, rungs_used=1)
     assert set(GameStateSummary.model_fields) == {"locks_open", "elapsed_ms", "rungs_used"}

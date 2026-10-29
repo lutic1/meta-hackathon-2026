@@ -15,7 +15,7 @@ import { announce } from './live-region.ts'
 import { sessionStart } from './profile/index.ts'
 import { currentPlace, placeHref } from './router.ts'
 import { type RoomGone, roomGone, showRoomGone } from './room-gone.ts'
-import { lastShownPhoto, mountScene } from './scene/index.ts'
+import { foundTargets, lastShownPhoto, mountScene } from './scene/index.ts'
 import { strings } from './strings.ts'
 import { tricksterRequest } from './trickster-request.ts'
 import { type UseOnSelection, useOnSelection } from './use-on.ts'
@@ -302,7 +302,7 @@ export function mountPlay(
       /** The Effective room last fetched: the labels the feedback line names, a Decoy's included. */
       let shown = view
       feedback = (body, before, reply) => {
-        const line = feedbackFor(shown, body, before, reply)
+        const line = feedbackFor(shown, body, before, reply, foundTargets(session.id))
         if (!mounted || ended || line === null) return
         scene.say(line)
         announce(`${strings.speakerGuide} ${line}`)

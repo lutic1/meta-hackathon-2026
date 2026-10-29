@@ -191,7 +191,7 @@ def test_a_click_and_a_lock_input_are_stamped_appended_and_applied(client: TestC
     session_id = start(client, code_and_find_room)
     ticker.advance(2_500)
     state = post(client, session_id, click("key"))
-    assert state["locks_open"] == [PZ["find_key"]] and state["inventory"] == [IX["key"]]
+    assert state["locks_open"] == [PZ["find_key"]] and state["inventory"] == []  # found: no use_on in this room needs the key
     ticker.advance(700)
     state = post(client, session_id, code("clock_code", "nope"))
     assert state["wrong_attempts"][PZ["clock_code"]] == 1

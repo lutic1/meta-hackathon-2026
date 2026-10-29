@@ -24,6 +24,14 @@ Wrong attempt on the armed Puzzle and clears the buffer, which stays armed.
 of the Active puzzle, in the same step that recomputes it. Clicks while
 unarmed are exploration and never fill the buffer.
 
+Found or carried (owner decision Oct 29): a solved `find` Puzzle moves its
+target into the inventory only when a `use_on` Puzzle of the Effective room
+names that Interactable as its `item`; a target no `use_on` needs is found,
+not carried: its lock opens and nothing enters the inventory, so a vent, a
+door or a sofa never ends up in hand. The rule is applied after every event,
+an accepted Trickster edit included, so every open `find` target a `use_on`
+names is held, in the order its lock opened, and nothing held ever leaves.
+
 `use_on` carries no `puzzle_id`: the server resolves the Puzzle from the
 `(item, target)` pair among the available `use_on` Puzzles, by `item`, else
 by `target`. A pair whose item is not in the inventory is refused, and a pair
@@ -117,6 +125,7 @@ from .schema import (
     CodeInput,
     Derived,
     Event,
+    FindSolution,
     HintRequestEvent,
     LockInput,
     LockInputEvent,
@@ -200,6 +209,7 @@ class SessionStateMachine:
         self.trickster_window_ms = trickster_window_ms
         self._rung_thresholds = thresholds or unscaled_thresholds(Derived.fresh())
         self._puzzles = {puzzle.id: puzzle for puzzle in room.puzzles}
+        self._items = {p.solution.item for p in room.puzzles if isinstance(p.solution, UseOnSolution)}
         self._effective: dict[tuple[str, ...], SessionStateMachine] = {}
 
     # --- Reads ---------------------------------------------------------------
@@ -325,6 +335,7 @@ class SessionStateMachine:
                 self._record_rung(new, event)
             case TricksterCardEvent():
                 self._close_window(new, event, edit)
+        self._carry(new)
         if self.is_complete(new):
             new.trickster_window = TricksterWindow(state="closed")
         elif self._opens_window(state, new, event.t_ms):
@@ -406,11 +417,16 @@ class SessionStateMachine:
             state.rung_changes.append(event)
         state.current_rung[event.puzzle_id] = event.rung
 
-    def _open(self, state: SessionState, puzzle: Puzzle) -> None:
+    @staticmethod
+    def _open(state: SessionState, puzzle: Puzzle) -> None:
         state.locks_open.append(puzzle.id)
-        solution = puzzle.solution
-        if solution.lock_type == "find" and solution.target not in state.inventory:
-            state.inventory.append(solution.target)
+
+    def _carry(self, state: SessionState) -> None:
+        """Every open `find` target a `use_on` names as its item joins the inventory, in lock order; nothing held leaves."""
+        for puzzle_id in state.locks_open:
+            solution = self._puzzles[puzzle_id].solution
+            if isinstance(solution, FindSolution) and solution.target in self._items and solution.target not in state.inventory:
+                state.inventory.append(solution.target)
 
     def _click(self, state: SessionState, interactable_id: str) -> None:
         """While armed, a click fills the order buffer and nothing else; unarmed, it opens an available `find` Puzzle whose target it hits.

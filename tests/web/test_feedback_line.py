@@ -17,14 +17,17 @@ from tests.web.test_strings import _section, _strings
 
 RUNNER = """
 import { readFileSync } from 'node:fs'
-const { feedbackFor } = await import(process.argv[1])
+const { feedbackFor, foundBy } = await import(process.argv[1])
 const { room, cases } = JSON.parse(readFileSync(0, 'utf8'))
-process.stdout.write(JSON.stringify(cases.map(({ input, before, after }) => feedbackFor(room, input, before, after))))
+process.stdout.write(JSON.stringify(cases.map(({ input, before, after, found }) => [
+  feedbackFor(room, input, before, after, found), foundBy(room, input, before, after),
+])))
 """
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs the client's pure modules")
 
 # The owner's real room in miniature: lock 1 find (throw pillows), lock 2 find (floor vent), lock 3 use_on (the
 # pillows on the sofa), lock 4 the Exit, a find on the front door; plus a code and an order lock for the other inputs.
+# Only the pillows are carried (owner decision Oct 29): the vent and the door are found, and nothing enters the hand.
 PUZZLES = [
     {"id": "p1", "lock_type": "find", "is_exit": False},
     {"id": "p2", "lock_type": "find", "is_exit": False},
@@ -52,18 +55,18 @@ def _use_on(item: str, target: str) -> dict[str, Any]:
     return {"type": "lock_input", "input": {"type": "use_on", "item": item, "target": target}}
 
 
-HELD = _state(("p1", "p2"), ("pillows", "vent"))
+HELD = _state(("p1", "p2"), ("pillows",))
 CASES: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any], str | None]] = [
     ("a click that opens nothing", _click("rug"), _state(), _state(), "entryway rug. Not this one."),
     ("a pickup that solves a find lock", _click("pillows"), _state(), _state(("p1",), ("pillows",)),
      "You pick up the throw pillows. Puzzle 1 solved."),
-    ("the second pickup", _click("vent"), _state(("p1",), ("pillows",)), HELD,
-     "You pick up the floor vent. Puzzle 2 solved."),
-    ("a use_on that opens its lock", _use_on("pillows", "sofa"), HELD, _state(("p1", "p2", "p3"), ("pillows", "vent")),
+    ("a find no use_on needs: found, with no pickup clause", _click("vent"), _state(("p1",), ("pillows",)), HELD,
+     "Puzzle 2 solved."),
+    ("a use_on that opens its lock", _use_on("pillows", "sofa"), HELD, _state(("p1", "p2", "p3"), ("pillows",)),
      "Puzzle 3 solved."),
-    ("the Exit, which picks nothing up worth saying", _click("door"), _state(("p1", "p2", "p3")),
-     _state(("p1", "p2", "p3", "p6"), ("door",)), "The way out is open."),
-    ("a wrong use_on", _use_on("vent", "sofa"), HELD, _state(("p1", "p2"), ("pillows", "vent"), {"p3": 1}),
+    ("the Exit, found and never carried", _click("door"), _state(("p1", "p2", "p3"), ("pillows",)),
+     _state(("p1", "p2", "p3", "p6"), ("pillows",)), "The way out is open."),
+    ("a wrong use_on", _use_on("pillows", "tree"), HELD, _state(("p1", "p2"), ("pillows",), {"p3": 1}),
      "Puzzle 3: not this, 1."),
     ("a wrong code", {"type": "lock_input", "input": {"type": "code", "puzzle_id": "p4", "code": "111"}},
      _state(wrong={"p4": 1}), _state(wrong={"p4": 2}), "Puzzle 4: not this, 2."),
@@ -75,6 +78,7 @@ CASES: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any], str | Non
      _state(order={"puzzle_id": "p5", "clicks": []}), _state(order={"puzzle_id": "p5", "clicks": ["tree"]}), None),
     ("a use_on that resolves to no Puzzle", _use_on("pillows", "rug"), HELD, HELD, "entryway rug. Not this one."),
     ("a click on an item in hand", _click("pillows"), HELD, HELD, "throw pillows · in hand"),
+    ("a click on a found target", _click("vent"), HELD, HELD, "floor vent · found"),
     ("arming an order sequence", {"type": "lock_input", "input": {"type": "order_start", "puzzle_id": "p5"}},
      _state(), _state(order={"puzzle_id": "p5", "clicks": []}), None),
     ("a hint request", {"type": "hint_request"}, _state(), _state(), None),
@@ -93,15 +97,34 @@ def _function(text: str, name: str) -> str:
     return text.split(f"function {name}(", 1)[1].split("\n}\n", 1)[0]
 
 
-@needs_node
-def test_each_reply_reads_one_line_per_outcome():
-    cases = [{"input": input, "before": before, "after": after} for _, input, before, after, _ in CASES]
+FOUND = ["vent"]
+"""What the page found before each case: the vent, solved by a find no use_on needs."""
+
+FOUND_BY: dict[str, str] = {"a find no use_on needs: found, with no pickup clause": "vent",
+                            "the Exit, found and never carried": "door"}
+"""The cases whose reply found a target: a click that opened a find lock and put nothing in the Inventory."""
+
+
+def _replies() -> list[tuple[str | None, str | None]]:
+    cases = [{"input": input, "before": before, "after": after, "found": FOUND} for _, input, before, after, _ in CASES]
     result = subprocess.run(
         ["node", "--input-type=module", "-e", RUNNER, (WEB_SRC / "feedback.ts").as_uri()],
         input=json.dumps({"room": ROOM, "cases": cases}), cwd=REPO, capture_output=True, text=True, check=True,
     )
-    for (name, *_, expected), line in zip(CASES, json.loads(result.stdout), strict=True):
+    return [tuple(reply) for reply in json.loads(result.stdout)]
+
+
+@needs_node
+def test_each_reply_reads_one_line_per_outcome():
+    for (name, *_, expected), (line, _) in zip(CASES, _replies(), strict=True):
         assert line == expected, name
+
+
+@needs_node
+def test_a_find_that_carries_nothing_is_found_and_every_other_reply_finds_nothing():
+    # The pillows go into the Inventory (a use_on needs them); the order click and the code open no find lock.
+    for (name, *_), (_, found) in zip(CASES, _replies(), strict=True):
+        assert found == FOUND_BY.get(name), name
 
 
 def test_the_lines_are_the_experience_lines_and_the_chip_reads_solved():
@@ -111,10 +134,11 @@ def test_the_lines_are_the_experience_lines_and_the_chip_reads_solved():
     assert strings["lockSolved"].format(n=1) == "Puzzle 1 solved."
     assert strings["wayOut"] == "The way out is open."
     assert strings["lockNotThis"].format(n=2, count=1) == "Puzzle 2: not this, 1."
+    assert strings["found"].format(label="floor vent") == "floor vent · found"
     assert strings["solved"] == "Solved" and "open" not in strings and "lockOpen" not in strings
     play = _section("Voice and Tone").split("**Play screen**", 1)[1]
     row = next(line for line in play.splitlines() if line.startswith("| Feedback line"))
-    for key in ("notThisOne", "pickUp", "lockSolved", "wayOut", "lockNotThis", "inHand"):
+    for key in ("notThisOne", "pickUp", "lockSolved", "wayOut", "lockNotThis", "inHand", "found"):
         assert f'"{strings[key]}"' in row, key
     assert '| Solved chip | plain | "Solved" |' in play and "| Open chip |" not in play
     # The side panel's chip says what the player did: "Solved", never "Open", wherever a Puzzle shows solved.
@@ -130,7 +154,7 @@ def test_the_line_is_chosen_once_per_reply_and_written_once_to_the_live_region()
     assert post.index("const before = latest") < post.index("await postEvent(") < post.index("receive(reply)")
     assert post.index("receive(reply)") < post.index("feedback?.(body, before, reply)")
     said = play.split("feedback = (body, before, reply) => {", 1)[1].split("\n      }\n", 1)[0]
-    assert "const line = feedbackFor(shown, body, before, reply)" in said
+    assert "const line = feedbackFor(shown, body, before, reply, foundTargets(session.id))" in said
     assert "scene.say(line)" in said and "announce(`${strings.speakerGuide} ${line}`)" in said
     assert "if (!mounted || ended || line === null) return" in said
     # The line replaces the state-read lock outcomes, so nothing is heard twice; the Completion screen says nothing.
