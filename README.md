@@ -75,7 +75,7 @@ scripts/doctor.py          Mac and cloud environment check, stdlib only
 .github/workflows/deploy.yml  from the Actions tab or a push of a master commit to deploy/main,
                            deploy/main-warm or deploy/dev: check.sh --predeploy, then modal
                            deploy with the Modal token from the Actions secrets
-.github/workflows/ops.yml  the eight ops actions (Hosted mode and ops below), from the Actions
+.github/workflows/ops.yml  the nine ops actions (Hosted mode and ops below), from the Actions
                            tab or a push to ops/** of one .github/ops/request.json commit
                            on top of master
 docs/MONDAY.md             the Mon Oct 26 kickoff checklist
@@ -91,6 +91,8 @@ _bmad/                     BMAD Method v6 install (hackathon tooling)
                            docs/specs/spec-keyframe/delivery-plan.md,
                            Repo hygiene); other .claude/ configuration stays
 ```
+
+(amended 29 Oct 2026, correct-course record)
 
 ## Run it today
 
@@ -161,6 +163,23 @@ combined ceiling, and must equal `SPEND_CAP_USD` in the hosted Secret;
 the export records `local_cap_usd`, `hosted_cap_usd` and
 `hosted_cap_source` (`env` or `default`) beside `ceiling_usd`.
 
+The judge URL opens on a chooser of three cards on a dark stage (owner
+decision Oct 29): Watch the demo, Play the sample room and Build your
+own. The cards deal in with a spin; hover or focus brings one forward,
+and choosing one turns it over to its back panel. Watch plays the demo
+clip with controls (the landing's play-through clip, until a full demo
+video is added as `FULL_DEMO_VIDEO` in `web/src/clip.ts`); Play shows the
+Demo room, its hosts, how to play and "Play this room"; Build shows how
+a room is built and the access-code Build. Play leads at rest ("No
+upload needed") and is the first Tab stop; the Build card reads "Access
+code required", and its back says "Judges: the code is in the
+submission." Pause motion holds every loop, and under reduced motion the
+cards crossfade instead of spinning. The wizards' cast, the Riddler's
+sample page and How a room is built follow below the fold. Every hosted
+screen carries one disclosure line, served by `GET /api/meta`: "Hints on
+this site come exactly as the Riddler wrote them; no live model writes
+them."
+
 `.github/workflows/ops.yml` runs one action in the Modal Environment
 chosen (`main` or `dev`, default `main`):
 
@@ -182,10 +201,17 @@ chosen (`main` or `dev`, default `main`):
   applies `ops/patches/<room_id>.json` (on master) to that Demo room's
   outlines, a dry run unless `confirm` is the word `patch`. Each entry
   replaces one Interactable's polygons, its `instances` and its `box`;
-  an unknown id, a polygon with fewer than 3 points, a point outside its
-  photo's frame or a Room the validator refuses is refused with nothing
-  written. Only `room.json` is rewritten, then read back; `job.json`
-  keeps the pipeline's own output.
+  an id that is not a Demo room, an unknown Interactable id, a polygon
+  with fewer than 3 points, a point outside its photo's frame or a Room
+  the validator refuses (rules 1 to 8) is refused with nothing written.
+  Only `room.json` is rewritten, then read back; `job.json` keeps the
+  pipeline's own output.
+  Disclosure: on Thu Oct 29 this action hand-corrected the Demo room
+  `room_01M61TZ74F0FP3X9HHTMXGTPB9` (ops run 6 the dry run, ops run 7 the
+  write): the floor vent's outline moved onto the grille, and the throw
+  pillows gained the pair at the sofa's corner bend that Puzzle 1's riddle
+  points at. These two outlines are a hand correction, not a pipeline
+  result; the Build view still shows the build as it ran.
 - `quota-probe`: `scripts/quota_probe.py` races separate processes for
   the 20 slot keys on an ephemeral Dict, never `keyframe-jobs`: 30
   claimers must win exactly 20 slots, then 8 must win exactly the last.
