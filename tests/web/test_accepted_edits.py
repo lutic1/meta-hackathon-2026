@@ -219,7 +219,7 @@ def test_nothing_the_reshape_draws_reaches_the_live_region_and_every_fade_is_ins
     assert "announce" not in _nested(notes, "function reshape(view: PlayView): void {")
     assert notes.count("announce(") == 1 and "if (afterOpening && arrived.length > 0) {\n      announce(" in notes
     fade = _ts("fade.ts")
-    assert "export function stateFadeMs(): number {" in fade and "getPropertyValue('--motion-state')" in fade
+    assert "export function stateFadeMs(): number {" in fade and "return motionMs('--motion-state')" in fade
     tokens = (WEB_SRC / "tokens.css").read_text()
     assert "--motion-state: 0ms;" in tokens and "prefers-reduced-motion: reduce" in tokens
     rules = css_rules((WEB_SRC / "components/wizard-notes.css").read_text())

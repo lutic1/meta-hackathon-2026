@@ -9,10 +9,15 @@ export function fadeIn(element: HTMLElement): void {
   element.classList.remove('is-arriving')
 }
 
-/** `--motion-state` in ms as the page resolves it now ("200ms" or ".2s"): 200, or 0 under reduced motion. */
-export function stateFadeMs(): number {
-  const value = getComputedStyle(document.documentElement).getPropertyValue('--motion-state').trim()
+/** A `--motion-*` token in ms as the page resolves it now ("200ms" or ".2s"); 0 under reduced motion. */
+export function motionMs(token: `--motion-${string}`): number {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim()
   return (parseFloat(value) || 0) * (value.endsWith('ms') ? 1 : 1000)
+}
+
+/** `--motion-state` in ms: 200, or 0 under reduced motion. */
+export function stateFadeMs(): number {
+  return motionMs('--motion-state')
 }
 
 const glowing = new WeakMap<Element, ReturnType<typeof setTimeout>>()

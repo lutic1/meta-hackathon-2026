@@ -3,7 +3,8 @@
 .completion-layout {
   position: relative;
 }
-/* The sheet is centered on the scrim; when the body is shorter than the sheet the scrim scrolls, never the page. */
+/* The sheet is centered on the soft scrim, so the exit photo shows brighter around it than under the other overlays;
+   when the body is shorter than the sheet the scrim scrolls, never the page. */
 .completion-scrim {
   box-sizing: border-box;
   position: absolute;
@@ -13,7 +14,7 @@
   flex-direction: column;
   overflow-y: auto;
   padding: var(--spacing-frame-margin);
-  background: var(--scrim);
+  background: var(--scrim-soft);
 }
 
 /* {components.completion-sheet}: 720 px parchment, 48 px padding, rounded lg, the overlay elevation. */
@@ -105,10 +106,50 @@
   color: var(--ink);
 }
 
-/* "Build another room", left-aligned under the content. */
+/* The actions, left-aligned under the content; "Copy your result" stays out until the result and the title are in. */
 .completion-actions {
   display: flex;
   gap: var(--spacing-3);
   align-items: center;
   margin-top: var(--spacing-6);
+}
+
+/* The filmstrip of the Room's photos, between the stats and the time table. */
+.completion-filmstrip {
+  margin-top: var(--spacing-5);
+}
+.completion-filmstrip[hidden] {
+  display: none;
+}
+
+/* "Built by": the four wizards in one row, each a 32 px portrait beside its name. */
+.completion-built-by {
+  margin-top: var(--spacing-5);
+}
+.completion-wizards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2) var(--spacing-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.completion-wizard {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--ink);
+}
+
+.completion-actions > [hidden] {
+  display: none;
+}
+
+/* "Copy your result"'s confirmation, under the actions. */
+.completion-copied {
+  margin: var(--spacing-3) 0 0;
+  color: var(--ink);
+}
+.completion-copied:empty {
+  display: none;
 }

@@ -212,7 +212,7 @@ def test_every_new_line_fades_the_shown_one_out_and_in_and_a_reply_never_glows()
     assert "fadeIn(words)" in present and "if (arrived) glow()" in present
     assert "const fade = rungLine.hidden ? 0 : stateFadeMs()" in present
     fade = _ts("fade.ts")
-    assert "getPropertyValue('--motion-state')" in fade and "value.endsWith('ms') ? 1 : 1000" in fade
+    assert "return motionMs('--motion-state')" in fade and "value.endsWith('ms') ? 1 : 1000" in fade
     assert "import { fadeIn, stateFadeMs } from '../fade.ts'" in hint
     request = _function(hint, "request")
     assert "present(replyLine(reply), false)" in request  # the player asked: no glow

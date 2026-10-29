@@ -282,9 +282,9 @@ def test_save_profile_file_sits_with_the_completion_actions_once_the_result_is_r
     assert "void recorded.then(offerSave, () => {})" in load  # a refused record offers nothing to save
     offer = completion.split("function offerSave(): void {", 1)[1].split("\n  }\n", 1)[0]
     assert "const save = saveProfileControl(profile, () => profileFile(profile))" in offer
-    assert "actions.append(save.button)" in offer and "actions.after(save.line)" in offer
+    assert "actions.append(save.button)" in offer and "copied.after(save.line)" in offer
     # "Build another room", then "How this room was built", then "Save profile file".
-    assert "actions.append(buildAnother)" in completion and "buildAnother.after(link)" in completion
+    assert "actions.append(buildAnother, copy)" in completion and "copy.after(link)" in completion
 
 
 # --- Keyboard and contrast --------------------------------------------------------------------------------------------

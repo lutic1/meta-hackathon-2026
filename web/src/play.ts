@@ -396,7 +396,8 @@ export function mountPlay(
  * Effective room (`GET /sessions/<id>/room`), and the "Show all objects" toggle, unpressed, the "Card log" button and
  * "Leave room" in the top bar's `controls`. It never polls and never posts; the shell holds both columns and the top
  * bar inert. A Room
- * answered 410 `room_deleted` or 404 `room_not_found` is handed to `onGone`. Returns the teardown.
+ * answered 410 `room_deleted` or 404 `room_not_found` is handed to `onGone`. Returns the teardown and the Effective
+ * room it drew, which the Completion sheet's filmstrip and shared line read too.
  */
 export function mountPlayBehind(
   sceneColumn: HTMLElement,
@@ -404,7 +405,7 @@ export function mountPlayBehind(
   session: SessionState,
   controls: HTMLElement,
   onGone: (gone: RoomGone) => void,
-): () => void {
+): { unmount: () => void; room: Promise<PlayView> } {
   let mounted = true
   const showAll = showAllToggle(sceneColumn)
   const log = cardLogButton(() => undefined) // held inert with the bar, as is "Leave room"
@@ -440,7 +441,7 @@ export function mountPlayBehind(
       if (mounted && gone !== null) onGone(gone)
     })
 
-  return () => {
+  const unmount = (): void => {
     mounted = false
     play.useOn.dispose()
     showAll.remove()
@@ -450,4 +451,5 @@ export function mountPlayBehind(
     stripRow.remove()
     sideColumn.replaceChildren()
   }
+  return { unmount, room }
 }

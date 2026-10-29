@@ -14,7 +14,8 @@ TYPE_STYLES = ("display-lg", "display-md", "display-sm", "wizard-line-lg", "wiza
 FAMILY_VAR = {"EB Garamond": "var(--font-serif)", "Source Sans 3": "var(--font-sans)", "IBM Plex Mono": "var(--font-mono)"}
 ROLE_PREFIXES = ("card-", "clue-card-", "graph-", "mask-overlay-")
 FADE_OR_GLOW = {"opacity", "box-shadow", "background-color", "border-color", "color", "outline-color"}
-MOTION = {"motion-hover": "150ms", "motion-state": "200ms", "motion-overlay": "300ms", "motion-attract": "600ms"}
+MOTION = {"motion-hover": "150ms", "motion-state": "200ms", "motion-overlay": "300ms", "motion-attract": "600ms",
+          "motion-count": "800ms"}
 
 
 @pytest.fixture(scope="module")
@@ -34,7 +35,7 @@ def tokens_rules():
 
 def test_design_frontmatter_has_every_group(design):
     assert all(design[g] for g in GROUPS)
-    assert len(design["colors"]) == 59 and len(design["typography"]) == 13
+    assert len(design["colors"]) == 60 and len(design["typography"]) == 13
 
 
 def test_every_color_token_is_a_custom_property_with_its_exact_hex(design, props):

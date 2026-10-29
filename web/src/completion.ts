@@ -1,19 +1,24 @@
 import './completion.css'
-import type { Meta, RoomResult, SessionState } from '../types'
+import type { Meta, PlayView, RoomResult, SessionState } from '../types'
 import { getResult, listRooms } from './api/index.ts'
 import { buildViewLink } from './build-view.ts'
 import { sessionJob } from './capture-timer.ts'
-import { primaryButton } from './components/button.ts'
+import { countedAt, shareLine } from './completion-line.ts'
+import { buildTime } from './components/build-view-header.ts'
+import { primaryButton, secondaryButton } from './components/button.ts'
 import { deletionLine } from './components/deletion-line.ts'
+import { filmstrip as roomFilmstrip } from './components/filmstrip.ts'
 import { saveProfileControl } from './components/profile-file.ts'
 import { formatElapsed } from './components/timer.ts'
+import { motionMs } from './fade.ts'
 import { announce } from './live-region.ts'
 import { mountPlayBehind } from './play.ts'
 import { CUT_2, profileFile, putResult } from './profile/index.ts'
 import { placeHref } from './router.ts'
 import { type RoomGone, roomGone, showRoomGone } from './room-gone.ts'
+import { solvedTargets } from './scene/index.ts'
 import { fill, strings } from './strings.ts'
-import { speakerPrefix, wizardPortrait } from './wizards/portrait.ts'
+import { speakerPrefix, type Wizard, wizardPortrait } from './wizards/portrait.ts'
 
 /** While `GET /sessions/<id>/result` fails, the sheet asks again this often (UX-DR66). */
 export const RESULT_RETRY_MS = 2000
@@ -30,6 +35,61 @@ export function signOff(rungsUsed: number): string {
 interface Stat {
   element: HTMLElement
   show: (value: string) => void
+}
+
+/** A stat counting up from 0 to `final`, drawn each frame through `format`. */
+interface Count {
+  stat: Stat
+  final: number
+  format: (value: number) => string
+}
+
+/**
+ * Counts every stat up from 0 to its final value once (owner decision, Oct 29): a number change only, easing out over
+ * `--motion-count`, which reduced motion sets to 0 ms, so the first frame shows the final values. `done` follows the
+ * last frame.
+ */
+function countUp(counts: readonly Count[], done: () => void): void {
+  const ms = motionMs('--motion-count')
+  let start: number | undefined
+  const frame = (now: number): void => {
+    start ??= now
+    const t = ms === 0 ? 1 : Math.min(1, (now - start) / ms)
+    for (const { stat, final, format } of counts) stat.show(format(countedAt(final, t)))
+    if (t < 1) requestAnimationFrame(frame)
+    else done()
+  }
+  requestAnimationFrame(frame)
+}
+
+const WIZARD_NAMES: Record<Wizard, string> = {
+  architect: strings.architect,
+  riddler: strings.riddler,
+  guide: strings.guide,
+  trickster: strings.trickster,
+}
+
+/** "Built by" over the four wizards, each a 32 px portrait beside its name in `body-sm`. */
+function builtBy(): HTMLElement {
+  const element = document.createElement('div')
+  element.className = 'completion-built-by'
+  const label = document.createElement('div')
+  label.id = 'completion-built-by-label'
+  label.className = 'completion-stat-label label'
+  label.textContent = strings.builtBy
+  const list = document.createElement('ul')
+  list.className = 'completion-wizards'
+  list.setAttribute('aria-labelledby', label.id)
+  list.append(
+    ...(['architect', 'riddler', 'guide', 'trickster'] as const).map((wizard) => {
+      const item = document.createElement('li')
+      item.className = 'completion-wizard body-sm'
+      item.append(wizardPortrait(wizard, 32), WIZARD_NAMES[wizard])
+      return item
+    }),
+  )
+  element.append(label, list)
+  return element
 }
 
 /** One of the three stats: its `label` in `ink-muted` over the value in `mono-timer`, pending until shown. */
@@ -83,15 +143,21 @@ async function roomJob(session: SessionState): Promise<string | null> {
 }
 
 /**
- * The Completion screen (FR-13, UX-DR44, UX-DR66): the Play screen dimmed under the scrim, which covers the page body
- * only, and the centered 720 px parchment sheet (`{components.completion-sheet}`) over it. The sheet reads
+ * The Completion screen (FR-13, UX-DR44, UX-DR66; the celebration, owner decision Oct 29): the Play screen under the
+ * soft scrim, which covers the page body only and leaves the exit photo brighter than the other overlays do, and the
+ * centered 720 px parchment sheet (`{components.completion-sheet}`) over it. The sheet reads
  * `GET /sessions/<id>/result`: the heading "The room is open.", the Guide's sign-off beside its 48 px portrait, "Time",
- * "Hints used" (the Rungs used) and "Wrong attempts" three across in `mono-timer`, and the "Time per puzzle" table.
+ * "Hints used" (the Rungs used) and "Wrong attempts" three across in `mono-timer`, counting up once from 0 when the
+ * result arrives (instant under reduced motion), the filmstrip of the Room's photos with each solved object's outline
+ * lit, the "Time per puzzle" table and "Built by" over the four wizards' 32 px portraits and names.
  * Until the result returns the stats show as pending; while the request fails a plain line says so and it is asked
  * again every 2000 ms, nothing recorded. The returned `RoomResult` is put into the `profile` once (web/profile keys it
  * by `room_id`, so a reload of this route records nothing new). "Build another room", the one primary action, goes to `#/` and is there from the start;
- * "How this room was built" (secondary) joins it once the Room's job is known, opening its Build view, and is absent
- * under cut 0. Under cut 2 in Local mode, once the result is recorded, "Save profile file" (secondary) follows them,
+ * "Copy your result" (secondary) follows it once the result and the Room's title are known, copying one line of the
+ * stats and the site's address with no route ("Keyframe - {room} - 4 locks - 3:28 - 2 hints - 0 wrong - {url}", no
+ * solution text) and confirming under the actions and in the live region; "How this room was built" (secondary)
+ * joins them once the Room's job is known, opening its Build view, and is absent under cut 0. Under cut 2 in Local
+ * mode, once the result is recorded, "Save profile file" (secondary) follows them,
  * downloading the profile with that result, its plain line below the actions; a refused record offers no download.
  * The heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}".
  * A session state whose `judge_room` the server set (a Hosted Judge room, never a Demo or Local room) adds the
@@ -113,7 +179,7 @@ export function mountCompletion(
   sideColumn.inert = true
   let mounted = true
   let retry: ReturnType<typeof setTimeout> | undefined
-  const unmountPlay = mountPlayBehind(sceneColumn, sideColumn, session, controls, (gone) => {
+  const behind = mountPlayBehind(sceneColumn, sideColumn, session, controls, (gone) => {
     mounted = false
     clearTimeout(retry)
     showRoomGone(body, gone, mode, profile)
@@ -152,6 +218,10 @@ export function mountCompletion(
   stats.setAttribute('aria-busy', 'true')
   stats.append(time.element, hints.element, wrong.element)
 
+  const filmstrip = document.createElement('div')
+  filmstrip.className = 'completion-filmstrip'
+  filmstrip.hidden = true
+
   const times = document.createElement('div')
   times.className = 'completion-times'
   times.hidden = true
@@ -179,22 +249,61 @@ export function mountCompletion(
       location.hash = placeHref({ route: { name: 'home' }, profile })
     },
   })
-  actions.append(buildAnother)
+  const copy = secondaryButton({ label: strings.copyResult, onParchment: true, onActivate: () => void copyResult() })
+  copy.hidden = true
+  actions.append(buildAnother, copy)
+  const copied = document.createElement('p')
+  copied.className = 'completion-copied body-sm'
+  const wizards = builtBy()
 
-  sheet.append(heading, signature, stats, times, failed, actions)
+  sheet.append(heading, signature, stats, filmstrip, times, wizards, failed, actions, copied)
   scrim.append(sheet)
   if (session.judge_room === true) scrim.append(deletionLine())
   body.append(scrim)
   heading.focus()
 
+  let loaded: RoomResult | null = null
+  let view: PlayView | null = null
+  /** "Copy your result" once both the result and the Room's title are known. */
+  function offerCopy(): void {
+    if (mounted && loaded !== null && view !== null) copy.hidden = false
+  }
+
+  /** Copies the one shared line and confirms under the actions and in the live region; a refused write shows it. */
+  async function copyResult(): Promise<void> {
+    if (loaded === null || view === null) return
+    const line = shareLine({
+      room: view.name || buildTime(view.created),
+      locks: loaded.puzzles.length,
+      time: formatElapsed(loaded.elapsed_ms),
+      hints: loaded.rungs_used,
+      wrong: loaded.wrong_attempts,
+      url: location.origin + location.pathname,
+    })
+    let said: string = strings.resultCopied
+    try {
+      await navigator.clipboard.writeText(line)
+    } catch {
+      said = fill(strings.resultNotCopied, { line })
+    }
+    if (!mounted) return
+    copied.textContent = said
+    copied.scrollIntoView({ block: 'nearest' }) // the scrim scrolls when the sheet is taller than the body
+    announce(said)
+  }
+
   function show(result: RoomResult): void {
     const said = signOff(result.rungs_used)
     line.replaceChildren(speakerPrefix('guide'), said)
     signature.hidden = false
-    time.show(formatElapsed(result.elapsed_ms))
-    hints.show(String(result.rungs_used))
-    wrong.show(String(result.wrong_attempts))
-    stats.removeAttribute('aria-busy')
+    countUp(
+      [
+        { stat: time, final: Math.floor(result.elapsed_ms / 1000), format: (s) => formatElapsed(s * 1000) },
+        { stat: hints, final: result.rungs_used, format: String },
+        { stat: wrong, final: result.wrong_attempts, format: String },
+      ],
+      () => stats.removeAttribute('aria-busy'),
+    )
     rows.replaceChildren(...timeRows(result))
     times.hidden = false
     failed.hidden = true
@@ -215,26 +324,39 @@ export function mountCompletion(
     if (!mounted) return
     const recorded = putResult(profile, result, mode)
     show(result)
+    loaded = result
+    offerCopy()
     void recorded.then(offerSave, () => {}) // a refused record leaves the profile as it was, with nothing to save
   }
 
-  /** Cut 2, Local mode: "Save profile file" after the actions, its plain line under them. */
+  /** Cut 2, Local mode: "Save profile file" after the actions, its plain line under them (after any copied line). */
   function offerSave(): void {
     if (!mounted || !CUT_2 || mode !== 'local') return
     const save = saveProfileControl(profile, () => profileFile(profile))
     actions.append(save.button)
-    actions.after(save.line)
+    copied.after(save.line)
   }
   void load()
+  behind.room.then(
+    (room) => {
+      if (!mounted) return
+      view = room
+      // The objects solved: every find target in the final Inventory, plus each unlock moment's target seen in this page.
+      filmstrip.append(roomFilmstrip(room, new Set([...session.inventory, ...solvedTargets(session.id)])))
+      filmstrip.hidden = false
+      offerCopy()
+    },
+    () => undefined, // the Play screen behind handles a gone Room; the sheet keeps its stats
+  )
   void roomJob(session).then((jobId) => {
     const link = jobId === null ? null : buildViewLink(jobId, profile, true)
-    if (mounted && link !== null) buildAnother.after(link)
+    if (mounted && link !== null) copy.after(link)
   })
 
   return () => {
     mounted = false
     clearTimeout(retry)
-    unmountPlay()
+    behind.unmount()
     scrim.remove()
   }
 }

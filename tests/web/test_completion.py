@@ -5,7 +5,10 @@ TypeScript and the stylesheets; `npm run build` and `tsc --noEmit` prove they co
 code-and-find fixture room to its Exit and reads the result the sheet draws.
 """
 
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -85,12 +88,12 @@ def test_the_done_route_draws_the_completion_screen_from_the_session_state():
 
 def test_build_another_room_is_the_one_primary_action_and_goes_home_with_the_profile():
     completion = _code("completion.ts")
-    assert completion.count("primaryButton(") == 1 and "secondaryButton" not in completion
+    assert completion.count("primaryButton(") == 1 and completion.count("secondaryButton(") == 1  # "Copy your result"
     assert "label: strings.buildAnotherRoom" in completion
     assert "location.hash = placeHref({ route: { name: 'home' }, profile })" in completion
     # Present from the start, before and whatever the result request does.
     mount = _function(completion, "mountCompletion")
-    assert mount.index("sheet.append(heading, signature, stats, times, failed, actions)") < mount.index("void load()")
+    assert mount.index("sheet.append(heading, signature, stats, filmstrip, times, wizards, failed, actions, copied)") < mount.index("void load()")
 
 
 # --- The sheet --------------------------------------------------------------------------------------------------------
@@ -103,8 +106,9 @@ def test_the_sheet_holds_the_heading_sign_off_three_stats_and_the_time_per_puzzl
     assert "line.replaceChildren(speakerPrefix('guide'), said)" in completion
     assert "stats.append(time.element, hints.element, wrong.element)" in completion
     assert "value.className = 'completion-stat-value mono-timer is-pending'" in completion
-    assert "time.show(formatElapsed(result.elapsed_ms))" in completion
-    assert "hints.show(String(result.rungs_used))" in completion and "wrong.show(String(result.wrong_attempts))" in completion
+    assert "{ stat: time, final: Math.floor(result.elapsed_ms / 1000), format: (s) => formatElapsed(s * 1000) }" in completion
+    assert "{ stat: hints, final: result.rungs_used, format: String }" in completion
+    assert "{ stat: wrong, final: result.wrong_attempts, format: String }" in completion
 
 
 def test_the_time_table_has_a_puzzle_n_row_per_puzzle_no_header_row_and_no_exit_mark():
@@ -137,7 +141,7 @@ def test_the_sheet_is_720px_parchment_with_48px_padding_over_a_scrim_on_the_body
     token = design_text().split("  completion-sheet:\n", 1)[1].split("\n  deletion-line:", 1)[0]
     assert "width: 720px" in token and "padding: '{spacing.7}'" in token and "guidePortrait: 48px" in token
     scrim = rules[".completion-scrim"]
-    assert (scrim["position"], scrim["inset"], scrim["background"]) == ("absolute", "0", "var(--scrim)")
+    assert (scrim["position"], scrim["inset"], scrim["background"]) == ("absolute", "0", "var(--scrim-soft)")
     assert scrim["overflow-y"] == "auto"  # a short body scrolls the scrim, never the page
     assert rules[".completion-layout"]["position"] == "relative"
     # The scrim is a child of the page body, so the top bar above it and the Disclosure footer under it are never dimmed.
@@ -221,3 +225,118 @@ def test_the_result_lists_every_puzzle_in_room_order_with_its_time(client: TestC
     assert result["rungs_used"] == 0 and result["wrong_attempts"] == 1
     assert all(puzzle["solved"] and puzzle["time_spent_ms"] >= 0 for puzzle in result["puzzles"])
     assert result["elapsed_ms"] >= 0
+
+
+# --- The celebration (owner decision, Oct 29) -------------------------------------------------------------------------
+
+SHARE_RUNNER = """
+import { readFileSync } from 'node:fs'
+const { shareLine, countedAt } = await import(process.argv[1])
+const { lines, counts } = JSON.parse(readFileSync(0, 'utf8'))
+process.stdout.write(JSON.stringify({
+  lines: lines.map((line) => shareLine(line)),
+  counts: counts.map(([final, t]) => countedAt(final, t)),
+}))
+"""
+needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs the client's pure modules")
+
+
+def test_the_celebration_strings_are_the_experience_lines():
+    strings = _strings()
+    assert strings["copyResult"] == "Copy your result"
+    assert strings["resultCopied"] == "Result copied. Gloat gently."
+    assert strings["resultNotCopied"] == "Keyframe couldn't copy it. Here it is: {line}"
+    assert strings["builtBy"] == "Built by"
+    assert strings["filmstripLabel"] == "Your room, with everything you solved outlined"
+    assert strings["shareLine"] == "Keyframe - {room} - {locks} - {time} - {hints} - {wrong} - {url}"
+    assert (strings["locksCount"], strings["oneLock"]) == ("{n} locks", "1 lock")
+    assert (strings["hintsCount"], strings["oneHint"]) == ("{n} hints", "1 hint")
+    assert strings["wrongCount"] == "{n} wrong"
+
+
+@needs_node
+def test_the_share_line_names_the_room_its_locks_the_time_hints_and_wrong_attempts_and_the_url():
+    url = "https://keyframe.example/"
+    base = {"room": "The front hall and the lounge", "locks": 4, "time": "3:28", "hints": 2, "wrong": 0, "url": url}
+    lines = [base, {**base, "locks": 1, "hints": 1, "wrong": 1}]
+    counts = [[208, 0], [208, 1], [208, 0.5], [0, 0.7], [3, 0.999]]
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", SHARE_RUNNER, (WEB_SRC / "completion-line.ts").as_uri()],
+        input=json.dumps({"lines": lines, "counts": counts}), capture_output=True, text=True, check=True,
+    )
+    out = json.loads(result.stdout)
+    assert out["lines"] == [
+        f"Keyframe - The front hall and the lounge - 4 locks - 3:28 - 2 hints - 0 wrong - {url}",
+        f"Keyframe - The front hall and the lounge - 1 lock - 3:28 - 1 hint - 1 wrong - {url}",
+    ]
+    # The count rises from 0 to the final value, easing out, and lands on it exactly.
+    start, end, middle, zero, almost = out["counts"]
+    assert (start, end, zero) == (0, 208, 0) and 104 < middle < 208 and almost == 3
+
+
+def test_the_share_line_holds_no_solution_text():
+    line = _code("completion-line.ts")
+    for banned in ("label", "clue", "interactable", "solution", "target"):
+        assert banned not in line, banned
+
+
+def test_the_stats_count_up_once_on_arrival_on_the_count_token_and_at_once_under_reduced_motion():
+    completion = _code("completion.ts")
+    count = _function(completion, "countUp")
+    assert "const ms = motionMs('--motion-count')" in count and "requestAnimationFrame(" in count
+    # Read as the page resolves it: the build writes "800ms" as ".8s".
+    assert "(value.endsWith('ms') ? 1 : 1000)" in _code("fade.ts")
+    assert "countedAt(" in count
+    show = _function(completion, "show")
+    assert "countUp(" in show and show.count("countUp(") == 1
+    assert "stat.show(format(countedAt(final, t)))" in count  # a number change only, landing on the final value
+    assert "stats.removeAttribute('aria-busy')" in completion
+    tokens = (WEB_SRC / "tokens.css").read_text()
+    assert "--motion-count: 800ms;" in tokens
+    reduced = re.search(r"@media \(prefers-reduced-motion: reduce\) \{(.*?)\n\}", tokens, flags=re.S).group(1)
+    assert "--motion-count: 0ms;" in reduced  # instant: the first frame shows the final values
+
+
+def test_the_exit_photo_shows_brighter_under_the_soft_scrim():
+    assert _rules()[".completion-scrim"]["background"] == "var(--scrim-soft)"
+    props = (WEB_SRC / "tokens.css").read_text()
+    assert "--scrim-soft: #0A080680;" in props
+    assert "scrim-soft: '#0A080680'" in design_text()
+
+
+def test_the_filmstrip_lights_only_the_objects_the_player_solved():
+    strip = re.sub(r"/\*.*?\*/|//[^\n]*", "", (WEB_SRC / "components/filmstrip.ts").read_text(), flags=re.DOTALL)
+    assert "photoUrl(roomId, index)" in strip and "hotspotPath(" in strip
+    assert "solved.has(interactable.id)" in strip and "interactable.photo === index" in strip
+    assert "image.alt = ''" in strip and "strings.filmstripLabel" in strip
+    assert ".label" not in strip  # no object name is drawn
+    css = css_rules((WEB_SRC / "components/filmstrip.css").read_text())
+    assert css[".filmstrip-outline"]["stroke"] == "var(--lamp)"
+    assert css[".filmstrip-halo"]["stroke"] == "var(--hotspot-halo)"
+    completion = _code("completion.ts")
+    # The solved objects: every find target in the final Inventory, plus each unlock moment's target seen in this page.
+    assert "new Set([...session.inventory, ...solvedTargets(session.id)])" in completion
+    scene = _code("scene/index.ts")
+    assert "solved.set(play.id, [...solvedTargets(play.id), target])" in _function(scene, "bloom")
+
+
+def test_the_built_by_row_names_the_four_wizards_with_their_portraits():
+    completion = _code("completion.ts")
+    built = _function(completion, "builtBy")
+    assert "strings.builtBy" in built
+    assert "(['architect', 'riddler', 'guide', 'trickster'] as const)" in built
+    assert "wizardPortrait(wizard, 32)" in built and "WIZARD_NAMES[wizard]" in built
+
+
+def test_copy_your_result_copies_one_line_and_confirms_in_the_live_region():
+    completion = _code("completion.ts")
+    assert "label: strings.copyResult" in completion and "onParchment: true" in completion
+    # Out of the row until the result and the Room's title are known (a button's inline-flex would beat `hidden`).
+    assert "copy.hidden = true" in completion and _rules()[".completion-actions > [hidden]"] == {"display": "none"}
+    copy = _function(completion, "copyResult")
+    assert "await navigator.clipboard.writeText(line)" in copy
+    assert "fill(strings.resultNotCopied, { line })" in copy and "strings.resultCopied" in copy
+    assert "copied.textContent = said" in copy and "announce(said)" in copy
+    assert "copied.scrollIntoView({ block: 'nearest' })" in copy  # in view even where the scrim scrolls
+    assert "url: location.origin + location.pathname" in completion
+    assert "room: view.name || buildTime(view.created)" in completion

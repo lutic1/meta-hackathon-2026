@@ -41,6 +41,14 @@ export function lastShownPhoto(sessionId: string): number {
   return shownPhoto.get(sessionId) ?? 0
 }
 
+/** The target each unlock moment of a session bloomed in this page, so the Completion screen's filmstrip lights it. */
+const solved = new Map<string, string[]>()
+
+/** The Interactables the unlock moments of `sessionId` named in this page, in order; none after a reload. */
+export function solvedTargets(sessionId: string): string[] {
+  return solved.get(sessionId) ?? []
+}
+
 /** The mounted Scene: its teardown, and the redraw for the refetched Effective room. */
 export interface MountedScene {
   unmount: () => void
@@ -76,7 +84,8 @@ function firstPointerResponse(sessionId: string): void {
  * "Checking" beside it. The selection outlives photo switches. It opens on photo `first`. The Interactable the latest
  * click or `use_on` named is kept as `lastTarget`, and `bloom` plays the unlock moment (lock-opened.ts): the frame's
  * gilt rule turns lamp with the lamp glow once (in and out by `--motion-hover`, 300 ms in all; held 2 s with no
- * animation under reduced motion) and the solved target's Hotspot, when it is on the shown photo, blooms with it.
+ * animation under reduced motion) and the solved target's Hotspot, when it is on the shown photo, blooms with it;
+ * the target is kept for the Completion screen's filmstrip (`solvedTargets`).
  * `say` shows the Play screen's feedback line for a reply over the bottom edge of the frame.
  *
  * `reshape` lays the shown photo's Hotspots again from a refetched `PlayView` when its Interactables changed, keeping
@@ -249,7 +258,9 @@ export function mountScene(
   function bloom(target: string | null): void {
     const hold = matchMedia('(prefers-reduced-motion: reduce)').matches ? GLOW_REDUCED_MS : GLOW_MS
     glowOnce(frame, 'is-glowing', hold)
-    if (target !== null) layer?.bloom(target, hold)
+    if (target === null) return
+    solved.set(play.id, [...solvedTargets(play.id), target])
+    layer?.bloom(target, hold)
   }
 
   const observer = new ResizeObserver(render)
