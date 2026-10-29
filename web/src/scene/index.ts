@@ -42,20 +42,59 @@ export function lastShownPhoto(sessionId: string): number {
   return shownPhoto.get(sessionId) ?? 0
 }
 
-/** The target each unlock moment of a session bloomed in this page, so the Completion screen's filmstrip lights it. */
-const solved = new Map<string, string[]>()
-
-/** The Interactables the unlock moments of `sessionId` named in this page, in order; none after a reload. */
-export function solvedTargets(sessionId: string): string[] {
-  return solved.get(sessionId) ?? []
+/** Targets kept per session for this tab: `targets` reads them, `keep` adds one. */
+interface TabTargets {
+  targets: (sessionId: string) => string[]
+  keep: (sessionId: string, target: string) => void
 }
 
-/** The targets each session's clicks found in this page (`foundBy`): solved `find` targets no `use_on` needs. */
-const found = new Map<string, string[]>()
+/**
+ * Targets per session kept in sessionStorage under `prefix` + session id, so they outlive a reload of the tab; in
+ * memory alone when storage refuses. Only targets of locks the player already solved are kept, so nothing leaks.
+ */
+function tabTargets(prefix: string): TabTargets {
+  const memory = new Map<string, string[]>()
+  function targets(sessionId: string): string[] {
+    const held = memory.get(sessionId)
+    if (held !== undefined) return held
+    let stored: string[] = []
+    try {
+      const parsed: unknown = JSON.parse(sessionStorage.getItem(prefix + sessionId) ?? '[]')
+      if (Array.isArray(parsed)) stored = parsed.filter((target): target is string => typeof target === 'string')
+    } catch {
+      // Storage refused or unreadable: this page starts with none.
+    }
+    memory.set(sessionId, stored)
+    return stored
+  }
+  function keep(sessionId: string, target: string): void {
+    const held = targets(sessionId)
+    if (held.includes(target)) return
+    const next = [...held, target]
+    memory.set(sessionId, next)
+    try {
+      sessionStorage.setItem(prefix + sessionId, JSON.stringify(next))
+    } catch {
+      // Storage refused: the targets live as long as the page.
+    }
+  }
+  return { targets, keep }
+}
 
-/** The targets the clicks of `sessionId` found in this page, in order; none after a reload. */
+/** The target each unlock moment of a session bloomed in this tab, so the Completion screen's filmstrip lights it. */
+const solved = tabTargets('keyframe-solved:')
+
+/** The Interactables the unlock moments of `sessionId` named in this tab, in order, kept across a reload. */
+export function solvedTargets(sessionId: string): string[] {
+  return solved.targets(sessionId)
+}
+
+/** The targets each session's clicks found in this tab (`foundBy`): solved `find` targets no `use_on` needs. */
+const found = tabTargets('keyframe-found:')
+
+/** The targets the clicks of `sessionId` found in this tab, in order, kept across a reload. */
 export function foundTargets(sessionId: string): string[] {
-  return found.get(sessionId) ?? []
+  return found.targets(sessionId)
 }
 
 /** The mounted Scene: its teardown, and the redraw for the refetched Effective room. */
@@ -87,15 +126,15 @@ function firstPointerResponse(sessionId: string): void {
  * the reply opened no lock, the click hit no target and the label chip stays ("{label} · in hand" on an Interactable
  * the Inventory holds, "{label} · found" on a found target). The Hotspots of collected Interactables follow
  * `inventory` in every state the server sends, so a solved `find` target's glow fades out; a click that found a target
- * no `use_on` needs (`foundBy`) keeps it in `foundTargets`, and its glow fades out the same way. An Inventory item
- * dropped on a Hotspot, or a Hotspot activated while an item is selected (whose "Using {item label}" chip is pinned
- * to the frame's top-left), posts one `use_on` lock input naming the item and the Hotspot's Interactable, never a
+ * no `use_on` needs (`foundBy`) keeps it in `foundTargets` for the tab, a reload included, and its glow fades out
+ * the same way. An Inventory item dropped on a Hotspot, or a Hotspot activated while an item is selected (whose
+ * "Using {item label}" chip is pinned to the frame's top-left), posts one `use_on` lock input naming the item and the Hotspot's Interactable, never a
  * `click` and never a Puzzle (AD-4), and clears the selection; until the reply, the target's label chip shows with
  * "Checking" beside it. The selection outlives photo switches. It opens on photo `first`. The Interactable the latest
  * click or `use_on` named is kept as `lastTarget`, and `bloom` plays the unlock moment (lock-opened.ts): the frame's
  * gilt rule turns lamp with the lamp glow once (in and out by `--motion-hover`, 300 ms in all; held 2 s with no
  * animation under reduced motion) and the solved target's Hotspot, when it is on the shown photo, blooms with it;
- * the target is kept for the Completion screen's filmstrip (`solvedTargets`).
+ * the target is kept for the tab, a reload included, for the Completion screen's filmstrip (`solvedTargets`).
  * `say` shows the Play screen's feedback line for a reply over the bottom edge of the frame.
  *
  * `reshape` lays the shown photo's Hotspots again from a refetched `PlayView` when its Interactables changed, keeping
@@ -194,7 +233,7 @@ export function mountScene(
     const reply = await play.post(click).finally(pending)
     const target = room === undefined ? null : foundBy(room, click, before, reply)
     if (target !== null) {
-      found.set(play.id, [...foundTargets(play.id), target])
+      found.keep(play.id, target)
       if (mounted) layer?.setCollected(reply.inventory, foundTargets(play.id))
     }
     const opened = reply.locks_open.some((id) => !before.locks_open.includes(id))
@@ -276,7 +315,7 @@ export function mountScene(
     const hold = matchMedia('(prefers-reduced-motion: reduce)').matches ? GLOW_REDUCED_MS : GLOW_MS
     glowOnce(frame, 'is-glowing', hold)
     if (target === null) return
-    solved.set(play.id, [...solvedTargets(play.id), target])
+    solved.keep(play.id, target)
     layer?.bloom(target, hold)
   }
 

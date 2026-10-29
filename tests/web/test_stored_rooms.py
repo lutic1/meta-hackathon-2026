@@ -27,11 +27,14 @@ def test_the_list_comes_only_from_get_rooms_read_afresh_on_every_visit():
     assert render.index("await answered(mine, listRooms)") < render.index("show(")
     assert "content = { name: 'rooms', rooms, profile: place.profile, mode: meta.mode, retention: meta.retention }" in render
     # No room list of the browser's own: nothing cached across visits, and no browser storage anywhere but the
-    # Capture Timer's one run (2.17), the per-session mark that "Begin" was pressed (1.22) and the Player profile's
+    # Capture Timer's one run (2.17), the per-session mark that "Begin" was pressed (1.22), the per-session solved and
+    # found targets of the Scene, which name only objects of locks already solved (I1), and the Player profile's
     # IndexedDB, which holds Room results only (5.2).
     assert "listRooms" not in shell.split("async function render()", 1)[0].split("export function startShell", 1)[1]
     for path, text in source_ts().items():
-        if path.endswith(("web/src/capture-timer.ts", "web/src/welcome.ts", "web/src/profile/index.ts")):
+        if path.endswith(
+            ("web/src/capture-timer.ts", "web/src/welcome.ts", "web/src/scene/index.ts", "web/src/profile/index.ts")
+        ):
             continue
         assert not re.search(r"localStorage|sessionStorage|indexedDB", text), path
 

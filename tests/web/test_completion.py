@@ -314,10 +314,11 @@ def test_the_filmstrip_lights_only_the_objects_the_player_solved():
     assert css[".filmstrip-outline"]["stroke"] == "var(--lamp)"
     assert css[".filmstrip-halo"]["stroke"] == "var(--hotspot-halo)"
     completion = _code("completion.ts")
-    # The solved objects: every find target in the final Inventory, plus each unlock moment's target seen in this page.
+    # The solved objects: every find target in the final Inventory, plus each unlock moment's target seen in this tab.
     assert "new Set([...session.inventory, ...solvedTargets(session.id)])" in completion
     scene = _code("scene/index.ts")
-    assert "solved.set(play.id, [...solvedTargets(play.id), target])" in _function(scene, "bloom")
+    assert "solved.keep(play.id, target)" in _function(scene, "bloom")
+    assert "const solved = tabTargets('keyframe-solved:')" in scene  # kept for the tab, so a reload stays lit
 
 
 def test_the_built_by_row_names_the_four_wizards_with_their_portraits():

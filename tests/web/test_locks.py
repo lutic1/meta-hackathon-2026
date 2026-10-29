@@ -202,12 +202,27 @@ def test_a_found_target_no_use_on_needs_settles_like_a_collected_one_and_answers
     activate = _body(scene, "async function activate(")
     assert "const before = play.state()" in activate
     assert "const target = room === undefined ? null : foundBy(room, click, before, reply)" in activate
-    assert "found.set(play.id, [...foundTargets(play.id), target])" in activate
+    assert "found.keep(play.id, target)" in activate
     assert "layer?.setCollected(reply.inventory, foundTargets(play.id))" in activate
     show = _body(layer, "function showLabel(")
     assert "foundIds.includes(interactable.id) ? fill(strings.found, { label: interactable.label })" in show
     # The Completion filmstrip still lights a target never carried: it reads the bloomed targets beside the Inventory.
     assert "new Set([...session.inventory, ...solvedTargets(session.id)])" in _ts("completion.ts")
+
+
+def test_found_and_solved_targets_outlive_a_reload_of_the_tab():
+    # A reload keeps a found target found ("{label} · found", its glow settled) and keeps every bloomed target lit on
+    # the Completion filmstrip: both lists live in sessionStorage per session id, in memory when storage refuses.
+    scene = _ts("scene/index.ts")
+    assert "const solved = tabTargets('keyframe-solved:')" in scene
+    assert "const found = tabTargets('keyframe-found:')" in scene
+    targets = _body(scene, "function targets(")
+    assert "sessionStorage.getItem(prefix + sessionId)" in targets and "} catch {" in targets
+    keep = _body(scene, "function keep(")
+    assert "sessionStorage.setItem(prefix + sessionId, JSON.stringify(next))" in keep and "} catch {" in keep
+    assert "memory.set(sessionId, next)" in keep
+    assert "solved.keep(play.id, target)" in _body(scene, "function bloom(")
+    assert "localStorage" not in scene
 
 
 def test_every_lock_color_pair_is_in_the_contrast_table_and_passes():
