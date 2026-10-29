@@ -65,8 +65,11 @@ scripts/check.sh           pre-push check and the whole CI job (--predeploy befo
 scripts/doctor.py          Mac and cloud environment check, stdlib only
 .github/workflows/ci.yml   one job, check: runs scripts/check.sh on pushes to master
                            and keyframe/** branches and on pull requests
-.github/workflows/deploy.yml  started by hand from the Actions tab: check.sh --predeploy,
-                           then modal deploy with the Modal token from the Actions secrets
+.github/workflows/deploy.yml  from the Actions tab or a push of a master commit to deploy/main,
+                           deploy/main-warm or deploy/dev: check.sh --predeploy, then modal
+                           deploy with the Modal token from the Actions secrets
+.github/workflows/ops.yml  the runbook's ops actions, from the Actions tab or a push to
+                           ops/** of one .github/ops/request.json commit on top of master
 docs/MONDAY.md             the Mon Oct 26 kickoff checklist
 docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
 _bmad/                     BMAD Method v6 install (hackathon tooling)
@@ -111,10 +114,14 @@ suite, the wheel check for macOS arm64 and Linux x86_64, and, once
 `web/` exists, `npm ci`, the Vite build and `tsc --noEmit`. CI holds
 no secret and never deploys; `modal deploy` stays a manual step after
 `bash scripts/check.sh --predeploy`, run by hand or through the second
-workflow, `.github/workflows/deploy.yml` (`workflow_dispatch` only, with
-the Environment and `MIN_CONTAINERS` as inputs and the Modal token from
-the repository's Actions secrets), which runs the same ladder, then
-`modal deploy` and a `GET /api/meta` smoke test.
+workflow, `.github/workflows/deploy.yml` (started from the Actions tab with
+the Environment and `MIN_CONTAINERS` as inputs, or by pushing a commit
+master already carries to `deploy/main`, `deploy/main-warm` or
+`deploy/dev`, with the Modal token from the repository's Actions
+secrets), which runs the same ladder, then `modal deploy` and a
+`GET /api/meta` smoke test. The push path exists by the owner's decision
+of Oct 29; `.github/workflows/ops.yml` takes the same two paths, a push
+to `ops/**` carrying its inputs in `.github/ops/request.json`.
 
 ## Key dates
 

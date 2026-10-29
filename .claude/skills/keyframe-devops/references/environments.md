@@ -41,4 +41,4 @@ Four environments, one lock. The code files are authoritative; this page and the
 - **Provider:** `meta` for the Trickster and builds; rungs verbatim.
 - **Secrets:** Modal Secret `keyframe`, with `required_keys` `MODEL_API_KEY`, `FAL_KEY`, `ACCESS_CODE` (plus `OPENAI_COMPATIBLE_API_KEY` if the hosted fallback is used). `MODE=hosted` and `GUIDE=verbatim` are set on the image with `.env()`. `MIN_CONTAINERS` comes from the deploy shell.
 - **Runs:** the FastAPI `asgi_app` (`max_containers=1`), `run_build`, the `ledger_export` and `session_sweep` Crons, smoke checks after deploy.
-- **Never runs:** Ollama, pytest (dev group excluded), `.env` (`add_local_python_source` ships only `.py` files), automatic deploys.
+- **Never runs:** Ollama, pytest (dev group excluded), `.env` (`add_local_python_source` ships only `.py` files), automatic deploys (a deploy runs only when `deploy.yml` is started from the Actions tab or a commit master carries is pushed to a `deploy/` branch).

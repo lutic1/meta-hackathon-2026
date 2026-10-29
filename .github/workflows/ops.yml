@@ -23,20 +23,81 @@ on:
         description: The Room.name the promoted Demo room gets (at most 40 characters), only for the promote action
         type: string
         default: ""
+  push:
+    branches: ["ops/**"]
 permissions:
   contents: read
-concurrency:
-  group: ops-${{ inputs.environment }}
-  cancel-in-progress: false
 jobs:
+  request:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      action: ${{ steps.request.outputs.action }}
+      environment: ${{ steps.request.outputs.environment }}
+      room_id: ${{ steps.request.outputs.room_id }}
+      room_name: ${{ steps.request.outputs.room_name }}
+      confirm: ${{ steps.request.outputs.confirm }}
+    steps:
+      - if: github.event_name == 'push'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - if: github.event_name == 'push'
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA^" origin/master || { echo "refusing the ops request $GITHUB_SHA on $GITHUB_REF_NAME: its parent is not a commit master carries; branch the request from master"; exit 1; }
+          changed=$(git diff --name-only "$GITHUB_SHA^" "$GITHUB_SHA")
+          [ "$changed" = .github/ops/request.json ] || { echo "refusing the ops request $GITHUB_SHA on $GITHUB_REF_NAME: it must change only .github/ops/request.json, it changes: $changed"; exit 1; }
+      - id: request
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUTS: ${{ toJSON(inputs) }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, sys
+          ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote")
+          DEFAULTS = {"action": "", "environment": "main", "room_id": "", "room_name": "", "confirm": ""}
+          if os.environ["EVENT"] == "push":
+              try:
+                  with open(".github/ops/request.json") as file:
+                      request = json.load(file)
+              except FileNotFoundError:
+                  sys.exit("refusing the ops request: the pushed commit has no .github/ops/request.json")
+              if not isinstance(request, dict):
+                  sys.exit("refusing the ops request: .github/ops/request.json must hold one JSON object")
+          else:
+              request = json.loads(os.environ["INPUTS"])
+          unknown = sorted(set(request) - set(DEFAULTS))
+          if unknown:
+              sys.exit(f"refusing the ops request: unknown key {', '.join(unknown)}; the keys are {', '.join(DEFAULTS)}")
+          values = DEFAULTS | request
+          for key, value in values.items():
+              if not isinstance(value, str):
+                  sys.exit(f"refusing the ops request: {key} must be a string, not {value!r}")
+              if "\n" in value or "\r" in value:
+                  sys.exit(f"refusing the ops request: {key} must be one line")
+          if values["action"] not in ACTIONS:
+              sys.exit(f"refusing the ops request: unknown action {values['action']!r}; the actions are {', '.join(ACTIONS)}")
+          if values["environment"] not in ("main", "dev"):
+              sys.exit(f"refusing the ops request: unknown environment {values['environment']!r}; the environments are main, dev")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.writelines(f"{key}={value}\n" for key, value in values.items())
+          EOF
   ops:
+    needs: request
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: ops-${{ needs.request.outputs.environment }}
+      cancel-in-progress: false
     env:
       MODEL_PROVIDER: mock
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-      MODAL_ENVIRONMENT: ${{ inputs.environment }}
+      ACTION: ${{ needs.request.outputs.action }}
+      MODAL_ENVIRONMENT: ${{ needs.request.outputs.environment }}
+      ROOM_ID: ${{ needs.request.outputs.room_id }}
+      ROOM_NAME: ${{ needs.request.outputs.room_name }}
+      CONFIRM: ${{ needs.request.outputs.confirm }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -44,36 +105,31 @@ jobs:
           version: "0.11.32"
           enable-cache: true
       - run: uv sync --locked
-      - if: inputs.action == 'ledger-export'
+      - if: env.ACTION == 'ledger-export'
         run: uv run scripts/ledger.py export --env "$MODAL_ENVIRONMENT"
-      - if: inputs.action == 'ledger-export'
+      - if: env.ACTION == 'ledger-export'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ledger-export-${{ inputs.environment }}
+          name: ledger-export-${{ env.MODAL_ENVIRONMENT }}
           path: spend/exports/
           if-no-files-found: error
-      - if: inputs.action == 'purge-dry-run'
+      - if: env.ACTION == 'purge-dry-run'
         run: uv run scripts/purge_judge_rooms.py --env "$MODAL_ENVIRONMENT" --dry-run
-      - if: inputs.action == 'purge'
-        env:
-          CONFIRM: ${{ inputs.confirm }}
+      - if: env.ACTION == 'purge'
         run: |
           [ "$CONFIRM" = purge ] || { echo "refusing to purge the Judge rooms in $MODAL_ENVIRONMENT: the confirm input must be the word purge, not '$CONFIRM'"; exit 1; }
           uv run scripts/purge_judge_rooms.py --env "$MODAL_ENVIRONMENT"
-      - if: inputs.action == 'warm'
+      - if: env.ACTION == 'warm'
         run: |
           uv run modal function autoscaler update -e "$MODAL_ENVIRONMENT" keyframe/web --min-containers 1
           uv run modal function autoscaler settings -e "$MODAL_ENVIRONMENT" keyframe/web
-      - if: inputs.action == 'cool'
+      - if: env.ACTION == 'cool'
         run: |
           uv run modal function autoscaler update -e "$MODAL_ENVIRONMENT" keyframe/web --min-containers 0
           uv run modal function autoscaler settings -e "$MODAL_ENVIRONMENT" keyframe/web
-      - if: inputs.action == 'autoscaler-settings'
+      - if: env.ACTION == 'autoscaler-settings'
         run: uv run modal function autoscaler settings -e "$MODAL_ENVIRONMENT" keyframe/web
-      - if: inputs.action == 'promote'
-        env:
-          ROOM_ID: ${{ inputs.room_id }}
-          ROOM_NAME: ${{ inputs.room_name }}
+      - if: env.ACTION == 'promote'
         run: |
           [ -n "$ROOM_ID" ] && [ -n "$ROOM_NAME" ] || { echo "refusing to promote a Judge room in $MODAL_ENVIRONMENT: the promote action needs both room_id and room_name, got room_id='$ROOM_ID' room_name='$ROOM_NAME'"; exit 1; }
           uv run scripts/promote_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID" "$ROOM_NAME"

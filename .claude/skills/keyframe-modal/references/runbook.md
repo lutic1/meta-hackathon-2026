@@ -1,6 +1,6 @@
 # Hosted runbook: secrets, dev URL, deploy, warm window
 
-Every command here needs a Modal account and token, so all of them are live-only. Their flags were checked with `--help` on modal 1.6.2 on 2026-10-21. None was run against Modal. A person runs them by hand. There is no CD: no workflow file, hook or script runs `modal deploy`.
+Every command here needs a Modal account and token, so all of them are live-only. Their flags were checked with `--help` on modal 1.6.2 on 2026-10-21. None was run against Modal. A person runs them by hand, or starts `.github/workflows/deploy.yml` or `.github/workflows/ops.yml` from the Actions tab or by a push to their dedicated branches (below). There is no CD: no merge, schedule, hook or push to master or a `keyframe/**` branch runs `modal deploy`.
 
 ## One-time setup
 
@@ -26,7 +26,11 @@ Every command here needs a Modal account and token, so all of them are live-only
 
 ## Deploy the judge URL (manual)
 
-The same steps run on demand from `.github/workflows/deploy.yml` (Actions tab, deploy, Run workflow, choosing the Environment and `MIN_CONTAINERS`); the token comes from the repository's Actions secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, never from a file; the chosen Environment's `keyframe` Secret must exist first (step 3 of the one-time setup), since the workflow creates a missing Environment but not its Secret. By hand:
+The same steps run on demand from `.github/workflows/deploy.yml` (Actions tab, deploy, Run workflow, choosing the Environment and `MIN_CONTAINERS`); the token comes from the repository's Actions secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, never from a file; the chosen Environment's `keyframe` Secret must exist first (step 3 of the one-time setup), since the workflow creates a missing Environment but not its Secret.
+
+By the owner's decision of Oct 29, the workflow also runs on a push to `deploy/main`, `deploy/main-warm` or `deploy/dev`, so a deploy can be started by a push alone. Push a commit master already carries, fast-forward only: `git push origin <master-sha>:refs/heads/deploy/main`. `deploy/main` deploys the `main` Environment with `MIN_CONTAINERS=0`, `deploy/main-warm` deploys `main` with `MIN_CONTAINERS=1` (Thu Nov 5 to Mon Nov 9, since any deploy resets the autoscaler override), and `deploy/dev` deploys `dev` with 0. The first step refuses a pushed commit that `origin/master` does not contain; master only advances on a green CI run, so a pushed deploy is always a green commit. One deploy per Environment runs at a time.
+
+By hand:
 
 1. Run the offline suite (`pytest`) and `scripts/selfcheck.py`, then `cd web && npm run build`, then `bash scripts/check.sh --predeploy` (keyframe-devops: `uv.lock` in sync, since the image installs it with `uv_sync`, which runs `--frozen`; CI's uv and `.python-version` match the image; clean tree; `web/dist` present).
 2. Set `MIN_CONTAINERS` in the shell. Use 0 before Thu Nov 5, 1 from Thu Nov 5 to Mon Nov 9, and 0 again from Tue Nov 10. The decorator reads this value through `Settings` at deploy time.
@@ -50,6 +54,7 @@ The same steps run on demand from `.github/workflows/deploy.yml` (Actions tab, d
 
 - `ledger_export` runs at 06:00 America/New_York and `session_sweep` at minute 17 of every hour, on the deployed app.
 - The daily export of the ledger, `scripts/ledger.py export`, also runs from `.github/workflows/ops.yml` (action `ledger-export`), which uploads `spend/exports/` as a workflow artifact for the builder to download and commit; the workflow never commits.
+- Every ops action also runs by a push, by the owner's decision of Oct 29: make a new branch `ops/<action>-<n>` from master with one commit that adds `.github/ops/request.json`, for example `{"action": "warm", "environment": "main"}` (keys `action`, `environment`, `room_id`, `room_name`, `confirm`; the same values and defaults as the dispatch inputs, all strings), and push it once. A first job without the Modal token refuses the request unless the commit's parent is on master and the commit changes only that file, then validates the file; the purge still needs `"confirm": "purge"`. The request branches can be deleted afterwards. The file is never committed to master.
 - After the first deploy, start one run by hand with the "run now" button on the app's dashboard page, so a snapshot exists before the next morning. Then `modal volume ls keyframe-data spend` lists `hosted-<date>.jsonl`.
 - To pause the schedule, remove it from the decorator and redeploy. Modal schedules have no pause.
 
