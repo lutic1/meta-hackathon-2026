@@ -42,6 +42,7 @@ def test_the_floor_strings_are_the_experience_lines():
     assert strings["showAllTip"] == "Tip: 'Show all objects' in the top bar outlines everything you can click."
     assert strings["lockNotThis"].format(n=2, count=1) == "Puzzle 2: not this, 1."
     assert strings["lockSolved"].format(n=3) == "Puzzle 3 solved."
+    assert strings["puzzleAvailable"].format(n=4) == "Puzzle 4 is now in the notes."
 
 
 def test_hotspots_are_in_tab_order_by_polygon_centroid_top_to_bottom_then_left_to_right():
@@ -146,6 +147,7 @@ def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_feedback_l
         "web/src/build-progress.ts",  # the reconnecting line
         "web/src/play.ts",  # the reconnecting line and the feedback line
         "web/src/components/hint-area.ts",  # Rung and No-hint lines
+        "web/src/components/wizard-notes.ts",  # the Puzzles a lock opening made available (owner decision 68)
         "web/src/components/narrow-screen-message.ts",  # the copied-link confirmation
     }
     assert "announce(strings.reconnectingBuild)" in sources["web/src/build-progress.ts"]
@@ -164,7 +166,7 @@ def test_lock_outcomes_are_announced_once_per_reply_never_checking_and_nothing_a
     assert play.count("feedback?.(") == 1 and "feedback?.(body, before, reply)" in play
     # "Checking" never reaches the region.
     assert "checking" not in _code(feedback).lower() and "addEventListener" not in feedback and ".post(" not in feedback
-    for name in ("components/code-field.ts", "components/wizard-notes.ts", "scene/hotspots.ts", "scene/index.ts"):
+    for name in ("components/code-field.ts", "scene/hotspots.ts", "scene/index.ts"):
         assert "announce(" not in _code(_ts(name)), name
 
 

@@ -93,15 +93,15 @@ def test_an_empty_inventory_shows_one_dashed_slot_and_nothing_in_hand_yet():
     assert _rules("components/inventory.css")[".inventory-nothing"]["color"] == "var(--text-muted)"
 
 
-def test_the_wizard_notes_draw_one_entry_per_available_puzzle_in_availability_order():
+def test_the_wizard_notes_draw_one_entry_per_available_puzzle_in_room_order():
     notes = _ts("components/wizard-notes.ts")
-    order = notes.split("export function availableInOrder(", 1)[1].split("\n}\n", 1)[0]
-    # Available when every prerequisite is open; ordered by when the last of them opened (locks_open's own order).
-    assert ".filter(({ puzzle }) => puzzle.requires.every((id) => locksOpen.includes(id)))" in order
-    assert "Math.max(-1, ...puzzle.requires.map((id) => locksOpen.indexOf(id)))" in order
-    assert ".sort((a, b) => a.since - b.since || a.place - b.place)" in order
+    order = notes.split("export function availableInRoomOrder(", 1)[1].split("\n}\n", 1)[0]
+    # Owner decision 68: available when every prerequisite is open, in Room.puzzles[] order, the order the Active-puzzle
+    # fallback follows (AD-4), so the earliest unsolved entry is the one "Current" falls back to; never re-sorted.
+    assert "return puzzles.filter((puzzle) => puzzle.requires.every((id) => locksOpen.includes(id)))" in order
+    assert ".sort(" not in order and "availableInOrder" not in notes
     # A Puzzle a Merge hid keeps its place, as its placeholder, until it is available again (Story 4.6).
-    assert "availableInOrder(room.puzzles.map((puzzle) => waiting.get(puzzle.id)?.puzzle ?? puzzle), state.locks_open)" in notes
+    assert "availableInRoomOrder(room.puzzles.map((puzzle) => waiting.get(puzzle.id)?.puzzle ?? puzzle), state.locks_open)" in notes
     # n is the Puzzle's fixed place in the Room, never its place in the list.
     assert "const place = (id: string): number => room.puzzles.findIndex((puzzle) => puzzle.id === id) + 1" in notes
     assert "entry(room, puzzle, place(puzzle.id), play)" in notes

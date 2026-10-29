@@ -147,7 +147,7 @@ def test_an_entry_a_merge_gates_fades_out_and_its_placeholder_holds_its_place_wi
     assert "waiting.set(puzzle.id, { puzzle, line: waitingLine(place(puzzle.id)) })" in reshape
     assert "made.element.classList.add('is-leaving')" in reshape and "setTimeout(redraw, stateFadeMs())" in reshape
     # Focus inside the gated entry moves to its line when the line takes its place, whichever draw does that.
-    focus = _nested(notes, "function keepFocus(focused: Element | null): HTMLElement | undefined {")
+    focus = _nested(notes, "function keepFocus(focused: Element | null): void {")
     assert "const line = [...waiting].find(([id]) => entries.get(id)?.element.contains(focused))?.[1].line" in focus
     assert "line.focus()" in focus
     line = notes.split("function waitingLine(n: number): HTMLParagraphElement {", 1)[1].split("\n}\n", 1)[0]
@@ -172,11 +172,11 @@ def test_a_merge_that_lands_in_the_open_hold_keeps_its_entry_faded_until_the_hol
     redraw = reshape.split("const redraw = (): void => {", 1)[1].split("\n    }\n", 1)[0]
     assert "if (!holding && latest !== undefined && element.isConnected) draw(latest, false)" in redraw
     draw = _nested(notes, "function draw(state: SessionState, afterOpening: boolean): void {")
-    # Only an entry drawn again loses the class, and a line that took focus keeps it over the arriving heading.
+    # Only an entry drawn again loses the class, and a line that took focus keeps it: no draw moves focus on its own.
     shown = draw.split("const shown = listed.flatMap((puzzle) => {", 1)[1].split("\n    })\n", 1)[0]
     assert "if (waiting.has(puzzle.id)) return []" in shown
     assert shown.index("return []") < shown.index("made.element.classList.remove('is-leaving')")
-    assert "line = keepFocus(focused)" in draw and "if (!afterOpening || line !== undefined) return" in draw
+    assert "keepFocus(focused)" in draw and "heading.focus()" not in draw
 
 
 def test_a_row_swap_keeps_focus_on_an_entry_that_stays():
@@ -184,18 +184,18 @@ def test_a_row_swap_keeps_focus_on_an_entry_that_stays():
     draw = _nested(notes, "function draw(state: SessionState, afterOpening: boolean): void {")
     # replaceChildren detaches every kept entry for a moment, so focus is read before and put back after.
     assert draw.index("const focused = document.activeElement") < draw.index("element.replaceChildren(...rows)")
-    assert draw.index("element.replaceChildren(...rows)") < draw.index("line = keepFocus(focused)")
+    assert draw.index("element.replaceChildren(...rows)") < draw.index("keepFocus(focused)")
     # Focusing forces a style pass, so the arriving entries take their transparent start first or skip their fade.
-    assert draw.index("for (const made of arrived) fadeIn(made.element)") < draw.index("line = keepFocus(focused)")
-    focus = _nested(notes, "function keepFocus(focused: Element | null): HTMLElement | undefined {")
-    assert "if (!(focused instanceof HTMLElement) || document.activeElement === focused) return undefined" in focus
+    assert draw.index("for (const made of arrived) fadeIn(made.element)") < draw.index("keepFocus(focused)")
+    focus = _nested(notes, "function keepFocus(focused: Element | null): void {")
+    assert "if (!(focused instanceof HTMLElement) || document.activeElement === focused) return" in focus
     assert "if (focused.isConnected) {\n      focused.focus({ preventScroll: true })" in focus
 
 
 def test_a_shortcut_entry_fades_in_only_once_no_prerequisite_is_unmet():
     notes = _ts("components/wizard-notes.ts")
-    order_ = notes.split("export function availableInOrder(", 1)[1].split("\n}\n", 1)[0]
-    assert ".filter(({ puzzle }) => puzzle.requires.every((id) => locksOpen.includes(id)))" in order_
+    order_ = notes.split("export function availableInRoomOrder(", 1)[1].split("\n}\n", 1)[0]
+    assert "puzzles.filter((puzzle) => puzzle.requires.every((id) => locksOpen.includes(id)))" in order_
     draw = _nested(notes, "function draw(state: SessionState, afterOpening: boolean): void {")
     assert "if (before.size > 0) for (const made of arrived) fadeIn(made.element)" in draw
     reshape = _nested(notes, "function reshape(view: PlayView): void {")
@@ -212,7 +212,10 @@ def test_a_loosen_rung_shows_on_the_rung_line_and_in_its_puzzles_entry():
 
 
 def test_nothing_the_reshape_draws_reaches_the_live_region_and_every_fade_is_instant_under_reduced_motion():
-    assert "announce" not in _ts("components/wizard-notes.ts")
+    notes = _ts("components/wizard-notes.ts")
+    # The notes announce only the entries a lock opening made available (owner decision 68), never a reshape's draw.
+    assert "announce" not in _nested(notes, "function reshape(view: PlayView): void {")
+    assert notes.count("announce(") == 1 and "if (afterOpening && arrived.length > 0) {\n      announce(" in notes
     fade = _ts("fade.ts")
     assert "export function stateFadeMs(): number {" in fade and "getPropertyValue('--motion-state')" in fade
     tokens = (WEB_SRC / "tokens.css").read_text()

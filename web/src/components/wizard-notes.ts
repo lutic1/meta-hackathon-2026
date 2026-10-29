@@ -1,6 +1,7 @@
 import './wizard-notes.css'
 import type { PlayPuzzle, PlayView, RungChangeEvent, SessionState } from '../../types'
 import { fadeIn, stateFadeMs } from '../fade.ts'
+import { announce } from '../live-region.ts'
 import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
 import { speakerPrefix, wizardPortrait } from '../wizards/portrait.ts'
@@ -24,6 +25,8 @@ export interface WizardNotes {
 
 interface Entry {
   element: HTMLElement
+  /** The Puzzle's fixed place in the Room, the n of "Puzzle {n}". */
+  n: number
   heading: HTMLHeadingElement
   update: (state: SessionState) => void
   /** The lock just opened: the lock input gives way to the Solved chip while the entry stays expanded. */
@@ -35,16 +38,12 @@ interface Entry {
 }
 
 /**
- * The Puzzles whose prerequisites are all open, in the order they became available: each when the last Puzzle it
- * `requires` opened (`locks_open` keeps the order locks opened in), those with none from the start, ties in Room order.
- * Open Puzzles stay in it; Puzzles with an unmet prerequisite are left out.
+ * The Puzzles whose prerequisites are all open, in Room order (`Room.puzzles[]`), the order the Active-puzzle fallback
+ * follows (AD-4), so the earliest unsolved entry is the one "Current" falls back to. Open Puzzles keep their place;
+ * Puzzles with an unmet prerequisite are left out.
  */
-export function availableInOrder(puzzles: readonly PlayPuzzle[], locksOpen: readonly string[]): PlayPuzzle[] {
-  return puzzles
-    .map((puzzle, place) => ({ puzzle, place, since: Math.max(-1, ...puzzle.requires.map((id) => locksOpen.indexOf(id))) }))
-    .filter(({ puzzle }) => puzzle.requires.every((id) => locksOpen.includes(id)))
-    .sort((a, b) => a.since - b.since || a.place - b.place)
-    .map(({ puzzle }) => puzzle)
+export function availableInRoomOrder(puzzles: readonly PlayPuzzle[], locksOpen: readonly string[]): PlayPuzzle[] {
+  return puzzles.filter((puzzle) => puzzle.requires.every((id) => locksOpen.includes(id)))
 }
 
 /** What the notes draw from a state: a state with the same key redraws nothing. */
@@ -172,7 +171,7 @@ function entry(room: PlayView, puzzle: PlayPuzzle, n: number, play: PlaySession)
   }
   drawEvidence(room, puzzle)
 
-  return { element, heading, update, opening, rungs: drawRungs, evidence: drawEvidence }
+  return { element, n, heading, update, opening, rungs: drawRungs, evidence: drawEvidence }
 }
 
 /** The plain line an accepted Merge leaves where the entry it gated stood; focus can land on it (UX-DR27). */
@@ -184,7 +183,7 @@ function waitingLine(n: number): HTMLParagraphElement {
 
 /**
  * The Wizard notes (`{components.wizard-notes}`, FR-11, UX-DR27): a parchment sheet scrolling inside the side
- * column with one entry per Puzzle whose prerequisites are open, in availability order, each headed "Puzzle {n}"
+ * column with one entry per Puzzle whose prerequisites are open, in Room order, each headed "Puzzle {n}"
  * (n = its fixed place in the Room) with its evidence count at the right end, then the Riddler's portrait beside the
  * Clue, the Evidence cards in `PlayView` order, the Lore, the opened Rungs (each a Rung the Hint area's Rung line
  * showed and gave up, with the Guide's 32 px portrait, its "Puzzle {n} · {Rung name}" label and its line, as
@@ -193,9 +192,11 @@ function waitingLine(n: number): HTMLParagraphElement {
  * `{components.active-puzzle-marker}`, read from `active_puzzle_id` and never guessed; an open entry collapses to its
  * heading with the Solved chip. When a state shows a lock newly open, "Solved" takes the lock input's place for 1200 ms
  * (UX-DR38), fading in lifted on the paper shadow (the unlock moment; the Scene and the Hint area play their parts
- * from lock-opened.ts), then the notes draw the latest state: the entry collapses, newly available entries fade in,
- * and focus moves to the heading of the first of them, else of the Active puzzle. Everything follows session state;
- * nothing follows a click.
+ * from lock-opened.ts), then the notes draw the latest state: the entry collapses, newly available entries fade in
+ * and are announced once in the live region ("Puzzle {n} is now in the notes."), and "Current" moves with
+ * `active_puzzle_id`. Focus is never taken: it stays where the player left it, and focus inside the entry whose lock
+ * input gave way to the Solved chip moves to that entry's heading, which stays drawn. Everything follows session
+ * state; nothing follows a click.
  *
  * `reshape` takes the Effective room refetched after an accepted edit (FR-19, AD-12) and keeps every entry, so the
  * Code field's value and keyboard focus stay: an entry's Evidence cards and count change in place, a card the Room
@@ -233,19 +234,16 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
 
   /**
    * Puts focus back after the rows were swapped, which detaches every kept entry for a moment: on the element that
-   * held it when that is still drawn, else on the line that took the place of the gated entry that held it. Returns
-   * that line, if any.
+   * held it when that is still drawn, else on the line that took the place of the gated entry that held it.
    */
-  function keepFocus(focused: Element | null): HTMLElement | undefined {
-    if (!(focused instanceof HTMLElement) || document.activeElement === focused) return undefined
+  function keepFocus(focused: Element | null): void {
+    if (!(focused instanceof HTMLElement) || document.activeElement === focused) return
     if (focused.isConnected) {
       focused.focus({ preventScroll: true })
-      return undefined
+      return
     }
     const line = [...waiting].find(([id]) => entries.get(id)?.element.contains(focused))?.[1].line
-    if (!line?.isConnected) return undefined
-    line.focus()
-    return line
+    if (line?.isConnected) line.focus()
   }
 
   function draw(state: SessionState, afterOpening: boolean): void {
@@ -256,7 +254,7 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
     }
     const before = new Set(element.children)
     // A waiting Puzzle keeps the place it was drawn in, as its line.
-    const listed = availableInOrder(room.puzzles.map((puzzle) => waiting.get(puzzle.id)?.puzzle ?? puzzle), state.locks_open)
+    const listed = availableInRoomOrder(room.puzzles.map((puzzle) => waiting.get(puzzle.id)?.puzzle ?? puzzle), state.locks_open)
     const shown = listed.flatMap((puzzle) => {
       if (waiting.has(puzzle.id)) return []
       const made = built(puzzle)
@@ -267,18 +265,16 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
     const rows = listed.map((puzzle) => waiting.get(puzzle.id)?.line ?? built(puzzle).element)
     const children = [...element.children]
     const arrived = shown.filter((made) => !before.has(made.element))
-    let line: HTMLElement | undefined
     if (rows.length !== children.length || rows.some((child, index) => child !== children[index])) {
       const focused = document.activeElement
       element.replaceChildren(...rows)
       // The arriving entries start transparent before focus moves: its style pass would otherwise skip their fade.
       if (before.size > 0) for (const made of arrived) fadeIn(made.element)
-      line = keepFocus(focused)
+      keepFocus(focused)
     }
-    if (!afterOpening || line !== undefined) return
-    const active = state.active_puzzle_id === null ? undefined : entries.get(state.active_puzzle_id)
-    const next = arrived[0] ?? (active !== undefined && active.element.isConnected ? active : undefined)
-    next?.heading.focus()
+    if (afterOpening && arrived.length > 0) {
+      announce(arrived.map((made) => fill(strings.puzzleAvailable, { n: made.n })).join(' '))
+    }
   }
 
   function render(state: SessionState): void {
@@ -298,7 +294,9 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
       return
     }
     holding = true
+    const held = opened.find((made) => made.element.contains(document.activeElement))
     for (const made of opened) made.opening()
+    held?.heading.focus()
     setTimeout(() => {
       holding = false
       if (latest !== undefined && element.isConnected) draw(latest, true)

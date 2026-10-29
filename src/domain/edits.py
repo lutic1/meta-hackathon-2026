@@ -2,7 +2,8 @@
 
 `validate_edit(room, state, edit)` checks the Trickster's limits: the
 window first, then the per-type payload bounds, each refusal a structured
-reason with the bounds row's fixed message from the Validator table.
+reason named `edit_bounds` (never a rule number) with the bounds row's fixed
+message from the Validator table.
 `apply_edit(room, edit)` returns a new Room with the edit folded in and its
 id in `provenance.applied_edits`; the input Room is never changed, so the
 stored build Room shared across Sessions keeps empty `applied_edits` and
@@ -36,7 +37,7 @@ from .schema import (
     ValidatorReason,
     ValidatorResult,
 )
-from .validator import BOUNDS_MESSAGE, BOUNDS_RULE, validate
+from .validator import BOUNDS_MESSAGE, EDIT_BOUNDS, validate
 
 
 def _window_bounds(state: SessionState, edit: TricksterEdit) -> list[tuple[str | None, str]]:
@@ -80,7 +81,7 @@ def validate_edit(room: Room, state: SessionState, edit: TricksterEdit) -> Valid
     """The Trickster's limits over the Effective room: the window bound first, and only inside it the payload bounds."""
     found = _window_bounds(state, edit) or _payload_bounds(room, edit)
     reasons = [
-        ValidatorReason(rule=BOUNDS_RULE, puzzle_id=puzzle_id, field=field, message=BOUNDS_MESSAGE)
+        ValidatorReason(rule=EDIT_BOUNDS, puzzle_id=puzzle_id, field=field, message=BOUNDS_MESSAGE)
         for puzzle_id, field in dict.fromkeys(found)
     ]
     return ValidatorResult(ok=not reasons, reasons=reasons)

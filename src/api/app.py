@@ -120,8 +120,9 @@ startup the local app exports the ledger and restarts every job left
 
 `POST /sessions/<id>/trickster` runs the configured `TricksterSource`
 (wiring's `trickster_source`) inside an open window, under the session lock
-(AD-4, AD-12): outside an open window it answers 200 with the unchanged
-state, no source call and no event, and a request arriving while the
+(AD-4, AD-12): outside an open window (and opening the Exit closes one still
+open, so none follows it) it answers 200 with the unchanged state, no source
+call and no event, and a request arriving while the
 source runs waits on the lock and is then served the closed window the
 first one left, so a window yields at most one source call and one card.
 While the source runs the window reads `pending` in the state the session

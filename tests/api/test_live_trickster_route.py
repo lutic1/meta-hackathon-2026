@@ -34,7 +34,7 @@ from src.council.trickster import (
 from src.domain.redact import to_play_view, to_prompt_view
 from src.domain.schema import Room, strict_schema
 from src.domain.session import TRICKSTER_CALLS_MAX
-from src.domain.validator import BOUNDS_RULE, RULES
+from src.domain.validator import EDIT_BOUNDS, RULES
 from src.infra.local import CACHE_ROOT, LEDGER_PATH
 from src.infra.modal import CACHE_DIR, hosted_stores
 from src.providers.cache import GuardedCalls
@@ -148,7 +148,7 @@ def test_a_live_proposal_is_carded_by_the_live_validator_and_an_absent_id_is_a_r
     session_id, (first, second) = two_windows(client, ticker, four_lock_room, click("key"), code("clock_code", "415"))
 
     rejected, accepted = cards_in(tmp_path, session_id)
-    assert not rejected.accepted and rejected.reason == BOUNDS_RULE and rejected.edit is not None
+    assert not rejected.accepted and rejected.reason == EDIT_BOUNDS and rejected.edit is not None
     assert rejected.edit.puzzle == ABSENT["puzzle"]  # kept exactly as the reply wrote it
     assert first["room_revision"] == 0 and first["trickster_window"] == CLOSED
     assert accepted.accepted and second["room_revision"] == 1

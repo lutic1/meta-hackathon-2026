@@ -47,7 +47,16 @@ from src.pipeline.ports import room_key
 from src.providers.base import ProviderError
 from src.providers.mock import MockProvider
 from tests.api.test_app import make_app
-from tests.api.test_sessions import Ticker, click, code, post, start, stored
+from tests.api.test_sessions import (
+    Ticker,
+    click,
+    code,
+    order,
+    post,
+    start,
+    stored,
+    use_on,
+)
 from tests.domain.test_redact import json_keys
 from tests.domain.test_trickster_windows import skipped
 from tests.fixtures.rooms import (
@@ -237,6 +246,24 @@ def test_a_session_at_six_calls_answers_its_unchanged_state_with_its_cards_and_n
     reply = trickster(client, session_id)
     assert reply == state_of(client, session_id) and len(reply["cards"]) == TRICKSTER_CALLS_MAX
     assert reply["trickster_calls"] == TRICKSTER_CALLS_MAX and stored(tmp_path, session_id) == log and source.calls == []
+
+
+def test_a_window_still_open_when_the_exit_opens_closes_and_never_calls_the_source(
+    tmp_path: Path, ticker: Ticker, four_lock_room: Room
+):
+    source = Counting()
+    client = app_client(tmp_path, ticker, four_lock_room, trickster=always(source))
+    session_id = start(client, four_lock_room)
+    open_window(client, ticker, session_id, click("key"), 0)
+    for body in (code("clock_code", "415"), order("start", "shelf_order"), *(click(n) for n in ("candle", "lantern", "hourglass")),
+                 use_on("key", "chest")):
+        assert post(client, session_id, body)["trickster_window"] == {"state": "open", "index": 0}
+    done = post(client, session_id, code("door_code", "7342"))
+    assert PZ["door_code"] in done["locks_open"] and done["trickster_window"] == CLOSED
+    log = stored(tmp_path, session_id)
+    reply = trickster(client, session_id)
+    assert reply == state_of(client, session_id) and reply["cards"] == [] and reply["trickster_calls"] == 0
+    assert stored(tmp_path, session_id) == log and source.calls == []
 
 
 # --- One window, one source call, one card ---------------------------------------------

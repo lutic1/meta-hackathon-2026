@@ -3346,6 +3346,10 @@
               "type": "integer"
             },
             {
+              "const": "edit_bounds",
+              "type": "string"
+            },
+            {
               "const": "provider_unavailable",
               "type": "string"
             },
@@ -3438,6 +3442,10 @@
             {
               "minimum": 1,
               "type": "integer"
+            },
+            {
+              "const": "edit_bounds",
+              "type": "string"
             },
             {
               "const": "provider_unavailable",
@@ -3667,12 +3675,20 @@
     },
     "ValidatorReason": {
       "additionalProperties": false,
-      "description": "Structured and token-free: the rule, the puzzle, the field and the rule's fixed message (AD-3).",
+      "description": "Structured and token-free: the rule (or `edit_bounds`), the puzzle, the field and the fixed message (AD-3).",
       "properties": {
         "rule": {
-          "minimum": 1,
-          "title": "Rule",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "const": "edit_bounds",
+              "type": "string"
+            }
+          ],
+          "title": "Rule"
         },
         "puzzle_id": {
           "anyOf": [

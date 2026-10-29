@@ -1,8 +1,11 @@
 """The Dry run prompt: what a player sees, and nothing else (AD-3, AD-12).
 
 `build_dry_run_prompt(room_view, response_schema)` is pure over `RoomView`.
-It renders each Interactable's `id` and `label` and each Puzzle's `id`, Clue
-and three Rungs; never a solution, Lore, an attribute or a profile field.
+It renders each Interactable's `id` and `label` and each Puzzle's `id`, lock
+type, Clue and three Rungs (the lock type is what a player already sees in
+the Puzzle's lock input); never a solution, Lore, an attribute or a profile
+field. Any change to the rendered prompt changes the Dry run's cache key, so
+an entry cached under the old prompt is never served for the new one.
 The pipeline dryrun stage makes the call at reasoning `low`, hands the stored
 photo bytes to the adapter as `images`, and is the only place the answers
 meet the solutions (`check_dry_run`).
@@ -49,6 +52,7 @@ def _object_line(interactable: InteractableView) -> str:
 def _puzzle_block(puzzle: PuzzleView) -> str:
     return "\n".join((
         f"Puzzle {puzzle.id}",
+        f"Lock type: {puzzle.lock_type}",
         f"Clue: {puzzle.clue}",
         "Hints, from the vaguest to the most direct:",
         f"1. {puzzle.rungs.nudge}",
@@ -58,7 +62,7 @@ def _puzzle_block(puzzle: PuzzleView) -> str:
 
 
 def render_task(room_view: RoomView) -> str:
-    """The user text: the clickable objects by id and label, then each puzzle's id, clue and hints."""
+    """The user text: the clickable objects by id and label, then each puzzle's id, lock type, clue and hints."""
     objects = "\n".join(_object_line(ix) for ix in room_view.interactables)
     puzzles = "\n\n".join(_puzzle_block(puzzle) for puzzle in room_view.puzzles)
     return f"Objects in the room (id: label):\n{objects}\n\nPuzzles:\n\n{puzzles}\n"

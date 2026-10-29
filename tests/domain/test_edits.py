@@ -7,7 +7,13 @@ from typing import Any
 
 import pytest
 
-from src.domain.edits import accepted_edit, apply_edit, check_edit, effective_room, validate_edit
+from src.domain.edits import (
+    accepted_edit,
+    apply_edit,
+    check_edit,
+    effective_room,
+    validate_edit,
+)
 from src.domain.redact import to_play_view
 from src.domain.schema import (
     ClickEvent,
@@ -25,8 +31,21 @@ from src.domain.schema import (
     ValidatorResult,
 )
 from src.domain.session import SessionStateMachine
-from src.domain.validator import BOUNDS_MESSAGE, BOUNDS_RULE, BUILD_RULES, DECOY_RULE, RULES, validate
-from tests.fixtures.rooms import IX, PZ, SENTINEL_CODE, SENTINEL_IX, with_sentinel_solutions
+from src.domain.validator import (
+    BOUNDS_MESSAGE,
+    BUILD_RULES,
+    DECOY_RULE,
+    EDIT_BOUNDS,
+    RULES,
+    validate,
+)
+from tests.fixtures.rooms import (
+    IX,
+    PZ,
+    SENTINEL_CODE,
+    SENTINEL_IX,
+    with_sentinel_solutions,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 SESSION = "sess_01ARZ3NDEKTSV4RRFFQ69G5FAV"
@@ -143,8 +162,19 @@ def test_rule_9_and_the_bounds_row_sit_in_the_one_validator_table():
         "False evidence follows the decoy rules", "A false clue breaks the decoy rules.",
     )
     assert BOUNDS_MESSAGE == "The change is outside the Trickster's limits."
-    assert BOUNDS_RULE not in RULES  # no check name and no pass row
+    assert EDIT_BOUNDS not in RULES  # no check name and no pass row
     assert list(BUILD_RULES) == list(range(1, 9))
+
+
+def test_bounds_refusals_carry_the_named_edit_bounds_category_and_never_a_rule_number(four_lock_room):
+    # Owner decision 29: rules 1 to 8 are the base build checks, rule 9 the Decoy check, and nothing is rule 10.
+    assert list(RULES) == list(range(1, DECOY_RULE + 1))
+    cases = [(room, window_state(room), edit) for room, edit in bounds_rejections(four_lock_room).values()]
+    cases.append((four_lock_room, window_state(four_lock_room, "closed", None), decoy(20, "shelf_order", "rug", "faded red")))
+    for room, state, edit in cases:
+        reasons = validate_edit(room, state, edit).reasons
+        assert reasons and {reason.rule for reason in reasons} == {"edit_bounds"}
+        assert all(reason.message == BOUNDS_MESSAGE for reason in reasons)
 
 
 def test_rule_9_passes_on_the_stored_build_rooms(four_lock_room, code_and_find_room):
@@ -177,7 +207,7 @@ def test_payload_bounds_refuse_with_structured_reasons_and_the_fixed_message(fou
     result = validate_edit(room, window_state(room), edit)
     assert not result.ok and result.reasons
     for reason in result.reasons:
-        assert (reason.rule, reason.message) == (BOUNDS_RULE, BOUNDS_MESSAGE)
+        assert (reason.rule, reason.message) == (EDIT_BOUNDS, BOUNDS_MESSAGE)
         assert reason.field and reason.field != "window" and reason.puzzle_id is not None
     assert not check_edit(room, window_state(room), edit).ok
 
@@ -188,7 +218,7 @@ def test_a_closed_window_refuses_on_the_window_bound_before_any_payload_check(fo
     for room, edit in cases:
         result = validate_edit(room, window_state(room, "closed", None), edit)
         assert [(r.rule, r.puzzle_id, r.field, r.message) for r in result.reasons] == [
-            (BOUNDS_RULE, None, "window", BOUNDS_MESSAGE)
+            (EDIT_BOUNDS, None, "window", BOUNDS_MESSAGE)
         ]
     other_window = validate_edit(four_lock_room, window_state(four_lock_room, "open", 1), valid)
     assert [r.field for r in other_window.reasons] == ["window"]
@@ -354,7 +384,7 @@ def test_the_effective_room_is_the_accepted_edits_folded_in_log_order(four_lock_
     log, live_rooms = _play(four_lock_room)
     cards = [event for event in log if isinstance(event, TricksterCardEvent)]
     assert [c.accepted for c in cards] == [True, True, False, True, False, True]
-    assert [c.reason for c in cards] == [None, None, BOUNDS_RULE, None, 2, None]  # the first failing rule
+    assert [c.reason for c in cards] == [None, None, EDIT_BOUNDS, None, 2, None]  # the first failing rule
     assert {r.rule for r in cards[4].edit.validator_result.reasons} == {2, 8}  # find_key no longer feeds the chest
 
     effective = effective_room(four_lock_room, log)
@@ -452,7 +482,7 @@ def test_a_rejected_loosen_opens_nothing(four_lock_room):
     machine = SessionStateMachine(four_lock_room)
     edit = loosen(83, "clock_code", "direction")
     refused = ValidatorResult.model_validate({"ok": False, "reasons": [
-        {"rule": BOUNDS_RULE, "puzzle_id": None, "field": "window", "message": BOUNDS_MESSAGE}]})
+        {"rule": EDIT_BOUNDS, "puzzle_id": None, "field": "window", "message": BOUNDS_MESSAGE}]})
     state = machine.replay(SESSION, [card(edit, refused, 0, 1_000)])
     assert state.current_rung[PZ["clock_code"]] == 0 and state.rung_changes == [] and state.room_revision == 0
 

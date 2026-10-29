@@ -13,7 +13,8 @@ from typing import get_args
 
 from src.domain.redact import to_build_view
 from src.domain.schema import DryRunVerdict, Room
-from src.domain.validator import BUILD_RULES, RULES
+from src.domain.validator import BUILD_RULES, DECOY_RULE, RULES, validate
+from src.pipeline.author import rule_verdicts
 from tests.domain.test_redact import done_job
 from tests.fixtures.rooms import SENTINEL_CODE, SENTINEL_IX, with_sentinel_solutions
 from tests.web.design import source_css
@@ -34,8 +35,9 @@ def _function(text: str, name: str) -> str:
 
 def test_the_verdict_table_is_a_real_table_under_its_caption_with_header_cells():
     strings = _strings()
-    assert strings["verdictCaption"] == ("The Validator is code, not a model. It checks these 8 rules on every draft; "
-                                         "a failed rule sends the draft back to the Riddler.")
+    assert strings["verdictCaption"] == ("The Validator is code, not a model. It checks rules 1 to 8 on every draft; "
+                                         "a failed rule sends the draft back to the Riddler. Rule 9 checks the "
+                                         "Trickster's false evidence during play, so a build has none to check.")
     assert [strings[k] for k in ("verdictRule", "verdictCheck", "verdictVerdict")] == ["Rule", "Check", "Verdict"]
     panel = _function(VERDICTS, "panel")
     assert "document.createElement('table')" in panel and "table.tabIndex = 0" in panel
@@ -43,7 +45,7 @@ def test_the_verdict_table_is_a_real_table_under_its_caption_with_header_cells()
     assert "th.scope = 'col'" in panel and "text('th', heading, 'label')" in panel
     table = _function(VERDICTS, "verdictTable")
     assert "panel(strings.verdictCaption, [strings.verdictRule, strings.verdictCheck, strings.verdictVerdict]" in table
-    assert "view.validator.map(ruleRow)" in table
+    assert "[...view.validator.map(ruleRow), decoyRow()]" in table
     rules = _css("components/verdict-table.css")
     assert rules[".verdict-table"]["caption-side"] == "top"
     assert rules[".verdict-table-panel"]["background"] == "var(--chrome)"
@@ -69,8 +71,26 @@ def test_the_check_names_and_fixed_messages_are_the_validators_and_the_experienc
         assert strings[f"rule{number}Failed"] == rule.message
         assert f"| {number} | \"{rule.name}\" | \"{rule.message}\" |" in table
         assert f"{number}: strings.rule{number}Failed," in VERDICTS
-    # Rule 9 (Decoys) joins in 4.1: a build's verdict rows are rules 1 to 8.
+    # A build's verdicts are the base checks, rules 1 to 8; rule 9 (Decoys) never fails on a build, so no fail line.
     assert "rule9Failed" not in strings and list(BUILD_RULES) == list(range(1, 9))
+
+
+def test_rule_9_shows_apart_as_not_applicable_and_the_rules_line_counts_the_base_checks_only(four_lock_room: Room):
+    # Owner decision 29: rule 9 is the Decoy check, shown as not applicable on a build, which holds no Decoy.
+    strings = _strings()
+    assert strings["rule9Name"] == RULES[DECOY_RULE].name and strings["notApplicable"] == "not applicable"
+    row = _function(VERDICTS, "decoyRow")
+    assert "text('th', String(DECOY_RULE), 'mono-sm verdict-table-number')" in row and "number.scope = 'row'" in row
+    assert "text('td', strings.rule9Name, 'body-sm')" in row
+    assert "text('div', strings.notApplicable, 'verdict-word verdict-word-skipped label')" in row
+    assert "const DECOY_RULE = 9" in VERDICTS
+    assert '"not applicable"' in _voice_and_tone()
+    # The "Rules: {passed} of {total} passed" line and the Model table's "checked 8 rules" count the build's verdicts,
+    # which are the base checks alone, so rule 9 never enters an "8 of 8".
+    assert [verdict.rule for verdict in rule_verdicts(validate(four_lock_room))] == list(BUILD_RULES)
+    stages = _ts("build-stages.ts")
+    assert "fill(strings.rulesPassed, { passed, total: validator.length })" in stages
+    assert _strings()["validatorDid"] == f"checked {len(BUILD_RULES)} rules"
 
 
 def test_the_verdict_markers_are_8px_in_the_graph_colors_and_the_table_fits_the_1280_right_third():

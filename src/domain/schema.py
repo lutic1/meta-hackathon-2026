@@ -273,10 +273,14 @@ Payload = Annotated[
 ]
 
 
-class ValidatorReason(Model):
-    """Structured and token-free: the rule, the puzzle, the field and the rule's fixed message (AD-3)."""
+EditBounds = Literal["edit_bounds"]
+"""The named category of a `validate_edit` refusal (the window, type and payload bounds): never a Validator rule number."""
 
-    rule: Annotated[int, Field(ge=1)]
+
+class ValidatorReason(Model):
+    """Structured and token-free: the rule (or `edit_bounds`), the puzzle, the field and the fixed message (AD-3)."""
+
+    rule: Annotated[int, Field(ge=1)] | EditBounds
     puzzle_id: PuzzleId | None
     field: str
     message: str
@@ -305,8 +309,8 @@ class TricksterEdit(Model):
         return self
 
 
-CardReason = Annotated[int, Field(ge=1)] | Literal["provider_unavailable"] | None
-"""Null on an accepted card, `provider_unavailable` on a skipped card, the failing rule on a rejected card."""
+CardReason = Annotated[int, Field(ge=1)] | EditBounds | Literal["provider_unavailable"] | None
+"""Null on an accepted card, `provider_unavailable` on a skipped card, the failing rule or `edit_bounds` on a rejected card."""
 
 
 class TricksterCard(Model):

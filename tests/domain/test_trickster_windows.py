@@ -22,7 +22,7 @@ from src.domain.session import (
     SessionStateMachine,
     game_state_summary,
 )
-from src.domain.validator import BOUNDS_MESSAGE, BOUNDS_RULE
+from src.domain.validator import BOUNDS_MESSAGE, EDIT_BOUNDS
 from tests.domain.test_edits import card, decoy, loosen
 from tests.domain.test_redact import json_keys
 from tests.domain.test_session import (
@@ -48,7 +48,7 @@ WINDOW = TRICKSTER_WINDOW_MS
 CLOSED = TricksterWindow(state="closed")
 OK = ValidatorResult(ok=True, reasons=[])
 REFUSED = ValidatorResult.model_validate(
-    {"ok": False, "reasons": [{"rule": BOUNDS_RULE, "puzzle_id": None, "field": "puzzle", "message": BOUNDS_MESSAGE}]}
+    {"ok": False, "reasons": [{"rule": EDIT_BOUNDS, "puzzle_id": None, "field": "puzzle", "message": BOUNDS_MESSAGE}]}
 )
 
 
@@ -86,6 +86,23 @@ def test_opening_the_exit_puzzles_lock_opens_no_window(code_and_find_room: Room)
     assert before_exit.trickster_window == CLOSED  # every non-exit lock opened before the threshold
     state = run(machine, *early, code("door_code", "7342", WINDOW + 20_000))
     assert machine.is_complete(state) and state.trickster_window == CLOSED
+
+
+def test_opening_the_exit_closes_a_window_still_open_and_no_window_opens_after(four_lock_room: Room):
+    # Owner decision 30: the Exit opening ends the Trickster's part, so no proposal, card or call follows.
+    machine = SessionStateMachine(four_lock_room)
+    to_exit = [
+        click("key", WINDOW), code("clock_code", "415", WINDOW + 1_000), order_start("shelf_order", WINDOW + 2_000),
+        click("candle", WINDOW + 3_000), click("lantern", WINDOW + 4_000), click("hourglass", WINDOW + 5_000),
+        use_on("key", "chest", WINDOW + 6_000),
+    ]
+    assert run(machine, *to_exit).trickster_window == opened(0)
+    log = [*to_exit, code("door_code", "7342", WINDOW + 7_000)]
+    state = run(machine, *log)
+    assert machine.is_complete(state) and state.trickster_window == CLOSED
+    assert state.trickster_calls == 0 and state.cards == [] and state.active_puzzle_id is None
+    assert applied(machine, log)[-1] == state
+    assert run(machine, *log, idle(3 * WINDOW)).trickster_window == CLOSED
 
 
 @pytest.mark.parametrize("event", [

@@ -138,7 +138,7 @@ def test_an_input_that_changes_nothing_only_clears_the_checking_chip():
     assert "if (!chip.hidden && field.isConnected) {" in _body(field, "async function submit(")
 
 
-def test_open_is_held_1200_ms_then_the_entry_collapses_the_next_entry_fades_in_and_takes_focus():
+def test_open_is_held_1200_ms_then_the_entry_collapses_and_the_next_entry_fades_in_and_is_announced_keeping_focus():
     notes = _ts("components/wizard-notes.ts")
     assert "export const OPEN_HOLD_MS = 1200" in notes
     render = notes.split("function render(state: SessionState): void {", 1)[1].split("\n  return { element, render }", 1)[0]
@@ -149,7 +149,14 @@ def test_open_is_held_1200_ms_then_the_entry_collapses_the_next_entry_fades_in_a
     assert "lock.replaceChildren(chip)" in opening  # the Open chip takes the Code field's place
     draw = _body(notes, "function draw(")
     assert "if (before.size > 0) for (const made of arrived) fadeIn(made.element)" in draw
-    assert "next?.heading.focus()" in draw and "heading.tabIndex = -1" in notes
+    # Owner decision 68: newly available entries are announced, never focused; focus stays where the player left it,
+    # and focus inside an entry whose lock input gives way to the Solved chip moves to that entry's heading, which
+    # stays drawn.
+    assert "heading.focus()" not in draw and "heading.tabIndex = -1" in notes
+    assert "announce(arrived.map((made) => fill(strings.puzzleAvailable, { n: made.n })).join(' '))" in draw
+    assert "if (afterOpening && arrived.length > 0)" in draw
+    assert "const held = opened.find((made) => made.element.contains(document.activeElement))" in render
+    assert render.index("for (const made of opened) made.opening()") < render.index("held?.heading.focus()")
     rules = _rules("components/wizard-notes.css")
     assert rules[".notes-entry"]["transition"] == "opacity var(--motion-state) var(--motion-ease)"
     assert rules[".notes-entry.is-arriving"] == {"opacity": "0"}

@@ -5,8 +5,9 @@ library, pydantic and the domain. A reason is structured and token-free
 (AD-3): the rule, the Puzzle, the field and the rule's fixed message from
 `RULES`, the one table the Build view, the regeneration prompt, the "Sent
 back" lines and the rejected Card read (UX-DR77), with the `validate_edit`
-bounds row beside it. Rules 1 to 8 gate a build; rule 9 checks the Decoys
-of a session's Effective room and passes on the stored build Room, whose
+bounds row beside it under its own name, `edit_bounds`, never a rule number.
+Rules 1 to 8 are the base build checks; rule 9 checks the Decoys of a
+session's Effective room and passes on the stored build Room, whose
 `decoys[]` is empty.
 """
 
@@ -15,7 +16,16 @@ from __future__ import annotations
 import re
 from typing import NamedTuple
 
-from .schema import DryRunAnswers, DryRunVerdict, Model, Puzzle, Room, ValidatorReason, ValidatorResult
+from .schema import (
+    DryRunAnswers,
+    DryRunVerdict,
+    EditBounds,
+    Model,
+    Puzzle,
+    Room,
+    ValidatorReason,
+    ValidatorResult,
+)
 
 
 class Rule(NamedTuple):
@@ -45,8 +55,8 @@ DECOY_RULE = 9
 """The rule that checks `Room.decoys[]`, which is empty on every build."""
 BUILD_RULES = range(1, DECOY_RULE)
 """The rules that gate a build, its verdict rows and the Riddler's list: a draft never holds a Decoy."""
-BOUNDS_RULE = 10
-"""The rule number a `validate_edit` bounds reason carries: the row after the nine rules, with no check name and no pass row."""
+EDIT_BOUNDS: EditBounds = "edit_bounds"
+"""What a `validate_edit` bounds reason carries in place of a rule number: its own named category, with no check name and no pass row."""
 BOUNDS_MESSAGE = "The change is outside the Trickster's limits."
 """The fixed message of every `validate_edit` bounds reason."""
 

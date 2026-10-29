@@ -382,6 +382,24 @@ def test_order_stop_disarms_and_clears_the_buffer_with_no_wrong_attempt(four_loc
     assert state.locks_open == [PZ["clock_code"]] and state.order_buffer == OrderBuffer()
 
 
+def test_an_armed_click_on_a_find_target_belongs_only_to_the_order_attempt(four_lock_room):
+    # Owner decision 28: the key both ends the shelf sequence and is the find Puzzle's target.
+    room = with_puzzle(four_lock_room, "shelf_order",
+                       solution={"lock_type": "order", "interactables": [IX["candle"], IX["lantern"], IX["key"]]})
+    machine = SessionStateMachine(room)
+    armed = [code("clock_code", "415"), order_start("shelf_order"), click("key")]
+    state = run(machine, *armed)
+    assert state.order_buffer == OrderBuffer(puzzle_id=PZ["shelf_order"], clicks=[IX["key"]])
+    assert state.locks_open == [PZ["clock_code"]] and state.inventory == []
+    sequence = [code("clock_code", "415"), order_start("shelf_order"), click("candle"), click("lantern"), click("key")]
+    state = run(machine, *sequence)
+    assert state.locks_open == [PZ["clock_code"], PZ["shelf_order"]] and state.inventory == []
+    assert state.order_buffer == OrderBuffer() and sum(state.wrong_attempts.values()) == 0
+    # Disarmed (the sequence opened its lock, or Stop the sequence), the same click is exploration that finds the key.
+    assert run(machine, *sequence, click("key")).inventory == [IX["key"]]
+    assert run(machine, *armed, order_stop("shelf_order"), click("key")).locks_open == [PZ["clock_code"], PZ["find_key"]]
+
+
 def test_a_correct_sequence_for_an_order_puzzle_with_unmet_requires_never_opens_it_and_counts_nothing(four_lock_room):
     machine = SessionStateMachine(four_lock_room)
     state = run(machine, order_start("shelf_order"), *(click(name) for name in SHELF))

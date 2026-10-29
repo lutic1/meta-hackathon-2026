@@ -1,5 +1,6 @@
 """Story 2.23: the Dry run prompt is built only from what a player sees (AD-3, AD-12)."""
 
+import hashlib
 import inspect
 import json
 from pathlib import Path
@@ -32,6 +33,8 @@ from tests.fixtures.rooms import (
     with_sentinel_solutions,
 )
 
+PINNED_PROMPT_HASH = "75108eec940d71e18b8845deae8aa9b61d325e31021f66d389d543b6d05dfd45"
+"""The Dry run messages over the four-lock room's view: a change to the prompt is a change to its cache key, made on purpose."""
 HIDDEN_KEYS = ("solution", "evidence", "lore", "attributes", "instances", "requires", "is_exit", "derived")
 SENTINEL_DERIVED = Derived(sessions=7319, persistence=0.731, time_to_first_hint_s=97.31,
                            mean_rung_per_lock_type={"code": 2.73})
@@ -76,6 +79,7 @@ def test_prompt_renders_ids_labels_clues_and_rungs_and_nothing_else(four_lock_ro
         assert f"- {ix.id}: {ix.label}" in task
     for puzzle in view.puzzles:
         assert f"Puzzle {puzzle.id}" in task and f"Clue: {puzzle.clue}" in task
+        assert f"Puzzle {puzzle.id}\nLock type: {puzzle.lock_type}\nClue: {puzzle.clue}" in task  # a player sees it
         assert f"1. {puzzle.rungs.nudge}" in task
         assert f"2. {puzzle.rungs.direction}" in task
         assert f"3. {puzzle.rungs.near_answer}" in task
@@ -84,6 +88,12 @@ def test_prompt_renders_ids_labels_clues_and_rungs_and_nothing_else(four_lock_ro
     assert all(str(ix.instances) not in text for ix in view.interactables)
     assert all(key not in text for key in HIDDEN_KEYS)
     assert view.id not in text
+
+
+def test_the_prompt_is_pinned_so_a_change_to_it_is_seen_as_a_new_cache_key(four_lock_room: Room):
+    prompt = build_dry_run_prompt(to_prompt_view(four_lock_room), DryRunAnswers)
+    rendered = json.dumps([[message.role, message.content] for message in prompt.messages])
+    assert hashlib.sha256(rendered.encode()).hexdigest() == PINNED_PROMPT_HASH
 
 
 def test_answers_are_asked_by_the_ix_ids_given_in_the_prompt(four_lock_room: Room):

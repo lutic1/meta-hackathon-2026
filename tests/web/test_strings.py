@@ -31,8 +31,9 @@ STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed", "resultLoadFailed"}
 """Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states, the Completion
 screen's error state)."""
 
-ACCESSIBILITY_FLOOR_ONLY = {"cardAnnouncement", "firstCardAnnouncement"}
-"""Lines EXPERIENCE.md words only in the Accessibility Floor (the live-region lines for Cards)."""
+ACCESSIBILITY_FLOOR_ONLY = {"puzzleAvailable", "cardAnnouncement", "firstCardAnnouncement"}
+"""Lines EXPERIENCE.md words only in the Accessibility Floor (the live-region lines for newly available Puzzles and
+Cards)."""
 
 RESPONSIVE_ONLY = {"narrowHeading", "narrowBody", "copyLinkForLaptop", "linkCopied", "linkNotCopied"}
 """Lines EXPERIENCE.md words only in Responsive & Platform (the Narrow-screen message's heading, body, copy-link

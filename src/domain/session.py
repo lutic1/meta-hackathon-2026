@@ -16,7 +16,8 @@ not all open opens nothing and counts nothing.
 
 `order_start` is a lock input: it makes its Puzzle the Active puzzle and arms
 the buffer, which is armed only while its Puzzle is the Active puzzle. While
-armed, every hotspot click fills the buffer whichever object it hits; at
+armed, every hotspot click fills the buffer whichever object it hits, and
+belongs only to that order attempt: it never also opens a `find` lock; at
 solution length a match opens the lock and disarms, and a mismatch is one
 Wrong attempt on the armed Puzzle and clears the buffer, which stays armed.
 `order_stop` disarms and clears with no Wrong attempt, and so does any change
@@ -84,7 +85,9 @@ The open window's index is the number of cards before it, counted from 0
 per session. Every `trickster_card` (accepted, rejected or skipped) closes
 the window at its `t_ms`, counts one proposal call and appends its
 `to_card_view` projection to `cards`; so a seventh window never opens and no
-seventh call is made. `game_state_summary` is the Trickster's only input
+seventh call is made. Opening the Exit closes a window still open, with no
+card and no call counted, and no window opens after it, so no proposal, card
+or provider call follows the Exit. `game_state_summary` is the Trickster's only input
 about play (FR-18): the open locks, the elapsed time and the Rungs used.
 """
 
@@ -311,7 +314,9 @@ class SessionStateMachine:
                 self._record_rung(new, event)
             case TricksterCardEvent():
                 self._close_window(new, event, edit)
-        if self._opens_window(state, new, event.t_ms):
+        if self.is_complete(new):
+            new.trickster_window = TricksterWindow(state="closed")
+        elif self._opens_window(state, new, event.t_ms):
             new.trickster_window = TricksterWindow(state="open", index=new.trickster_calls)
         new.active_puzzle_id = self._active(new, target or state.active_puzzle_id)
         if new.order_buffer.puzzle_id is not None and new.order_buffer.puzzle_id != new.active_puzzle_id:
@@ -396,17 +401,17 @@ class SessionStateMachine:
             state.inventory.append(solution.target)
 
     def _click(self, state: SessionState, interactable_id: str) -> None:
-        """A click opens an available `find` Puzzle whose target it hits and fills the armed order buffer.
+        """While armed, a click fills the order buffer and nothing else; unarmed, it opens an available `find` Puzzle whose target it hits.
 
         Any other click is exploration. At solution length the armed buffer
         opens its lock and disarms, or counts one Wrong attempt and clears.
         """
-        for puzzle in self.available(state):
-            solution = puzzle.solution
-            if solution.lock_type == "find" and solution.target == interactable_id:
-                self._open(state, puzzle)
         armed = self._armed(state)
         if armed is None:
+            for puzzle in self.available(state):
+                solution = puzzle.solution
+                if solution.lock_type == "find" and solution.target == interactable_id:
+                    self._open(state, puzzle)
             return
         puzzle, solution = armed
         buffer = state.order_buffer

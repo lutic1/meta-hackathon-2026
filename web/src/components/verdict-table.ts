@@ -7,7 +7,10 @@ type Word = DryRunVerdict['verdict']
 /** The verdict every Dry run row carries under cut 4 (`DRY_RUN=off`). */
 const DRY_RUN_OFF: Word = 'skipped'
 
-/** The Validator's fixed message by rule number, shown on a fail row only; rule 9 (Decoys) joins in 4.1. */
+/** The Decoy check: never a build verdict, since a build holds no Decoy; the Validator runs it on the Trickster's in play. */
+const DECOY_RULE = 9
+
+/** The Validator's fixed message by rule number, shown on a fail row only: the base checks, rules 1 to 8. */
 const FIXED_MESSAGES: Record<number, string> = {
   1: strings.rule1Failed,
   2: strings.rule2Failed,
@@ -71,12 +74,26 @@ function ruleRow({ rule, name, passed }: RuleVerdict): HTMLTableRowElement {
   return row
 }
 
+/** Rule 9 apart from the build's verdicts: its number and check-phrased name, "not applicable" after the ring marker. */
+function decoyRow(): HTMLTableRowElement {
+  const row = document.createElement('tr')
+  const number = text('th', String(DECOY_RULE), 'mono-sm verdict-table-number')
+  number.scope = 'row'
+  const cell = document.createElement('td')
+  cell.className = 'verdict-table-word'
+  cell.append(text('div', strings.notApplicable, 'verdict-word verdict-word-skipped label'))
+  row.append(number, text('td', strings.rule9Name, 'body-sm'), cell)
+  return row
+}
+
 /**
- * `{components.verdict-table}` (UX-DR51): the Validator's verdict on each rule from `BuildView.validator`, under its
- * plain caption: rule number, check-phrased name and the verdict word; the rule's fixed message only on a fail row.
+ * `{components.verdict-table}` (UX-DR51): the Validator's verdict on each base check (rules 1 to 8) from
+ * `BuildView.validator`, under its plain caption: rule number, check-phrased name and the verdict word; the rule's fixed
+ * message only on a fail row. Rule 9, the Decoy check, follows as "not applicable": a build holds no Decoy.
  */
 export function verdictTable(view: BuildView): HTMLElement {
-  return panel(strings.verdictCaption, [strings.verdictRule, strings.verdictCheck, strings.verdictVerdict], view.validator.map(ruleRow))
+  const rows = [...view.validator.map(ruleRow), decoyRow()]
+  return panel(strings.verdictCaption, [strings.verdictRule, strings.verdictCheck, strings.verdictVerdict], rows)
 }
 
 /**

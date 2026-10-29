@@ -24,7 +24,7 @@ from src.domain.schema import (
     TricksterCard,
     TricksterCardEvent,
 )
-from src.domain.validator import RULES
+from src.domain.validator import BUILD_RULES, RULES
 from tests.fixtures.rooms import IX, PZ
 
 ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
@@ -281,7 +281,7 @@ def done_job(room: Room, **fields: Any) -> JobState:
             stage("author", 25_000, 5, FALLBACK), stage("validate", 10), stage("dryrun", 9_000, 5, "muse-spark-1.3"),
             stage("scene", 80, len(room.photos)),
         ],
-        "validator": [{"rule": n, "name": rule.name, "passed": True} for n, rule in RULES.items()],
+        "validator": [{"rule": n, "name": RULES[n].name, "passed": True} for n in BUILD_RULES],
         "dry_run": [{"puzzle_id": pz, "verdict": "fail" if n == 2 else "pass"} for n, pz in enumerate(puzzles)],
         "sent_back": [{"attempt": 0, "stage": "validate", "messages": [RULES[2].message]}],
         "calls": [
@@ -310,7 +310,7 @@ def test_build_view_holds_masks_graph_verdicts_regenerations_and_build_time(four
     assert len(view.photos[3].masks) == 3
     assert [node.model_dump() for node in view.puzzles] == [
         {"id": p.id, "lock_type": p.lock_type, "requires": p.requires, "is_exit": p.is_exit} for p in room.puzzles]
-    assert [(v.rule, v.name) for v in view.validator] == [(n, rule.name) for n, rule in RULES.items()]
+    assert [(v.rule, v.name) for v in view.validator] == [(n, RULES[n].name) for n in BUILD_RULES]
     assert all(v.passed for v in view.validator)
     assert view.dry_run == job.dry_run and {v.verdict for v in view.dry_run} == {"pass", "fail"}
     assert (view.regeneration_count, view.regen_max) == (1, 2)
