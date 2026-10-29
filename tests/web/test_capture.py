@@ -131,7 +131,7 @@ def test_the_dropzone_takes_drops_and_picks_with_the_picker_sentence_and_choose_
 
 def test_the_tray_shows_120_by_90_thumbnails_in_upload_order_with_the_count_and_remove_controls():
     ts = (COMPONENTS / "photo-tray.ts").read_text()
-    assert "count.textContent = fill(strings.photosChosen, { n: photos.length })" in ts
+    assert "count.textContent = photos.length === 1 ? strings.onePhotoChosen : fill(strings.photosChosen, { n: photos.length })" in ts
     assert "count.className = 'photo-tray-count label'" in ts
     assert "image.width = 120" in ts and "image.height = 90" in ts and "image.alt = ''" in ts
     assert "remove.setAttribute('aria-label', fill(strings.removePhoto, { n: index + 1 }))" in ts

@@ -3,14 +3,22 @@ import type { BuildView } from '../../types'
 import { fill, strings } from '../strings.ts'
 import { secondaryButton } from './button.ts'
 
-const WEEKDAY = new Intl.DateTimeFormat('en-US', { weekday: 'short' })
-const MONTH = new Intl.DateTimeFormat('en-US', { month: 'short' })
+/** Every shown date is ET, whatever the viewer's time zone, as the server's Disclosure dates are (decision 71). */
+const ET = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
 
-/** A Build's time as the untitled-Room title reads it, "Tue Nov 3, 10:42", in the viewer's time zone. */
+/** A Build's time (`Room.created`) as the untitled-Room title reads it, "Tue Nov 3, 10:42", in ET. */
 export function buildTime(iso: string): string {
-  const date = new Date(iso)
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  return `${WEEKDAY.format(date)} ${MONTH.format(date)} ${date.getDate()}, ${date.getHours()}:${minutes}`
+  const part = Object.fromEntries(ET.formatToParts(new Date(iso)).map(({ type, value }) => [type, value]))
+  // The hour unpadded, "8:00" not "08:00", whatever the engine's h23 padding.
+  return `${part.weekday} ${part.month} ${part.day}, ${Number(part.hour)}:${part.minute}`
 }
 
 /** `template` filled with `values`, each value in its own `mono-sm` span (the header's numbers). */

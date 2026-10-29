@@ -105,7 +105,8 @@ export function demoRoomCard(room: RoomSummary, profile: string, onStart: () => 
   card.setAttribute('aria-labelledby', title.id)
   const meta = document.createElement('p')
   meta.className = 'demo-room-meta body-sm'
-  meta.textContent = fill(strings.demoRoomMeta, { n: room.puzzle_count })
+  const puzzles = room.puzzle_count === 1 ? strings.onePuzzle : fill(strings.puzzleCount, { n: room.puzzle_count })
+  meta.textContent = fill(strings.demoRoomMeta, { puzzles })
   const portraits = document.createElement('div')
   portraits.className = 'demo-room-portraits'
   portraits.setAttribute('role', 'img')

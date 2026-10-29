@@ -99,7 +99,7 @@ def test_the_photo_tray_turns_compact_at_96_by_72_with_the_count_kept_and_no_rem
     tray = (COMPONENTS / "photo-tray.ts").read_text()
     compact = tray.split("export function compactPhotoTray(", 1)[1]
     assert "tray.className = 'photo-tray compact'" in compact
-    assert "count.textContent = fill(strings.photosChosen, { n: urls.length })" in compact
+    assert "count.textContent = urls.length === 1 ? strings.onePhotoChosen : fill(strings.photosChosen, { n: urls.length })" in compact
     assert "image.width = 96" in compact and "image.height = 72" in compact and "image.alt = ''" in compact
     assert "button" not in compact
     rules = _css("components/photo-tray.css")
@@ -173,7 +173,7 @@ def test_a_done_row_shows_its_duration_result_and_model_id_from_job_state():
     results = _function(stages, "results")
     assert "if (kind === 'reading') return counted(strings.photoCount, count('ingest'))" in results
     assert "if (kind === 'finding') return counted(strings.objectCount, count('segment'))" in results
-    assert "if (kind === 'writing') return counted(strings.puzzleCount, count('author'))" in results
+    assert "if (kind === 'writing') return counted(strings.puzzleCount, count('author'), strings.onePuzzle)" in results
     assert "if (kind === 'scene') return counted(strings.scenesReady, count('scene'))" in results
     assert "lines.push(fill(strings.rulesPassed, { passed, total: validator.length }))" in results
     assert "lines.push(fill(strings.testRunReached, { reached: dryrun.count, total }))" in results

@@ -15,6 +15,9 @@ export const ACCESS_CODE_FIELD = 'access-code'
 /** A refused code: `{ok: false}` from the check, or 403 `access_denied` on `POST /builds`. */
 export const accessRefused: BannerState = { variant: 'error', heading: strings.accessCodeRefused, actions: [], compact: true }
 
+/** A check that got no answer, or a 5xx: distinct from a wrong code, and "Check code" is the way to try again. */
+const checkFailed: BannerState = { variant: 'error', heading: strings.accessCheckFailed, actions: [], compact: true }
+
 /** Too many access attempts from this address (429 `too_many_attempts`). */
 export const tooManyTries: BannerState = { variant: 'warning', heading: strings.tooManyTries, actions: [], compact: true }
 
@@ -50,11 +53,11 @@ export function buildsLeftLine(buildsLeft: number): HTMLParagraphElement {
  * (primary), its compact banner slot, then the `body-sm` status line, plain page content and the field's description.
  *
  * Enter in the field or "Check code" submits. An empty field shows the empty-submit line and sends nothing; otherwise
- * the button shows its pending label while `POST /access/check {code}` is in flight. A wrong code shows the compact
- * error banner, too many tries the compact warning, and `builds_left` 0 the Build quota warning, each taking focus;
- * the Demo room cards beside the panel stay active throughout. An accepted code is held in memory for this tab
- * (`access-code.ts`), the status line reads "{n} of 20 builds left" in `success`, and `onAccepted` opens the Capture
- * screen. A check that gets no answer changes nothing, so the judge can check again.
+ * the button reads "Checking code…" while `POST /access/check {code}` is in flight. A wrong code shows the compact
+ * error banner, too many tries the compact warning, a check that gets no answer or a 5xx the failed-check banner, and
+ * `builds_left` 0 the Build quota warning, each taking focus; the Demo room cards beside the panel stay active
+ * throughout. An accepted code is held in memory for this tab (`access-code.ts`), the status line reads "{n} of 20
+ * builds left" with the server's count in `success`, and `onAccepted` opens the Capture screen.
  */
 export function accessCodeBuild(onAccepted: (buildsLeft: number) => void): HTMLElement {
   const panel = document.createElement('section')
@@ -81,7 +84,7 @@ export function accessCodeBuild(onAccepted: (buildsLeft: number) => void): HTMLE
   field.setAttribute('aria-describedby', status.id)
 
   const banners = bannerSlot()
-  const button = primaryButton({ label: strings.checkCode, pendingLabel: strings.checking, onActivate: check })
+  const button = primaryButton({ label: strings.checkCode, pendingLabel: strings.checkingCode, onActivate: check })
   const row = document.createElement('div')
   row.className = 'access-build-row'
   row.append(field, button)
@@ -100,7 +103,7 @@ export function accessCodeBuild(onAccepted: (buildsLeft: number) => void): HTMLE
     try {
       answer = await checkAccess(code)
     } catch (error) {
-      if (error instanceof RequestFailed && error.status === TOO_MANY_ATTEMPTS) showBanner(banners, tooManyTries)
+      showBanner(banners, error instanceof RequestFailed && error.status === TOO_MANY_ATTEMPTS ? tooManyTries : checkFailed)
       return
     }
     if (!answer.ok || answer.builds_left === null) {

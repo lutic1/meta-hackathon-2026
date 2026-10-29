@@ -15,6 +15,7 @@ from src.api.meta import (
     CUT1_LINE,
     EARLIER_BUILD_LINE,
     HOSTED_LINE,
+    REPLAY_LINE,
     SCRIPTED_LINE,
     TIMESCALE_LINE,
     disclosure_lines,
@@ -43,6 +44,7 @@ JOB = "job_01ARZ3NDEKTSV4RRFFQ69G5FAA"
 DEMO_ENV = {"DEMO_TIMESCALE": "6", "DEMO_TRICKSTER": "scripted"}
 BUILT = datetime(2026, 10, 31, 9, 30, tzinfo=UTC)
 EARLIER = "This room was built earlier, on Sat Oct 31."
+REPLAY = "Replay: this room has been played before."
 SERVER_EVENTS = ("idle_tick", "rung_change", "opening_line", "trickster_card")
 
 
@@ -150,20 +152,27 @@ def test_a_build_with_any_cached_call_carries_the_earlier_builds_line_on_its_fir
     assert EARLIER not in client.get("/api/meta").json()["disclosure"]
 
 
-def test_a_cache_off_build_gets_only_the_global_lines_until_its_second_session(tmp_path: Path, built_room: Room):
+def test_a_cache_off_builds_second_session_carries_the_labelled_replay_line_not_the_build_fact(tmp_path: Path, built_room: Room):
+    """Decision 72: the build-history fact comes from the Room's provenance; an earlier session is a separate, labelled line."""
     client = TestClient(app_over(tmp_path, built_room, job(built_room, call(1, cached=False), call(2, cached=False)), {"CACHE": "off"}))
     first = start(client, built_room)
     second = start(client, built_room, derived=Derived.fresh().model_dump())
-    assert (first["disclosure"], second["disclosure"]) == ([], [EARLIER])
+    assert (first["disclosure"], second["disclosure"]) == ([], [REPLAY]) and REPLAY_LINE == REPLAY
     assert client.get(f"/api/sessions/{first['id']}").json()["disclosure"] == []
-    assert client.get(f"/api/sessions/{second['id']}").json()["disclosure"] == [EARLIER]
+    assert client.get(f"/api/sessions/{second['id']}").json()["disclosure"] == [REPLAY]
     assert client.get("/api/meta").json()["disclosure"] == []
 
 
-def test_a_second_session_appends_the_line_after_the_global_ones(tmp_path: Path, built_room: Room):
+def test_a_second_session_appends_the_replay_line_after_the_global_ones(tmp_path: Path, built_room: Room):
     client = TestClient(app_over(tmp_path, built_room, job(built_room), DEMO_ENV))
     assert start(client, built_room)["disclosure"] == [TIMESCALE_LINE.format(n=6), SCRIPTED_LINE]
-    assert start(client, built_room)["disclosure"] == [TIMESCALE_LINE.format(n=6), SCRIPTED_LINE, EARLIER]
+    assert start(client, built_room)["disclosure"] == [TIMESCALE_LINE.format(n=6), SCRIPTED_LINE, REPLAY]
+
+
+def test_a_room_built_earlier_never_adds_the_replay_line_to_its_build_fact(tmp_path: Path, built_room: Room):
+    client = TestClient(app_over(tmp_path, built_room, job(built_room, call(1, cached=True)), {}))
+    assert start(client, built_room)["disclosure"] == [EARLIER]
+    assert start(client, built_room)["disclosure"] == [EARLIER]
 
 
 def test_a_session_on_another_room_is_not_an_earlier_session(tmp_path: Path, built_room: Room, code_and_find_room: Room):
@@ -173,8 +182,14 @@ def test_a_session_on_another_room_is_not_an_earlier_session(tmp_path: Path, bui
     assert start(client, built_room)["disclosure"] == []
 
 
-def test_the_date_is_the_rooms_build_time(built_room: Room):
-    for created, date in [(BUILT, "Sat Oct 31"), (datetime(2026, 11, 2, 23, 0, tzinfo=UTC), "Mon Nov 2")]:
+def test_the_date_is_the_rooms_build_time_in_et(built_room: Room):
+    """Decision 71: Nov 1, 03:00 UTC is still Sat Oct 31 in ET, the time zone every shown date uses."""
+    for created, date in [
+        (BUILT, "Sat Oct 31"),
+        (datetime(2026, 11, 2, 23, 0, tzinfo=UTC), "Mon Nov 2"),
+        (datetime(2026, 11, 1, 3, 0, tzinfo=UTC), "Sat Oct 31"),
+        (datetime(2026, 11, 3, 4, 30, tzinfo=UTC), "Mon Nov 2"),
+    ]:
         room = built_room.model_copy(update={"created": created, "name": "The study"})
         assert disclosure_lines(settings(), room, demo_room=True) == [EARLIER_BUILD_LINE.format(date=date)]
 
@@ -217,16 +232,16 @@ def test_the_build_views_disclosure_is_the_list_the_function_composes_for_the_ro
     assert _callers("to_build_view") == {"api/app.py"}
 
 
-def test_the_build_view_carries_the_earlier_builds_line_once_a_session_has_started_on_the_room(tmp_path: Path, built_room: Room):
-    """The Build view opened from the Completion screen keeps the Disclosure the session showed (EXPERIENCE.md, Disclosure banner)."""
+def test_the_build_views_disclosure_reads_the_rooms_provenance_never_its_sessions(tmp_path: Path, built_room: Room):
+    """Decision 72: sessions started on the Room change nothing in its Build view's list, which matches the build fact Play shows."""
     job_state = job(built_room, call(1, cached=False))
     client = TestClient(app_over(tmp_path, built_room, job_state, {"CACHE": "off"}))
     assert client.get(f"/api/builds/{JOB}/view").json()["disclosure"] == []
+    first = start(client, built_room)
     start(client, built_room)
     view = client.get(f"/api/builds/{JOB}/view")
     assert view.status_code == 200, view.text
-    assert view.json()["disclosure"] == [EARLIER]
-    assert view.json()["disclosure"] == disclosure_lines(settings(), built_room, job_state, earlier_session=True)
+    assert view.json()["disclosure"] == first["disclosure"] == disclosure_lines(settings(), built_room, job_state) == []
     assert client.get("/api/meta").json()["disclosure"] == []
 
 

@@ -64,4 +64,4 @@ def test_architect_and_segment_rows_carry_their_receipts_and_their_ledger_entrie
     assert len(cached) == 1 + len(CANDIDATES)
     assert all(row.host == HOST and row.cached and row.spend_usd == 0 for row in cached)
     assert ledger.entries() == entries
-    assert built_earlier(second, earlier_session=False, demo_room=False)
+    assert built_earlier(second, demo_room=False)

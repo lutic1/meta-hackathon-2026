@@ -32,7 +32,7 @@ export function storedRoomRow(room: RoomSummary, profile: string, onPlay: () => 
   title.textContent = roomTitle(room)
   const count = document.createElement('p')
   count.className = 'stored-room-meta body-sm'
-  count.textContent = fill(strings.puzzleCount, { n: room.puzzle_count })
+  count.textContent = room.puzzle_count === 1 ? strings.onePuzzle : fill(strings.puzzleCount, { n: room.puzzle_count })
   text.append(title, count)
   row.append(cover, text, secondaryButton({ label: strings.play, onActivate: onPlay }))
   const link = buildViewLink(room.job_id, profile)

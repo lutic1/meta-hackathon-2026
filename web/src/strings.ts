@@ -1,9 +1,8 @@
 // Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75);
 // a few lines EXPERIENCE.md gives only in Component Patterns (the Stored Room row, the Wizard portrait's speaker
 // prefixes, the Build view rows and its JSON toggle, the Code field's Submit, a Trickster card's "Dismiss card") or State Patterns (the Build view states, the Completion
-// screen's error line). EXPERIENCE.md words no Scene loading line, no thumbnail name and no Timer end status, so the loading line reuses the "Setting
-// the scene" stage name, a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb, and
-// the end status after a failed upload is "Upload failed", the name Voice and Tone gives that moment. The Inventory,
+// screen's error line). EXPERIENCE.md words no Scene loading line and no thumbnail name, so the loading line reuses the "Setting
+// the scene" stage name, and a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb. The Inventory,
 // the Wizard notes and the Hint area take their component names as their accessible names. A `{name}` placeholder stands where
 // the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
 // Component Patterns, names its placeholders as that row does. The live-region lines for Cards are worded only in the
@@ -32,6 +31,7 @@ export const strings = {
   oneRoomPlayed: '1 room played',
   noRooms: 'No rooms yet.',
   puzzleCount: '{n} puzzles',
+  onePuzzle: '1 puzzle',
   play: 'Play',
   sessionStartRefused: "Keyframe couldn't start this room.",
   sessionStartRefusedBody: 'Your room is safe. Try again.',
@@ -46,6 +46,7 @@ export const strings = {
   readingPhotos: 'Reading your photos',
   removePhoto: 'Remove photo {n}',
   photosChosen: '{n} photos chosen',
+  onePhotoChosen: '1 photo chosen',
   notAJpeg: 'Not a JPEG',
   photosRefused: 'Keyframe needs 6 to 10 JPEG photos.',
   choosePhotosAgain: 'Choose photos again',
@@ -130,12 +131,12 @@ export const strings = {
   buildJsonCaption: 'Everything this page receives. It holds no answers; a sentinel test checks every build for them.',
   howBuilt: 'How this room was built',
   validator: 'Validator',
-  validatorModel: 'code, no model',
+  validatorModel: 'deterministic code, no model',
   validatorDid: 'checked 8 rules',
   dryRun: 'Dry run',
   museImage: 'Muse Image',
   museImageModel: 'muse-image-1.0',
-  museImageDid: 'painted the four portraits, once',
+  museImageDid: 'one-time generation of the four portraits, not part of this build',
   architect: 'The Architect',
   architectRole: 'Reads your photos with muse-spark-1.3, names the objects, and draws their outlines with sam-3.1.',
   riddler: 'The Riddler',
@@ -269,11 +270,11 @@ export const strings = {
   lockOfM: 'Lock {n} of {m}',
   howToPlay: 'How to play',
   howArchitect: 'reads your photos with muse-spark-1.3 and outlines every object with sam-3.1.',
-  howRiddler: 'writes {n} locks from what was found; a test run that never sees the answers checks each one opens.',
+  howRiddler: 'writes {locks} from what was found; a test run that never sees the answers checks each one opens.',
   howRiddlerUncounted: 'writes the locks from what was found; a test run that never sees the answers checks each one opens.',
   howGuide: 'hands out hints one rung at a time.',
   howTrickster: 'changes the room between locks, if the Validator lets him.',
-  demoRoomMeta: '{n} puzzles · 15 to 25 min',
+  demoRoomMeta: '{puzzles} · 15 to 25 min',
   demoRoomPortraits: 'The Architect, the Riddler, the Guide and the Trickster',
   demoRoomsFailed: "Keyframe couldn't load the demo rooms.",
   howHintsWork: 'How hints work',
@@ -289,13 +290,18 @@ export const strings = {
   buildYourOwnRoom: 'Build your own room',
   accessCode: 'Access code',
   checkCode: 'Check code',
+  checkingCode: 'Checking code…',
   accessCodeEmpty: 'Enter the access code from the submission.',
-  accessCodeRefused: "That access code isn't right. No photos were sent.",
+  accessCodeRefused: "That code doesn't open anything.",
+  accessCheckFailed: "We couldn't check the code. Try again.",
   tooManyTries: 'Too many tries. Wait a moment, then check the code again.',
   buildsLeft: '{n} of 20 builds left',
   buildQuota: 'All 20 judge builds have been used. The demo rooms are still open.',
   queued: 'Another room is being built. Yours is in line and will start on its own.',
-  timerQueued: 'queued',
+  timerQueued: 'Waiting to build',
+  timerFailed: 'Build stopped',
+  timerMorePhotos: 'Add more photos',
+  timerRecapture: 'Try clearer photos',
   queueNote: 'includes {m}:{ss} in the queue',
   ownLink: 'This build has its own link; close this tab or play a demo room meanwhile.',
   targetMeasured: 'The two-minute build target is measured in Local mode on the Mac; here the timer also counts any time in the queue.',

@@ -1,5 +1,5 @@
 import type { JobState, Meta } from '../types'
-import { accessCode, claimJudgeBuild } from './access-code.ts'
+import { accessCode } from './access-code.ts'
 import { getBuild, photoUrl, postBuild, RequestFailed, startSession } from './api/index.ts'
 import { type EndAction, buildEnd } from './build-end.ts'
 import { carryPhotos, heldPhotos, passPhotos, releasePhotos, requestCapture } from './build-photos.ts'
@@ -231,7 +231,6 @@ export function buildScreen(
           const job = await postBuild(held.uploads, accessCode())
           startTimer(t0)
           buildAccepted(job.id)
-          claimJudgeBuild()
           passPhotos(jobId, job.id)
           if (mounted) location.hash = captureHref(job.id, profile)
         } catch (error) {

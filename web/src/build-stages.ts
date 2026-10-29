@@ -138,10 +138,12 @@ export function stageRows(job: JobState | null): StageRow[] {
 
   function results(kind: Kind, attempt: number, own: readonly StageRecord[]): string[] {
     const count = (stage: Stage): number | null => own.find((record) => record.stage === stage)?.count ?? null
-    const counted = (template: string, n: number | null): string[] => (n === null ? [] : [fill(template, { n })])
+    // A count of one reads `one` when the line has a singular ("1 puzzle"); photos and objects never count one here.
+    const counted = (template: string, n: number | null, one = template): string[] =>
+      n === null ? [] : [n === 1 ? one : fill(template, { n })]
     if (kind === 'reading') return counted(strings.photoCount, count('ingest'))
     if (kind === 'finding') return counted(strings.objectCount, count('segment'))
-    if (kind === 'writing') return counted(strings.puzzleCount, count('author'))
+    if (kind === 'writing') return counted(strings.puzzleCount, count('author'), strings.onePuzzle)
     if (kind === 'scene') return counted(strings.scenesReady, count('scene'))
     const lines: string[] = []
     const validator = job?.validator ?? []

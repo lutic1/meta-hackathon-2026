@@ -11,7 +11,7 @@ import { fill, strings } from './strings.ts'
 export type EndAction = 'tryAgain' | 'addPhotos' | 'startOver'
 
 export interface BuildEnd {
-  /** The status the UI keys on, shown beside the Timer's frozen digits. */
+  /** The status the UI keys on; the Timer shows it beside its frozen digits in player words. */
   status: 'failed' | 'needs_more_photos' | 'needs_recapture'
   variant: 'error' | 'warning'
   heading: string

@@ -69,10 +69,11 @@ appended event is logged as one JSON line with `session_id`, the event type
 and `duration_ms` (AR-22). Every session state served, the greeted start
 reply included, carries its Room's Disclosure list, composed once at the
 session's start by `disclosure_lines` in `src/api/meta.py` (AD-15): the
-global lines, plus the earlier-builds line for a Demo room, a Room with a
-session already started (in this process or stored by an earlier one), or a
-Room whose job record holds any call served from the Cache; a later session on the same Room never
-changes an earlier session's list. Every session state served also carries
+global lines, plus the earlier-builds line for a Demo room or a Room whose
+job record holds any call served from the Cache, else the labelled replay
+line for a Room with a session already started (in this process or stored by
+an earlier one); a later session on the same Room never changes an earlier
+session's list. Every session state served also carries
 `judge_room`, read once at the session's start from
 `ArtifactStore.is_judge_room` (hosted, a Room under `rooms/judge/`; local,
 never): the client draws the Completion screen's deletion line from that flag
@@ -111,8 +112,8 @@ one past it answers 429 `too_many_attempts` with `Retry-After` before the
 code is compared (AD-9). `GET /builds/<job_id>/view` serves the
 `BuildView` (`to_build_view`) of a `done` job to anyone with the link, never
 behind the guard, with its `disclosure` composed by `disclosure_lines` for
-the Room and its job record under the same earlier-session rule as a session
-start, read from the stored session headers (AD-15); a known job not yet `done` answers 409
+the Room and its job record alone, so it states the same build fact a
+session does and no session changes it (AD-15, decision record item 72); a known job not yet `done` answers 409
 `build_not_ready` with the job `status` in the envelope, and an unknown one
 404 (AD-3, AD-13). A room id or job id that a deletion record names
 (`ArtifactStore.deleted_room`, hosted under `rooms/deleted/`) answers 410
@@ -577,22 +578,20 @@ def stored_session_on(sessions: SessionStore, room_id: RoomId) -> bool:
     return False
 
 
-def build_view_routes(jobs: JobStore, store: ArtifactStore, sessions: SessionStore, settings: Settings) -> APIRouter:
+def build_view_routes(jobs: JobStore, store: ArtifactStore, settings: Settings) -> APIRouter:
     """The Build view: open in both modes, so it takes no access guard (AD-3)."""
     router = APIRouter(prefix="/api/builds", tags=["builds"])
 
     @router.get("/{job_id}/view")
     def get_build_view(job_id: str) -> BuildView:
-        """The `done` job's `BuildView` with the Room's Disclosure list, the earlier-session rule included; never a solution, a pairing or a Dry run answer."""
+        """The `done` job's `BuildView` with the Room's Disclosure list from its provenance alone (item 72); never a solution, a pairing or a Dry run answer."""
         state = read_job(jobs, store, job_id)
         if state.status != "done":
             raise BuildNotReady(job_id, state.status)
         if state.room_id is None:
             raise RoomNotFound(job_id)
         room = load_room(store, state.room_id)
-        disclosure = disclosure_lines(
-            settings, room, state, earlier_session=stored_session_on(sessions, room.id), demo_room=store.is_demo_room(room.id)
-        )
+        disclosure = disclosure_lines(settings, room, state, demo_room=store.is_demo_room(room.id))
         return to_build_view(room, state, disclosure=disclosure)
 
     return router
@@ -1093,7 +1092,7 @@ def create_app(
     app.include_router(
         build_routes(wired.build, wired.jobs, wired.artifacts, wired.runner, on_terminal=wired.on_terminal, guard=wired.guard)
     )
-    app.include_router(build_view_routes(wired.jobs, wired.artifacts, wired.sessions, settings))
+    app.include_router(build_view_routes(wired.jobs, wired.artifacts, settings))
     app.include_router(room_routes(wired.artifacts, wired.jobs))
     if wired.profiles:
         app.include_router(profile_routes(wired.artifacts))

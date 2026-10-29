@@ -3,8 +3,19 @@
 // never read from the server or `GET /meta`, so the Timer counts in real time whatever the Demo timescale, never waits
 // on a poll, and a reload resumes from the recorded T0. The run is kept in this tab's session storage, the one thing
 // the client stores; when storage is refused the Timer still runs for the page.
+import type { JobState } from '../types'
 import { timer } from './components/timer.ts'
 import { FIRST_POINTER_RESPONSE, type FirstPointerResponseDetail } from './scene/index.ts'
+import { strings } from './strings.ts'
+
+/** A Build that ended without a Room, as the Timer names it in player words: never the raw job status (decision 62). */
+type EndStatus = Extract<JobState['status'], 'failed' | 'needs_more_photos' | 'needs_recapture'>
+
+const END_STATUS: Record<EndStatus, string> = {
+  failed: strings.timerFailed,
+  needs_more_photos: strings.timerMorePhotos,
+  needs_recapture: strings.timerRecapture,
+}
 
 export interface TimerRun {
   /** The Upload click (T0). */
@@ -15,9 +26,9 @@ export interface TimerRun {
   sessionId: string | null
   /** When it stopped (T1 or the end status); null while it counts. */
   stoppedAt: number | null
-  /** The end status beside the frozen digits; null while it counts and once frozen at T1. */
+  /** The end status beside the frozen digits, in player words; null while it counts and once frozen at T1. */
   status: string | null
-  /** Hosted: the Build's last poll read `queued`, so "queued" stands in place of the digits (absent on older runs). */
+  /** Hosted: the Build's last poll read `queued`, so "Waiting to build" stands in place of the digits (absent on older runs). */
   queued?: boolean
   /** Hosted: T0 to the first poll that read the Build no longer `queued`, once it was seen queued; else absent. */
   queueMs?: number
@@ -65,7 +76,7 @@ export function buildAccepted(jobId: string): void {
   if (current !== null && current.jobId === null) save({ ...current, jobId })
 }
 
-/** A poll read the Build `jobId` `queued` (Hosted): its run shows "queued" in place of the digits, still counting. */
+/** A poll read the Build `jobId` `queued` (Hosted): its run shows "Waiting to build" in place of the digits, still counting. */
 export function buildQueued(jobId: string): void {
   const current = counting()
   if (current !== null && current.jobId === jobId && current.queued !== true) save({ ...current, queued: true })
@@ -90,10 +101,10 @@ export function sessionOpened(jobId: string, sessionId: string): void {
 
 /**
  * The Build `jobId` ended without a Room (`failed`, `needs_more_photos`, `needs_recapture`): its run stops beside
- * `status`; a run of another Build is left as it is.
+ * that status in player words; a run of another Build is left as it is.
  */
-export function buildEnded(jobId: string, status: string): void {
-  if (counting()?.jobId === jobId) stopTimer(status)
+export function buildEnded(jobId: string, status: EndStatus): void {
+  if (counting()?.jobId === jobId) stopTimer(END_STATUS[status])
 }
 
 /** The Build that opened `sessionId` in this tab, while its run is the one kept; null for any other Session. */

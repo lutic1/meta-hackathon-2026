@@ -1,5 +1,5 @@
 import type { Meta, RoomSummary } from '../types'
-import { accessCode, claimJudgeBuild } from './access-code.ts'
+import { accessCode } from './access-code.ts'
 import { postBuild, RequestFailed, type UploadPhoto } from './api/index.ts'
 import { holdPhotos, takeCarriedPhotos } from './build-photos.ts'
 import { buildAccepted, mountTimer, startTimer, stopTimer } from './capture-timer.ts'
@@ -232,7 +232,6 @@ export function captureScreen(
     try {
       const job = await postBuild(pairs, accessCode())
       buildAccepted(job.id)
-      claimJudgeBuild()
       accepted = job.id
       holdPhotos({
         jobId: job.id,

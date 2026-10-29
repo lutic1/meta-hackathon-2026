@@ -105,13 +105,13 @@ def test_the_landing_strings_are_the_experience_lines():
     assert strings["riddlersNotes"] == "From the Riddler's notes"
     assert strings["howToPlay"] == "How to play" and strings["playThisRoom"] == "Play this room"
     assert strings["howArchitect"] == "reads your photos with muse-spark-1.3 and outlines every object with sam-3.1."
-    assert strings["howRiddler"].format(n=4) == (
+    assert strings["howRiddler"].format(locks="4 locks") == (
         "writes 4 locks from what was found; a test run that never sees the answers checks each one opens.")
     assert strings["howRiddlerUncounted"] == (
         "writes the locks from what was found; a test run that never sees the answers checks each one opens.")
     assert strings["howGuide"] == "hands out hints one rung at a time."
     assert strings["howTrickster"] == "changes the room between locks, if the Validator lets him."
-    assert strings["demoRoomMeta"].format(n=5) == "5 puzzles · 15 to 25 min"
+    assert strings["demoRoomMeta"].format(puzzles=strings["puzzleCount"].format(n=5)) == "5 puzzles · 15 to 25 min"
     assert strings["demoRoomPortraits"] == "The Architect, the Riddler, the Guide and the Trickster"
     assert strings["demoRoomsFailed"] == "Keyframe couldn't load the demo rooms."
     assert strings["howBuilt"] == "How this room was built" and strings["tryAgain"] == "Try again"
@@ -218,8 +218,8 @@ def test_how_a_room_is_built_is_three_steps_naming_the_wizards_and_the_models():
     steps = ts.split("function steps(locks: number | undefined)", 1)[1].split("\n}\n", 1)[0]
     assert "[strings.architect, strings.howArchitect]" in steps
     # The Riddler's step counts the first Demo room's locks, its Puzzle count, and names no number without one.
-    assert ("const riddler = locks === undefined ? strings.howRiddlerUncounted : "
-            "fill(strings.howRiddler, { n: locks })") in steps
+    assert ("? strings.howRiddlerUncounted\n      : "
+            "fill(strings.howRiddler, { locks: locks === 1 ? strings.oneLock : fill(strings.locksCount, { n: locks }) })") in steps
     assert "[strings.riddler, riddler]" in steps
     assert "[strings.guide, strings.howGuide, strings.trickster, strings.howTrickster]" in steps
     assert "steps(locks).map(" in how
@@ -539,7 +539,7 @@ def test_a_card_shows_the_cover_the_name_the_meta_line_and_the_four_portraits_un
     assert "title.className = 'demo-room-title display-sm'" in ts and "title.textContent = roomTitle(room)" in ts
     assert "return room.name || buildTime(room.built_at)" in _ts("components/stored-room-row.ts")
     assert "meta.className = 'demo-room-meta body-sm'" in ts
-    assert "meta.textContent = fill(strings.demoRoomMeta, { n: room.puzzle_count })" in ts
+    assert "meta.textContent = fill(strings.demoRoomMeta, { puzzles })" in ts
     assert "const WIZARDS: readonly Wizard[] = ['architect', 'riddler', 'guide', 'trickster']" in ts
     assert "portraits.append(...WIZARDS.map((wizard) => wizardPortrait(wizard, 24)))" in ts
     assert "portraits.setAttribute('role', 'img')" in ts

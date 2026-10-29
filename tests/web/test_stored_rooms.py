@@ -52,7 +52,7 @@ def test_a_row_shows_the_cover_thumbnail_the_title_the_puzzle_count_and_play():
     assert "return room.name || buildTime(room.built_at)" in row
     assert "import { buildTime } from './build-view-header.ts'" in row
     assert "Intl.DateTimeFormat" not in row
-    assert "count.textContent = fill(strings.puzzleCount, { n: room.puzzle_count })" in row
+    assert "count.textContent = room.puzzle_count === 1 ? strings.onePuzzle : fill(strings.puzzleCount, { n: room.puzzle_count })" in row
     assert "count.className = 'stored-room-meta body-sm'" in row
     assert "secondaryButton({ label: strings.play, onActivate: onPlay })" in row
     assert row.count("secondaryButton(") == 1  # Play only; "How this room was built" joins in 2.31

@@ -170,10 +170,11 @@ def test_the_build_view_strings_are_the_experience_lines():
     assert mixed == "3 billed · 9 cached"
     assert (strings["hostMeta"], strings["hostThisMac"], strings["hostOllama"]) == ("Meta Model API", "this Mac", "Ollama on the Mac")
     assert strings["hostThisServer"] == "this server"
-    assert (strings["validator"], strings["validatorModel"], strings["validatorDid"]) == ("Validator", "code, no model", "checked 8 rules")
+    assert (strings["validator"], strings["validatorModel"], strings["validatorDid"]) == (
+        "Validator", "deterministic code, no model", "checked 8 rules")
     assert strings["dryRun"] == "Dry run"
     assert (strings["museImage"], strings["museImageModel"]) == ("Muse Image", "muse-image-1.0")
-    assert strings["museImageDid"] == "painted the four portraits, once"
+    assert strings["museImageDid"] == "one-time generation of the four portraits, not part of this build"
     assert strings["guideWritten"] == "Hints are shown as written here. In Local mode, Llama 3.2 3B rewords them on the Mac."
     assert (strings["sourceLive"], strings["sourceScripted"], strings["sourceCut1"]) == (
         "Source: live", "Source: scripted", "Source: written in advance")
@@ -196,8 +197,6 @@ def test_client_strings_live_only_in_the_strings_module():
         if key == "modeSeparator":  # " · " is punctuation, not a line
             continue
         if key == "requiresNone":  # "none" is also the DataTransfer `dropEffect` keyword the drop zone sets
-            continue
-        if key == "timerQueued":  # "queued" is also the job status the client reads from `GET /builds/<job_id>`
             continue
         repeated = re.compile(rf"(?<!\w){re.escape(value)}(?!\w)")  # "Play" as a word, not inside `PlayView`
         for path, text in others.items():

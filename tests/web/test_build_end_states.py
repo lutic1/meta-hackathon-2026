@@ -142,7 +142,7 @@ def test_every_end_state_stops_the_timer_beside_its_status_and_keeps_the_photos(
     assert end.index("buildEnded(jobId, state.status)") < end.index("showBanner(banners,")
     assert "end(job)" in _function(screen, "apply")
     timer = _code("capture-timer.ts")
-    assert "if (counting()?.jobId === jobId) stopTimer(status)" in _function(timer, "buildEnded")
+    assert "if (counting()?.jobId === jobId) stopTimer(END_STATUS[status])" in _function(timer, "buildEnded")  # player words
     # The compact tray is drawn once from the held photos and an end state never clears it.
     assert "traySlot.replaceChildren" not in end and "traySlot.replaceChildren" not in _function(screen, "action")
 

@@ -2,8 +2,8 @@ import './timer.css'
 import { fill, strings } from '../strings.ts'
 
 /**
- * The Timer's three faces: counting from T0 (Hosted: shown as "queued" while the Build waits in line), frozen at
- * T1 − T0 (Hosted: with the time it spent in the queue, when it waited), or frozen beside an end status.
+ * The Timer's three faces: counting from T0 (Hosted: shown as "Waiting to build" while the Build waits in line),
+ * frozen at T1 − T0 (Hosted: with the time it spent in the queue, when it waited), or frozen beside an end status.
  */
 export type TimerFace =
   | { kind: 'running'; elapsedMs: number; queued?: boolean }
@@ -31,8 +31,8 @@ function queueNote(queueMs: number): string {
  * `{components.timer}` (UX-DR17): a plain `label` in `text-muted`, then `mono-timer` m:ss digits. Running: "Photos
  * to play", a static 6 px lamp dot and `text` digits. At T1: "Playable in" and the frozen digits in `success`, no
  * dot. At an end status: the frozen digits and the status in `text-muted`, no dot. Hosted: while the Build is
- * `queued` the word "queued" in `label` stands in place of the digits; after a queue the frozen digits carry the note
- * "includes m:ss in the queue" in `label` `text-muted`. The label and the digits are text in one `timer` element, so
+ * `queued` the words "Waiting to build" in `label` stand in place of the digits; after a queue the frozen digits
+ * carry the note "includes m:ss in the queue" in `label` `text-muted`. The label and the digits are text in one `timer` element, so
  * a screen reader reads them together; the dot is decoration.
  */
 export function timer(): Timer {

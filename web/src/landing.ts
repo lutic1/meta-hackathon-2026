@@ -43,7 +43,10 @@ const CAST: readonly CastMember[] = [
  * The Riddler's step counts `locks`, the first Demo room's Puzzle count, and names no number with no Demo room listed.
  */
 function steps(locks: number | undefined): readonly (readonly string[])[] {
-  const riddler = locks === undefined ? strings.howRiddlerUncounted : fill(strings.howRiddler, { n: locks })
+  const riddler =
+    locks === undefined
+      ? strings.howRiddlerUncounted
+      : fill(strings.howRiddler, { locks: locks === 1 ? strings.oneLock : fill(strings.locksCount, { n: locks }) })
   return [
     [strings.architect, strings.howArchitect],
     [strings.riddler, riddler],

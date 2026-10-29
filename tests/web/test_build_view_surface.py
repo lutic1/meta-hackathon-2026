@@ -137,11 +137,9 @@ def test_the_header_title_is_the_name_or_the_build_time_in_display_md():
     assert "title.className = 'build-view-title display-md'" in ts and "title.tabIndex = 0" in ts
     assert "title.textContent = view.name || time" in ts
     assert "if (view.name) heading.append(line('build-view-time body-sm', time))" in ts
-    # "Tue Nov 3, 10:42": short weekday and month, day, then hours and two-digit minutes.
-    assert "new Intl.DateTimeFormat('en-US', { weekday: 'short' })" in ts
-    assert "new Intl.DateTimeFormat('en-US', { month: 'short' })" in ts
-    assert "`${WEEKDAY.format(date)} ${MONTH.format(date)} ${date.getDate()}, ${date.getHours()}:${minutes}`" in ts
-    assert "String(date.getMinutes()).padStart(2, '0')" in ts
+    # "Tue Nov 3, 10:42": short weekday and month, day, then hours and two-digit minutes, in ET (decision 71).
+    assert "timeZone: 'America/New_York'" in ts and "hourCycle: 'h23'" in ts and "minute: '2-digit'" in ts
+    assert "return `${part.weekday} ${part.month} ${part.day}, ${Number(part.hour)}:${part.minute}`" in ts
     rules = _css("components/build-view-header.css")
     assert rules[".build-view-header"]["background"] == "var(--chrome)"
 
@@ -189,7 +187,7 @@ def test_the_fixed_rows_and_no_guide_or_trickster_row():
     assert "model: strings.validatorModel" in validator and "id: false" in validator
     # The Validator runs where the API runs: "this Mac" in Local mode, "this server" in Hosted mode (GET /meta `mode`).
     assert "host: meta.mode === 'local' ? strings.hostThisMac : strings.hostThisServer" in validator
-    assert "did: strings.validatorDid" in validator
+    assert "did: view.validator.length > 0 ? strings.validatorDid : ''" in validator
     assert "export function modelTable(view: BuildView, meta: Meta): HTMLElement" in ts
     assert "billing: ''" in validator
     assert "did: DRY_RUN_OFF, billing: ''" in ts and "model: '', id: true, host: ''" in ts

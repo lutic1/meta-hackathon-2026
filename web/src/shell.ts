@@ -105,8 +105,9 @@ export function startShell(root: HTMLElement): void {
     metas.set(place.profile, meta)
     let disclosure = meta.disclosure
     let content: Content = { name: 'empty' }
-    // Hosted `#/` is the Capture screen once when asked for and this tab holds an Access code, with its builds left.
-    const resumed = place.route.name === 'home' && takeCaptureRequest() ? judgeBuildsLeft() : null
+    // Hosted `#/` is the Capture screen once when asked for and this tab holds an Access code, with the builds left
+    // the server counts now; without that count it is the landing, where the code is entered again.
+    const resumed = place.route.name === 'home' && takeCaptureRequest() ? await judgeBuildsLeft() : null
     if (place.route.name === 'view') {
       const state = await loadBuildView(place.route.jobId)
       if (state.name === 'ready') disclosure = state.view.disclosure

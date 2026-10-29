@@ -51,18 +51,18 @@ def test_the_access_code_and_hosted_capture_strings_are_the_experience_lines():
     assert strings["buildYourOwnRoom"] == "Build your own room"
     assert (strings["accessCode"], strings["checkCode"]) == ("Access code", "Check code")
     assert strings["accessCodeEmpty"] == "Enter the access code from the submission."
-    assert strings["accessCodeRefused"] == "That access code isn't right. No photos were sent."
+    assert strings["accessCodeRefused"] == "That code doesn't open anything."
     assert strings["tooManyTries"] == "Too many tries. Wait a moment, then check the code again."
     assert strings["buildsLeft"].format(n=7) == "7 of 20 builds left"
     assert strings["buildQuota"] == "All 20 judge builds have been used. The demo rooms are still open."
     assert strings["queued"] == "Another room is being built. Yours is in line and will start on its own."
-    assert strings["timerQueued"] == "queued"
+    assert strings["timerQueued"] == "Waiting to build"
     assert strings["queueNote"].format(m=1, ss="05") == "includes 1:05 in the queue"
     assert strings["ownLink"] == "This build has its own link; close this tab or play a demo room meanwhile."
     assert strings["targetMeasured"] == (
         "The two-minute build target is measured in Local mode on the Mac; here the timer also counts any time in the queue.")
     assert strings["judgeBuildRetry"] == "Trying again uses one of the remaining judge builds."
-    assert strings["checking"] == "Checking"  # the pending label, the Code field's own word for a check in flight
+    assert strings["checkingCode"] == "Checking code…"  # the pending label (decision 66)
 
 
 # --- The panel ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ def test_the_panel_sits_in_the_landing_right_column_with_its_heading_label_field
     assert "heading.className = 'access-build-heading display-sm'" in panel and "heading.textContent = strings.buildYourOwnRoom" in panel
     assert "label.htmlFor = field.id" in panel and "label.textContent = strings.accessCode" in panel
     assert "field.className = 'access-build-field mono-code'" in panel
-    assert "primaryButton({ label: strings.checkCode, pendingLabel: strings.checking, onActivate: check })" in panel
+    assert "primaryButton({ label: strings.checkCode, pendingLabel: strings.checkingCode, onActivate: check })" in panel
     assert "panel.append(heading, label, row, banners, status)" in panel
     rules = css_rules((WEB_SRC / "components/access-code-build.css").read_text())
     field = rules[".access-build-field"]
@@ -104,7 +104,7 @@ def test_the_check_posts_the_code_and_maps_every_answer():
     api = _code("api/index.ts")
     assert "return postJson<AccessCheck>('/access/check', { code })" in api
     check = _function(_panel(), "check")
-    assert "error instanceof RequestFailed && error.status === TOO_MANY_ATTEMPTS) showBanner(banners, tooManyTries)" in check
+    assert "error instanceof RequestFailed && error.status === TOO_MANY_ATTEMPTS ? tooManyTries : checkFailed)" in check
     assert "const TOO_MANY_ATTEMPTS = 429" in _panel()
     refused = check.split("if (!answer.ok || answer.builds_left === null) {", 1)[1].split("}", 1)[0]
     assert "showBanner(banners, accessRefused)" in refused
@@ -142,7 +142,7 @@ def test_an_accepted_code_opens_the_capture_screen_once_with_no_stored_rooms_lis
     shell = _code("shell.ts")
     render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
     # Once: the request is taken by the next `#/` render, so a later visit to `#/` is the landing again.
-    assert "const resumed = place.route.name === 'home' && takeCaptureRequest() ? judgeBuildsLeft() : null" in render
+    assert "const resumed = place.route.name === 'home' && takeCaptureRequest() ? await judgeBuildsLeft() : null" in render
     capture = render.split("} else if (place.route.name === 'home' && resumed !== null) {", 1)[1].split("} else if", 1)[0]
     assert "content = { name: 'capture', buildsLeft: resumed, sample: rooms?.[0], profile, mode: meta.mode, retention: meta.retention }" in capture
     assert render.index("meta.mode === 'local') {") < render.index("&& resumed !== null) {")  # Local `#/` stays the list
@@ -309,18 +309,17 @@ def test_hosted_add_photos_and_start_over_reopen_the_capture_screen_while_the_ta
     holder = _code("access-code.ts")
     hold = _function(holder, "holdAccessCode")
     assert "export function holdAccessCode(code: string, buildsLeft: number): void {" in holder
-    assert "held = code" in hold and "left = buildsLeft" in hold
-    assert "return left" in _function(holder, "judgeBuildsLeft")  # null until a code is accepted (always in Local)
+    assert "held = code" in hold and "fresh = buildsLeft" in hold
+    assert "if (held === null) return null" in _function(holder, "judgeBuildsLeft")  # always null in Local mode
 
 
-def test_the_builds_left_line_counts_each_build_this_tab_had_accepted_since_the_check():
-    claim = _function(_code("access-code.ts"), "claimJudgeBuild")
-    assert "if (left !== null) left = Math.max(0, left - 1)" in claim
-    for name, call in (("capture.ts", "const job = await postBuild(pairs, accessCode())"),
-                       ("build-progress.ts", "const job = await postBuild(held.uploads, accessCode())")):
-        ts = _code(name)
-        assert ts.index(call) < ts.index("buildAccepted(job.id)\n") < ts.index("claimJudgeBuild()"), name
-        assert ts.count("claimJudgeBuild()") == 1, name
+def test_the_builds_left_line_is_the_servers_count_never_one_the_tab_keeps():
+    """Decision 66: other judges build too, so a reopened Capture screen asks the server again with the held code."""
+    left = _function(_code("access-code.ts"), "judgeBuildsLeft")
+    assert left.index("if (fresh !== null) {") < left.index("const answer = await checkAccess(held)")
+    assert "fresh = null" in left  # the accepting check's count serves the one Capture screen it opens
+    for name in ("capture.ts", "build-progress.ts"):
+        assert "claimJudgeBuild" not in _code(name), name
 
 
 # --- Accessibility -----------------------------------------------------------------------

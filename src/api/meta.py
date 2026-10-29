@@ -10,13 +10,17 @@ and `record` are `live`, `authored` is `cut1`); `guide_model` names
 Disclosure list: without a Room, the global lines `GET /meta` serves (the
 timescale line, the Trickster-source line and, in Hosted mode, the hosted
 line); with one, that Room's list, the global lines plus the earlier-builds
-line for a Demo room (`demo_room`: the caller asks `ArtifactStore.is_demo_room`,
-the rule the welcome keys on; `Room.name` is display data, never a room kind),
-a Room with an earlier session, or a Build whose job call rows hold any call
-served from the Cache. The session state
-carries the Room's list, and `GET /builds/<job_id>/view` fills
-`BuildView.disclosure` from the same function over the Room and its job
-record. No other module writes a Disclosure line.
+line, dated by `Room.created` in ET, when the Room's durable provenance says
+it was built earlier: a Demo room (`demo_room`: the caller asks
+`ArtifactStore.is_demo_room`, the rule the welcome keys on; `Room.name` is
+display data, never a room kind) or a Build whose job call rows hold any
+call served from the Cache (decision record item 72). A session that found
+an earlier session on the Room (`earlier_session`, fixed in its header)
+adds the separately labelled replay line instead, when the build fact is
+absent; it never changes that fact. The session state carries the Room's
+list, and `GET /builds/<job_id>/view` fills `BuildView.disclosure` from the
+same function over the Room and its job record alone, never its sessions.
+No other module writes a Disclosure line.
 
 `retention_summary(settings)` is the Retention summary `GET /meta` serves
 (AD-15), stating only checked provider facts (decision record items 1 and
@@ -33,7 +37,9 @@ without branching on it (AD-9).
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from src.config import ROLES, Mode, Settings
 from src.domain.schema import GuideModel, JobState, Meta, Room
@@ -45,6 +51,10 @@ TIMESCALE_LINE = "Hint and Trickster timings run at {n}× speed; the build timer
 SCRIPTED_LINE = "Trickster proposals replayed from a recording; the Validator ran live."
 CUT1_LINE = "Trickster proposals were written in advance; the Validator ran live on each."
 EARLIER_BUILD_LINE = "This room was built earlier, on {date}."
+REPLAY_LINE = "Replay: this room has been played before."
+"""The session-specific line (decision record item 72): labelled apart from the build fact, which it never changes."""
+DATES_TZ = ZoneInfo("America/New_York")
+"""Every shown date is ET (decision record item 71), as the client's build times are."""
 HOSTED_LINE = "Hosted mode: hints are shown as written; no hint model runs here."
 MODE_LINES: dict[Mode, tuple[str, ...]] = {"local": (), "hosted": (HOSTED_LINE,)}
 """The global Disclosure lines the running mode adds (AD-15)."""
@@ -104,9 +114,15 @@ def guide_model(settings: Settings) -> GuideModel | None:
     return GuideModel(id=GUIDE_MODEL, host=settings.ollama_host or DEFAULT_HOST)
 
 
-def built_earlier(job: JobState | None, *, earlier_session: bool, demo_room: bool) -> bool:
-    """A Demo room (as `ArtifactStore.is_demo_room` names it), a Room with an earlier session, or a Build with any call served from the Cache (AD-15)."""
-    return demo_room or earlier_session or (job is not None and any(call.cached for call in job.calls))
+def built_earlier(job: JobState | None, *, demo_room: bool) -> bool:
+    """The Room's durable provenance: a Demo room (as `ArtifactStore.is_demo_room` names it) or a Build with any call served from the Cache (AD-15, item 72)."""
+    return demo_room or (job is not None and any(call.cached for call in job.calls))
+
+
+def build_date(created: datetime) -> str:
+    """`created` as the Disclosure dates it, "Sat Oct 31", in ET; a naive time is read as UTC."""
+    local = (created if created.tzinfo is not None else created.replace(tzinfo=UTC)).astimezone(DATES_TZ)
+    return f"{local:%a %b} {local.day}"
 
 
 def disclosure_lines(
@@ -117,7 +133,7 @@ def disclosure_lines(
     earlier_session: bool = False,
     demo_room: bool = False,
 ) -> list[str]:
-    """The Disclosure lines in display order: the global ones, then the Room's earlier-builds line; empty at the defaults."""
+    """The Disclosure lines in display order: the global ones, then the Room's earlier-builds line or the replay line; empty at the defaults."""
     lines: list[str] = []
     if settings.demo_timescale > 1:
         lines.append(TIMESCALE_LINE.format(n=settings.demo_timescale))
@@ -127,8 +143,10 @@ def disclosure_lines(
     elif source == "cut1":
         lines.append(CUT1_LINE)
     lines.extend(MODE_LINES[settings.mode])
-    if room is not None and built_earlier(job, earlier_session=earlier_session, demo_room=demo_room):
-        lines.append(EARLIER_BUILD_LINE.format(date=f"{room.created:%a %b} {room.created.day}"))
+    if room is not None and built_earlier(job, demo_room=demo_room):
+        lines.append(EARLIER_BUILD_LINE.format(date=build_date(room.created)))
+    elif room is not None and earlier_session:
+        lines.append(REPLAY_LINE)
     return lines
 
 

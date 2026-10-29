@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.app import IDLE_TICK_MS
-from src.api.meta import EARLIER_BUILD_LINE
+from src.api.meta import REPLAY_LINE
 from src.domain.schema import Derived, Room
 from tests.api.hosted import hosted_handles, make_hosted_app
 from tests.api.test_app import make_app
@@ -102,9 +102,8 @@ def test_a_session_started_before_a_restart_is_an_earlier_session_for_the_disclo
 ):
     before, after = local_app(tmp_path, code_and_find_room), local_app(tmp_path, code_and_find_room)
     client, session_id, last = play_and_restart(before, after, code_and_find_room)
-    earlier = EARLIER_BUILD_LINE.format(date=code_and_find_room.created.strftime("%a %b %-d"))
-    assert earlier not in last["disclosure"]
-    assert earlier in replayed(client, start(client, code_and_find_room))["disclosure"]  # before the old one is reopened
+    assert REPLAY_LINE not in last["disclosure"]
+    assert REPLAY_LINE in replayed(client, start(client, code_and_find_room))["disclosure"]  # before the old one is reopened
     assert replayed(client, session_id)["disclosure"] == last["disclosure"]
 
 

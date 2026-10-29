@@ -17,7 +17,7 @@ export function photoTray(photos: readonly TrayPhoto[], onRemove: (index: number
   tray.className = 'photo-tray'
   const count = document.createElement('p')
   count.className = 'photo-tray-count label'
-  count.textContent = fill(strings.photosChosen, { n: photos.length })
+  count.textContent = photos.length === 1 ? strings.onePhotoChosen : fill(strings.photosChosen, { n: photos.length })
   const grid = document.createElement('ol')
   grid.className = 'photo-tray-grid'
   grid.append(
@@ -63,7 +63,7 @@ export function compactPhotoTray(urls: readonly string[]): HTMLElement {
   tray.className = 'photo-tray compact'
   const count = document.createElement('p')
   count.className = 'photo-tray-count label'
-  count.textContent = fill(strings.photosChosen, { n: urls.length })
+  count.textContent = urls.length === 1 ? strings.onePhotoChosen : fill(strings.photosChosen, { n: urls.length })
   const grid = document.createElement('ol')
   grid.className = 'photo-tray-grid'
   grid.append(
