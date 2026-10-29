@@ -190,10 +190,13 @@ def test_play_view_keeps_evidence_polygons_and_the_name_but_no_solution_provenan
     view = to_play_view(named)
     assert isinstance(view, PlayView) and view.id == named.id and view.created == named.created
     assert view.name == "The tenant's room"
-    assert [photo.model_dump() for photo in view.photos] == [{"hash": p.hash, "size": p.size} for p in named.photos]
+    assert [photo.model_dump() for photo in view.photos] == [
+        {"hash": p.hash, "size": p.size, "area": "room", "pan": None} for p in named.photos
+    ]
     for got, ix in zip(view.interactables, named.interactables, strict=True):
         assert got.polygons == ix.polygons and got.id == ix.id and got.label == ix.label
-    for got, puzzle in zip(view.puzzles, named.puzzles, strict=True):
+    opened = to_play_view(named, opened=[puzzle.id for puzzle in named.puzzles])
+    for got, puzzle in zip(opened.puzzles, named.puzzles, strict=True):
         assert got.evidence_cards == [puzzle.evidence]
         assert (got.id, got.lock_type, got.requires, got.is_exit, got.clue, got.lore) == (
             puzzle.id, puzzle.lock_type, puzzle.requires, puzzle.is_exit, puzzle.clue, puzzle.lore)
@@ -233,23 +236,21 @@ def test_serialized_views_leak_no_sentinel_solution_derived_key_or_reason_text(f
         assert all(rule.message not in text for rule in RULES.values())
 
 
-def test_play_view_merges_decoys_into_unflagged_evidence_cards_in_a_stable_order(four_lock_room: Room):
+def test_play_view_serves_no_decoy_and_the_real_card_only_once_its_lock_is_open(four_lock_room: Room):
+    """Story mode (amended 29 Oct 2026): the decoy merge is replaced; evidence waits for the lock."""
     room = with_decoys(
         four_lock_room,
         ("clock_code", "rug", "faded red"),
         ("door_code", "rug", "lies by the door"),
         ("find_key", "candle", "white wax"),
     )
-    view = to_play_view(room)
+    assert all(puzzle.evidence_cards == [] for puzzle in to_play_view(room).puzzles)
+    view = to_play_view(room, opened=[PZ["clock_code"], PZ["find_key"]])
     cards = {puzzle.id: puzzle.evidence_cards for puzzle in view.puzzles}
-    assert len(cards[PZ["clock_code"]]) == 2 and len(cards[PZ["door_code"]]) == 2 and len(cards[PZ["find_key"]]) == 2
-    assert len(cards[PZ["shelf_order"]]) == 1 and len(cards[PZ["key_on_chest"]]) == 1
-    for puzzle in room.puzzles:
-        assert puzzle.evidence in cards[puzzle.id]
-        assert all(set(card.model_dump()) == {"interactable", "visible_attribute"} for card in cards[puzzle.id])
-    real_first = [cards[puzzle.id][0] == puzzle.evidence for puzzle in room.puzzles if len(cards[puzzle.id]) > 1]
-    assert True in real_first and False in real_first  # no position marks the real card
-    assert to_play_view(room) == view
+    by_id = {puzzle.id: puzzle for puzzle in room.puzzles}
+    assert cards[PZ["clock_code"]] == [by_id[PZ["clock_code"]].evidence]
+    assert cards[PZ["find_key"]] == [by_id[PZ["find_key"]].evidence]
+    assert cards[PZ["door_code"]] == [] and cards[PZ["shelf_order"]] == []
     text = json.dumps(view.model_dump(mode="json"))
     assert "te_" not in text and '"decoys"' not in text
 

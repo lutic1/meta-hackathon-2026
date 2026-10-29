@@ -164,7 +164,8 @@ def test_the_rejected_card_leaves_the_effective_room_as_it_was(tmp_path: Path, t
     open_window(client, ticker, session_id, click("key"), 0)
     reply = trickster(client, session_id)
     assert reply["cards"][0]["accepted"] is False and reply["room_revision"] == 0
-    assert client.get(f"/api/sessions/{session_id}/room").json() == to_play_view(four_lock_room).model_dump(mode="json")
+    opened = [PZ["find_key"]]
+    assert client.get(f"/api/sessions/{session_id}/room").json() == to_play_view(four_lock_room, opened=opened).model_dump(mode="json")
 
 
 def test_a_provider_error_after_the_one_retry_records_the_skipped_card_and_play_continues(
@@ -218,7 +219,7 @@ def test_a_hosted_live_window_on_a_judge_room_is_priced_but_leaves_no_cache_entr
     )
     handles = hosted_handles(tmp_path)
     store_room(hosted_stores(handles).artifacts, four_lock_room)  # a Judge room, under rooms/judge/
-    settings = hosted_settings(PROVIDER_TRICKSTER="meta", MODEL_API_KEY="test-key")
+    settings = hosted_settings(PROVIDER_TRICKSTER="meta", MODEL_API_KEY="test-key", HINT_POLICY="ladder")
     assert (settings.demo_trickster, settings.cache) == ("live", "on")
     client = TestClient(make_hosted_app(tmp_path, handles, settings=settings, clock=ticker))
     session_id = start(client, four_lock_room)

@@ -15,7 +15,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 # --- Ids and scalars -------------------------------------------------------
 
@@ -51,6 +58,18 @@ OrdinalKey = Literal["p1", "p2", "p3", "p4", "p5", "p6"]
 Milliseconds = Annotated[int, Field(ge=0)]
 
 
+def _plain_label(value: str) -> str:
+    if value != value.strip().lower():
+        raise ValueError("an area is trimmed and lowercase")
+    return value
+
+
+Area = Annotated[str, StringConstraints(min_length=1, max_length=24), AfterValidator(_plain_label)]
+"""The room a photo shows, as the Architect named it: 1 to 24 characters, trimmed and lowercase (story mode)."""
+DEFAULT_AREA = "room"
+"""The one area of a Room whose photos carry none: one stored before story mode, or one whose Architect answer failed its check."""
+
+
 class Model(BaseModel):
     """Every Schema v1 model: snake_case keys, no unknown field."""
 
@@ -67,6 +86,10 @@ class Photo(Model):
     """Byte size of the stored downscaled JPEG."""
     downscaled_path: str
     original_path: str
+    area: Area = DEFAULT_AREA
+    """The room this photo shows (amended 29 Oct 2026, story mode); "room" on a Room stored before story mode."""
+    pan: Annotated[int, Field(ge=0)] | None = None
+    """0-based left-to-right order within its area; null when the Architect gave none (one ring in upload order)."""
 
 
 class Placement(Model):
@@ -226,10 +249,20 @@ class ArchitectCandidate(Model):
     confidence: Annotated[float, Field(ge=0, le=1)]
 
 
+class ArchitectPhoto(Model):
+    """One photo's area and left-to-right place there, as the Architect named them; checked by the segment stage, not here."""
+
+    photo: int
+    area: str
+    pan: int
+
+
 class ArchitectResponse(Model):
     """Correlated by list position; `ix_` ids are minted later by the segment stage (AD-18)."""
 
     candidates: list[ArchitectCandidate]
+    photos: list[ArchitectPhoto] = Field(default_factory=list)
+    """Every photo's area and pan (amended 29 Oct 2026, story mode), a list, never a map; empty on a reply stored before."""
 
 
 class PuzzleDraft(Model):
@@ -528,6 +561,10 @@ class RoomView(Model):
 class PhotoView(Model):
     hash: Sha256
     size: Annotated[int, Field(ge=0)]
+    area: str
+    """The room the photo shows; "room" for a Room stored before story mode."""
+    pan: Annotated[int, Field(ge=0)] | None
+    """0-based left-to-right order within its area; null orders the area's photos by index."""
 
 
 class PlayInteractable(Model):
@@ -550,9 +587,11 @@ class PlayPuzzle(Model):
     clue: str
     lore: str
     evidence_cards: list[Evidence]
-    """Real evidence and any decoys merged in a stable order; nothing marks a card as a decoy."""
+    """Empty until the Puzzle's lock is open in the Session, then its real card alone, never a decoy (amended 29 Oct 2026, story mode)."""
     sequence_length: Annotated[int, Field(ge=1)] | None
     """An `order` Puzzle's number of positions, one pip each (UX-DR35), never its objects; null for other lock types."""
+    start_photo: Annotated[int, Field(ge=0)]
+    """The photo the riddle starts on: its target's for `find` and `use_on`, its evidence's for `code` and `order`; never an object."""
 
 
 class PlayView(Model):
@@ -751,7 +790,11 @@ class HintReply(Model):
     text: str
     """The line exactly as shown."""
     next_hint_ms: Milliseconds | None
-    """How long until an ask opens that Puzzle's next Rung, on the session clock; null when none follows (the near-answer, or no Puzzle)."""
+    """How long until an ask opens that Puzzle's next Rung, on the session clock; null when none follows (the near-answer, or no Puzzle).
+
+    Deprecated under the chest (story mode): 0 while a hint is left and a Rung follows, else null."""
+    hints_left: Annotated[int, Field(ge=0)]
+    """The chest's hints left in the Session after this request."""
 
 
 class SessionState(Model):
@@ -764,6 +807,8 @@ class SessionState(Model):
     current_rung: dict[PuzzleId, RungLevel]
     wrong_attempts: dict[PuzzleId, Annotated[int, Field(ge=0)]]
     rungs_used: Annotated[int, Field(ge=0)]
+    hints_left: Annotated[int, Field(ge=0)]
+    """The chest's hints left: the cap less each Rung a `hint_request` opened, never below 0 (story mode)."""
     order_buffer: OrderBuffer
     active_puzzle_id: PuzzleId | None
     """Null only when no Puzzle is available."""

@@ -3,7 +3,8 @@
 
 The panel's cause is read off these: "Idle {s} s" is the triggering `idle_tick`'s `t_ms` minus the `t_ms` of the
 other event `triggered_by` names (or 0), "3 wrong attempts" names the lock inputs, and "Loosen card" names a
-Trickster Card. Every `t_ms` is the session clock's, which the Demo timescale never scales.
+Trickster Card. Every `t_ms` is the session clock's, which the Demo timescale never scales. Idle, wrong-attempt and
+Loosen Rungs open only under the `ladder` hint policy, which these apps run.
 """
 
 from pathlib import Path
@@ -11,10 +12,12 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from src.api.app import trigger_events
+from src.config import Settings
 from src.domain.schema import Room, ValidatorResult
 from tests.api.test_app import make_app
 from tests.api.test_sessions import (
     FRESH_THRESHOLDS,
+    LADDER,
     WELCOME,
     Ticker,
     click,
@@ -54,7 +57,7 @@ def test_a_stall_nudge_at_timescale_6_on_a_fresh_profile_names_its_tick_at_real_
 
 def test_a_stall_after_activity_names_the_event_idle_counts_from_and_the_tick(tmp_path: Path, code_and_find_room: Room):
     ticker = Ticker()
-    client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker))
+    client = TestClient(make_app(tmp_path, code_and_find_room, settings=Settings.from_env(LADDER), clock=ticker))
     session_id = start(client, code_and_find_room)
     ticker.advance(4_000)
     post(client, session_id, click("rug"))
@@ -69,7 +72,7 @@ def test_a_stall_after_activity_names_the_event_idle_counts_from_and_the_tick(tm
 
 def test_a_rung_an_ask_opened_names_the_hint_request_alone(tmp_path: Path, code_and_find_room: Room):
     ticker = Ticker()
-    client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker))
+    client = TestClient(make_app(tmp_path, code_and_find_room, settings=Settings.from_env(LADDER), clock=ticker))
     session_id = start(client, code_and_find_room)
     ticker.advance(4_000)
     state = post(client, session_id, {"type": "hint_request"})
@@ -78,7 +81,7 @@ def test_a_rung_an_ask_opened_names_the_hint_request_alone(tmp_path: Path, code_
 
 def test_three_wrong_codes_name_three_lock_inputs(tmp_path: Path, code_and_find_room: Room):
     ticker = Ticker()
-    client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker))
+    client = TestClient(make_app(tmp_path, code_and_find_room, settings=Settings.from_env(LADDER), clock=ticker))
     session_id = start(client, code_and_find_room)
     for _ in range(3):
         ticker.advance(1_000)

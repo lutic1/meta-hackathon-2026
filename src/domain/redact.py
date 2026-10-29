@@ -2,15 +2,17 @@
 
 `to_prompt_view` is the only shape a prompt builder accepts, `to_play_view`
 the only shape a play route returns, `to_build_view` the Build view over a
-Room and its final job record, and `to_card_view` the public card. Each view
+Room and its final job record, and `to_card_view` the public card. The play
+view holds evidence back (amended 29 Oct 2026, story mode): a Puzzle's cards
+are empty until it is among the `opened` ones, and then hold its real card
+alone, never a decoy. Each view
 keeps exactly the fields its model declares, so a new `Room` field stays on
 the server until a view names it. Every function is pure and returns new values.
 """
 
 from __future__ import annotations
 
-import hashlib
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any
 
 from .masks import box_polygon
@@ -18,6 +20,7 @@ from .schema import (
     BuildView,
     CallRow,
     Evidence,
+    FindSolution,
     Interactable,
     InteractableView,
     JobState,
@@ -40,6 +43,7 @@ from .schema import (
     StageRecord,
     TricksterCard,
     TricksterCardEvent,
+    UseOnSolution,
 )
 
 
@@ -57,20 +61,16 @@ def to_prompt_view(room: Room) -> RoomView:
     )
 
 
-def _card_rank(room_id: str, puzzle_id: str, card: Evidence) -> str:
-    """A card's place in `evidence_cards`: a digest seeded by the room id, so no position marks the real card."""
-    seed = f"{room_id}\n{puzzle_id}\n{card.interactable}\n{card.visible_attribute}"
-    return hashlib.sha256(seed.encode()).hexdigest()
+def _evidence_cards(puzzle: Puzzle, opened: Collection[str]) -> list[Evidence]:
+    """The real card once the Puzzle's lock is open, else none; a decoy is never served."""
+    return [puzzle.evidence] if puzzle.id in opened else []
 
 
-def _evidence_cards(room: Room, puzzle: Puzzle) -> list[Evidence]:
-    """The real card and the puzzle's decoys in one stable order; nothing marks which is false."""
-    decoys = [
-        Evidence(interactable=decoy.interactable, visible_attribute=decoy.visible_attribute)
-        for decoy in room.decoys
-        if decoy.puzzle == puzzle.id
-    ]
-    return sorted([puzzle.evidence, *decoys], key=lambda card: _card_rank(room.id, puzzle.id, card))
+def _start_photo(room: Room, puzzle: Puzzle) -> int:
+    """The photo of the riddle's target (`find`, `use_on`) or of its evidence (`code`, `order`); photo 0 for an id the Room lacks."""
+    solution = puzzle.solution
+    named = solution.target if isinstance(solution, FindSolution | UseOnSolution) else puzzle.evidence.interactable
+    return next((ix.photo for ix in room.interactables if ix.id == named), 0)
 
 
 def _sequence_length(puzzle: Puzzle) -> int | None:
@@ -78,8 +78,8 @@ def _sequence_length(puzzle: Puzzle) -> int | None:
     return len(puzzle.solution.interactables) if isinstance(puzzle.solution, OrderSolution) else None
 
 
-def to_play_view(room: Room) -> PlayView:
-    """The client shape: masks, photo hashes, evidence cards and the story; never a solution, a Rung, a decoy mark or a path."""
+def to_play_view(room: Room, *, opened: Collection[str] = ()) -> PlayView:
+    """The client shape: masks, photo hashes and areas, start photos, the evidence of the `opened` Puzzles and the story; never a solution, a Rung, a decoy or a path."""
     return PlayView(
         id=room.id,
         created=room.created,
@@ -89,8 +89,9 @@ def to_play_view(room: Room) -> PlayView:
         puzzles=[
             PlayPuzzle.model_validate({
                 **_narrow(puzzle, PlayPuzzle),
-                "evidence_cards": _evidence_cards(room, puzzle),
+                "evidence_cards": _evidence_cards(puzzle, opened),
                 "sequence_length": _sequence_length(puzzle),
+                "start_photo": _start_photo(room, puzzle),
             })
             for puzzle in room.puzzles
         ],

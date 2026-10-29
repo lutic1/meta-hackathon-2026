@@ -121,6 +121,8 @@ FRESH_THRESHOLDS = Thresholds(
     nudge_threshold_ms=90_000, nudge_threshold_base_ms=90_000, rung_spacing_ms=90_000, rung_spacing_base_ms=90_000, source="fresh"
 )
 """What a `Derived.fresh()` start reports at `DEMO_TIMESCALE=1` (5.6)."""
+LADDER = {"HINT_POLICY": "ladder"}
+"""The hint policy whose idle and wrong-attempt Rungs the timing tests here check (story mode keeps it for old logs)."""
 
 
 def welcomed(room: Room) -> SessionStateMachine:
@@ -239,7 +241,7 @@ def test_an_unknown_session_answers_404_on_every_session_route(client: TestClien
 def test_twenty_concurrent_events_all_land_in_append_order_with_strictly_increasing_t_ms(
     tmp_path: Path, code_and_find_room: Room, ticker: Ticker
 ):
-    app = make_app(tmp_path, code_and_find_room, clock=ticker)
+    app = make_app(tmp_path, code_and_find_room, settings=Settings.from_env(LADDER), clock=ticker)
     session_id = start(TestClient(app), code_and_find_room)
     body = code("clock_code", "wrong")
 
@@ -444,7 +446,7 @@ DEMO_6 = Thresholds(
 
 
 def demo_client(tmp_path: Path, room: Room, ticker: Ticker) -> TestClient:
-    return TestClient(make_app(tmp_path, room, settings=Settings.from_env({"DEMO_TIMESCALE": "6"}), clock=ticker))
+    return TestClient(make_app(tmp_path, room, settings=Settings.from_env({**LADDER, "DEMO_TIMESCALE": "6"}), clock=ticker))
 
 
 def stored_rungs(log: list[Event]) -> list[RungChangeEvent]:
@@ -506,7 +508,7 @@ def test_the_session_starts_derived_block_sets_the_idle_nudge_threshold(
     tmp_path: Path, code_and_find_room: Room, persistence: float, threshold: int
 ):
     ticker = Ticker()
-    client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker))
+    client = TestClient(make_app(tmp_path, code_and_find_room, settings=Settings.from_env(LADDER), clock=ticker))
     derived = Derived(sessions=2, persistence=persistence, time_to_first_hint_s=None, mean_rung_per_lock_type={})
     session_id = start(client, code_and_find_room, derived=derived.model_dump())
     while ticker.ms < threshold - IDLE_TICK_MS:

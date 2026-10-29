@@ -12,7 +12,7 @@ from src.pipeline.build import STAGES
 from src.pipeline.ingest import read_photos
 from src.providers.base import ProviderError
 from src.providers.mock import ChatCall, MockProvider, MockScript
-from tests.pipeline.stages import Segmenter, architect_mock, build_over, candidate, labels, square
+from tests.pipeline.stages import ONE_AREA, Segmenter, architect_mock, build_over, candidate, labels, square
 
 VERBATIM = ["No. 7 ", "ÉCOLE", "1947", "", "two words"]
 CANDIDATES = [
@@ -45,7 +45,7 @@ def test_each_candidate_is_kept_by_list_position_with_its_attributes_verbatim_an
     build = build_over(jobs, artifacts, ticker, doubles, architect=architect_mock(CANDIDATES), segmenter=Segmenter(MASKS))
     done = build.run(build.submit(uploads).id)
     stored = read_architect(done.room_id, artifacts)
-    assert stored == ArchitectResponse.model_validate({"candidates": CANDIDATES})
+    assert stored == ArchitectResponse.model_validate({"candidates": CANDIDATES, "photos": ONE_AREA})
     assert [(c.label, c.photo, c.box) for c in stored.candidates] == [(c["label"], c["photo"], tuple(c["box"])) for c in CANDIDATES]
     assert stored.candidates[0].attributes == VERBATIM
     raw = artifacts.read(architect_key(done.room_id)).decode()

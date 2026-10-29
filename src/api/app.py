@@ -65,7 +65,13 @@ passed) answers in the words its `rung_change` was appended with; a Rung
 already open is routed through the `HintPhraser` again. With no Puzzle active
 (once the Exit has opened) it answers the fixed `NO_HINT_LINE`, never
 phrased. A `puzzle_id` that is not in the Room is a malformed body, refused
-with nothing appended. Each
+with nothing appended. Under the chest (amended 29 Oct 2026, story mode; the
+Session's `hint_policy` and `hint_cap`, from `HINT_POLICY` and `HINT_CAP` at
+its start, are kept in its `SessionHeader`) an ask with no hint left is
+refused 409 `hint_cap_reached` before anything is appended, an ask answers
+the Rung it opened, and one that opened none (the near-answer already open,
+or no Puzzle active) answers `CHEST_NO_HINT_LINE` and spends nothing; every
+reply carries `hints_left`. Each
 appended event is logged as one JSON line with `session_id`, the event type
 and `duration_ms` (AR-22). Every session state served, the greeted start
 reply included, carries its Room's Disclosure list, composed once at the
@@ -154,8 +160,11 @@ call after the adapter's one retry, or a reply that is no proposal) or
 rejected card or the error envelope (AD-13). The reply is the session
 state, whose `cards` carry only the `TricksterCard` projection (AD-3).
 `GET /sessions/<id>/room` serves the `PlayView` of the session's Effective
-room, the stored Room with the accepted edits in the log folded in; the
-stored Room and `GET /rooms/<room_id>` never change (AD-12).
+room, the stored Room with the accepted edits in the log folded in, each
+Puzzle's real evidence card only once its lock is open in that session and
+never a decoy; `GET /rooms/<room_id>` serves no evidence card at all (amended
+29 Oct 2026, story mode). The stored Room and `GET /rooms/<room_id>` never
+change (AD-12).
 """
 
 from __future__ import annotations
@@ -190,6 +199,7 @@ from src.api.errors import (
     ApiError,
     BuildNotReady,
     BuildQuotaRefused,
+    HintCapReached,
     InvalidProfile,
     InvalidProfileName,
     JobNotFound,
@@ -222,6 +232,7 @@ from src.domain.redact import to_build_view, to_play_view, to_prompt_view
 from src.domain.rungs import (
     RUNG_SPACING_MS,
     TRICKSTER_WINDOW_MS,
+    HintPolicy,
     ThresholdSource,
     is_returning,
     nudge_threshold_ms,
@@ -304,7 +315,9 @@ DEMO_ROOM_WELCOME = "Welcome to someone else's room. Read a riddle, then click t
 """The fixed Demo room welcome (FR-31, UX-DR45): the `opening_line` of every session start on a Demo room, worded here alone."""
 
 NO_HINT_LINE = "A fair ask. Look around a little longer; I'll speak up if you stay stuck."
-"""The fixed No-hint line (UX-DR76): the reply to a Hint request while no Rung is open, never phrased."""
+"""The fixed No-hint line (UX-DR76) under the ladder: the reply to a Hint request while no Rung is open, never phrased."""
+CHEST_NO_HINT_LINE = "A fair ask. That one is all I had for this riddle; look once more."
+"""The fixed No-hint line under the chest (story mode): an ask that opened no Rung, which spends no hint; never phrased."""
 
 EVENT = TypeAdapter(Event)
 
@@ -670,8 +683,10 @@ def new_edit_id() -> str:
     return f"te_{new_ulid()}"
 
 
-def judged_card(room: Room, state: SessionState, proposal: TricksterProposal) -> Callable[[Milliseconds], Event]:
-    """The `trickster_card` for a proposal in `state`'s window, judged live over the Effective `room` (AD-12).
+def judged_card(
+    room: Room, state: SessionState, proposal: TricksterProposal, hint_policy: HintPolicy
+) -> Callable[[Milliseconds], Event]:
+    """The `trickster_card` for a proposal in `state`'s window, judged live over the Effective `room` under the Session's hint policy (AD-12).
 
     The edit gets a fresh `te_` id and the verdict `check_edit` computes; an
     accepted card raises `room_revision` by one, a rejected one carries its
@@ -682,7 +697,7 @@ def judged_card(room: Room, state: SessionState, proposal: TricksterProposal) ->
         id=new_edit_id(), type=proposal.type, puzzle=proposal.puzzle, payload=proposal.payload,
         validator_result=UNCHECKED, accepted=False, window=window,
     )
-    result = check_edit(room, state, draft)
+    result = check_edit(room, state, draft, hint_policy=hint_policy)
     edit = draft.model_copy(update={"validator_result": result, "accepted": result.ok})
     return lambda t_ms: TricksterCardEvent(
         type="trickster_card",
@@ -796,7 +811,14 @@ def session_routes(
         """The session's machine over the stored Room, with the opening and thresholds its start fixed."""
         source: ThresholdSource = "derived" if header.opening == "greeting" else "fresh"
         thresholds, window_ms = scaled_thresholds(header.nudge_threshold_base_ms, source, scale)
-        return SessionStateMachine(room, opening=header.opening, thresholds=thresholds, trickster_window_ms=window_ms)
+        return SessionStateMachine(
+            room,
+            opening=header.opening,
+            thresholds=thresholds,
+            trickster_window_ms=window_ms,
+            hint_policy=header.hint_policy,
+            hint_cap=header.hint_cap,
+        )
 
     def room_disclosure(room: Room, earlier: bool) -> list[str]:
         """The Room's Disclosure list at a session's start (AD-15): a Demo room is the one the store names, as for the welcome."""
@@ -900,15 +922,21 @@ def session_routes(
         """The current Rung of the Puzzle the request at `t_ms` resolved to and the wait for the next, else the No-hint line, never phrased.
 
         A Rung the request opened shares its `t_ms` and answers in the words it was appended with, so it is worded once.
+        Under the chest an ask that opened no Rung answers the chest's No-hint line instead of repeating one.
         """
+        machine = session.machine
         puzzle_id = state.active_puzzle_id
-        rung_text = session.machine.current_rung_text(state)
-        if puzzle_id is None or rung_text is None:
-            return HintReply(puzzle_id=puzzle_id, rung=0, text=NO_HINT_LINE, next_hint_ms=None)
-        rung = state.current_rung[puzzle_id]
+        rung_text = machine.current_rung_text(state)
+        rung = 0 if puzzle_id is None else state.current_rung[puzzle_id]
         opened = next((c for c in state.rung_changes if (c.puzzle_id, c.rung, c.t_ms) == (puzzle_id, rung, t_ms)), None)
+        chest = machine.hint_policy == "chest"
+        if puzzle_id is None or rung_text is None or (chest and opened is None):
+            line = CHEST_NO_HINT_LINE if chest else NO_HINT_LINE
+            return HintReply(puzzle_id=puzzle_id, rung=0, text=line, next_hint_ms=None, hints_left=state.hints_left)
         text = opened.text if opened is not None else phraser.phrase(rung_text, session.derived).text
-        return HintReply(puzzle_id=puzzle_id, rung=rung, text=text, next_hint_ms=session.machine.next_hint_ms(state, t_ms))
+        return HintReply(
+            puzzle_id=puzzle_id, rung=rung, text=text, next_hint_ms=machine.next_hint_ms(state, t_ms), hints_left=state.hints_left
+        )
 
     def welcome(room_id: RoomId) -> Callable[[Milliseconds], Event]:
         """The Room's welcome: the Demo room line on a Demo room, else the First-room line."""
@@ -949,6 +977,8 @@ def session_routes(
             opening="greeting" if greeted else "welcome",
             nudge_threshold_base_ms=nudge_threshold_ms(derived),
             earlier_session=earlier_session(room.id),
+            hint_policy=settings.hint_policy,
+            hint_cap=settings.hint_cap,
         )
         machine = machine_for(room, header)
         disclosure = room_disclosure(room, header.earlier_session)
@@ -992,7 +1022,10 @@ def session_routes(
             return posted[-1]
 
         with session.lock:
-            state = append(session_id, session, events(session_id), build)
+            log_ = events(session_id)
+            if hint and session.machine.hint_policy == "chest" and session.machine.replay(session_id, log_).hints_left == 0:
+                raise HintCapReached()
+            state = append(session_id, session, log_, build)
             return state.model_copy(update={"hint_reply": hint_reply(session, state, posted[-1].t_ms)}) if hint else state
 
     @router.post("/{session_id}/trickster")
@@ -1024,13 +1057,13 @@ def session_routes(
                     return append(session_id, session, log_, skipped_card(state))
                 if proposal is None:
                     return served(session, state, log_)
-                return append(session_id, session, log_, judged_card(room, pending, proposal))
+                return append(session_id, session, log_, judged_card(room, pending, proposal, session.machine.hint_policy))
             finally:
                 session.pending = None
 
     @router.get("/{session_id}/room")
     def get_session_room(session_id: str) -> PlayView:
-        """The Effective room as `PlayView`: accepted edits folded in, any Decoy an unflagged evidence card (AD-3, AD-12).
+        """The Effective room as `PlayView`: accepted edits folded in, the real evidence of the Session's open locks alone (AD-3, AD-12).
 
         A Judge room deleted while its session is still open here answers
         `RoomDeleted`, so the client shows its room-gone card (AD-9).
@@ -1038,7 +1071,9 @@ def session_routes(
         session = opened(session_id)
         if session.judge_room and (gone := missing_room(store, session.machine.room.id)) is not None:
             raise gone
-        return to_play_view(effective_room(session.machine.room, events(session_id)))
+        log_ = events(session_id)
+        state = session.machine.replay(session_id, log_)
+        return to_play_view(effective_room(session.machine.room, log_), opened=state.locks_open)
 
     @router.get("/{session_id}/result")
     def get_result(session_id: str) -> RoomResult:

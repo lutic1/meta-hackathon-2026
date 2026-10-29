@@ -5,7 +5,9 @@ none is showing, and once the Rung spacing has passed when one is; otherwise
 it repeats the current Rung with the wait until the next (`next_hint_ms`).
 Every reply to a `hint_request` carries `hint_reply`; a selected `rung_change`
 is worded through the injected `HintPhraser` before it is appended, and the
-session state reports its thresholds (AR-31).
+session state reports its thresholds (AR-31). These are the `ladder` rules, which
+story mode keeps for replaying the Sessions played under them; the chest's are in
+`tests/api/test_chest_hints.py`.
 """
 
 import json
@@ -53,6 +55,8 @@ from tests.fixtures.rooms import (
 )
 
 HINT: dict[str, Any] = {"type": "hint_request"}
+LADDER = {"GUIDE": "verbatim", "HINT_POLICY": "ladder"}
+"""The settings of every app here: the ladder policy these rules belong to."""
 LATENCY_MS = 1600
 
 
@@ -83,6 +87,11 @@ class SpyVerbatim(VerbatimPhraser):
         return super().phrase(rung_text, derived)
 
 
+def ladder_reply(reply: dict[str, Any]) -> dict[str, Any]:
+    """The reply without `hints_left`, which the chest's tests check (`tests/api/test_chest_hints.py`)."""
+    return {key: value for key, value in reply.items() if key != "hints_left"}
+
+
 def worded(rung_text: str) -> str:
     return f"In the Guide's words: {rung_text}"
 
@@ -96,7 +105,7 @@ def rung_text(room: Room, puzzle_id: str, rung: int) -> str:
 
 
 def demo_client(tmp_path: Path, room: Room, ticker: Ticker, phraser: HintPhraser, **options: Any) -> TestClient:
-    settings = Settings.from_env({"DEMO_TIMESCALE": "6", "GUIDE": "verbatim"})
+    settings = Settings.from_env({**LADDER, "DEMO_TIMESCALE": "6"})
     return TestClient(make_app(tmp_path, room, settings=settings, clock=ticker, phraser=phraser, **options))
 
 
@@ -144,7 +153,7 @@ def test_ten_hint_requests_inside_the_spacing_at_rung_2_each_answer_the_directio
     for n in range(1, 11):
         ticker.advance(1_000)
         state = post(client, session_id, HINT)
-        assert state["hint_reply"] == {
+        assert ladder_reply(state["hint_reply"]) == {
             "puzzle_id": PZ["clock_code"], "rung": 2, "text": worded(clock.direction), "next_hint_ms": 15_000 - n * 1_000,
         }
         assert state["current_rung"][PZ["clock_code"]] == 2 and state["active_puzzle_id"] == PZ["clock_code"]
@@ -158,7 +167,7 @@ def test_ten_hint_requests_inside_the_spacing_at_rung_2_each_answer_the_directio
     # Past the spacing the ask opens the near-answer, worded once on its way into the log, and nothing follows it.
     ticker.advance(5_000)
     state = post(client, session_id, HINT)
-    assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 3, "text": worded(clock.near_answer), "next_hint_ms": None}
+    assert ladder_reply(state["hint_reply"]) == {"puzzle_id": PZ["clock_code"], "rung": 3, "text": worded(clock.near_answer), "next_hint_ms": None}
     assert phraser.phrased[10:] == [(clock.near_answer, Derived.fresh())]
     (change,) = [e for e in stored(tmp_path, session_id) if isinstance(e, RungChangeEvent)][len(rungs_before):]
     assert (change.rung, change.t_ms, change.text) == (3, 37_000, worded(clock.near_answer))
@@ -176,11 +185,11 @@ def test_a_hint_request_naming_an_available_unsolved_puzzle_is_answered_for_it_a
     state = post(client, session_id, {"type": "hint_request", "puzzle_id": PZ["find_key"]})
     assert state["active_puzzle_id"] == PZ["find_key"]
     key_nudge = puzzle(code_and_find_room, "find_key").rungs.nudge
-    assert state["hint_reply"] == {"puzzle_id": PZ["find_key"], "rung": 1, "text": worded(key_nudge), "next_hint_ms": 15_000}
+    assert ladder_reply(state["hint_reply"]) == {"puzzle_id": PZ["find_key"], "rung": 1, "text": worded(key_nudge), "next_hint_ms": 15_000}
     ticker.advance(1_000)
     state = post(client, session_id, {"type": "hint_request", "puzzle_id": PZ["clock_code"]})
     nudge = puzzle(code_and_find_room, "clock_code").rungs.nudge
-    assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": worded(nudge), "next_hint_ms": 13_000}
+    assert ladder_reply(state["hint_reply"]) == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": worded(nudge), "next_hint_ms": 13_000}
     assert [event.puzzle_id for event in hint_events(stored(tmp_path, session_id))] == [PZ["find_key"], PZ["clock_code"]]
 
 
@@ -239,7 +248,7 @@ def test_hint_requests_naming_an_open_puzzle_then_a_locked_one_are_answered_for_
     for named, wait in (("find_key", 15_000), ("door_code", 14_000)):
         ticker.advance(1_000)
         state = post(client, session_id, {"type": "hint_request", "puzzle_id": PZ[named]})
-        assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": worded(nudge), "next_hint_ms": wait}
+        assert ladder_reply(state["hint_reply"]) == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": worded(nudge), "next_hint_ms": wait}
         assert state["active_puzzle_id"] == PZ["clock_code"]
     assert [event.puzzle_id for event in hint_events(stored(tmp_path, session_id))] == [PZ["find_key"], PZ["door_code"]]
     result = {p["puzzle_id"]: p for p in client.get(f"/api/sessions/{session_id}/result").json()["puzzles"]}
@@ -259,7 +268,7 @@ def test_once_the_exit_has_opened_a_hint_request_returns_the_no_hint_line_agains
     ticker.advance(1_000)
     state = post(client, session_id, HINT)
     assert state["active_puzzle_id"] is None
-    assert state["hint_reply"] == {"puzzle_id": None, "rung": 0, "text": NO_HINT_LINE, "next_hint_ms": None}
+    assert ladder_reply(state["hint_reply"]) == {"puzzle_id": None, "rung": 0, "text": NO_HINT_LINE, "next_hint_ms": None}
     assert phraser.phrased == []
     assert hint_events(stored(tmp_path, session_id))[-1].puzzle_id is None
     result = client.get(f"/api/sessions/{session_id}/result").json()
@@ -275,7 +284,7 @@ def test_at_rung_0_an_ask_opens_the_nudge_at_once_worded_once_and_logged_as_an_e
 ):
     phraser.phrased.clear()
     ticker = Ticker()
-    client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker, phraser=phraser))
+    client = TestClient(make_app(tmp_path, code_and_find_room, settings=Settings.from_env(LADDER), clock=ticker, phraser=phraser))
     session_id = start(client, code_and_find_room)
     ticker.advance(1_000)
     post(client, session_id, click("key"))
@@ -283,7 +292,7 @@ def test_at_rung_0_an_ask_opens_the_nudge_at_once_worded_once_and_logged_as_an_e
     state = post(client, session_id, HINT)
     nudge = puzzle(code_and_find_room, "clock_code").rungs.nudge
     shown = worded(nudge) if isinstance(phraser, RecordingPhraser) else nudge
-    assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": shown, "next_hint_ms": 90_000}
+    assert ladder_reply(state["hint_reply"]) == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": shown, "next_hint_ms": 90_000}
     assert phraser.phrased == [(nudge, Derived.fresh())]  # worded once, on its way into the log
     log = stored(tmp_path, session_id)
     (change,) = [e for e in log if isinstance(e, RungChangeEvent)]
@@ -302,14 +311,14 @@ def test_an_ask_inside_the_spacing_repeats_the_nudge_with_the_wait_and_past_it_o
     tmp_path: Path, code_and_find_room: Room
 ):
     ticker = Ticker()
-    client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker, phraser=SpyVerbatim()))
+    client = TestClient(make_app(tmp_path, code_and_find_room, settings=Settings.from_env(LADDER), clock=ticker, phraser=SpyVerbatim()))
     session_id = start(client, code_and_find_room)
     rungs = puzzle(code_and_find_room, "find_key").rungs
     for advance, rung, text, wait in ((5_000, 1, rungs.nudge, 90_000), (45_000, 1, rungs.nudge, 45_000),
                                       (44_999, 1, rungs.nudge, 1), (1, 2, rungs.direction, 90_000)):
         ticker.advance(advance)
         reply = post(client, session_id, HINT)["hint_reply"]
-        assert reply == {"puzzle_id": PZ["find_key"], "rung": rung, "text": text, "next_hint_ms": wait}
+        assert ladder_reply(reply) == {"puzzle_id": PZ["find_key"], "rung": rung, "text": text, "next_hint_ms": wait}
     changes = [e for e in stored(tmp_path, session_id) if isinstance(e, RungChangeEvent)]
     assert [(c.rung, c.t_ms) for c in changes] == [(1, 5_000), (2, 95_000)]
 
@@ -327,7 +336,7 @@ def test_at_the_near_answer_further_hint_requests_repeat_it_and_nothing_follows(
     for _ in range(4):
         ticker.advance(30_000)
         state = post(client, session_id, HINT)
-        assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 3, "text": worded(near_answer), "next_hint_ms": None}
+        assert ladder_reply(state["hint_reply"]) == {"puzzle_id": PZ["clock_code"], "rung": 3, "text": worded(near_answer), "next_hint_ms": None}
         keys = ("locks_open", "inventory", "current_rung", "wrong_attempts", "active_puzzle_id", "rung_changes")
         assert {k: state[k] for k in keys} == {k: before[k] for k in keys}
     assert [e for e in stored(tmp_path, session_id) if e.type != "hint_request"] == log

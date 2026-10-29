@@ -83,7 +83,7 @@ def test_the_play_view_gives_an_order_puzzle_its_length_and_nothing_of_its_seque
         else:
             assert got.sequence_length is None
     order = next(p for p in view.model_dump(mode="json")["puzzles"] if p["lock_type"] == "order")
-    assert set(order) == {"id", "lock_type", "requires", "is_exit", "clue", "lore", "evidence_cards", "sequence_length"}
+    assert set(order) == {"id", "lock_type", "requires", "is_exit", "clue", "lore", "evidence_cards", "sequence_length", "start_photo"}
     assert "solution" not in order and "interactables" not in order
     assert "sequence_length: number | null;" in (WEB_SRC.parent / "types/index.ts").read_text()
 

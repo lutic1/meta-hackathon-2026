@@ -19,7 +19,7 @@ from src.domain.schema import ArchitectCandidate, ArchitectResponse, Room, stric
 from src.domain.validator import validate
 from src.providers.mock import ChatCall, MockProvider, MockScript
 
-PINNED_PREFIX_HASH = "f84d888bf70e35beab7f7181da16ce2b7fe939b27ba4c537bba9f9ae7f9f2a84"
+PINNED_PREFIX_HASH = "747a628a9844e35d99396b5d991d3b6b44824ce314a4f057fc4c20fde9cd2b83"
 OTHER_PHOTOS = [bytes([0xFF, 0xD8, n]) * 40 for n in range(10)]
 CANDIDATE = {"label": "brass key", "plural": False, "photo": 2, "box": [100, 200, 300, 400], "attributes": ["1947"], "confidence": 0.9}
 
@@ -88,7 +88,7 @@ def _nodes(node: Any):
 
 def test_response_schema_has_no_id_and_no_map_and_strict_schema_accepts_it():
     assert set(ArchitectCandidate.model_fields) == {"label", "plural", "photo", "box", "attributes", "confidence"}
-    assert list(ArchitectResponse.model_fields) == ["candidates"]
+    assert list(ArchitectResponse.model_fields) == ["candidates", "photos"]  # photos: story mode, a list, never a map
     schema = strict_schema(ArchitectResponse)
     objects = [n for n in _nodes(schema) if isinstance(n, dict) and n.get("type") == "object"]
     assert objects and all(n["additionalProperties"] is False and n["required"] == list(n["properties"]) for n in objects)

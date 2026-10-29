@@ -41,9 +41,13 @@ def labels(count: int, *, photo: Callable[[int], int] = lambda i: i % 6) -> list
     return [candidate(f"object {i}", photo=photo(i), confidence=round(0.99 - i * 0.01, 2)) for i in range(count)]
 
 
-def architect_mock(candidates: list[dict[str, Any]]) -> MockProvider:
-    """The `architect` role's mock, scripted with one `ArchitectResponse` reply."""
-    return MockProvider("architect", MockScript(chat=[json.dumps({"candidates": candidates})]))
+ONE_AREA = [{"photo": i, "area": "room", "pan": i} for i in range(6)]
+"""The six synthetic uploads in one area, left to right in upload order."""
+
+
+def architect_mock(candidates: list[dict[str, Any]], *, photos: list[dict[str, Any]] = ONE_AREA) -> MockProvider:
+    """The `architect` role's mock, scripted with one `ArchitectResponse` reply naming the six uploads' area."""
+    return MockProvider("architect", MockScript(chat=[json.dumps({"candidates": candidates, "photos": photos})]))
 
 
 def square(x0: float, y0: float, x1: float, y1: float) -> Polygon:

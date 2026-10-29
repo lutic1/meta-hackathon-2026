@@ -74,6 +74,14 @@ Puzzle's current Rung, or nothing once no Puzzle is active (the API then
 answers the No-hint line), and `next_hint_ms`, how long until an ask opens
 the next Rung there.
 
+The chest (amended 29 Oct 2026, story mode): the machine runs under the
+Session's hint policy and hint cap, both fixed at its start and stored in its
+`SessionHeader` (a header stored before story mode has neither and replays
+under `ladder`, the behaviour it was played with). `hints_left` starts at the
+cap and loses one for each Rung a `hint_request` opens, never below 0; under
+`chest` an ask opens the next Rung at once while a hint is left and nothing
+once none is, and `next_hint_ms` is 0 while a hint is left and a Rung follows.
+
 Trickster edits (AD-12): the machine is built over the stored Room and
 judges each event over the Effective room, `apply_edit` folded over the
 accepted `trickster_card` events before it and the event itself, each read
@@ -113,9 +121,11 @@ from pydantic import Field
 from .edits import accepted_edit, apply_edit
 from .redact import to_card_view
 from .rungs import (
+    HINTS_PER_SESSION,
     NEAR_ANSWER,
     RUNG_NAMES,
     TRICKSTER_WINDOW_MS,
+    HintPolicy,
     Judged,
     select_rung,
     unscaled_thresholds,
@@ -180,6 +190,10 @@ class SessionHeader(Model):
     nudge_threshold_base_ms: Milliseconds
     earlier_session: bool
     """Whether a session on the same Room had started before this one, for its Disclosure list (AD-15)."""
+    hint_policy: HintPolicy = "ladder"
+    """The Session's hint policy; a header stored before story mode has none and replays under the ladder it was played with."""
+    hint_cap: Annotated[int, Field(ge=0)] = HINTS_PER_SESSION
+    """The chest's hints for the Session (`HINT_CAP` at its start)."""
 
 
 def game_state_summary(state: SessionState, elapsed_ms: Milliseconds) -> GameStateSummary:
@@ -202,11 +216,15 @@ class SessionStateMachine:
         opening: Literal["greeting", "welcome"] | None = None,
         thresholds: Thresholds | None = None,
         trickster_window_ms: Milliseconds = TRICKSTER_WINDOW_MS,
+        hint_policy: HintPolicy = "ladder",
+        hint_cap: int = HINTS_PER_SESSION,
     ) -> None:
         self.room = room
         self.opening = opening
         self.thresholds = thresholds
         self.trickster_window_ms = trickster_window_ms
+        self.hint_policy: HintPolicy = hint_policy
+        self.hint_cap = hint_cap
         self._rung_thresholds = thresholds or unscaled_thresholds(Derived.fresh())
         self._puzzles = {puzzle.id: puzzle for puzzle in room.puzzles}
         self._items = {p.solution.item for p in room.puzzles if isinstance(p.solution, UseOnSolution)}
@@ -227,10 +245,15 @@ class SessionStateMachine:
         return self._rung_text(puzzle_id, state.current_rung[puzzle_id])
 
     def next_hint_ms(self, state: SessionState, t_ms: Milliseconds) -> Milliseconds | None:
-        """How long after `t_ms` an ask opens the Active puzzle's next Rung: 0 when it would now, None when none follows or no Puzzle is active."""
+        """How long after `t_ms` an ask opens the Active puzzle's next Rung: 0 when it would now, None when none follows or no Puzzle is active.
+
+        Under the chest an ask opens it at once while a hint is left, and never once none is.
+        """
         puzzle_id = state.active_puzzle_id
         if puzzle_id is None or state.current_rung[puzzle_id] >= NEAR_ANSWER:
             return None
+        if self.hint_policy == "chest":
+            return 0 if state.hints_left > 0 else None
         last = next((change for change in reversed(state.rung_changes) if change.puzzle_id == puzzle_id), None)
         return 0 if last is None else max(0, self._rung_thresholds.rung_spacing_ms - (t_ms - last.t_ms))
 
@@ -254,6 +277,7 @@ class SessionStateMachine:
             current_rung=dict.fromkeys(ids, 0),
             wrong_attempts=dict.fromkeys(ids, 0),
             rungs_used=0,
+            hints_left=self.hint_cap,
             order_buffer=OrderBuffer(),
             active_puzzle_id=None,
             opening_line=None if self.opening is None else OpeningLine(kind=self.opening, text=None),
@@ -306,7 +330,12 @@ class SessionStateMachine:
         if key not in self._effective:
             room = reduce(apply_edit, edits, self.room)
             self._effective[key] = SessionStateMachine(
-                room, opening=self.opening, thresholds=self.thresholds, trickster_window_ms=self.trickster_window_ms
+                room,
+                opening=self.opening,
+                thresholds=self.thresholds,
+                trickster_window_ms=self.trickster_window_ms,
+                hint_policy=self.hint_policy,
+                hint_cap=self.hint_cap,
             )
         return self._effective[key]
 
@@ -353,11 +382,13 @@ class SessionStateMachine:
         )
         if not isinstance(event, RungChangeEvent):
             loosen = edit.payload if edit is not None and isinstance(edit.payload, LoosenPayload) else None
+            ask = isinstance(event, HintRequestEvent)
             step = select_rung(
                 [*history, judged],
                 self._rung_thresholds,
                 loosen=None if loosen is None else (loosen.puzzle, loosen.rung),
-                asked=isinstance(event, HintRequestEvent),
+                asked=ask and (self.hint_policy == "ladder" or new.hints_left > 0),
+                policy=self.hint_policy,
             )
             if step is not None and step.rung > new.current_rung[step.puzzle_id]:
                 self._record_rung(new, RungChangeEvent(
@@ -371,6 +402,8 @@ class SessionStateMachine:
                     t_ms=event.t_ms,
                 ))
                 judged = replace(judged, rung=(step.puzzle_id, step.rung))
+                if ask:
+                    new.hints_left = max(0, new.hints_left - 1)
         new.rungs_used = sum(new.current_rung.values())
         return new, judged
 

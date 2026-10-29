@@ -3,7 +3,7 @@ title: "Keyframe Experience"
 name: Keyframe
 status: final
 created: 2026-10-21
-updated: 2026-10-22
+updated: 2026-10-29
 sources:
   - ./.memlog.md
   - ./DESIGN.md
@@ -32,7 +32,7 @@ This spine covers how Keyframe behaves: its surfaces, copy, states, interactions
   - The Capture screen's `done` state and the Build view lead with the found objects and their outlines; every Build view overlay carries its label.
   - In the Wizard notes, the Evidence cards, with the attributes the Architect read, sit directly under the Clue they support: the attribute alone as the Riddler's note until the Puzzle is solved, then the whole card with the object's crop and name.
   - The Scene photo is never enhanced, relit, retouched or upscaled. It is framed, never improved.
-- **Helps without telling (UJ-2).** The Guide's help is always visible, always tied to a Puzzle, and never an answer. Every Rung line names its Puzzle ("Puzzle {n} · Nudge"). The Active puzzle is marked in the Wizard notes. Every reply to a Hint request visibly arrives and is announced, even when it repeats a Rung already on screen. A Rung that arrives unasked gets one lamplight glow on the Guide. Rung copy follows the scaffold ladder in Voice and Tone.
+- **Helps without telling (UJ-2).** The Guide's help is always visible, always tied to a Puzzle, and never an answer. Every Rung line names its Puzzle ("Puzzle {n} · Nudge"). The Active puzzle is marked in the Wizard notes. Every reply to a Hint request visibly arrives and is announced, even when it repeats a Rung already on screen. A Rung that arrives unasked gets one lamplight glow on the Guide. Rung copy follows the scaffold ladder in Voice and Tone. Story mode (owner decision Oct 29): under the default hint policy, `chest`, help comes only when asked, from the treasure chest's 2 hints for the whole Session (server-enforced, `hints_left` in session state); idle time and wrong attempts open nothing, so no Rung arrives unasked, and an ask opens the next Rung of the Active puzzle at once. (amended 29 Oct 2026, story mode)
 - **The client renders server state.** The client renders state and posts events. It never decides whether a lock is open, which Rung is current, or whether a Trickster edit applies (AD-4). It never holds a solution or an edit payload: play routes return `PlayView`, the Build view reads `BuildView`, and Cards reach it as `cards` in session state, the `TricksterCard` projection (AD-3).
 - **Two modes, one product.** The HTTP surface is the same in both modes (AD-9). This spine describes Local mode by default; Hosted Mode Differences is the one home for everything that changes in Hosted mode.
 
@@ -129,6 +129,7 @@ General rules: sentence case everywhere. No exclamation marks, except the Tricks
 - **No-hint line criteria (PRD §7):** in-world and encouraging; never a refusal and never "no hint available"; it acknowledges the ask, says the Guide is watching and help is coming, invites one more look, and holds nothing about any Puzzle. The PRD sample, "Look around a little longer; I'll speak up if you stay stuck.", invites a look and promises help but does not clearly acknowledge the ask, so the fixed line adds a short acknowledgement: "A fair ask. Look around a little longer; I'll speak up if you stay stuck." The builder accepted this on two conditions, which the line meets:
   - **No clue.** The acknowledgement names no object, place, attribute or Puzzle content, and neither does the rest of the line. It says nothing about what was typed, because nothing typed is read.
   - **No interruption.** It arrives as an ordinary Rung line in the Hint area and is announced through the polite live region. No modal, no focus move, no scrim, and no input is blocked or delayed: the Scene, the Wizard notes and the lock inputs stay usable while it shows.
+- **Story mode (the chest):** the Guide no longer speaks up on its own, so the "I'll speak up" promise would be false. Under the chest the No-hint line is "A fair ask. That one is all I had for this riddle; look once more."; it answers only an ask that opened no Rung (the near-answer already open, or no Puzzle active) and spends no hint. An ask with no hint left is refused by the server with the plain "The chest is empty." and the client shows the empty chest. The Trickster's refused `loosen` reads "Hints come only from the chest." and its refused `decoy` "Evidence is hidden until a lock opens." (amended 29 Oct 2026, story mode)
 
 ### Voice for generated lines
 
@@ -239,10 +240,10 @@ The role lines name the default model for each role; when a backup provider runs
 | Puzzle heading (Wizard notes) | plain label | "Puzzle {n}" (n = the Puzzle's order number in the Room, the same number the Rung lines, "How hints work" rows, Card labels and Build view graph use, so it never changes when a Merge or Shortcut reorders availability), with "Current" beside the Active puzzle's heading `[ASSUMPTION]` |
 | Thumbnail object count | plain | The badge shows the number alone; the thumbnail's description reads "{k} objects" ("1 object" for one, "no objects" for a photo with none, which carries no badge and is dimmed) `[ASSUMPTION, Oct 29]` |
 | Evidence count (right end of the Puzzle heading row) | plain label | "{k} evidence cards" ("1 evidence card" for one) `[ASSUMPTION]` |
-| Evidence card of an unsolved Puzzle | in character (Riddler) | "The Riddler's note: “{attribute}”" (attribute = the card's read attribute, quoted; no object name) |
+| Evidence card of an unsolved Puzzle | in character (Riddler) | "The Riddler's note: “{attribute}”" (attribute = the card's read attribute, quoted; no object name). Story mode: retired; the served data carries no evidence before the lock opens, so nothing is shown until the solve (amended 29 Oct 2026, story mode) |
 | Rung label | plain label | "Puzzle {n} · Nudge", "Puzzle {n} · Direction", "Puzzle {n} · Near-answer"; the No-hint line is labelled "Puzzle {n}" |
 | Sample nudge (PRD §7; Rungs themselves come from the Room) | in character | "The shelf has been very quiet. Suspiciously quiet." |
-| No-hint line (fixed) | in character | "A fair ask. Look around a little longer; I'll speak up if you stay stuck." (PRD §7 sample plus an acknowledgement that gives no clue and interrupts nothing; see the No-hint criteria). Since Oct 29 an ask with a Puzzle active always opens or repeats a Rung, so this line answers only an ask made once no Puzzle is active |
+| No-hint line (fixed) | in character | "A fair ask. Look around a little longer; I'll speak up if you stay stuck." (PRD §7 sample plus an acknowledgement that gives no clue and interrupts nothing; see the No-hint criteria). Since Oct 29 an ask with a Puzzle active always opens or repeats a Rung, so this line answers only an ask made once no Puzzle is active. Under the chest (story mode) the line is "A fair ask. That one is all I had for this riddle; look once more." and answers an ask that opened no Rung (amended 29 Oct 2026, story mode) |
 | Ollama fallback | none | **Silent on the Rung line.** The verbatim Rung appears with the same anatomy as a phrased one: no notice, no badge, no "verbatim" label (FR-17; `DESIGN.md` Do's and Don'ts). Where each Rung was worded shows only in its "How hints work" row (", worded on this Mac", absent when shown as written), so a verbatim Rung can never pass for local wording on video |
 | Pending chip | plain | "Checking" with a static ellipsis (no animation) `[ASSUMPTION]` |
 | Merge-hidden entry placeholder | plain label | "Puzzle {n} now waits on another puzzle." `[ASSUMPTION]` |

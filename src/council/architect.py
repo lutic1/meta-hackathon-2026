@@ -9,6 +9,9 @@ a player can confirm (colour, material, shape, size, count, placement, readable 
 verbatim), since Validator rule 4 only passes a Puzzle whose evidence cites one and most
 objects in a real room carry no readable text. Candidates come back
 without ids, correlated by list position; the segment stage mints `ix_` ids.
+The same call names each photo's area and its left-to-right place there
+(amended 29 Oct 2026, story mode), which the segment stage checks and copies
+onto the Room's photos.
 A reply off the response shape is a `malformed` `ProviderError` (AD-13) with
 a fixed message, so a Build ends `failed` with code `provider_error` and
 `validation_error` keeps its meaning: a draft the Validator sent back.
@@ -40,6 +43,11 @@ For each object, give:
 
 List each object once, in any order. Do not number them or give them ids; the list position is the only reference.
 Prefer objects with a readable attribute or a distinct look. Skip walls, floors, ceilings and people.
+
+Then, in photos, give one entry for every photo:
+- photo: its index.
+- area: name the room each photo shows, in 1 to 3 plain words, the same words for the same room.
+- pan: order each room's photos left to right as if turning on the spot, counting from 0 within that room.
 Answer only with the JSON the schema asks for."""
 
 

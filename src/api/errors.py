@@ -175,6 +175,16 @@ class InvalidProfile(ApiError):
         super().__init__(f"profile {name} does not parse: {_failure(error.errors(include_url=False)[0])}")
 
 
+class HintCapReached(ApiError):
+    """A `hint_request` posted under the chest with no hint left (story mode): 409, refused before anything is appended."""
+
+    status = 409
+    code = "hint_cap_reached"
+
+    def __init__(self) -> None:
+        super().__init__("The chest is empty.")
+
+
 class InvalidRequest(ApiError):
     """A request whose body, path or query failed validation; the message names each failing location and never echoes a value sent."""
 

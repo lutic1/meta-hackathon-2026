@@ -16,7 +16,11 @@ polygon with fewer than 3 points or a point outside its photo's frame
 refuses the run; so does a patched Room the validator refuses (rules 1 to
 8, AD-12). Each entry replaces that Interactable's `polygons`, sets
 `instances` to their number and `box` to their bounding box; the client
-never reads `box` (AD-11), and nothing else in the Room changes.
+never reads `box` (AD-11). A patch may also carry `photos` (amended 29 Oct
+2026, story mode): `{photo, area, pan}` for every photo of the Room exactly
+once, setting each photo's area and left-to-right pan; one that misses a
+photo or names one twice or one the Room lacks refuses the run. Nothing else
+in the Room changes.
 
 `--dry-run` prints, per entry, the old and new bounds and polygon counts
 and the validator verdict, and writes nothing. A real run overwrites
@@ -38,14 +42,14 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Protocol
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import Field, TypeAdapter, ValidationError
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))  # so `src` and `scripts` import from any working directory
 
 from scripts.promote_room import demo_room, read
 from scripts.seed_rooms import DEMO_PREFIX, ENVIRONMENT, Batch, open_volume
-from src.domain.schema import Box, InteractableId, Model, Polygon, Room, RoomId
+from src.domain.schema import Area, Box, InteractableId, Model, Polygon, Room, RoomId
 from src.domain.validator import BUILD_RULES, validate
 from src.pipeline.ports import room_key
 from src.pipeline.segment import frame_size
@@ -70,11 +74,20 @@ class OutlinePatch(Model):
     polygons: list[Polygon]
 
 
+class PhotoAreaPatch(Model):
+    """One photo's hand-seeded area and its 0-based left-to-right place there (story mode)."""
+
+    photo: int
+    area: Area
+    pan: int = Field(ge=0)
+
+
 class RoomPatch(Model):
-    """A patch file: why the outlines were corrected, and the corrected Interactables."""
+    """A patch file: why the outlines were corrected, the corrected Interactables and, optionally, every photo's area."""
 
     reason: str
     interactables: list[OutlinePatch]
+    photos: list[PhotoAreaPatch] = Field(default_factory=list)
 
 
 def load_patch(path: Path) -> RoomPatch:
@@ -117,7 +130,17 @@ def patched(room: Room, patch: RoomPatch, sizes: dict[int, tuple[int, int]]) -> 
         if any(not (0 <= x <= width and 0 <= y <= height) for polygon in entry.polygons for x, y in polygon):
             raise PatchRefused(f"{room.id}: {entry.id} has a point outside photo {ix.photo}'s {width} x {height} frame")
         replaced[ix.id] = ix.model_copy(update={"polygons": entry.polygons, "instances": len(entry.polygons), "box": bounding_box(entry.polygons)})
-    result = Room.model_validate({**room.model_dump(), "interactables": [replaced[ix.id].model_dump() for ix in room.interactables]})
+    photos = room.photos
+    if patch.photos:
+        if sorted(entry.photo for entry in patch.photos) != list(range(len(room.photos))):
+            raise PatchRefused(f"{room.id}: a patch with photos names every photo once, 0 to {len(room.photos) - 1}")
+        seeded = {entry.photo: entry for entry in patch.photos}
+        photos = [photo.model_copy(update={"area": seeded[i].area, "pan": seeded[i].pan}) for i, photo in enumerate(room.photos)]
+    result = Room.model_validate({
+        **room.model_dump(),
+        "photos": [photo.model_dump() for photo in photos],
+        "interactables": [replaced[ix.id].model_dump() for ix in room.interactables],
+    })
     reasons = [reason for reason in validate(result).reasons if reason.rule in BUILD_RULES]
     if reasons:
         listed = "; ".join(f"rule {r.rule} ({r.puzzle_id or 'room'}: {r.field})" for r in reasons)

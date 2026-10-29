@@ -111,6 +111,31 @@
       "title": "ArchitectCandidate",
       "type": "object"
     },
+    "ArchitectPhoto": {
+      "additionalProperties": false,
+      "description": "One photo's area and left-to-right place there, as the Architect named them; checked by the segment stage, not here.",
+      "properties": {
+        "photo": {
+          "title": "Photo",
+          "type": "integer"
+        },
+        "area": {
+          "title": "Area",
+          "type": "string"
+        },
+        "pan": {
+          "title": "Pan",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "photo",
+        "area",
+        "pan"
+      ],
+      "title": "ArchitectPhoto",
+      "type": "object"
+    },
     "ArchitectResponse": {
       "additionalProperties": false,
       "description": "Correlated by list position; `ix_` ids are minted later by the segment stage (AD-18).",
@@ -120,6 +145,13 @@
             "$ref": "#/$defs/ArchitectCandidate"
           },
           "title": "Candidates",
+          "type": "array"
+        },
+        "photos": {
+          "items": {
+            "$ref": "#/$defs/ArchitectPhoto"
+          },
+          "title": "Photos",
           "type": "array"
         }
       },
@@ -802,13 +834,19 @@
             }
           ],
           "title": "Next Hint Ms"
+        },
+        "hints_left": {
+          "minimum": 0,
+          "title": "Hints Left",
+          "type": "integer"
         }
       },
       "required": [
         "puzzle_id",
         "rung",
         "text",
-        "next_hint_ms"
+        "next_hint_ms",
+        "hints_left"
       ],
       "title": "HintReply",
       "type": "object"
@@ -1752,6 +1790,26 @@
         "original_path": {
           "title": "Original Path",
           "type": "string"
+        },
+        "area": {
+          "default": "room",
+          "maxLength": 24,
+          "minLength": 1,
+          "title": "Area",
+          "type": "string"
+        },
+        "pan": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pan"
         }
       },
       "required": [
@@ -1798,11 +1856,29 @@
           "minimum": 0,
           "title": "Size",
           "type": "integer"
+        },
+        "area": {
+          "title": "Area",
+          "type": "string"
+        },
+        "pan": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pan"
         }
       },
       "required": [
         "hash",
-        "size"
+        "size",
+        "area",
+        "pan"
       ],
       "title": "PhotoView",
       "type": "object"
@@ -2007,6 +2083,11 @@
             }
           ],
           "title": "Sequence Length"
+        },
+        "start_photo": {
+          "minimum": 0,
+          "title": "Start Photo",
+          "type": "integer"
         }
       },
       "required": [
@@ -2017,7 +2098,8 @@
         "clue",
         "lore",
         "evidence_cards",
-        "sequence_length"
+        "sequence_length",
+        "start_photo"
       ],
       "title": "PlayPuzzle",
       "type": "object"
@@ -3052,6 +3134,11 @@
           "title": "Rungs Used",
           "type": "integer"
         },
+        "hints_left": {
+          "minimum": 0,
+          "title": "Hints Left",
+          "type": "integer"
+        },
         "order_buffer": {
           "$ref": "#/$defs/OrderBuffer"
         },
@@ -3159,6 +3246,7 @@
         "current_rung",
         "wrong_attempts",
         "rungs_used",
+        "hints_left",
         "order_buffer",
         "active_puzzle_id",
         "opening_line",

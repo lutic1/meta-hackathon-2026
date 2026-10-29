@@ -220,9 +220,43 @@ def test_the_committed_patch_reoutlines_the_vent_and_both_pillow_pairs_in_the_96
     assert list(entries) == [VENT, PILLOWS]
     assert entries[VENT] == [[(200, 1084), (253, 1071), (233, 1176), (168, 1190)]]
     corner, left = entries[PILLOWS]  # the corner-bend pair the riddle points at first: the Evidence card crops it
-    assert corner[0] == (648, 725) and left[0] == (296, 668)
+    assert corner[0] == (648, 725) and left[0] == (299, 669)
     for polygons in entries.values():
         assert all(len(polygon) >= 3 and all(0 <= x <= 960 and 0 <= y <= 1280 for x, y in polygon) for polygon in polygons)
+
+
+def test_the_committed_patch_seeds_the_front_hall_and_the_lounge_with_their_left_to_right_order():
+    """Story mode (SPEC section 7): front hall [0, 1], lounge [3, 4, 5, 2, 6, 7]; the left pillow pair hand-traced."""
+    patch = patcher.load_patch(REPO / "ops/patches" / f"{DEMO_ROOM}.json")
+    assert [(entry.photo, entry.area, entry.pan) for entry in patch.photos] == [
+        (0, "front hall", 0), (1, "front hall", 1), (2, "lounge", 3), (3, "lounge", 0),
+        (4, "lounge", 1), (5, "lounge", 2), (6, "lounge", 4), (7, "lounge", 5),
+    ]
+    _, left = dict((entry.id, entry.polygons) for entry in patch.interactables)[PILLOWS]
+    assert left == [(299, 669), (335, 656), (352, 666), (380, 660), (391, 670), (408, 700), (365, 710), (347, 706),
+                    (320, 717), (309, 705)]
+
+
+def write_areas(tmp_path: Path, photos: list[dict[str, Any]]) -> Path:
+    path = tmp_path / "areas.json"
+    path.write_text(json.dumps({"reason": "Areas seeded in a test.", "interactables": [], "photos": photos}))
+    return path
+
+
+def test_a_patch_naming_every_photo_sets_each_photos_area_and_pan(monkeypatch, tmp_path, volume, mount, demo):
+    photos = [{"photo": i, "area": "hall" if i < 2 else "study", "pan": i % 2} for i in range(len(demo.photos))]
+    assert run(monkeypatch, volume, demo.id, write_areas(tmp_path, photos)) == 0
+    room = stored(mount, demo)
+    assert [(photo.area, photo.pan) for photo in room.photos] == [(entry["area"], entry["pan"]) for entry in photos]
+    assert room.interactables == demo.interactables and room.puzzles == demo.puzzles
+
+
+@pytest.mark.parametrize("named", [[0], [0, 1, 2, 3, 4, 5, 99], [0, 0, 1, 2, 3, 4, 5]], ids=["missing", "unknown", "twice"])
+def test_a_patch_that_does_not_name_every_photo_once_is_refused(monkeypatch, tmp_path, volume, mount, demo, capsys, named):
+    assert len(demo.photos) == 6
+    photos = [{"photo": index, "area": "hall", "pan": 0} for index in named]
+    assert run(monkeypatch, volume, demo.id, write_areas(tmp_path, photos)) == 1
+    assert "names every photo once" in capsys.readouterr().err and stored(mount, demo) == demo
 
 
 def test_each_photos_frame_is_read_from_its_stored_bytes(volume, demo):

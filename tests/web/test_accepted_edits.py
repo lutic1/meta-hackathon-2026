@@ -232,7 +232,7 @@ def test_nothing_the_reshape_draws_reaches_the_live_region_and_every_fade_is_ins
 # --- What the client reads from the API ----------------------------------------------------------------------------
 
 
-def test_an_accepted_decoy_raises_the_revision_and_adds_one_card_a_rejected_or_skipped_card_does_not(
+def test_an_accepted_decoy_raises_the_revision_and_a_rejected_or_skipped_card_does_not(
     tmp_path: Path, four_lock_room: Room
 ):
     client, ticker = _client(tmp_path, four_lock_room, _decoy("clock_code"), _merge("clock_code", "shelf_order"))
@@ -243,15 +243,15 @@ def test_an_accepted_decoy_raises_the_revision_and_adds_one_card_a_rejected_or_s
     trickster(client, session_id)
     assert state_of(client, session_id)["room_revision"] == 1
     after = _room(client, session_id)
-    cards = after[PZ["clock_code"]]["evidence_cards"]
-    assert len(cards) == len(before[PZ["clock_code"]]["evidence_cards"]) + 1
-    assert all(set(card) == {"interactable", "visible_attribute"} for card in cards)
+    # Story mode: the Decoy stays in the Effective room but no evidence is served before its lock opens.
+    assert after[PZ["clock_code"]]["evidence_cards"] == before[PZ["clock_code"]]["evidence_cards"] == []
     # A Merge that would deadlock is rejected: the revision, and so the client's room, stay as they were.
     open_window(client, ticker, session_id, code("clock_code", "415"), 1)
     trickster(client, session_id)
     state = state_of(client, session_id)
     assert [card["accepted"] for card in state["cards"]] == [True, False] and state["room_revision"] == 1
-    assert _room(client, session_id) == after
+    graph = {pid: puzzle["requires"] for pid, puzzle in _room(client, session_id).items()}
+    assert graph == {pid: puzzle["requires"] for pid, puzzle in after.items()}
 
 
 def test_an_accepted_merge_gates_the_visible_entry_the_card_names(tmp_path: Path, four_lock_room: Room):
@@ -308,4 +308,4 @@ def test_a_reload_reads_the_same_effective_room_and_revision_and_the_stored_room
     shown = _room(client, session_id)
     assert state_of(client, session_id)["room_revision"] == 1 and _room(client, session_id) == shown
     stored = {puzzle["id"]: puzzle for puzzle in client.get(f"/api/rooms/{four_lock_room.id}").json()["puzzles"]}
-    assert len(stored[PZ["clock_code"]]["evidence_cards"]) == len(shown[PZ["clock_code"]]["evidence_cards"]) - 1
+    assert stored[PZ["clock_code"]]["evidence_cards"] == shown[PZ["clock_code"]]["evidence_cards"] == []  # held back (story mode)

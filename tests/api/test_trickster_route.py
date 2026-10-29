@@ -98,8 +98,11 @@ def proposals_dir(tmp_path: Path, recording: dict[str, Any] = RECORDING, file: P
 
 
 def app_client(tmp_path: Path, ticker: Ticker, *rooms: Room, env: dict[str, str] | None = None, **options: Any) -> TestClient:
-    """The app at `DEMO_TRICKSTER=scripted` unless `env` says otherwise; `options` carry `proposals_dir` or `trickster`."""
-    settings = Settings.from_env({"DEMO_TRICKSTER": "scripted", **(env or {})})
+    """The app at `DEMO_TRICKSTER=scripted` unless `env` says otherwise; `options` carry `proposals_dir` or `trickster`.
+
+    It runs the `ladder` hint policy, under which every edit type can land; the chest's refusals are in `test_chest_hints.py`.
+    """
+    settings = Settings.from_env({"DEMO_TRICKSTER": "scripted", "HINT_POLICY": "ladder", **(env or {})})
     return TestClient(make_app(tmp_path, *rooms, settings=settings, clock=ticker, **options))
 
 
@@ -560,11 +563,15 @@ def test_the_room_route_serves_the_effective_room_with_the_accepted_edit_only(tm
     response = client.get(f"/api/sessions/{session_id}/room")
     assert response.status_code == 200
     view = response.json()
-    assert view == to_play_view(effective_room(four_lock_room, stored(tmp_path, session_id))).model_dump(mode="json")
+    opened = [PZ["find_key"], PZ["clock_code"]]
+    assert view == to_play_view(effective_room(four_lock_room, stored(tmp_path, session_id)), opened=opened).model_dump(mode="json")
     puzzles = {puzzle["id"]: puzzle for puzzle in view["puzzles"]}
+    # Story mode: the accepted Decoy stays in the Effective room but is never served; evidence waits for its lock.
     decoy_card = Evidence(interactable=IX["rug"], visible_attribute="faded red").model_dump()
-    assert decoy_card in puzzles[PZ["shelf_order"]]["evidence_cards"] and len(puzzles[PZ["shelf_order"]]["evidence_cards"]) == 2
-    assert all(set(card) == {"interactable", "visible_attribute"} for card in puzzles[PZ["shelf_order"]]["evidence_cards"])
+    assert puzzles[PZ["shelf_order"]]["evidence_cards"] == [] and all(
+        decoy_card not in puzzle["evidence_cards"] for puzzle in view["puzzles"]
+    )
+    assert [len(puzzles[pid]["evidence_cards"]) for pid in opened] == [1, 1]
     assert puzzles[PZ["clock_code"]]["requires"] == []  # the rejected Merge is not in the room
     assert "te_" not in response.text and "decoy" not in response.text
 

@@ -395,7 +395,8 @@ def test_room_view_and_play_view_declare_no_solution_or_profile_field():
     assert set(schema.InteractableView.model_fields) == {"id", "label", "attributes", "instances", "photo"}
     assert set(schema.PuzzleView.model_fields) == {"id", "lock_type", "requires", "is_exit", "clue", "lore", "rungs"}
     assert set(schema.PlayPuzzle.model_fields) == {
-        "id", "lock_type", "requires", "is_exit", "clue", "lore", "evidence_cards", "sequence_length"}
+        "id", "lock_type", "requires", "is_exit", "clue", "lore", "evidence_cards", "sequence_length",
+        "start_photo"}
     forbidden = {"solution", "evidence", "provenance", "decoys", "derived", "persistence", "sessions", "profile"}
     for view in (RoomView, PlayView):
         assert forbidden.isdisjoint(keys(view.model_json_schema())), view
@@ -426,7 +427,7 @@ def test_job_state_statuses_and_fields():
 def test_session_state_fields():
     state = SessionState.model_validate({
         "id": SESS, "room_id": ROOM, "locks_open": [], "inventory": [], "current_rung": {PZ[0]: 0}, "wrong_attempts": {PZ[0]: 0},
-        "rungs_used": 0, "order_buffer": {"puzzle_id": None, "clicks": []}, "active_puzzle_id": PZ[0],
+        "rungs_used": 0, "hints_left": 2, "order_buffer": {"puzzle_id": None, "clicks": []}, "active_puzzle_id": PZ[0],
         "opening_line": {"kind": "greeting", "text": None}, "phrasing": True, "rung_changes": [],
         "trickster_window": {"state": "pending", "index": 0}, "trickster_calls": 0, "cards": [], "room_revision": 0,
         "disclosure": [],
@@ -434,11 +435,11 @@ def test_session_state_fields():
     assert state.judge_room is False and state.thresholds is None and state.hint_reply is None and state.cards == []
     assert state.trigger_events == {} and set(schema.TriggerEvent.model_fields) == {"type", "t_ms"}
     assert set(SessionState.model_fields) == {
-        "id", "room_id", "locks_open", "inventory", "current_rung", "wrong_attempts", "rungs_used", "order_buffer",
+        "id", "room_id", "locks_open", "inventory", "current_rung", "wrong_attempts", "rungs_used", "hints_left", "order_buffer",
         "active_puzzle_id", "opening_line", "phrasing", "rung_changes", "trickster_window", "trickster_calls", "cards",
         "room_revision", "disclosure", "judge_room", "thresholds", "trigger_events", "hint_reply",
     }
-    assert set(schema.HintReply.model_fields) == {"puzzle_id", "rung", "text", "next_hint_ms"}
+    assert set(schema.HintReply.model_fields) == {"puzzle_id", "rung", "text", "next_hint_ms", "hints_left"}
     assert set(schema.Thresholds.model_fields) == {
         "nudge_threshold_ms", "nudge_threshold_base_ms", "rung_spacing_ms", "rung_spacing_base_ms", "source",
     }

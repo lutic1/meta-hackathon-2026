@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from src.config import Settings
 from src.domain.rungs import RUNG_NAMES
 from src.domain.schema import Room
 from tests.api.test_app import make_app
@@ -41,7 +42,8 @@ def _function(text: str, name: str) -> str:
 
 @pytest.fixture
 def client(tmp_path: Path, four_lock_room: Room) -> TestClient:
-    return TestClient(make_app(tmp_path, four_lock_room))
+    """The app under the `ladder` hint policy, which the hint area here was built for; the chest's rules are in `tests/api/test_chest_hints.py`."""
+    return TestClient(make_app(tmp_path, four_lock_room, settings=Settings.from_env({"HINT_POLICY": "ladder"})))
 
 
 def test_the_hint_area_strings_are_the_experience_lines():

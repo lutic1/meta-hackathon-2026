@@ -350,8 +350,7 @@ def test_the_four_lock_room_serves_what_the_notes_and_the_inventory_draw(client:
     view = client.get(f"/api/rooms/{four_lock_room.id}").json()
     ids = {interactable["id"] for interactable in view["interactables"]}
     for puzzle in view["puzzles"]:
-        assert puzzle["clue"] and puzzle["lore"] and puzzle["evidence_cards"]
-        assert all(card["interactable"] in ids and card["visible_attribute"] for card in puzzle["evidence_cards"])
+        assert puzzle["clue"] and puzzle["lore"] and puzzle["evidence_cards"] == []  # held back until the lock opens (story mode)
     session = client.post("/api/sessions", json={"room_id": four_lock_room.id}).json()
     assert session["inventory"] == [] and session["active_puzzle_id"] == view["puzzles"][0]["id"]
     events = f"/api/sessions/{session['id']}/events"
@@ -364,6 +363,9 @@ def test_the_four_lock_room_serves_what_the_notes_and_the_inventory_draw(client:
     # locks_open keeps the order locks opened in, which is the order the notes read availability from.
     assert state["locks_open"] == [view["puzzles"][0]["id"], clock]
     assert state["wrong_attempts"][clock] == 1
+    shown = client.get(f"/api/sessions/{session['id']}/room").json()["puzzles"]
+    assert all(card["interactable"] in ids for puzzle in shown for card in puzzle["evidence_cards"])
+    assert [bool(puzzle["evidence_cards"]) for puzzle in shown] == [True, True, False, False, False]
 
 
 def test_a_reload_rebuilds_the_play_screen_from_the_session_and_its_room_announcing_nothing():

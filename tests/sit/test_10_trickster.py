@@ -42,7 +42,7 @@ def run(sit: Sit) -> str:
     )
     sit.record(FIXTURE, model=CHAT_MODEL)
     assert proposal is not None
-    card = judged_card(room, state, proposal)(TRICKSTER_WINDOW_MS)
+    card = judged_card(room, state, proposal, sit.settings.hint_policy)(TRICKSTER_WINDOW_MS)
     assert isinstance(card, TricksterCardEvent)
     verdict = "accepted" if card.accepted else f"rejected, rule {card.reason}"
     return f"{proposal.type} on {proposal.puzzle}: {verdict}"

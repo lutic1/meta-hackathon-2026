@@ -1,18 +1,1 @@
-{
-  "reason": "Hand-corrected 29 Oct 2026: the build's Architect-box fallbacks missed the real grille and the pillow pair the riddle points at; job.json keeps the pipeline's original output.",
-  "interactables": [
-    {
-      "id": "ix_01M61V1ACGZFANRYAX39W29673",
-      "polygons": [
-        [[200, 1084], [253, 1071], [233, 1176], [168, 1190]]
-      ]
-    },
-    {
-      "id": "ix_01M61V1ACGTGK2QA16BZP494AC",
-      "polygons": [
-        [[648, 725], [657, 701], [715, 675], [721, 695], [753, 689], [757, 720], [744, 747], [700, 743], [682, 733], [653, 733]],
-        [[296, 668], [347, 653], [384, 658], [412, 702], [363, 711], [325, 718], [300, 699]]
-      ]
-    }
-  ]
-}
+{"reason": "Hand-corrected 29 Oct 2026: the build's Architect-box fallbacks missed the real grille and the pillow pair the riddle points at; job.json keeps the pipeline's original output. Story mode: each photo's area and left-to-right pan hand-seeded, and the left pillow pair hand-traced.", "interactables": [{"id": "ix_01M61V1ACGZFANRYAX39W29673", "polygons": [[[200, 1084], [253, 1071], [233, 1176], [168, 1190]]]}, {"id": "ix_01M61V1ACGTGK2QA16BZP494AC", "polygons": [[[648, 725], [657, 701], [715, 675], [721, 695], [753, 689], [757, 720], [744, 747], [700, 743], [682, 733], [653, 733]], [[299, 669], [335, 656], [352, 666], [380, 660], [391, 670], [408, 700], [365, 710], [347, 706], [320, 717], [309, 705]]]}], "photos": [{"photo": 0, "area": "front hall", "pan": 0}, {"photo": 1, "area": "front hall", "pan": 1}, {"photo": 2, "area": "lounge", "pan": 3}, {"photo": 3, "area": "lounge", "pan": 0}, {"photo": 4, "area": "lounge", "pan": 1}, {"photo": 5, "area": "lounge", "pan": 2}, {"photo": 6, "area": "lounge", "pan": 4}, {"photo": 7, "area": "lounge", "pan": 5}]}

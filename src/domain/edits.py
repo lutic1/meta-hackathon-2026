@@ -4,7 +4,10 @@
 window first, then the per-type payload bounds and that every Puzzle the
 edit names is still locked (`state.locks_open`), each refusal a structured
 reason named `edit_bounds` (never a rule number) with the bounds row's fixed
-message from the Validator table. `has_locked_puzzle(room, state)` says
+message from the Validator table; under the `chest` hint policy (amended
+29 Oct 2026, story mode) a `loosen` is refused because hints come only from
+the chest, and a `decoy` because evidence is hidden until a lock opens, each
+with its own fixed message. `has_locked_puzzle(room, state)` says
 whether a Puzzle other than the Exit is still locked, so a window with none
 left asks no source.
 `apply_edit(room, edit)` returns a new Room with the edit folded in and its
@@ -25,7 +28,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from functools import reduce
 
-from .rungs import RUNG_NAMES
+from .rungs import RUNG_NAMES, HintPolicy
 from .schema import (
     Decoy,
     DecoyPayload,
@@ -93,14 +96,28 @@ def _open_bounds(state: SessionState, edit: TricksterEdit) -> list[tuple[str | N
     return [(puzzle_id, field) for field, puzzle_id in named if puzzle_id in state.locks_open]
 
 
+CHEST_REFUSALS: dict[str, str] = {
+    "loosen": "Hints come only from the chest.",
+    "decoy": "Evidence is hidden until a lock opens.",
+}
+"""Under the chest, the fixed message refusing each edit type that would open a Rung or add a false evidence card."""
+
+
 def has_locked_puzzle(room: Room, state: SessionState) -> bool:
     """Whether a Puzzle other than the Exit is still locked; once none is, a window asks no source."""
     return any(not puzzle.is_exit and puzzle.id not in state.locks_open for puzzle in room.puzzles)
 
 
-def validate_edit(room: Room, state: SessionState, edit: TricksterEdit) -> ValidatorResult:
-    """The Trickster's limits over the Effective room: the window bound first, and only inside it the payload and open-Puzzle bounds."""
-    found = _window_bounds(state, edit) or [*_payload_bounds(room, edit), *_open_bounds(state, edit)]
+def validate_edit(room: Room, state: SessionState, edit: TricksterEdit, *, hint_policy: HintPolicy = "ladder") -> ValidatorResult:
+    """The Trickster's limits over the Effective room: the window bound first, and only inside it the payload and open-Puzzle bounds.
+
+    Under the chest, a `loosen` or `decoy` inside the window is refused with its own fixed message alone.
+    """
+    window = _window_bounds(state, edit)
+    if not window and hint_policy == "chest" and edit.type in CHEST_REFUSALS:
+        reason = ValidatorReason(rule=EDIT_BOUNDS, puzzle_id=edit.puzzle, field="type", message=CHEST_REFUSALS[edit.type])
+        return ValidatorResult(ok=False, reasons=[reason])
+    found = window or [*_payload_bounds(room, edit), *_open_bounds(state, edit)]
     reasons = [
         ValidatorReason(rule=EDIT_BOUNDS, puzzle_id=puzzle_id, field=field, message=BOUNDS_MESSAGE)
         for puzzle_id, field in dict.fromkeys(found)
@@ -136,9 +153,9 @@ def apply_edit(room: Room, edit: TricksterEdit) -> Room:
     return edited
 
 
-def check_edit(room: Room, state: SessionState, edit: TricksterEdit) -> ValidatorResult:
+def check_edit(room: Room, state: SessionState, edit: TricksterEdit, *, hint_policy: HintPolicy = "ladder") -> ValidatorResult:
     """The verdict on a proposal: the bounds, then rules 1 to 9 over `apply_edit(room, edit)`; never a Dry run."""
-    bounds = validate_edit(room, state, edit)
+    bounds = validate_edit(room, state, edit, hint_policy=hint_policy)
     return validate(apply_edit(room, edit)) if bounds.ok else bounds
 
 

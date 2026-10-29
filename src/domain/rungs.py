@@ -30,6 +30,13 @@ persistence. A `hint_request` (`asked`) opens the next Rung at once: with
 no Rung open on the Puzzle, always; with one open, once the Rung spacing has
 passed since that Rung (owner decision Oct 29). Nothing follows the
 near-answer: no reveal and no skip.
+
+The hint policy (amended 29 Oct 2026, story mode) is fixed per Session.
+Under `chest`, the default (`HINT_POLICY`, AD-14), only an ask opens a Rung:
+the next one at once, outside the spacing, and idle time and Wrong attempts
+open nothing; the Session holds `HINTS_PER_SESSION` asks (`HINT_CAP`), which
+the state machine counts. `ladder` is the behaviour described above, kept for
+tests and for replaying the logs of Sessions played under it.
 """
 
 from __future__ import annotations
@@ -42,6 +49,10 @@ from .schema import Derived, Milliseconds, PuzzleId, RungName, Thresholds, Trick
 
 ThresholdSource = Literal["derived", "fresh"]
 """`Thresholds.source`: the Derived block of a returning player, or `Derived.fresh()`."""
+HintPolicy = Literal["chest", "ladder"]
+"""`chest`: Rungs open only on an ask; `ladder`: also on idle time and Wrong attempts, asks waiting out the spacing."""
+HINTS_PER_SESSION = 2
+"""The chest's hints for a whole Session (owner decision Oct 29, story mode); `HINT_CAP` sets it once (AD-14)."""
 
 NUDGE_THRESHOLD_MS: Milliseconds = 90_000
 """The 1x nudge threshold at `persistence` 0."""
@@ -117,6 +128,7 @@ def select_rung(
     *,
     loosen: tuple[PuzzleId, RungName] | None = None,
     asked: bool = False,
+    policy: HintPolicy = "ladder",
 ) -> RungStep | None:
     """The Rung the last event opens on the Active puzzle, or None.
 
@@ -126,7 +138,8 @@ def select_rung(
     `loosen` is the Loosen hook: an accepted `loosen` card opens the named
     Rung on its Puzzle at once, outside the spacing, triggered by the card.
     `asked` marks a `hint_request`: it opens the next Rung once the spacing
-    allows, triggered by the request alone.
+    allows, triggered by the request alone. Under the `chest` policy only an
+    ask opens a Rung, at once, whatever the spacing.
     """
     if not events:
         return None
@@ -135,12 +148,16 @@ def select_rung(
         puzzle_id, name = loosen
         rung = RUNG_NAMES.index(name) + 1
         return RungStep(puzzle_id, rung, (now,)) if rung > _last_rung(events, puzzle_id)[0] else None
+    if policy == "chest" and not asked:
+        return None
     puzzle_id = events[now].active_puzzle_id
     if puzzle_id is None:
         return None
     rung, since = _last_rung(events, puzzle_id)
     if rung >= NEAR_ANSWER:
         return None
+    if policy == "chest":
+        return RungStep(puzzle_id, rung + 1, (now,))
     t_ms = events[now].t_ms
     if since is not None and t_ms - events[since].t_ms < thresholds.rung_spacing_ms:
         return None

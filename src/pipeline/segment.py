@@ -17,6 +17,13 @@ authoring call. Otherwise each survivor gets an `ix_` id minted here, the
 for the author stage, and the stage returns the solution-free Mask preview
 (`id`, `label`, `photo`, `polygons`) for job state (AD-3). The 10 s budget
 (`budgets.md`) is measured by the runner's stage timing, never enforced.
+
+Photo areas (amended 29 Oct 2026, story mode): the stage copies the
+Architect's `photos` answer onto the stored photo records the Room is built
+from, each label trimmed and lowercased, once it names every photo exactly
+once, at most `MAX_AREAS` areas of 1 to 24 characters and a pan of 0 or more;
+on any failure every photo gets area "room" and no pan, one ring in upload
+order. No heuristic stands in for the Architect's answer.
 """
 
 from __future__ import annotations
@@ -28,10 +35,21 @@ from PIL import Image
 from pydantic import TypeAdapter
 
 from src.domain.masks import MAX_INTERACTABLES, Selection, box_to_frame, cap_by_confidence, select_instances
-from src.domain.schema import ArchitectCandidate, Interactable, JobState, JobStatus, MaskPreview, Polygon, RoomId
+from src.domain.schema import (
+    DEFAULT_AREA,
+    ArchitectCandidate,
+    ArchitectPhoto,
+    Interactable,
+    JobState,
+    JobStatus,
+    MaskPreview,
+    Photo,
+    Polygon,
+    RoomId,
+)
 from src.pipeline.architect import read_architect
 from src.pipeline.build import StageFn, StageResult, StageStop, call_row, new_id
-from src.pipeline.ingest import read_photos
+from src.pipeline.ingest import PHOTOS, PHOTOS_FILE, read_photos
 from src.pipeline.ports import ArtifactStore
 from src.providers.base import ModelProvider
 
@@ -45,6 +63,9 @@ MIN_INTERACTABLES = 5
 INTERACTABLES_FILE = "interactables.json"
 """The stage artifact under `<room_id>/`: the surviving `Interactable` records, ids minted."""
 INTERACTABLES = TypeAdapter(list[Interactable])
+MAX_AREAS = 4
+"""At most this many areas in one Room; an Architect answer naming more falls back to the one area."""
+AREA_LENGTH = range(1, 25)
 
 
 class TooFewInteractables(StageStop):
@@ -62,6 +83,20 @@ def read_interactables(room_id: RoomId, artifacts: ArtifactStore) -> list[Intera
     return INTERACTABLES.validate_json(artifacts.read(interactables_key(room_id)))
 
 
+def photo_areas(photos: list[Photo], answer: list[ArchitectPhoto]) -> list[Photo]:
+    """Each photo with the area and pan the Architect gave it; on any gap, every photo in area "room" with no pan."""
+    named = {entry.photo: (entry.area.strip().lower(), entry.pan) for entry in answer}
+    fits = (
+        len(answer) == len(photos)
+        and set(named) == set(range(len(photos)))
+        and len({area for area, _ in named.values()}) <= MAX_AREAS
+        and all(len(area) in AREA_LENGTH and pan >= 0 for area, pan in named.values())
+    )
+    if not fits:
+        return [photo.model_copy(update={"area": DEFAULT_AREA, "pan": None}) for photo in photos]
+    return [photo.model_copy(update={"area": named[i][0], "pan": named[i][1]}) for i, photo in enumerate(photos)]
+
+
 def frame_size(jpeg: bytes) -> tuple[int, int]:
     """Width and height of a stored downscale, from its header."""
     return Image.open(BytesIO(jpeg)).size
@@ -72,7 +107,9 @@ def run_segment(state: JobState, *, provider: ModelProvider, artifacts: Artifact
     if state.room_id is None:
         raise ValueError(f"{state.id} names no room")
     photos = read_photos(state.room_id, artifacts)
-    candidates = [c for c in read_architect(state.room_id, artifacts).candidates if c.photo < len(photos)]
+    architect = read_architect(state.room_id, artifacts)
+    artifacts.put(f"{state.room_id}/{PHOTOS_FILE}", PHOTOS.dump_json(photo_areas(photos, architect.photos)))
+    candidates = [c for c in architect.candidates if c.photo < len(photos)]
     frames = {index: artifacts.read(photos[index].downscaled_path) for index in {c.photo for c in candidates}}
     sizes = {index: frame_size(jpeg) for index, jpeg in frames.items()}
 

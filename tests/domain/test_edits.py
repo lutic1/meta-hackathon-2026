@@ -536,22 +536,20 @@ def test_a_rejected_loosen_opens_nothing(four_lock_room):
 # --- The Play view of an Effective room with a Decoy ----------------------------------
 
 
-def test_a_decoy_and_the_real_evidence_cannot_be_told_apart_in_the_play_view(four_lock_room):
+def test_a_decoy_never_reaches_the_play_view_open_or_locked(four_lock_room):
+    """Story mode (amended 29 Oct 2026): evidence is held back until a lock opens, and then only the real card is served."""
     log, _ = _play(four_lock_room)
     effective = effective_room(four_lock_room, log)
-    view = to_play_view(effective)
+    assert any(decoy.puzzle == PZ["shelf_order"] for decoy in effective.decoys)
+    view = to_play_view(effective, opened=[PZ["shelf_order"]])
     shelf = next(p for p in view.puzzles if p.id == PZ["shelf_order"])
     real = next(p for p in four_lock_room.puzzles if p.id == PZ["shelf_order"]).evidence
-    assert len(shelf.evidence_cards) == 2 and real in shelf.evidence_cards
-    assert {(c.interactable, c.visible_attribute) for c in shelf.evidence_cards} == {
-        (real.interactable, real.visible_attribute), (IX["rug"], "faded red"),
-    }
-    assert {type(c) for c in shelf.evidence_cards} == {type(real)}
-    assert all(set(c.model_dump()) == {"interactable", "visible_attribute"} for c in shelf.evidence_cards)
-    assert all(len(p.evidence_cards) == 1 for p in view.puzzles if p.id != PZ["shelf_order"])
+    assert shelf.evidence_cards == [real]
+    assert all(p.evidence_cards == [] for p in view.puzzles if p.id != PZ["shelf_order"])
+    assert all(p.evidence_cards == [] for p in to_play_view(effective).puzzles)
 
-    assert to_play_view(effective) == view  # stable on every call
-    assert to_play_view(effective_room(four_lock_room, log)) == view  # and on every replay
+    assert to_play_view(effective, opened=[PZ["shelf_order"]]) == view  # stable on every call
+    assert to_play_view(effective_room(four_lock_room, log), opened=[PZ["shelf_order"]]) == view  # and on every replay
     data = view.model_dump(mode="json")
     keys: set[str] = set()
 

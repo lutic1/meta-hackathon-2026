@@ -168,7 +168,7 @@ def test_the_call_is_tagged_with_the_job_and_the_story_stage(seeded, artifacts, 
 
 def test_the_brief_carries_counts_and_scenery_labels_only(four_lock_room):
     brief = story_brief(four_lock_room)
-    assert brief == StoryBrief(room_name=None, areas=(), photos=6, things=8, riddles=5, scenery=("woven rug",))
+    assert brief == StoryBrief(room_name=None, areas=("room",), photos=6, things=8, riddles=5, scenery=("woven rug",))
 
 
 def test_the_prompt_never_carries_a_solution_target_evidence_or_code(four_lock_room):

@@ -178,7 +178,11 @@ def test_the_recording_is_not_installed_before_its_room_is_stored(stores, root: 
 
 
 def test_a_scripted_session_over_the_installed_recording_gets_a_card_in_each_window(stores, root: Path, tmp_path: Path):
-    """Local play with `DEMO_TRICKSTER=scripted` and the printed env line: window 0 an accepted Decoy, window 1 a refused Merge."""
+    """Local play with `DEMO_TRICKSTER=scripted` and the printed env line: a card in each window.
+
+    Under the default chest hint policy (story mode) window 0's Decoy is refused, since evidence is hidden until a lock
+    opens, and window 1's Merge fails rule 1.
+    """
     loader.load_fixtures(*stores, tmp_path / "scenes", regen_max=2)
     loader.install_proposals(root, stores[0])
     settings = Settings.from_env({"DEMO_TRICKSTER": "scripted", "DEMO_PROPOSALS_DIR": str(root / loader.PROPOSALS_DIR)})
@@ -190,5 +194,9 @@ def test_a_scripted_session_over_the_installed_recording_gets_a_card_in_each_win
     first = trickster(client, session_id)
     open_window(client, ticker, session_id, code("clock_code", "415"), 1)
     second = trickster(client, session_id)
-    assert [(card["accepted"], card["edit_type"]) for card in first["cards"]] == [(True, "decoy")]
-    assert [(card["accepted"], card["edit_type"], card["reason"]) for card in second["cards"]] == [(True, "decoy", None), (False, "merge", 1)]
+    assert [(card["accepted"], card["edit_type"], card["message"]) for card in first["cards"]] == [
+        (False, "decoy", "Evidence is hidden until a lock opens.")
+    ]
+    assert [(card["accepted"], card["edit_type"], card["reason"]) for card in second["cards"]] == [
+        (False, "decoy", "edit_bounds"), (False, "merge", 1)
+    ]

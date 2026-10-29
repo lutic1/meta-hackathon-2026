@@ -27,6 +27,8 @@ from typing import Any, Literal
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
+from src.domain.rungs import HINTS_PER_SESSION, HintPolicy
+
 load_dotenv()
 
 ROLES = ("architect", "riddler", "dryrun", "storyteller", "trickster", "image")
@@ -43,6 +45,8 @@ ENV_KEYS = (
     "DRY_RUN",
     "REGEN_MAX",
     "GUIDE",
+    "HINT_POLICY",
+    "HINT_CAP",
     "MODEL_PROVIDER",
     *(f"PROVIDER_{role.upper()}" for role in ROLES),
     *(f"MODEL_{role.upper()}" for role in ROLES),
@@ -103,6 +107,10 @@ class Settings(BaseModel, frozen=True):
     dry_run: Literal["on", "off"] = "on"
     regen_max: int = Field(default=2, ge=0)
     guide: Literal["ollama", "verbatim"] = "ollama"
+    hint_policy: HintPolicy = "chest"
+    """Story mode: `chest` (only asked Rungs, `hint_cap` per Session) or `ladder` (idle and wrong-attempt Rungs too)."""
+    hint_cap: int = Field(default=HINTS_PER_SESSION, ge=0)
+    """The chest's hints per Session under `chest`, fixed at each Session's start."""
 
     # Adapter settings. `MODEL_PROVIDER` is the default for every `PROVIDER_<ROLE>`.
     model_provider: str = "meta"
