@@ -268,9 +268,9 @@ PROFILES = "profiles"
 IDLE_TICK_MS = 5000
 """A `GET /sessions/<id>` read appends an `idle_tick` once this long has passed since the last event (AD-4)."""
 
-FIRST_ROOM_WELCOME = "Welcome to your own room. Find what doesn't belong."
+FIRST_ROOM_WELCOME = "Welcome to your own room. Read a riddle, then click the thing it means."
 """The fixed First-room welcome (A-13, FR-21): the `opening_line` of every session start neither greeted nor on a Demo room, worded here alone."""
-DEMO_ROOM_WELCOME = "Welcome to someone else's room. Find what doesn't belong."
+DEMO_ROOM_WELCOME = "Welcome to someone else's room. Read a riddle, then click the thing it means."
 """The fixed Demo room welcome (FR-31, UX-DR45): the `opening_line` of every session start on a Demo room, worded here alone."""
 
 NO_HINT_LINE = "A fair ask. Look around a little longer; I'll speak up if you stay stuck."

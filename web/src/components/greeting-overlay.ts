@@ -26,18 +26,31 @@ function paragraph(className: string, ...children: (Node | string)[]): HTMLParag
   return element
 }
 
+/** The First-room welcome's three-step how-to-play, numbered, in `body-md` `ink`. */
+function steps(): HTMLOListElement {
+  const list = document.createElement('ol')
+  list.className = 'greeting-steps body-md'
+  for (const step of [strings.howToPlay1, strings.howToPlay2, strings.howToPlay3]) {
+    const item = document.createElement('li')
+    item.textContent = step
+    list.append(item)
+  }
+  return list
+}
+
 /**
  * `{components.greeting-overlay}` (UX-DR45) for the Greeting and the First-room welcome: the scrim and, centered on
  * it, the 560 px parchment card. The Guide's introduction at the top (the 96 px portrait beside the heading "The
  * Guide" in `display-sm` with `role` under it in `body-sm` `ink-muted`), then the Guide's voice line in
- * `wizard-line`. Until `arrive` brings the opening line, the card shows the Guide's static thinking state: the `lamp`
+ * `wizard-line`; with `howToPlay` (the First-room welcome), the three-step how-to-play sits between the line and the
+ * voice line. Until `arrive` brings the opening line, the card shows the Guide's static thinking state: the `lamp`
  * ring on the portrait and "thinking on this Mac" in `pending-ink` where the line will go, with no "Begin". `arrive`
  * puts the line there exactly as served in `wizard-line-lg`, the same whatever worded it, and "Begin" (primary)
  * left-aligned under the voice line; a line served at once is brought before the card is first drawn, so it never
  * shows the thinking state. The dialog is labelled by its heading only, with no description, so nothing is read
  * twice; each in-character line starts with the visually hidden speaker prefix.
  */
-export function greetingOverlay(role: string): GreetingOverlay {
+export function greetingOverlay(role: string, howToPlay: boolean): GreetingOverlay {
   const element = document.createElement('div')
   element.className = 'greeting-scrim'
   const card = document.createElement('section')
@@ -70,7 +83,7 @@ export function greetingOverlay(role: string): GreetingOverlay {
   const voice = paragraph('greeting-voice wizard-line', speakerPrefix('guide'), strings.guideVoice)
 
   portrait.classList.add('is-thinking')
-  card.append(intro, thinking, voice)
+  card.append(intro, thinking, ...(howToPlay ? [steps()] : []), voice)
   element.append(card)
 
   function arrive(line: string): void {

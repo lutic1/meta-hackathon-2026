@@ -50,11 +50,11 @@ def test_a_greeting_still_being_phrased_opens_the_card_in_the_thinking_state():
     assert "if (opening !== null) {" in play
     assert "if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text" in play
     overlay = _ts(OVERLAY)
-    assert "export function greetingOverlay(role: string): GreetingOverlay {" in overlay
+    assert "export function greetingOverlay(role: string, howToPlay: boolean): GreetingOverlay {" in overlay
     assert "portrait.classList.add('is-thinking')" in overlay
     assert "const thinking = paragraph('greeting-thinking label', strings.thinkingOnThisMac)" in overlay
     # The introduction, then the thinking label where the line will go, then the voice line; no "Begin" yet.
-    assert "card.append(intro, thinking, voice)" in overlay
+    assert "card.append(intro, thinking, ...(howToPlay ? [steps()] : []), voice)" in overlay
     assert _code(overlay).count("card.append(actions)") == 1 and "card.append(actions)" in _function(overlay, "arrive")
 
 
@@ -83,9 +83,9 @@ def test_the_role_line_follows_the_mode_and_the_guide_setting():
     assert strings["guideRoleLocal"] == (
         "Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac.")
     assert strings["guideRoleWritten"] == "Reads how you play; offers one hint at a time, never the answer, shown as written."
-    assert strings["guideVoice"] == "Get stuck as often as you like. I'll help, a little at a time."
+    assert strings["guideVoice"] == "Ask as often as you like. I'll help, a little at a time."
     assert "return mode === 'local' && guide === 'ollama' ? strings.guideRoleLocal : strings.guideRoleWritten" in _ts("welcome.ts")
-    assert "const overlay = greetingOverlay(role)" in _ts("welcome.ts")
+    assert "const overlay = greetingOverlay(role, opening.kind === 'welcome')" in _ts("welcome.ts")
 
 
 def test_the_pending_greeting_takes_its_line_from_the_play_screens_2000ms_poll():

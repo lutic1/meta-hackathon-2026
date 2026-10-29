@@ -38,12 +38,18 @@ const CAST: readonly CastMember[] = [
   { wizard: 'trickster', name: strings.trickster, role: strings.tricksterCastRole, voice: strings.tricksterVoice },
 ]
 
-/** "How a room is built" in three steps: each a wizard's name (in `label`) followed by what it does, the models named. */
-const STEPS: readonly (readonly string[])[] = [
-  [strings.architect, strings.howArchitect],
-  [strings.riddler, strings.howRiddler],
-  [strings.guide, strings.howGuide, strings.trickster, strings.howTrickster],
-]
+/**
+ * "How a room is built" in three steps: each a wizard's name (in `label`) followed by what it does, the models named.
+ * The Riddler's step counts `locks`, the first Demo room's Puzzle count, and names no number with no Demo room listed.
+ */
+function steps(locks: number | undefined): readonly (readonly string[])[] {
+  const riddler = locks === undefined ? strings.howRiddlerUncounted : fill(strings.howRiddler, { n: locks })
+  return [
+    [strings.architect, strings.howArchitect],
+    [strings.riddler, riddler],
+    [strings.guide, strings.howGuide, strings.trickster, strings.howTrickster],
+  ]
+}
 
 function paragraph(className: string, ...children: (Node | string)[]): HTMLParagraphElement {
   const element = document.createElement('p')
@@ -159,7 +165,7 @@ function riddlersNotes(view: PlayView): HTMLElement | null {
 }
 
 /** "How a room is built": the heading over the three numbered steps, the wizards' names in `label`. */
-function howARoomIsBuilt(): HTMLElement {
+function howARoomIsBuilt(locks?: number): HTMLElement {
   const section = document.createElement('section')
   section.className = 'landing-how'
   const heading = document.createElement('h2')
@@ -167,18 +173,18 @@ function howARoomIsBuilt(): HTMLElement {
   heading.className = 'landing-how-heading display-sm'
   heading.textContent = strings.howARoomIsBuilt
   section.setAttribute('aria-labelledby', heading.id)
-  const steps = document.createElement('ol')
-  steps.className = 'landing-how-steps'
-  STEPS.forEach((parts, index) => {
+  const list = document.createElement('ol')
+  list.className = 'landing-how-steps'
+  steps(locks).forEach((parts, index) => {
     const step = document.createElement('li')
     step.className = 'landing-how-step body-sm'
     const n = span('landing-how-n mono-sm', String(index + 1))
     n.setAttribute('aria-hidden', 'true')
     const words = parts.flatMap((part, at) => [at === 0 ? '' : ' ', at % 2 === 0 ? span('label', part) : part])
     step.append(n, paragraph('landing-how-text', ...words))
-    steps.append(step)
+    list.append(step)
   })
-  section.append(heading, steps)
+  section.append(heading, list)
   return section
 }
 
@@ -246,7 +252,7 @@ export function hostedLanding(
   notes.className = 'landing-notes-slot'
   const below = document.createElement('div')
   below.className = 'landing-below'
-  below.append(sample, notes, howARoomIsBuilt())
+  below.append(sample, notes, howARoomIsBuilt(first.puzzle_count))
   left.append(below)
   if (rooms.length > 1) {
     cards.push(...rooms.slice(1).map((room) => demoRoomCard(room, profile, () => void start(room))))

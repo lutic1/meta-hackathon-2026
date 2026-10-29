@@ -16,7 +16,7 @@ from tests.api.test_app import make_app
 from tests.api.test_sessions import Ticker, click, post, start, stored
 
 REPO = Path(__file__).resolve().parents[2]
-WELCOME_LINE = {"kind": "welcome", "text": "Welcome to your own room. Find what doesn't belong."}
+WELCOME_LINE = {"kind": "welcome", "text": "Welcome to your own room. Read a riddle, then click the thing it means."}
 
 
 @pytest.fixture

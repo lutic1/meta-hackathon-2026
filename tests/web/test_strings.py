@@ -266,8 +266,17 @@ def test_the_welcome_strings_are_the_experience_lines():
         "Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac."
     )
     assert strings["guideRoleWritten"] == "Reads how you play; offers one hint at a time, never the answer, shown as written."
-    assert strings["guideVoice"] == "Get stuck as often as you like. I'll help, a little at a time."
+    assert strings["guideVoice"] == "Ask as often as you like. I'll help, a little at a time."
     assert strings["guideIntroduction"] == "The Guide. {role line} {opening line} {voice line}"
+    # The First-room welcome's three-step how-to-play: what a riddle points at, how to answer one, how the room ends.
+    assert [strings[f"howToPlay{n}"] for n in (1, 2, 3)] == [
+        "Each riddle in the Wizard notes points at one thing in these photos.",
+        "Hover to find objects; click the one the riddle means. Some you pick up and use on something else.",
+        "Open every lock to find the way out. Stuck? Ask the Guide for a hint.",
+    ]
+    # The step and the voice line ask the player to ask: no hint arrives by itself, and nothing says "doesn't belong".
+    assert strings["howToPlay3"].endswith(strings["hintPlaceholder"] + ".")
+    assert not any("doesn't belong" in value or "Get stuck" in value for value in strings.values())
 
 
 def test_the_build_end_state_strings_are_the_experience_lines():

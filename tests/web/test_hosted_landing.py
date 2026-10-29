@@ -92,7 +92,8 @@ def test_the_landing_strings_are_the_experience_lines():
     strings = _strings()
     assert strings["wordmark"] == "Keyframe"
     assert strings["landingSubtitle"] == "An escape room built from your own photos."
-    assert strings["landingTagline"] == "Six photos of one room go in. Five locks, four wizards and one way out come back."
+    assert strings["landingTagline"] == (
+        "Snap a room. Four wizards hide riddles in your photos, and you play by clicking the objects they point at.")
     assert strings["playSampleRoom"] == "Play the sample room"
     assert strings["sampleRoomSoon"] == "The sample room opens soon."
     assert strings["howARoomIsBuilt"] == "How a room is built"
@@ -102,14 +103,18 @@ def test_the_landing_strings_are_the_experience_lines():
     assert all(len(role.split()) <= 4 for role in roles)
     assert strings["riddlersNotes"] == "From the Riddler's notes"
     assert strings["howArchitect"] == "reads your photos with muse-spark-1.3 and outlines every object with sam-3.1."
-    assert strings["howRiddler"] == (
-        "writes five locks from what was found; a test run that never sees the answers checks each one opens.")
+    assert strings["howRiddler"].format(n=4) == (
+        "writes 4 locks from what was found; a test run that never sees the answers checks each one opens.")
+    assert strings["howRiddlerUncounted"] == (
+        "writes the locks from what was found; a test run that never sees the answers checks each one opens.")
     assert strings["howGuide"] == "hands out hints one rung at a time."
     assert strings["howTrickster"] == "changes the room between locks, if the Validator lets him."
     assert strings["demoRoomMeta"].format(n=5) == "5 puzzles · 15 to 25 min"
     assert strings["demoRoomPortraits"] == "The Architect, the Riddler, the Guide and the Trickster"
     assert strings["demoRoomsFailed"] == "Keyframe couldn't load the demo rooms."
     assert strings["howBuilt"] == "How this room was built" and strings["tryAgain"] == "Try again"
+    # No line promises a number of locks: the one count shown is the Demo room's own.
+    assert not any(re.search(r"(?i)\b(?:five|four|six|\d+) locks\b", value) for value in strings.values())
     # The hero names no model and the no-demo-rooms sentence is gone for good.
     for key in ("landingSubtitle", "landingTagline", "sampleRoomSoon"):
         assert "muse" not in strings[key] and "sam-" not in strings[key] and "Llama" not in strings[key]
@@ -207,11 +212,14 @@ def test_how_a_room_is_built_is_three_steps_naming_the_wizards_and_the_models():
     ts = _code("landing.ts")
     how = ts.split("function howARoomIsBuilt(", 1)[1].split("\n}\n", 1)[0]
     assert "heading.textContent = strings.howARoomIsBuilt" in how
-    steps = ts.split("const STEPS: readonly (readonly string[])[] = [", 1)[1].split("\n]\n", 1)[0]
+    steps = ts.split("function steps(locks: number | undefined)", 1)[1].split("\n}\n", 1)[0]
     assert "[strings.architect, strings.howArchitect]" in steps
-    assert "[strings.riddler, strings.howRiddler]" in steps
+    # The Riddler's step counts the first Demo room's locks, its Puzzle count, and names no number without one.
+    assert ("const riddler = locks === undefined ? strings.howRiddlerUncounted : "
+            "fill(strings.howRiddler, { n: locks })") in steps
+    assert "[strings.riddler, riddler]" in steps
     assert "[strings.guide, strings.howGuide, strings.trickster, strings.howTrickster]" in steps
-    assert "step.className = 'landing-how-step body-sm'" in how and "STEPS.forEach(" in how
+    assert "step.className = 'landing-how-step body-sm'" in how and "steps(locks).forEach(" in how
     rules = _landing_rules()
     assert rules[".landing-how-n"]["color"] == "var(--lamp)"
 
@@ -224,7 +232,7 @@ def test_with_a_demo_room_listed_the_card_the_sample_page_and_the_steps_sit_in_a
     assert "left.append(hero(first, profile, verb, rooms !== null && rooms.length === 0), attract, cast())" in ts
     listed = ts.split("const below = document.createElement('div')", 1)[1]
     assert "below.className = 'landing-below'" in listed
-    assert "below.append(sample, notes, howARoomIsBuilt())" in listed
+    assert "below.append(sample, notes, howARoomIsBuilt(first.puzzle_count))" in listed
     # Further Demo rooms keep their cards three across under the row, in served order.
     assert "rooms.slice(1).map((room) => demoRoomCard(room, profile, () => void start(room)))" in listed
     rules = _landing_rules()
@@ -636,7 +644,7 @@ def test_the_hosted_app_answers_each_read_the_landing_makes_and_a_card_start_ope
     assert any(photo["photo"] == summary["cover_photo"] for photo in view["photos"])
     started = client.post("/api/sessions", json={"room_id": summary["room_id"], "derived": Derived.fresh().model_dump(mode="json")})
     assert started.status_code == 200
-    assert started.json()["opening_line"] == {"kind": "welcome", "text": "Welcome to someone else's room. Find what doesn't belong."}
+    assert started.json()["opening_line"] == {"kind": "welcome", "text": "Welcome to someone else's room. Read a riddle, then click the thing it means."}
 
 
 def test_the_hosted_app_with_no_demo_room_answers_an_empty_list_so_the_landing_shows_its_second_state(tmp_path: Path):

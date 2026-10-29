@@ -90,6 +90,22 @@ def test_the_card_holds_the_guides_introduction_the_served_line_the_voice_line_a
     assert "return mode === 'local' && guide === 'ollama' ? strings.guideRoleLocal : strings.guideRoleWritten" in welcome
 
 
+def test_only_a_first_room_welcome_teaches_the_game_in_three_steps_between_the_line_and_the_voice_line():
+    overlay, welcome = _code(_ts("components/greeting-overlay.ts")), _code(_ts("welcome.ts"))
+    # A returning player's Greeting has played before; the First-room welcome (every Hosted session) has not.
+    assert "const overlay = greetingOverlay(role, opening.kind === 'welcome')" in welcome
+    # The served line (or the thinking label it replaces) first, then the steps, then the voice line and "Begin".
+    assert "card.append(intro, thinking, ...(howToPlay ? [steps()] : []), voice)" in overlay
+    steps = overlay.split("function steps(", 1)[1].split("\n}\n", 1)[0]
+    assert "document.createElement('ol')" in steps and "list.className = 'greeting-steps body-md'" in steps
+    assert "for (const step of [strings.howToPlay1, strings.howToPlay2, strings.howToPlay3])" in steps
+    rules = _rules("components/greeting-overlay.css")
+    assert rules[".greeting-steps"]["color"] == "var(--ink)" and rules[".greeting-steps"]["list-style"] == "decimal"
+    assert rules[".greeting-steps li + li"] == {"margin-top": "var(--spacing-2)"}
+    card = design_text().split("  greeting-overlay:\n", 1)[1].split("\n  leave-room-confirmation:", 1)[0]
+    assert "steps: '{typography.body-md}'" in card and "stepsColor: '{colors.ink}'" in card
+
+
 def test_the_line_is_rendered_as_served_never_worded_in_the_client():
     for name in ("play.ts", "welcome.ts", "components/greeting-overlay.ts", "strings.ts"):
         assert FIRST_ROOM_WELCOME not in _ts(name) and "Find what doesn't belong" not in _ts(name), name

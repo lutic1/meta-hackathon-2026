@@ -21,8 +21,8 @@ from tests.api.test_greeting_path import Later, SpyPhraser
 from tests.api.test_sessions import Ticker, click, post
 
 REPO = Path(__file__).resolve().parents[2]
-DEMO_LINE = {"kind": "welcome", "text": "Welcome to someone else's room. Find what doesn't belong."}
-FIRST_ROOM_LINE = {"kind": "welcome", "text": "Welcome to your own room. Find what doesn't belong."}
+DEMO_LINE = {"kind": "welcome", "text": "Welcome to someone else's room. Read a riddle, then click the thing it means."}
+FIRST_ROOM_LINE = {"kind": "welcome", "text": "Welcome to your own room. Read a riddle, then click the thing it means."}
 RETURNING = Derived(sessions=1, persistence=0.4173, time_to_first_hint_s=137.9, mean_rung_per_lock_type={"code": 2.71})
 
 

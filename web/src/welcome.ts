@@ -62,7 +62,7 @@ export interface Welcome {
  * line will go. Escape and clicks anywhere do nothing, and Tab stays put. Once the line is in the card (served at once,
  * or brought by `arrive` from a later state the Play screen's poll reads), "Begin" appears and takes focus, and the
  * Guide's introduction, the line and the voice line are written to the live region once. A First-room welcome also
- * shows the plain tip naming "Show all objects" on the scrim under the card; a Greeting has none. "Begin" records
+ * teaches the game in three steps between the line and the voice line, and shows the plain tip naming "Show all objects" on the scrim under the card; a Greeting has none. "Begin" records
  * that play has begun, closes the card and calls `onBegin` with the line.
  */
 export function mountWelcome(
@@ -75,7 +75,7 @@ export function mountWelcome(
   onBegin: (line: string) => void,
 ): Welcome {
   const role = guideRoleLine(mode, guide)
-  const overlay = greetingOverlay(role)
+  const overlay = greetingOverlay(role, opening.kind === 'welcome')
   const { begin, heading } = overlay
   if (opening.kind === 'welcome') {
     const tip = document.createElement('p')
