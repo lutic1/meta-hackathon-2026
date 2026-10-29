@@ -170,7 +170,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import TypeAdapter, ValidationError
@@ -184,6 +184,7 @@ from src.api.errors import (
     InvalidProfile,
     InvalidProfileName,
     JobNotFound,
+    NotFound,
     PhotoNotFound,
     ProfileNotFound,
     RoomDeleted,
@@ -400,8 +401,7 @@ def profile_routes(store: ArtifactStore) -> APIRouter:
         try:
             profile = Profile.model_validate_json(await request.body())
         except ValidationError as error:
-            first = error.errors(include_url=False)[0]
-            raise InvalidProfile(name, f"{'.'.join(map(str, first['loc'])) or 'body'}: {first['msg']}") from None
+            raise InvalidProfile(name, error) from None
         try:
             store.put(key, profile.model_dump_json().encode())
         except ValueError:
@@ -1014,12 +1014,12 @@ API_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 
 def unknown_api_routes() -> APIRouter:
-    """The last API route: any other `/api/` path answers 404, never the static mount's 405 to a POST."""
+    """The last API route: any other `/api/` path answers 404 `not_found` in the envelope, never the static mount's 405 to a POST."""
     router = APIRouter()
 
     @router.api_route("/api/{path:path}", methods=API_METHODS, include_in_schema=False)
     def unknown_api_path(path: str) -> None:
-        raise HTTPException(status_code=404)
+        raise NotFound()
 
     return router
 

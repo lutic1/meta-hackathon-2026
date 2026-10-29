@@ -785,7 +785,7 @@ class Profile(Model):
     def _results_keyed_by_room_id(self) -> Profile:
         for room_id, result in self.results.items():
             if result.room_id != room_id:
-                raise ValueError(f"results[{room_id!r}] is the result of {result.room_id!r}")
+                raise ValueError("a result is keyed by another room's id")
         return self
 
 
