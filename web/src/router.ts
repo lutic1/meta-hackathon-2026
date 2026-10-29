@@ -17,7 +17,10 @@ export interface Place {
 
 export const DEFAULT_PROFILE = 'dev'
 
-/** Cut 0 (FR-38, UX-DR84), the first cut taken: true drops every link to the Build view. */
+/**
+ * Cut 0 (FR-38, UX-DR84), the first cut taken, set at build time: true drops every link to the Build view, and its
+ * route `#/build/<job_id>/view` resolves as an unknown route does, so nothing reads the Build view.
+ */
 export const CUT_0: boolean = false
 
 /** Cut 5 (UX-DR84): true opens the Triggers panel in a second window, `#/triggers/<session_id>`, instead of in place. */
@@ -37,7 +40,7 @@ export function parsePlace(hash: string, search: string, carried = DEFAULT_PROFI
   const build = BUILD_ROUTE.exec(path)
   if (build !== null) return { route: { name: 'build', jobId: build[1] }, profile }
   const view = BUILD_VIEW_ROUTE.exec(path)
-  if (view !== null) return { route: { name: 'view', jobId: view[1] }, profile }
+  if (view !== null && !CUT_0) return { route: { name: 'view', jobId: view[1] }, profile }
   const match = SESSION_ROUTE.exec(path)
   if (match === null) return { route: { name: 'home' }, profile }
   const name = match[1] === 'play' ? 'play' : match[1] === 'done' ? 'done' : 'triggers'

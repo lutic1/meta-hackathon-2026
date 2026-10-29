@@ -42,7 +42,7 @@ def _render() -> str:
 def test_the_build_view_route_resolves_and_carries_the_profile():
     router = _ts("router.ts")
     assert r"const BUILD_VIEW_ROUTE = /^\/build\/([\w-]+)\/view$/" in router
-    assert "if (view !== null) return { route: { name: 'view', jobId: view[1] }, profile }" in router
+    assert "if (view !== null && !CUT_0) return { route: { name: 'view', jobId: view[1] }, profile }" in router
     assert "route.name === 'view' ? `/build/${route.jobId}/view`" in router
     # The not-ready link: the Build's Capture screen, `#/build/<job_id>`, with the profile.
     assert "return `#/build/${jobId}?profile=${encodeURIComponent(profile)}`" in router

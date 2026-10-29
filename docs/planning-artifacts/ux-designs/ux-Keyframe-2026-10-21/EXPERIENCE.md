@@ -522,7 +522,7 @@ The UI keys on job status (AD-13): `needs_more_photos` asks for more photos and 
 | Error | Plain "Keyframe couldn't load how this room was built." with "Try again" `[ASSUMPTION]`. |
 | Focus | Initial focus on the header title `[ASSUMPTION]`. |
 | Scrolled | The right column runs past 900 px, so the page scrolls; the top bar and the Disclosure footer stay pinned and only the body scrolls between them. |
-| Cut 0 | The surface and every link to it are absent; the Stage list's done results and the role lines still show what each model did. |
+| Cut 0 | The surface and every link to it are absent; the Stage list's done results and the role lines still show what each model did. The switch is the build-time constant `CUT_0` in `web/src/router.ts`; when true, `#/build/<job_id>/view` resolves as an unknown route does and nothing reads `GET /builds/<job_id>/view`. |
 
 ### Hosted landing
 

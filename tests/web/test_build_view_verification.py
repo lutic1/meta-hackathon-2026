@@ -9,7 +9,12 @@ renders from a Room with sentinel solutions.
 
 import json
 import re
+import shutil
+import subprocess
+from pathlib import Path
 from typing import get_args
+
+import pytest
 
 from src.domain.redact import to_build_view
 from src.domain.schema import DryRunVerdict, Room
@@ -17,7 +22,7 @@ from src.domain.validator import BUILD_RULES, DECOY_RULE, RULES, validate
 from src.pipeline.author import rule_verdicts
 from tests.domain.test_redact import done_job
 from tests.fixtures.rooms import SENTINEL_CODE, SENTINEL_IX, with_sentinel_solutions
-from tests.web.design import source_css
+from tests.web.design import WEB_SRC, source_css
 from tests.web.test_build_view_surface import COMPONENTS, _code, _css, _ts
 from tests.web.test_contrast import PROPS, _hex, contrast
 from tests.web.test_strings import _strings, _voice_and_tone
@@ -221,6 +226,39 @@ def test_the_link_opens_the_build_view_of_that_job_and_cut_0_drops_every_one():
                        "build-progress.ts": _ts("build-progress.ts"), "completion.ts": _ts("completion.ts")}.items():
         code = _code(text)
         assert "buildViewLink(" in code and "if (CUT_0)" not in code and "/view" not in code, path
+
+
+# Imports the shipped router with CUT_0 set as given and prints where each hash resolves.
+ROUTER_RUNNER = """
+const { parsePlace } = await import(process.argv[1])
+const hashes = JSON.parse(process.argv[2])
+process.stdout.write(JSON.stringify(hashes.map((hash) => parsePlace(hash, '').route)))
+"""
+HASHES = ["#/build/job_01ABC/view?profile=demo", "#/build/job_01ABC?profile=demo", "#/nowhere?profile=demo"]
+
+
+def _routes_under(cut_0: bool, tmp_path: Path) -> list[dict[str, str]]:
+    source = (WEB_SRC / "router.ts").read_text()
+    assert "export const CUT_0: boolean = false" in source
+    router = tmp_path / "router.ts"
+    router.write_text(source.replace("export const CUT_0: boolean = false",
+                                     f"export const CUT_0: boolean = {'true' if cut_0 else 'false'}"))
+    result = subprocess.run(["node", "--input-type=module", "-e", ROUTER_RUNNER, router.as_uri(), json.dumps(HASHES)],
+                            capture_output=True, text=True, check=True)
+    return json.loads(result.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs the client's router")
+def test_under_cut_0_the_direct_build_view_route_is_an_unknown_route_and_reads_nothing(tmp_path: Path):
+    # Owner decision 45: cut 0 guards the direct route too, with the view an unknown route gets.
+    view, capture, unknown = _routes_under(True, tmp_path)
+    assert view == unknown == {"name": "home"} and capture == {"name": "build", "jobId": "job_01ABC"}
+    # Without cut 0 the hash still opens the Build view.
+    assert _routes_under(False, tmp_path)[0] == {"name": "view", "jobId": "job_01ABC"}
+    # The shell reads GET /builds/<job_id>/view only on the view route, so under cut 0 nothing is fetched.
+    shell = _code(_ts("shell.ts"))
+    assert shell.count("loadBuildView(") == 1 and shell.count("getBuildView(") == 0
+    assert "if (place.route.name === 'view') {\n      const state = await loadBuildView(place.route.jobId)" in shell
 
 
 def test_the_stored_room_row_links_its_summarys_job_after_play():
