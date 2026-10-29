@@ -232,6 +232,30 @@ def test_an_edit_inside_the_limits_passes_validate_edit(four_lock_room):
     assert validate_edit(four_lock_room, window_state(four_lock_room, "pending", 0), merge(25, "clock_code", "find_key")).ok
 
 
+def with_open(room: Room, *names: str) -> SessionState:
+    """An open window in a session where the named Puzzles are already open."""
+    return window_state(room).model_copy(update={"locks_open": [PZ[name] for name in names]})
+
+
+def test_an_edit_naming_a_puzzle_already_open_is_refused_on_the_bounds(four_lock_room):
+    # Live playtest Oct 29: an accepted edit on an open Puzzle changes nothing the player can see.
+    state = with_open(four_lock_room, "find_key", "clock_code")
+    cases = {
+        "decoy on an open puzzle": (decoy(26, "clock_code", "rug", "faded red"), [(PZ["clock_code"], "puzzle")]),
+        "loosen on an open puzzle": (loosen(27, "clock_code", "direction"), [(PZ["clock_code"], "puzzle")]),
+        "merge onto an open puzzle": (merge(28, "shelf_order", "clock_code"), [(PZ["clock_code"], "puzzle"), (PZ["clock_code"], "puzzle_b")]),
+        "merge waiting on an open puzzle": (merge(29, "clock_code", "shelf_order"), [(PZ["clock_code"], "puzzle_a")]),
+        "shortcut off an open puzzle": (shortcut(19, "key_on_chest", "find_key"), [(PZ["find_key"], "requires")]),
+    }
+    for case, (edit, named) in cases.items():
+        result = validate_edit(four_lock_room, state, edit)
+        assert [(r.rule, r.puzzle_id, r.field, r.message) for r in result.reasons] == [
+            (EDIT_BOUNDS, puzzle_id, field, BOUNDS_MESSAGE) for puzzle_id, field in named
+        ], case
+        assert not check_edit(four_lock_room, state, edit).ok
+    assert validate_edit(four_lock_room, state, merge(18, "key_on_chest", "shelf_order")).ok  # both still locked
+
+
 # --- validate(apply_edit(...)): rules 1 to 9, no Dry run ----------------------------
 
 
@@ -364,7 +388,7 @@ def _play(room: Room) -> tuple[list[Event], list[Room]]:
         loosen(65, "key_on_chest", "direction"),           # accepted
     ]
     t = 1_000
-    log.append(code("clock_code", "415", t))
+    log.append(ClickEvent(type="click", interactable_id=IX["rug"], t_ms=t))  # exploration: every Puzzle stays locked
     revision = 0
     for window, edit in enumerate(proposals):
         edit = edit.model_copy(update={"window": window})

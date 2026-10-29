@@ -165,11 +165,15 @@ def _minutes(elapsed_ms: int) -> str:
 
 
 def render_state(room_view: RoomView, summary: GameStateSummary) -> str:
-    """The user text: the objects and puzzles as a player sees them, then how the game is going."""
+    """The user text: the objects and the puzzles still locked as a player sees them, then how the game is going.
+
+    An open puzzle is left out, since an edit on it changes nothing the player sees and the bounds refuse it.
+    """
     objects = [{"id": ix.id, "label": ix.label, "attributes": ix.attributes} for ix in room_view.interactables]
     puzzles = [
         {"id": pz.id, "lock_type": pz.lock_type, "requires": pz.requires, "is_exit": pz.is_exit, "clue": pz.clue}
         for pz in room_view.puzzles
+        if pz.id not in summary.locks_open
     ]
     return "\n".join((
         f"Objects in the room:\n{json.dumps(objects, indent=2)}",

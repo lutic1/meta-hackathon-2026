@@ -131,8 +131,9 @@ startup the local app exports the ledger and restarts every job left
 `POST /sessions/<id>/trickster` runs the configured `TricksterSource`
 (wiring's `trickster_source`) inside an open window, under the session lock
 (AD-4, AD-12): outside an open window (and opening the Exit closes one still
-open, so none follows it) it answers 200 with the unchanged state, no source
-call and no event, and a request arriving while the
+open, so none follows it), or once every Puzzle but the Exit is open (no
+edit could land), it answers 200 with the unchanged state, no source call
+and no event, and a request arriving while the
 source runs waits on the lock and is then served the closed window the
 first one left, so a window yields at most one source call and one card.
 While the source runs the window reads `pending` in the state the session
@@ -208,7 +209,7 @@ from src.api.wiring import (
 from src.config import Settings
 from src.council.greeting import Greeting, compose_greeting
 from src.council.trickster import TricksterProposal, TricksterSource
-from src.domain.edits import check_edit, effective_room
+from src.domain.edits import check_edit, effective_room, has_locked_puzzle
 from src.domain.ledger import SpendCapExceeded
 from src.domain.redact import to_build_view, to_play_view, to_prompt_view
 from src.domain.rungs import (
@@ -991,7 +992,7 @@ def session_routes(
             log_ = events(session_id)
             state = session.machine.replay(session_id, log_)
             window = state.trickster_window
-            if window.state != "open" or window.index is None:
+            if window.state != "open" or window.index is None or not has_locked_puzzle(session.machine.room, state):
                 return served(session, state, log_)
             pending = state.model_copy(update={"trickster_window": TricksterWindow(state="pending", index=window.index)})
             session.pending = served(session, pending, log_)

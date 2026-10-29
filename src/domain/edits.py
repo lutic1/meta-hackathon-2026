@@ -1,9 +1,12 @@
 """Trickster edits (AD-12): the bounds check, the edit itself and the Effective room folded from the session log.
 
 `validate_edit(room, state, edit)` checks the Trickster's limits: the
-window first, then the per-type payload bounds, each refusal a structured
+window first, then the per-type payload bounds and that every Puzzle the
+edit names is still locked (`state.locks_open`), each refusal a structured
 reason named `edit_bounds` (never a rule number) with the bounds row's fixed
-message from the Validator table.
+message from the Validator table. `has_locked_puzzle(room, state)` says
+whether a Puzzle other than the Exit is still locked, so a window with none
+left asks no source.
 `apply_edit(room, edit)` returns a new Room with the edit folded in and its
 id in `provenance.applied_edits`; the input Room is never changed, so the
 stored build Room shared across Sessions keeps empty `applied_edits` and
@@ -77,9 +80,27 @@ def _payload_bounds(room: Room, edit: TricksterEdit) -> list[tuple[str | None, s
     return found
 
 
+def _open_bounds(state: SessionState, edit: TricksterEdit) -> list[tuple[str | None, str]]:
+    """Every Puzzle the edit names is still locked: an edit on an open Puzzle changes nothing the player can see."""
+    named: list[tuple[str, str]] = [("puzzle", edit.puzzle)]
+    match edit.payload:
+        case MergePayload(puzzle_a=puzzle_a, puzzle_b=puzzle_b):
+            named += [("puzzle_a", puzzle_a), ("puzzle_b", puzzle_b)]
+        case ShortcutPayload(requires=requires):
+            named.append(("requires", requires))
+        case _:
+            pass
+    return [(puzzle_id, field) for field, puzzle_id in named if puzzle_id in state.locks_open]
+
+
+def has_locked_puzzle(room: Room, state: SessionState) -> bool:
+    """Whether a Puzzle other than the Exit is still locked; once none is, a window asks no source."""
+    return any(not puzzle.is_exit and puzzle.id not in state.locks_open for puzzle in room.puzzles)
+
+
 def validate_edit(room: Room, state: SessionState, edit: TricksterEdit) -> ValidatorResult:
-    """The Trickster's limits over the Effective room: the window bound first, and only inside it the payload bounds."""
-    found = _window_bounds(state, edit) or _payload_bounds(room, edit)
+    """The Trickster's limits over the Effective room: the window bound first, and only inside it the payload and open-Puzzle bounds."""
+    found = _window_bounds(state, edit) or [*_payload_bounds(room, edit), *_open_bounds(state, edit)]
     reasons = [
         ValidatorReason(rule=EDIT_BOUNDS, puzzle_id=puzzle_id, field=field, message=BOUNDS_MESSAGE)
         for puzzle_id, field in dict.fromkeys(found)

@@ -72,7 +72,7 @@ from tests.fixtures.rooms import SENTINEL_CODE as SENTINEL_SOLUTION
 
 REPO = Path(__file__).resolve().parents[2]
 FIXTURE_FILE = REPO / "tests/fixtures/proposals/four_lock.json"
-"""The 4.3 pre-authored file for the four-lock room: window 0's Decoy passes, window 1's Merge fails rule 1."""
+"""The 4.3 pre-authored file for the four-lock room: window 0's Decoy passes, window 1's Merge (the shelf waits on the door) fails rule 1."""
 RECORDING: dict[str, Any] = json.loads(FIXTURE_FILE.read_text())
 WINDOW = TRICKSTER_WINDOW_MS
 CLOSED = {"state": "closed", "index": None}
@@ -81,10 +81,10 @@ HIDDEN_KEYS = {"payload", "edit", "interactable", "visible_attribute", "rung"}
 
 DECOY = TricksterProposal.model_validate(RECORDING["proposals"][0])
 VALID_MERGE = {
-    "type": "merge", "puzzle": PZ["clock_code"],
-    "payload": {"type": "merge", "puzzle_a": PZ["find_key"], "puzzle_b": PZ["clock_code"]},
+    "type": "merge", "puzzle": PZ["shelf_order"],
+    "payload": {"type": "merge", "puzzle_a": PZ["key_on_chest"], "puzzle_b": PZ["shelf_order"]},
 }
-"""A Merge in window 1 that passes: the clock code now waits on the key, which is already found."""
+"""A Merge in window 1 that passes: the shelf, still locked, now waits on the chest, still locked too."""
 SENTINEL_CODE = "ZQXJV9"
 """A clock code that appears nowhere else in the room and still has a valid lock shape, so the room validates."""
 
@@ -285,8 +285,8 @@ def test_the_scripted_source_is_judged_live_and_one_card_lands_per_window(tmp_pa
     }]
     assert second["trickster_window"] == CLOSED and second["trickster_calls"] == 2 and second["room_revision"] == 1
     assert second["cards"][1] == {
-        "edit_id": rejected.edit_id, "accepted": False, "edit_type": "merge", "puzzle_id": PZ["clock_code"],
-        "related_puzzle_id": PZ["shelf_order"], "room_revision": 1, "reason": 1, "message": RULES[1].message,
+        "edit_id": rejected.edit_id, "accepted": False, "edit_type": "merge", "puzzle_id": PZ["shelf_order"],
+        "related_puzzle_id": PZ["door_code"], "room_revision": 1, "reason": 1, "message": RULES[1].message,
         "t_ms": rejected.t_ms,
     }
     for reply in (first, second):
@@ -304,8 +304,8 @@ def test_the_source_is_handed_the_effective_rooms_view_and_the_game_state_summar
     assert first["cards"][0]["accepted"] and [window for _, window in source.calls] == [0, 1]
     room_view, summary = source.inputs[1]
     assert room_view == to_prompt_view(effective_room(four_lock_room, stored(tmp_path, session_id)[:-1]))
-    clock = next(puzzle for puzzle in room_view.puzzles if puzzle.id == PZ["clock_code"])
-    assert clock.requires == [PZ["find_key"]]  # window 0's accepted Merge is in the view, not the stored Room's empty list
+    shelf = next(puzzle for puzzle in room_view.puzzles if puzzle.id == PZ["shelf_order"])
+    assert shelf.requires == [PZ["clock_code"], PZ["key_on_chest"]]  # window 0's accepted Merge is in the view, not the stored Room's list
     assert summary == game_state_summary(SessionState.model_validate(second), ticker.ms)
     assert summary.locks_open == [PZ["find_key"], PZ["clock_code"]] and summary.elapsed_ms == ticker.ms > 0
 
@@ -393,9 +393,9 @@ def test_no_session_body_carries_the_decoys_identity_or_a_rejected_proposals_tok
     root = proposals_dir(tmp_path, {"room_id": room.id, "proposals": [RECORDING["proposals"][0], leaky]})
     client = app_client(tmp_path, ticker, room, proposals_dir=root)
     session_id = start(client, room)
-    open_window(client, ticker, session_id, code("clock_code", SENTINEL_CODE), 0)
+    open_window(client, ticker, session_id, click("key"), 0)
     trickster(client, session_id)
-    open_window(client, ticker, session_id, click("key"), 1)
+    open_window(client, ticker, session_id, use_on("key", "chest"), 1)  # the clock stays locked, so the Decoy is judged
     trickster_reply = trickster(client, session_id)
     events_reply = post(client, session_id, click("door"))
     session_reply = state_of(client, session_id)
@@ -491,6 +491,23 @@ def test_a_window_with_no_proposal_appends_nothing_and_stays_as_it_was(
     assert [reply[field] for field in fields] == [before[field] for field in fields]
     assert files_outside_sessions(tmp_path) == files  # no ledger entry, no cache entry
     assert not (tmp_path / LEDGER_PATH).exists() and not (tmp_path / CACHE_ROOT).exists()
+
+
+def test_a_window_with_only_the_exit_left_makes_no_source_call_and_appends_nothing(
+    tmp_path: Path, ticker: Ticker, four_lock_room: Room
+):
+    # Live playtest Oct 29: no edit can land once every Puzzle but the Exit is open, so the window asks nobody.
+    source = Counting()
+    client = app_client(tmp_path, ticker, four_lock_room, trickster=always(source))
+    session_id = start(client, four_lock_room)
+    for body in (click("key"), code("clock_code", "415"), order("start", "shelf_order"), *(click(n) for n in ("candle", "lantern", "hourglass"))):
+        post(client, session_id, body)
+    state = open_window(client, ticker, session_id, use_on("key", "chest"), 0)
+    assert set(state["locks_open"]) == {pz.id for pz in four_lock_room.puzzles if not pz.is_exit}
+    before, log, files = state_of(client, session_id), stored(tmp_path, session_id), files_outside_sessions(tmp_path)
+    assert trickster(client, session_id) == before
+    assert source.calls == [] and stored(tmp_path, session_id) == log and files_outside_sessions(tmp_path) == files
+    assert before["cards"] == [] and before["trickster_calls"] == 0
 
 
 @pytest.mark.parametrize("contents", ["{not json", json.dumps({"room_id": "nope"})], ids=["malformed", "invalid"])

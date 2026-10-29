@@ -102,9 +102,19 @@ def test_the_rendered_prompt_holds_no_solution_derived_key_profile_field_or_reas
     text = json.dumps([[m.role, m.content] for m in prompt.messages])
     assert_no_solution_or_profile_field(text)
     user = prompt.messages[1].content
-    assert all(ix.id in user for ix in room.interactables) and all(pz.id in user for pz in room.puzzles)
+    assert all(ix.id in user for ix in room.interactables)
+    assert all(pz.id in user for pz in room.puzzles if pz.id not in SUMMARY.locks_open)
     assert f"Locks open: {PZ['find_key']}, {PZ['clock_code']}" in user
     assert "Time in the room: 12 min 34 s" in user and "Hints used: 3" in user
+
+
+def test_the_puzzles_listed_are_only_those_still_locked_and_the_exit_keeps_its_marking(four_lock_room: Room):
+    # Live playtest Oct 29: an edit on an open Puzzle changes nothing, so the model is never shown one.
+    user = build_trickster_prompt(to_prompt_view(four_lock_room), SUMMARY).messages[1].content
+    listed = json.loads(user.split("Puzzles:\n", 1)[1].split("\n\nGame state:", 1)[0])
+    locked = [pz.id for pz in four_lock_room.puzzles if pz.id not in SUMMARY.locks_open]
+    assert [puzzle["id"] for puzzle in listed] == locked and len(locked) == len(four_lock_room.puzzles) - 2
+    assert [puzzle["id"] for puzzle in listed if puzzle["is_exit"]] == [PZ["door_code"]]
 
 
 def test_the_prompt_carries_the_fixed_menu_at_reasoning_low():
