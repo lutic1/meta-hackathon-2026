@@ -217,6 +217,19 @@ components:
     pressedBorder: '2px solid {colors.lamp}'
     height: 40px
     radius: '{rounded.md}'
+  button-quiet:
+    # The top bar's Play screen controls only (owner decision Oct 29): a
+    # secondary button that stays out of the lamp until it is used.
+    background: transparent
+    border: '1px solid {colors.hairline}'
+    foreground: '{colors.text}'
+    hoverForeground: '{colors.lamp-strong}'
+    hoverBorder: '1px solid {colors.lamp}'
+    hoverFill: '{colors.lamp-hover-fill}'
+    pressedFill: '{colors.lamp-hover-fill}'
+    pressedBorder: '2px solid {colors.lamp}'
+    height: 40px
+    radius: '{rounded.md}'
   focus-ring:
     outer: '2px solid {colors.focus-ring}'
     inner: '2px solid {colors.focus-ring-inner}'
@@ -725,7 +738,7 @@ The palette is three materials and one light. Contrast ratios are WCAG 2.x relat
 | Foreground | Background | Ratio | Use | AA |
 |---|---|---|---|---|
 | `text` #F0E6D2 | `canvas` #14100C | 15.29 | Text on the page; an Evidence card in the Wizard notes | pass |
-| `text` | `chrome` #1E1812 | 14.19 | Top bar, tables, the newest "How hints work" row | pass |
+| `text` | `chrome` #1E1812 | 14.19 | Top bar (the quiet buttons' labels at rest among it), tables, the newest "How hints work" row | pass |
 | `text` | `chrome-raised` #2A2119 | 12.75 | Wizard notes, Hint area, Rung line, Inventory | pass |
 | `text-muted` #B8A98E | `canvas` | 8.21 | Secondary lines; the read attribute of an Evidence card in the Wizard notes | pass |
 | `text-muted` | `chrome` | 7.62 | "How hints work" panel, table secondary | pass |
@@ -739,6 +752,7 @@ The palette is three materials and one light. Contrast ratios are WCAG 2.x relat
 | `lamp` | `error-surface` | 7.49 | Secondary button actions in an error banner | pass |
 | `lamp` | `warning-surface` | 6.55 | Secondary button actions in a warning banner | pass |
 | `lamp-strong` #F4C470 | `chrome` | 10.86 | Hovered secondary button and thumbnail on dark | pass |
+| `lamp-strong` #F4C470 | `chrome` + `lamp-hover-fill` (≈ #372A19) | 8.65 | Quiet button label hovered, focused or pressed (the top bar's controls) | pass |
 | `on-lamp` #1A1208 | `lamp` | 9.03 | Primary button label | pass |
 | `lamp-ink` #6E400C | `parchment` | 6.37 | Secondary button on paper | pass |
 | `lamp-ink` | `parchment-shade` | 5.25 | Lamp ink on an inset (no Play screen use since the notes went dark, Oct 29) | pass |
@@ -787,7 +801,7 @@ The spacing scale is 4 px based: 4, 8, 12, 16, 24, 32, 48, 64 (`{spacing.1}` to 
 **The frame, 1440 x 900** [ASSUMPTION for every dimension; the split follows PRD §7]. 1440 x 900 is the app viewport, browser chrome excluded. [mockups/play-screen.html](mockups/play-screen.html) draws this frame mid-Session. From the top:
 
 1. **Disclosure banner**, the full-width footer strip under the body, `{spacing.disclosure-min}` per line, present only when a Disclosure applies (FR-26). It is part of the grid, the last band of the frame (moved there from the top edge on Oct 28); the body keeps its full height above it, and it never overlays the Scene.
-2. **Top bar**, `{spacing.top-bar}`, `{colors.chrome}`: the Keyframe wordmark (`display-sm`) left, followed by the mode indicator (`{components.mode-indicator}`, plain, for example "Local mode · Cache off · profile demo · 1 room played"); the Timer with its plain label centered, in the same position on the Capture and Play screens so it reads as pinned across them (FR-5); the "Show all objects" toggle, the Card log button and "Leave room" right. These three controls belong to the Play screen: they stay in place, inert, under its overlays and on the Completion screen; the Capture screen, the Build view and the Hosted landing leave the right side empty.
+2. **Top bar**, `{spacing.top-bar}`, `{colors.chrome}`: the Keyframe wordmark (`display-sm`) left, followed by the mode indicator (`{components.mode-indicator}`, plain, for example "Local mode · Cache off · profile demo · 1 room played"); the Timer with its plain label centered, in the same position on the Capture and Play screens so it reads as pinned across them (FR-5); the "Show all objects" toggle, the Card log button and "Leave room" right, as quiet buttons (`{components.button-quiet}`, owner decision Oct 29), so the hint button stays the one gold action. These three controls belong to the Play screen: they stay in place, inert, under its overlays and on the Completion screen; the Capture screen, the Build view and the Hosted landing leave the right side empty.
 3. **Body**, inside `{spacing.frame-margin}` page margins:
    - **Scene column**, everything left of the side column (about 968 px): the Scene frame filling the height, then a `{spacing.thumbnail-strip}` row holding the Thumbnail strip (flexible width, left) and the Inventory (about 288 px, right). Inventory sits next to the Scene because `use_on` drags from it onto a Hotspot.
    - **Side column**, `{spacing.side-column}`, `{spacing.column-gap}` from the Scene: the Wizard notes on top, filling and scrolling, never shorter than `{spacing.notes-min}`; the Hint area pinned below (about 280 px, growing upward when a Card or the open "How hints work" panel needs room, up to `{spacing.hint-area-max}`, past which its upper part scrolls inside itself). The hint button ("Get a hint for Puzzle {n}", across the tray) and the quiet "How hints work" under it stay pinned at the bottom of the Hint area, outside its scroll, so a tall first Card never pushes them out of view (owner decision Oct 29: they replaced the hint field, its helper line and the Triggers toggle). The open "How hints work" panel is capped at `{spacing.triggers-panel-max}` and scrolls. At most two Cards stack in the Hint area; older ones collapse into a "{n} more in the Card log" link. **While "How hints work" is open**, only the newest Card stacks (the rest go behind the Card log link) and the Hint area may grow past `{spacing.hint-area-max}` until the Wizard notes reach `{spacing.notes-min}`, so the Rung line and the newest row stay in frame together; **while a Card is stacked** it grows the same way, so a first Card's sentence and outcome label show with the Rung line, its introduction a scroll above (amended 29 Oct 2026, correct-course record). With two Disclosure lines at 900 px high, the Wizard notes still keep their minimum height [ASSUMPTION for every cap].
@@ -844,6 +858,7 @@ No UI system: each component below is built in vanilla TypeScript (Scenes and Ho
 |---|---|---|---|
 | Primary button | Label only, 44 px high, 24 px side padding | `{components.button-primary}` | Rest lamp fill; hover `lamp-strong` + glow; focus two-tone ring; disabled 40% opacity, no glow |
 | Secondary button | 40 px, 1 px lamp border | `{components.button-secondary}` | Hover fills `lamp-hover-fill`; on parchment the label and border are `lamp-ink` and hover fills `lamp-ink-hover-fill` (the Using chip's Cancel; Submit and the sequence control take the dark form on the notes tray since Oct 29). **Pressed or expanded** (toggles only: "Show all objects" pressed, "Show the build JSON" expanded; "How hints work" is a quiet text button whose expanded state shows as `text` in place of `text-muted`): `lamp-hover-fill` held as the fill and a 2 px `lamp` border (`pressedFill`, `pressedBorder`), so the state shows without hover; the effect itself (the outlines, the open panel) is the second cue, never color alone |
+| Quiet button | The secondary button's 40 px, label and padding, its edge a 1 px `hairline` and its label `text` (14.19:1 on chrome); only "Show all objects", the Card log button and "Leave room" in the top bar (owner decision Oct 29: the hint button is the Play screen's one gold action) | `{components.button-quiet}` | **Rest:** no fill, `hairline` edge, `text` label. **Hover and focus:** lit, `lamp-strong` label (8.65:1 over the fill), 1 px `lamp` edge, `lamp-hover-fill`; focus also draws the two-tone ring. **Pressed** ("Show all objects"): the same lit look held, with the 2 px `lamp` edge, so the state shows without hover; the outlines are the second cue. Inert with the top bar under the Play screen's overlays and on the Completion screen |
 | Focus ring | 2 px `focus-ring` outside 2 px `focus-ring-inner`, 2 px offset | `{components.focus-ring}` | On every focusable element, Hotspots included; never removed |
 | Mode indicator | One plain line in the top bar after the wordmark, `body-sm` `text-muted` (content in EXPERIENCE.md) | `{components.mode-indicator}` | Local ("Local mode · Cache off · profile demo · 1 room played"); Hosted ("Hosted mode"); never hidden, never styled as a Disclosure |
 | Status strip | `{spacing.status-strip}` plain strip, `body-sm`, no portrait, no glow | `{components.status-strip}` | Reconnecting on the Play screen (top of the Scene column, Scene frame shrinks to fit); reconnecting on the Capture screen (top of the left area, above any banner; the Stage list stays as last seen); server unreachable on cold load (centered in the page body, alone) |

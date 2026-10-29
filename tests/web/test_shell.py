@@ -11,10 +11,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tests.api.test_app import make_app
-from tests.web.design import REPO, WEB_SRC, css_rules, design_text, source_ts
+from tests.web.design import DESIGN, REPO, WEB_SRC, css_rules, design_text, source_ts
 from tests.web.test_strings import _strings
 
 COMPONENTS = WEB_SRC / "components"
+DESIGN_DIR = DESIGN.parent
 PLAY_WIDTHS = {1440: 400, 1280: 360, 1024: 340}
 
 
@@ -82,6 +83,28 @@ def test_top_bar_is_48px_chrome_with_wordmark_mode_indicator_and_centered_timer_
     ts = (COMPONENTS / "top-bar.ts").read_text()
     assert "wordmark.className = 'top-bar-wordmark display-sm'" in ts and "wordmark.textContent = strings.wordmark" in ts
     assert "element.append(start, timer, controls)" in ts and "timer.className = 'top-bar-timer'" in ts
+
+
+def test_top_bar_controls_are_quiet_until_hovered_focused_or_pressed():
+    """Owner decision Oct 29: the hint button is the one gold action on the Play screen, so "Show all objects", "Card
+    log" and "Leave room" take `{components.button-quiet}`: `text` on a `hairline` edge at rest, lit only on hover,
+    focus and the pressed toggle. Same 40 px secondary buttons underneath, so size, labels and behaviour hold."""
+    rules = _css("components/top-bar.css")
+    quiet = ".top-bar-controls > .button-secondary"
+    assert rules[quiet] == {"color": "var(--text)", "border-color": "var(--hairline)"}
+    lit = {"color": "var(--lamp-strong)", "border-color": "var(--lamp)", "background": "var(--lamp-hover-fill)"}
+    assert rules[f"{quiet}:hover,\n{quiet}:focus-visible,\n{quiet}[aria-pressed='true']"] == lit
+    play = _ts("play.ts")
+    assert "frame.controls.append(showAll, cardLog.button, leaveRoom.button)" in play
+    assert "controls.append(showAll, log, leave)" in play  # the Completion screen's inert bar
+    design = design_text()
+    block = design.split("  button-quiet:\n", 1)[1].split("\n  focus-ring:", 1)[0]
+    assert "border: '1px solid {colors.hairline}'" in block and "foreground: '{colors.text}'" in block
+    assert "hoverForeground: '{colors.lamp-strong}'" in block and "pressedBorder: '2px solid {colors.lamp}'" in block
+    assert "| Quiet button |" in design and "`{components.button-quiet}`" in design
+    assert "| `lamp-strong` #F4C470 | `chrome` + `lamp-hover-fill`" in design
+    experience = (DESIGN_DIR / "EXPERIENCE.md").read_text()
+    assert "| Quiet button |" in experience and "top-bar controls use Secondary button" not in experience
 
 
 def test_mode_indicator_is_plain_body_sm_text_not_focusable_and_not_a_disclosure():

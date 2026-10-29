@@ -39,3 +39,18 @@
   justify-content: flex-end;
   gap: var(--spacing-2);
 }
+/* {components.button-quiet} (owner decision Oct 29): the hint button is the Play screen's one gold action, so
+   "Show all objects", "Card log" and "Leave room" are secondary buttons in text on a hairline edge at rest, lit
+   (lamp-strong label, lamp border, lamp-hover-fill) only on hover, focus and the pressed toggle. Size, labels,
+   behaviour and the focus ring stay the secondary button's; the selectors outrank its own states. */
+.top-bar-controls > .button-secondary {
+  color: var(--text);
+  border-color: var(--hairline);
+}
+.top-bar-controls > .button-secondary:hover,
+.top-bar-controls > .button-secondary:focus-visible,
+.top-bar-controls > .button-secondary[aria-pressed='true'] {
+  color: var(--lamp-strong);
+  border-color: var(--lamp);
+  background: var(--lamp-hover-fill);
+}

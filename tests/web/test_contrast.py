@@ -65,7 +65,7 @@ ROWS = _rows()
 
 
 def test_the_table_has_every_load_bearing_pair():
-    assert len(ROWS) == 43
+    assert len(ROWS) == 44
     names = {t for fg, bg, _, _ in ROWS for t in re.findall(r"`([\w-]+)`", fg + bg)}
     assert names <= set(PROPS)
 
