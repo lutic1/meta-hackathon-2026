@@ -72,6 +72,10 @@
 .button-secondary.on-parchment:hover {
   background: var(--lamp-ink-hover-fill);
 }
+/* Pending, as on the primary button. */
+.button-secondary[aria-busy='true'] {
+  cursor: progress;
+}
 .button-secondary:disabled {
   opacity: 0.4;
   cursor: default;

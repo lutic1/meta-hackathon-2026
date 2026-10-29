@@ -7,11 +7,12 @@ import { placeHref } from './router.ts'
 import { strings } from './strings.ts'
 
 /**
-/**
  * A session start over a stored Room, shared by the Stored Rooms list and the Demo room cards: it posts the start,
  * carrying the profile's Derived block (`sessionStart`), and routes to `#/play/<session_id>`; a refused start shows the
  * session-start-refused banner in `banners`, the slot at the top of the left area, whose "Try again" posts the same
- * start again. One start runs at a time.
+ * start again. One start runs at a time, and none once one went through. The promise settles when the start is
+ * refused (or another is under way), never once it routed, so a button pending on it keeps its pending label until the
+ * Play screen replaces this one.
  */
 export function roomStarter(
   profile: string,
@@ -19,14 +20,17 @@ export function roomStarter(
   banners: HTMLElement,
 ): (room: RoomSummary) => Promise<void> {
   let starting = false
+  let started = false
 
   async function start(room: RoomSummary): Promise<void> {
-    if (starting) return
+    if (starting || started) return
     starting = true
     try {
       const session = await startSession(await sessionStart(room.room_id, profile, mode))
+      started = true
       showBanner(banners, null)
       location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })
+      return new Promise<never>(() => undefined)
     } catch {
       showBanner(banners, {
         variant: 'error',

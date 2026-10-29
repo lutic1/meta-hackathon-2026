@@ -83,11 +83,11 @@ export interface DemoRoomCard {
  * it from, beside "Play this room" and "How this room was built" (both secondary). Under cut 0 the footer holds
  * "Play this room" alone, with no link and no thumbnail.
  *
- * "Play this room" calls `onStart`, as does a click anywhere else on the card but the link; the card is named by its
- * title and is no Tab stop itself, so its two controls are its Tab stops, each with its own focus ring. The link opens
- * that Room's Build view.
+ * "Play this room" calls `onStart`, reading "Opening the room…" until the promise it returns settles, as does a click
+ * anywhere else on the card but the link; the card is named by its title and is no Tab stop itself, so its two
+ * controls are its Tab stops, each with its own focus ring. The link opens that Room's Build view.
  */
-export function demoRoomCard(room: RoomSummary, profile: string, onStart: () => void): DemoRoomCard {
+export function demoRoomCard(room: RoomSummary, profile: string, onStart: () => Promise<void>): DemoRoomCard {
   const element = document.createElement('li')
   element.className = 'demo-room-item'
   const card = document.createElement('article')
@@ -117,7 +117,8 @@ export function demoRoomCard(room: RoomSummary, profile: string, onStart: () => 
   const link = buildViewLink(room.job_id, profile)
   const actions = document.createElement('div')
   actions.className = 'demo-room-actions'
-  actions.append(secondaryButton({ label: strings.playThisRoom, onActivate: onStart }))
+  const play = secondaryButton({ label: strings.playThisRoom, pendingLabel: strings.openingRoom, onActivate: onStart })
+  actions.append(play)
   if (link !== null) actions.append(link)
   const footer = document.createElement('div')
   footer.className = 'demo-room-footer'
@@ -126,7 +127,7 @@ export function demoRoomCard(room: RoomSummary, profile: string, onStart: () => 
 
   card.addEventListener('click', (event) => {
     if (event.target instanceof Element && event.target.closest('a, button') !== null) return
-    onStart()
+    play.click()
   })
   element.append(card)
   return {

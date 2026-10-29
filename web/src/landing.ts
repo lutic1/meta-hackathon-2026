@@ -96,8 +96,9 @@ function hero(first: RoomSummary | undefined, profile: string, verb: HTMLElement
 }
 
 /**
- * The one primary verb: "Play the sample room", which starts a Session on `first` by the same path its card uses, or,
- * with no Demo room listed, "Build your own room", which moves focus to the Access code field (`field`).
+ * The one primary verb: "Play the sample room", which starts a Session on `first` by the same path its card uses,
+ * reading "Opening the room…" until the start is refused or the Play screen opens, or, with no Demo room listed,
+ * "Build your own room", which moves focus to the Access code field (`field`).
  */
 function primaryVerb(
   first: RoomSummary | undefined,
@@ -113,7 +114,7 @@ function primaryVerb(
       },
     })
   }
-  return primaryButton({ label: strings.playSampleRoom, pendingLabel: strings.playSampleRoom, onActivate: () => start(first) })
+  return primaryButton({ label: strings.playSampleRoom, pendingLabel: strings.openingRoom, onActivate: () => start(first) })
 }
 
 /**
@@ -271,7 +272,7 @@ export function hostedLanding(
     }
   }
 
-  const cards: DemoRoomCard[] = [demoRoomCard(first, profile, () => void start(first))]
+  const cards: DemoRoomCard[] = [demoRoomCard(first, profile, () => start(first))]
   stage.append(attract, howToPlay())
   if (first.room_id === CLIP.roomId) stage.append(sampleClip())
   const sample = document.createElement('ul')
@@ -285,7 +286,7 @@ export function hostedLanding(
   below.append(notes, howARoomIsBuilt(first.puzzle_count))
   left.append(below)
   if (rooms.length > 1) {
-    cards.push(...rooms.slice(1).map((room) => demoRoomCard(room, profile, () => void start(room))))
+    cards.push(...rooms.slice(1).map((room) => demoRoomCard(room, profile, () => start(room))))
     const more = document.createElement('ul')
     more.className = 'demo-room-list'
     more.append(...cards.slice(1).map(({ element }) => element))
@@ -301,7 +302,7 @@ export function hostedLanding(
         (view) => {
           const sheet = riddlersNotes(view)
           if (mounted && sheet !== null) notes.replaceChildren(sheet)
-          attractFrame(view, roomTitle(first), () => void start(first)).then(
+          attractFrame(view, roomTitle(first), () => verb.click()).then(
             (frame) => {
               if (frame === null) return
               if (!mounted) {

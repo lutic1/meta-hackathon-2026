@@ -68,7 +68,7 @@ def test_play_posts_the_profiles_session_start_and_routes_to_the_play_screen():
     assert "location.hash = placeHref({ route: { name: 'play', sessionId: session.id }, profile })" in ts
     assert "return postJson<SessionState>('/sessions', body)" in api
     assert "method: 'POST'" in api and "body: JSON.stringify(body)" in api
-    assert "if (starting) return" in ts  # one start at a time
+    assert "if (starting || started) return" in ts  # one start at a time, and none once one went through
 
 
 def test_the_client_fresh_block_is_the_server_derived_fresh():

@@ -182,6 +182,7 @@ export const strings = {
   sceneLine: 'Hanging your room on the wall. Mind the frame.',
   regenerationLine: "The Riddler's draft didn't pass. Another go.",
   playThisRoom: 'Play this room',
+  openingRoom: 'Opening the room…',
   graphNode: 'Puzzle {n}, {lockType}, requires {requires}, Dry run {verdict}',
   requiresNone: 'none',
   exit: 'Exit',

@@ -8,12 +8,18 @@ export interface PrimaryButtonOptions {
   onActivate: () => Promise<void>
 }
 
-export interface SecondaryButtonOptions {
+export type SecondaryButtonOptions = {
   label: string
-  onActivate: () => void
   /** `lamp-ink` label and border for a button that sits on parchment (Code field Submit). */
   onParchment?: boolean
-}
+} & (
+  | { pendingLabel?: undefined; onActivate: () => void }
+  | {
+      /** Shown while `onActivate` is in flight; repeat activation is ignored until it settles. */
+      pendingLabel: string
+      onActivate: () => Promise<void>
+    }
+)
 
 export interface SecondaryLinkOptions {
   label: string
@@ -40,10 +46,16 @@ function button(className: string, label: string): HTMLButtonElement {
   return element
 }
 
-/** `{components.button-primary}`: lamp fill, `on-lamp` label, 44 px; Enter and Space activate it. */
-export function primaryButton({ label, pendingLabel, onActivate }: PrimaryButtonOptions): HTMLButtonElement {
-  const settled = (): string => (typeof label === 'string' ? label : label())
-  const element = button('button-primary', settled())
+/**
+ * Calls `onActivate` on each click, showing `pendingLabel` and `aria-busy` while it is in flight and ignoring repeat
+ * activation until it settles, then `settled()` again; the button keeps its focus throughout.
+ */
+function activateWhilePending(
+  element: HTMLButtonElement,
+  pendingLabel: string,
+  settled: () => string,
+  onActivate: () => Promise<void>,
+): void {
   let pending = false
   element.addEventListener('click', () => {
     if (pending) return
@@ -56,14 +68,23 @@ export function primaryButton({ label, pendingLabel, onActivate }: PrimaryButton
       element.removeAttribute('aria-busy')
     })
   })
+}
+
+/** `{components.button-primary}`: lamp fill, `on-lamp` label, 44 px; Enter and Space activate it. */
+export function primaryButton({ label, pendingLabel, onActivate }: PrimaryButtonOptions): HTMLButtonElement {
+  const settled = (): string => (typeof label === 'string' ? label : label())
+  const element = button('button-primary', settled())
+  activateWhilePending(element, pendingLabel, settled, onActivate)
   return element
 }
 
 /** `{components.button-secondary}`: 40 px, 1 px lamp border; `lamp-ink` on parchment. */
-export function secondaryButton({ label, onActivate, onParchment = false }: SecondaryButtonOptions): HTMLButtonElement {
+export function secondaryButton(options: SecondaryButtonOptions): HTMLButtonElement {
+  const { label, onParchment = false } = options
   const element = button('button-secondary', label)
   element.classList.toggle('on-parchment', onParchment)
-  element.addEventListener('click', onActivate)
+  if (options.pendingLabel === undefined) element.addEventListener('click', options.onActivate)
+  else activateWhilePending(element, options.pendingLabel, () => label, options.onActivate)
   return element
 }
 

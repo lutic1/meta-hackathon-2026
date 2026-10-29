@@ -104,6 +104,7 @@ def test_the_landing_strings_are_the_experience_lines():
     assert all(len(role.split()) <= 4 for role in roles)
     assert strings["riddlersNotes"] == "From the Riddler's notes"
     assert strings["howToPlay"] == "How to play" and strings["playThisRoom"] == "Play this room"
+    assert strings["openingRoom"] == "Opening the room…"  # both play buttons' pending label
     assert strings["howArchitect"] == "reads your photos with muse-spark-1.3 and outlines every object with sam-3.1."
     assert strings["howRiddler"].format(locks="4 locks") == (
         "writes 4 locks from what was found; a test run that never sees the answers checks each one opens.")
@@ -146,8 +147,8 @@ def test_with_a_demo_room_the_verb_plays_the_sample_room_through_the_card_s_own_
     ts = _code("landing.ts")
     assert "const start = roomStarter(profile, mode, banners)" in ts
     verb = ts.split("function primaryVerb(", 1)[1].split("\n}\n", 1)[0]
-    assert "primaryButton({ label: strings.playSampleRoom, pendingLabel: strings.playSampleRoom, onActivate: () => start(first) })" in verb
-    assert "demoRoomCard(first, profile, () => void start(first))" in ts  # the same start the card uses
+    assert "primaryButton({ label: strings.playSampleRoom, pendingLabel: strings.openingRoom, onActivate: () => start(first) })" in verb
+    assert "demoRoomCard(first, profile, () => start(first))" in ts  # the same start the card uses
 
 
 def test_with_no_demo_room_the_verb_is_build_your_own_room_and_moves_focus_to_the_access_code_field():
@@ -241,7 +242,7 @@ def test_with_a_demo_room_listed_its_card_sits_under_the_access_code_build_and_t
     assert "below.className = 'landing-below'" in listed
     assert "below.append(notes, howARoomIsBuilt(first.puzzle_count))" in listed
     # Further Demo rooms keep their cards three across in the left area under the row, in served order.
-    assert "rooms.slice(1).map((room) => demoRoomCard(room, profile, () => void start(room)))" in listed
+    assert "rooms.slice(1).map((room) => demoRoomCard(room, profile, () => start(room)))" in listed
     rules = _landing_rules()
     text = _ts("landing.css")
     assert ".landing-below {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));" in text
@@ -475,7 +476,7 @@ def test_the_photos_load_lazily_and_the_frame_is_skipped_without_a_first_photo()
     # One photo ahead, never all at once: the next slide is asked for once the current one shows.
     assert "void load((index + 1) % slides.length).catch(() => undefined)" in ts
     landing = _code("landing.ts")
-    assert "attractFrame(view, roomTitle(first), () => void start(first)).then(" in landing
+    assert "attractFrame(view, roomTitle(first), () => verb.click()).then(" in landing  # the verb's path and pending label
     assert "playing = frame\n              attract.replaceChildren(frame.element)" in landing
     assert "if (!mounted) {\n                frame.unmount()" in landing  # a frame that answers after the landing left
     assert "playing?.unmount()" in landing.split("return () => {", 1)[1]
@@ -610,14 +611,38 @@ def test_hover_and_state_fades_are_instant_under_reduced_motion():
 
 def test_play_this_room_or_a_click_on_the_card_starts_a_session_and_the_link_does_not():
     ts = _code("components/demo-room-card.ts")
-    assert "secondaryButton({ label: strings.playThisRoom, onActivate: onStart })" in ts
+    assert "const play = secondaryButton({ label: strings.playThisRoom, pendingLabel: strings.openingRoom, onActivate: onStart })" in ts
     click = ts.split("card.addEventListener('click', (event) => {", 1)[1].split("})", 1)[0]
-    # A click on the link or on "Play this room" is theirs alone, so a Session never starts twice.
-    assert "event.target.closest('a, button') !== null) return" in click and "onStart()" in click
+    # A click on the link or on "Play this room" is theirs alone, so a Session never starts twice; anywhere else on
+    # the card goes through "Play this room", so its pending label shows.
+    assert "event.target.closest('a, button') !== null) return" in click and "play.click()" in click
+    assert "onStart()" not in click
     assert "keydown" not in ts  # Enter on "Play this room" is the button's own
     landing = _code("landing.ts")
     assert "const start = roomStarter(profile, mode, banners)" in landing
-    assert "demoRoomCard(room, profile, () => void start(room))" in landing
+    assert "demoRoomCard(room, profile, () => start(room))" in landing
+    assert "demoRoomCard(first, profile, () => start(first))" in landing
+
+
+def test_a_start_in_flight_shows_opening_the_room_and_ignores_repeat_activation_until_the_play_screen_opens():
+    button = _code("components/button.ts")
+    options = button.split("export type SecondaryButtonOptions = {", 1)[1].split("\n)\n", 1)[0]
+    assert "| { pendingLabel?: undefined; onActivate: () => void }" in options
+    assert "pendingLabel: string\n      onActivate: () => Promise<void>" in options
+    secondary = button.split("export function secondaryButton(", 1)[1].split("\n}\n", 1)[0]
+    assert "activateWhilePending(element, options.pendingLabel, () => label, options.onActivate)" in secondary
+    pending = button.split("function activateWhilePending(", 1)[1].split("\n}\n", 1)[0]
+    assert "if (pending) return" in pending and "element.textContent = pendingLabel" in pending
+    assert "element.setAttribute('aria-busy', 'true')" in pending and "element.textContent = settled()" in pending
+    assert "activateWhilePending(element, pendingLabel, settled, onActivate)" in button.split("export function primaryButton(", 1)[1]
+    assert css_rules((WEB_SRC / "components/button.css").read_text())[".button-secondary[aria-busy='true']"] == {"cursor": "progress"}
+    # A start that went through never settles, so the pending label holds until the Play screen replaces the landing,
+    # and no second start is posted in the meantime.
+    starter = _code("stored-rooms.ts").split("export function roomStarter(", 1)[1].split("\n}\n", 1)[0]
+    assert "if (starting || started) return" in starter
+    routed = starter.split("const session = await startSession(", 1)[1].split("} catch {", 1)[0]
+    assert routed.index("started = true") < routed.index("location.hash = ")
+    assert routed.index("location.hash = ") < routed.index("return new Promise<never>(() => undefined)")
 
 
 def test_the_start_sends_the_fresh_derived_block_and_a_refusal_shows_the_banner_at_the_top_of_the_left_area():

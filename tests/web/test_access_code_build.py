@@ -132,7 +132,7 @@ def test_quota_from_the_check_leaves_the_demo_room_cards_active():
     landing = _code("landing.ts")
     # Nothing the panel does reaches the cards: they keep their own start handler and are never disabled.
     assert "inert" not in landing and "disabled" not in landing and "disabled" not in _panel()
-    assert "demoRoomCard(room, profile, () => void start(room))" in landing
+    assert "demoRoomCard(room, profile, () => start(room))" in landing
 
 
 # --- Accepted: the Capture screen, the code in memory only --------------------------------
