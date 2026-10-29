@@ -252,7 +252,7 @@ def assemble_room(state: JobState, artifacts: ArtifactStore, ledger: LedgerStore
     interactables = read_interactables(room_id, artifacts)
     return Room(
         id=room_id,
-        created=datetime.now(UTC),
+        created=datetime.now(UTC),  # a wall-clock read outside the Clock port (AD-10), still open under decision 35
         photos=read_photos(room_id, artifacts),
         interactables=interactables,
         puzzles=read_puzzles(room_id, artifacts),
