@@ -240,6 +240,19 @@ def test_the_client_shell_revalidates_and_hashed_bundles_are_immutable(tmp_path:
     assert_cache_headers(TestClient(make_app(tmp_path, four_lock_room, web_dist=built_dist(tmp_path))))
 
 
+def test_a_resumed_video_range_is_checked_against_the_content_etag(tmp_path: Path, four_lock_room: Room):
+    """A browser resumes a partly cached video with `Range` and `If-Range`. No `Last-Modified` is sent, so the content
+    ETag alone decides: the current one answers the range, any other the whole file, and neither fails."""
+    client = TestClient(make_app(tmp_path, four_lock_room, web_dist=built_dist(tmp_path)))
+    etag = client.get("/clip/play.webm").headers["etag"]
+    resumed = client.get("/clip/play.webm", headers={"Range": "bytes=1-2", "If-Range": etag})
+    assert resumed.status_code == 206 and resumed.content == b"eb"
+    stale = client.get("/clip/play.webm", headers={"Range": "bytes=1-2", "If-Range": '"old"'})
+    assert stale.status_code == 200 and stale.content == b"webm"
+    dated = client.get("/clip/play.webm", headers={"Range": "bytes=1-2", "If-Range": "Thu, 01 Jan 1970 00:00:00 GMT"})
+    assert dated.status_code == 200 and dated.content == b"webm"
+
+
 def image_dist(root: Path, bundle: str) -> Path:
     """A `web/dist` as the Modal image holds it: every file at mtime 0, the shell naming one hashed bundle."""
     dist = root / "web" / "dist"

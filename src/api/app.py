@@ -1062,6 +1062,14 @@ def unknown_api_routes() -> APIRouter:
     return router
 
 
+class EtagFileResponse(FileResponse):
+    """A file sent without `Last-Modified`: a resumed range's `If-Range` is checked against the ETag alone (Starlette's
+    own check reads `Last-Modified` and would fail without it)."""
+
+    def _should_use_range(self, http_if_range: str) -> bool:
+        return http_if_range == self.headers["etag"]
+
+
 class WebDist(StaticFiles):
     """`web/dist` with an explicit `Cache-Control` on every file it serves, so no browser caches by heuristic.
 
@@ -1084,7 +1092,7 @@ class WebDist(StaticFiles):
     def file_response(self, full_path: PathLike, stat_result: os.stat_result, scope: Scope, status_code: int = 200) -> Response:
         """The file with a content ETag and the policy for the file it resolved, symlinks followed; a 304 on a matching ETag."""
         etag = content_etag(os.fspath(full_path), stat_result.st_size, stat_result.st_mtime_ns, stat_result.st_ino)
-        response = FileResponse(full_path, status_code=status_code, stat_result=stat_result, headers={"etag": etag})
+        response = EtagFileResponse(full_path, status_code=status_code, stat_result=stat_result, headers={"etag": etag})
         del response.headers["last-modified"]
         response.headers["Cache-Control"] = IMMUTABLE if Path(full_path).parent == self.hashed else REVALIDATE
         if self.is_not_modified(response.headers, Headers(scope=scope)):
