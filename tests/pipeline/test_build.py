@@ -4,6 +4,8 @@ import inspect
 import json
 import logging
 import re
+import secrets
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import get_args
@@ -116,6 +118,24 @@ def _lines(caplog, job_id: str) -> list[dict]:
 
 
 # --- The stage order, persistence after each stage, and what job state carries ---
+
+
+ULID = r"[0-9A-HJKMNP-TV-Z]{26}"
+
+
+@pytest.mark.parametrize("prefix", ["room", "job", "ix", "pz", "call"])
+def test_ids_come_from_the_one_minter_keep_their_prefix_and_sort_by_time(prefix, monkeypatch):
+    from src.providers.base import new_ulid
+
+    now_ns = [1_761_700_000_000 * 1_000_000]
+    monkeypatch.setattr(time, "time_ns", lambda: now_ns[0])
+    monkeypatch.setattr(secrets, "token_bytes", lambda n: b"\xff" * n)
+    late_random = new_id(prefix)
+    assert re.fullmatch(rf"{prefix}_{ULID}", late_random)
+    assert late_random == f"{prefix}_{new_ulid()}"
+    now_ns[0] += 1_000_000
+    monkeypatch.setattr(secrets, "token_bytes", lambda n: bytes(n))
+    assert new_id(prefix) > late_random  # one millisecond later sorts after, whatever the random bits
 
 
 def test_the_stages_run_in_order_and_the_job_ends_done(jobs, artifacts, ticker, doubles, uploads):

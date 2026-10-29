@@ -267,8 +267,7 @@ from src.pipeline.ports import (
     photo_key,
     room_key,
 )
-from src.providers.base import HintPhraser, ProviderError
-from src.providers.spend import new_ulid
+from src.providers.base import HintPhraser, ProviderError, new_ulid
 from src.providers.verbatim import greeting_template
 
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"

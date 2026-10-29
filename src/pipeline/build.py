@@ -35,8 +35,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import secrets
-import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import get_args
@@ -57,20 +55,18 @@ from src.domain.schema import (
 from src.pipeline.ingest import IngestRefused, Upload, store_upload, validate_upload
 from src.pipeline.ports import ArtifactStore, Clock, JobStore
 from src.pipeline.regenerate import FailedAttempt, rewriting, send_back
-from src.providers.base import CallReceipt, ModelProvider
+from src.providers.base import CallReceipt, ModelProvider, new_ulid
 
 logger = logging.getLogger(__name__)
 
 STAGES: tuple[Stage, ...] = ("ingest", "architect", "segment", "author", "validate", "dryrun", "scene")
 TERMINAL: frozenset[JobStatus] = frozenset(get_args(JobStatus)) - {"queued", "running"}
 """Every status a job stays in; the runner reaches `done` and `failed` itself."""
-CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 
 def new_id(prefix: str) -> str:
-    """A fresh prefixed ULID (AD-18): 48 bits of Unix milliseconds then 80 random bits, Crockford base32."""
-    value = (time.time_ns() // 1_000_000) << 80 | int.from_bytes(secrets.token_bytes(10))
-    return f"{prefix}_" + "".join(CROCKFORD_BASE32[(value >> shift) & 31] for shift in range(125, -1, -5))
+    """A fresh prefixed ULID (AD-18) from the one minter, `new_ulid`."""
+    return f"{prefix}_{new_ulid()}"
 
 
 def call_row(receipt: CallReceipt | None, provider: ModelProvider, role: Role, model: str) -> CallRow:

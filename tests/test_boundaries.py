@@ -288,6 +288,55 @@ def test_a_domain_clock_read_or_minter_is_named(tmp_path):
     ]
 
 
+def _attr_calls(node: ast.AST) -> set[str]:
+    """The attribute name of every `<x>.<name>(...)` call under `node`."""
+    return {n.func.attr for n in ast.walk(node) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+
+
+def _id_reads(calls: set[str]) -> list[str]:
+    return sorted(name for name in calls if name == "time_ns" or name.startswith("token_"))
+
+
+def id_minters(src_root: Path) -> list[str]:
+    """Every function under `src_root` that reads `time.time_ns()` and draws `secrets.token_*()`: a ULID minter (AD-18)."""
+    out: list[str] = []
+    for path in sorted(src_root.rglob("*.py")):
+        for fn in ast.walk(ast.parse(path.read_text(), filename=str(path))):
+            if isinstance(fn, ast.FunctionDef | ast.AsyncFunctionDef):
+                calls = _attr_calls(fn)
+                if "time_ns" in calls and any(name.startswith("token_") for name in calls):
+                    out.append(f"{_module_name(path, src_root)}.{fn.name}")
+    return out
+
+
+def clocked_id_reads(src_root: Path) -> list[str]:
+    """Every src/pipeline and src/api module that calls `.time_ns()` or `.token_*()`, the reads a time-based id is minted from."""
+    out: list[str] = []
+    for package in ("pipeline", "api"):
+        for path in sorted((src_root / package).rglob("*.py")):
+            names = _id_reads(_attr_calls(ast.parse(path.read_text(), filename=str(path))))
+            out.extend(f"{_module_name(path, src_root)} calls .{name}()" for name in names)
+    return out
+
+
+def test_one_function_in_src_mints_ulids_and_pipeline_and_api_never_read_its_clock():
+    """Decision 35, AD-18: `room_`, `job_`, `ix_`, `pz_`, `call_` and `sess_` ids all come from the one minter."""
+    assert id_minters(REPO / "src") == ["src.providers.base.new_ulid"]
+    assert clocked_id_reads(REPO / "src") == []
+
+
+def test_a_second_minter_and_its_clock_reads_are_named(tmp_path):
+    src = _tree(tmp_path, {
+        "providers/base.py": "import secrets\nimport time\n\ndef new_ulid():\n    return time.time_ns(), secrets.token_bytes(10)\n",
+        "pipeline/build.py": "import secrets\nimport time\n\ndef new_id(prefix):\n    return prefix, time.time_ns(), secrets.token_bytes(10)\n",
+        "api/app.py": "import secrets\n\ndef check(a, b):\n    return secrets.compare_digest(a, b), secrets.token_hex(4)\n",
+    })
+    assert id_minters(src) == ["src.pipeline.build.new_id", "src.providers.base.new_ulid"]
+    assert clocked_id_reads(src) == [
+        "src.pipeline.build calls .time_ns()", "src.pipeline.build calls .token_bytes()", "src.api.app calls .token_hex()",
+    ]
+
+
 def test_a_second_greet_caller_is_named(tmp_path):
     src = _tree(tmp_path, {
         "council/greeting.py": "def compose(phraser, derived):\n    return phraser.greet(derived)\n",

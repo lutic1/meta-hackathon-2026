@@ -14,9 +14,7 @@ per-call ceiling with no date logic here.
 
 from __future__ import annotations
 
-import secrets
 import threading
-import time
 
 from src.domain.ledger import (
     CallKind,
@@ -30,24 +28,11 @@ from src.domain.ledger import (
 )
 from src.domain.schema import CallId, JobId, SessionId, Stage
 from src.pipeline.ports import LedgerStore
-
-CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-
-
-def new_ulid() -> str:
-    """26 Crockford base32 characters: 48 bits of Unix milliseconds then 80 random bits.
-
-    Prefixed ids are minted only by server code (AD-18); this is the one
-    minter, shared by `call_` and `sess_` ids. Its millisecond prefix is
-    identity read from the wall clock here, outside the domain, never
-    session time, which reaches the domain only as `t_ms` (AD-10).
-    """
-    value = (time.time_ns() // 1_000_000) << 80 | int.from_bytes(secrets.token_bytes(10))
-    return "".join(CROCKFORD_BASE32[(value >> shift) & 31] for shift in range(125, -1, -5))
+from src.providers.base import new_ulid
 
 
 def new_call_id() -> CallId:
-    """A fresh `call_` ULID (AD-18)."""
+    """A fresh `call_` ULID from the one minter (AD-18)."""
     return f"call_{new_ulid()}"
 
 

@@ -48,7 +48,7 @@ from src.infra.modal import (
     sweep_sessions,
 )
 from src.pipeline.ports import ROOM_FILE
-from src.providers.spend import CROCKFORD_BASE32
+from src.providers.base import CROCKFORD_BASE32
 from tests.infra.test_clocks import Ticker
 from tests.infra.test_local import JOB_A
 from tests.infra.test_modal import RecordingDict, StubVolume, seed_demo

@@ -6,11 +6,15 @@ receives a provider by injection and never imports an adapter. `HintPhraser`
 is a separate port, selected by `GUIDE` alone and implemented only by the
 verbatim and the Ollama adapters; its input is exactly the Rung text and the
 Derived block (AD-3). `transcribe` joins with its own story; `reconstruct3d`
-only if the Tier 2 gate passes.
+only if the Tier 2 gate passes. `new_ulid` is the one ULID minter, here
+so the pipeline, the adapters and the API share it without importing an
+adapter (AD-1, AD-18).
 """
 
 from __future__ import annotations
 
+import secrets
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -21,6 +25,20 @@ from src.domain.schema import CallId, Derived, GuideModel, JobId, Polygon, Sessi
 
 ReasoningEffort = Literal["minimal", "low", "medium", "high", "xhigh"]
 REASONING_EFFORTS: tuple[ReasoningEffort, ...] = ("minimal", "low", "medium", "high", "xhigh")
+CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+
+def new_ulid() -> str:
+    """26 Crockford base32 characters: 48 bits of Unix milliseconds then 80 random bits.
+
+    Prefixed ids are minted only by server code (AD-18); this is the one
+    minter, shared by every prefix (`room_`, `job_`, `ix_`, `pz_`, `call_`,
+    `sess_`, `te_`). Its millisecond prefix is identity read from the wall
+    clock here, outside the domain, never session time, which reaches the
+    domain only as `t_ms` (AD-10).
+    """
+    value = (time.time_ns() // 1_000_000) << 80 | int.from_bytes(secrets.token_bytes(10))
+    return "".join(CROCKFORD_BASE32[(value >> shift) & 31] for shift in range(125, -1, -5))
 
 
 def check_reasoning_effort(effort: str) -> None:
