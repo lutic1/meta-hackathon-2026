@@ -13,18 +13,21 @@ in process memory: every value is read from its Dict or file on each call.
 
 Dict values are plain JSON (`model_dump(mode="json")`), written whole on
 every change. `DictJobStore` keeps one key per job id and holds in-flight
-job state only; the `done` record is also written beside its Room on the
-Volume (`rooms/judge/<room_id>/job.json`) and committed, and a read falls
-through Dict then the final records of both partitions, so a finished job,
-a seeded Demo room's included, outlives its Dict entry.
+job state only; every terminal record (`done`, `failed`, `needs_more_photos`,
+`needs_recapture`) is also written beside its Room on the Volume
+(`rooms/judge/<room_id>/job.json`) and committed, and a read falls through
+Dict then the final records of both partitions, so an ended job, a seeded
+Demo room's and a Build that ended without a Room included, keeps its id,
+status and stage after its Dict entry expires, for lookup and the purge.
 `ModalJobRunner.start(job_id)` spawns the stage runner with the job id only
 and stores the `FunctionCall` id under its own key `call:<job_id>`; the
 runner then owns the job's record. A job store given a `poll` (the web
 side's) runs the watchdog on every read of a `queued` or `running` job: it
 marks the job `failed`, keeping the stage it reached, once its call has
 ended, once a `queued` job has no call key after `ORPHAN_S`, or once a call
-state that stays unknown passes `DEADLINE_S`; that mark is the only write
-besides the runner's. The runner's own store has no `poll`, so a restarted
+state that stays unknown passes `DEADLINE_S`; that mark, written through
+the same `put` so it reaches the Volume, is the only write besides the
+runner's. The runner's own store has no `poll`, so a restarted
 runner never fails the job it resumes. The judge build quota (AD-9) is
 `BUILD_QUOTA` slot keys `build:1` to `build:20` in the same Dict:
 `reserve_build` claims the first free one with
@@ -83,7 +86,9 @@ and a Room whose job may still be running, deleting nothing. Every step
 skips what an earlier, failed attempt already removed, and whatever names
 the job (the final record, the Dict entry, or the deletion record) outlives
 the step that needs it, so an error before the record raises with none
-written, and a rerun after any error completes the deletion. A Session
+written, and a rerun after any error completes the deletion: once the
+folder is gone, the deletion record is read before any job entry left in
+the Dict, so a stale entry is popped rather than refusing the rerun. A Session
 belongs to a Room when one of its events names one of the Room's
 interactables or puzzles; a Session holding only its opening line, idle
 ticks and hints with no puzzle names none and is left to the sweep, which
@@ -365,7 +370,7 @@ class VolumeArtifactStore:
 
     def deleted_room(self, id_: str) -> RoomId | None:
         """The Room id of the deletion record under `rooms/deleted/` that names `id_` as its room id, job id or one of its session ids, after one reload; `None` when none does."""
-        records = map(DeletionRecord.model_validate_json, self.files.read_glob(f"{ROOMS_DIR}/{DELETED_PARTITION}/*.json"))
+        records = deletion_records(self.files)
         return next((record.room_id for record in records if id_ in (record.room_id, record.job_id, *record.session_ids)), None)
 
 
@@ -429,8 +434,8 @@ class DictJobStore:
         self.now_ms = now_ms
 
     def put(self, state: JobState) -> None:
-        """Write the whole state to the Dict; a `done` record goes to the Volume first, under `rooms/judge/`, and is committed."""
-        if state.status == "done" and state.room_id is not None:
+        """Write the whole state to the Dict; a terminal record goes to the Volume first, under `rooms/judge/`, and is committed."""
+        if state.status not in IN_FLIGHT and state.room_id is not None:
             self.files.write(_final_record(state.room_id), state.model_dump_json().encode())
         self.jobs[state.id] = state.model_dump(mode="json")
 
@@ -507,12 +512,12 @@ class DictJobStore:
             return fresh
         stage = fresh.stage or (fresh.stages[-1].stage if fresh.stages else None)
         failed = fresh.model_copy(update={"status": "failed", "stage": stage})
-        self.jobs[state.id] = failed.model_dump(mode="json")
+        self.put(failed)
         return failed
 
 
 def _final_record(room_id: str) -> str:
-    """Where a hosted Build's `done` record goes: beside its Room in the Judge partition."""
+    """Where a hosted Build's terminal record goes: beside its Room in the Judge partition."""
     return f"{ROOMS_DIR}/{JUDGE_PARTITION}/{room_id}/{JOB_FILE}"
 
 
@@ -791,6 +796,11 @@ def deletion_record_path(room_id: str) -> str:
     return f"{ROOMS_DIR}/{DELETED_PARTITION}/{room_id}.json"
 
 
+def deletion_records(files: VolumeFiles) -> list[DeletionRecord]:
+    """Every ids-only record under `rooms/deleted/`, after one reload."""
+    return [DeletionRecord.model_validate_json(data) for data in files.read_glob(deletion_record_path("*"))]
+
+
 def delete_judge_room(handles: ModalHandles, room_id: str, *, today: date) -> DeletionRecord:
     """Delete a Judge room with its Sessions, listed Cache entries and job keys, commit, and return its ids-only record (AD-8, AD-9).
 
@@ -803,9 +813,11 @@ def delete_judge_room(handles: ModalHandles, room_id: str, *, today: date) -> De
     final record and the job keys go, so a failure before it raises with no
     record written, and one after it leaves the record naming the job. Each
     step skips what an earlier attempt already removed, so a rerun deletes
-    what is left: an id that names no Judge folder and no job pops the job
-    keys its record names and returns that record, rewritten and committed,
-    and raises `KeyError` when it has none. Cache entries not listed in
+    what is left: once the Judge folder is gone, the deletion record is read
+    before any job entry, so a stale entry an earlier attempt or a late
+    write left in the Dict is popped rather than refused as running, and
+    the record is returned, rewritten and committed; an id with no folder,
+    no record and no job raises `KeyError`. Cache entries not listed in
     `cache-keys.json`, every Demo room's included, are never touched.
     """
     ROOM_ID.validate_python(room_id)
@@ -813,10 +825,12 @@ def delete_judge_room(handles: ModalHandles, room_id: str, *, today: date) -> De
     folder = f"{ROOMS_DIR}/{JUDGE_PARTITION}/{room_id}"
     if files.exists(f"{ROOMS_DIR}/{DEMO_PARTITION}/{room_id}"):
         raise ValueError(f"{room_id} is a Demo room; only Judge rooms are deleted")
+    if not files.exists(folder) and (deleted := _stored_record(files, room_id)) is not None:
+        return _finish_deleted(handles.jobs, files, deleted)
     jobs = DictJobStore(handles.jobs, files)
     job_id = jobs.job_of(room_id)
     if job_id is None and not files.exists(folder):
-        return _finish_deleted(handles.jobs, files, room_id)
+        raise KeyError(room_id)
     if job_id is not None:
         state = jobs.stored(job_id)
         if state.status in IN_FLIGHT and wall_ms() - minted_ms(job_id) <= DEADLINE_S * 1000:
@@ -842,13 +856,10 @@ def _stored_record(files: VolumeFiles, room_id: str) -> DeletionRecord | None:
         return None
 
 
-def _finish_deleted(jobs: DictLike, files: VolumeFiles, room_id: str) -> DeletionRecord:
-    """Pop the job keys a deleted room's record names, then write and commit that record again in case its first commit failed; `KeyError` when there is none."""
-    record = _stored_record(files, room_id)
-    if record is None:
-        raise KeyError(room_id)
+def _finish_deleted(jobs: DictLike, files: VolumeFiles, record: DeletionRecord) -> DeletionRecord:
+    """Pop the job keys a deleted room's record names, then write and commit that record again in case its first commit failed."""
     _pop_job_keys(jobs, record.job_id)
-    files.write(deletion_record_path(room_id), record.model_dump_json().encode())
+    files.write(deletion_record_path(record.room_id), record.model_dump_json().encode())
     return record
 
 

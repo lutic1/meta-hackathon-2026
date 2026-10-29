@@ -264,12 +264,48 @@ def test_the_done_record_is_written_beside_the_room_committed_and_read_once_the_
         again.read("job_01CX5ZZKBKACTAV9WEVGEMMVRZ")
 
 
-@pytest.mark.parametrize("status", ["queued", "running", "failed", "needs_more_photos", "needs_recapture"])
-def test_only_a_done_record_reaches_the_volume(handles, log, status):
+@pytest.mark.parametrize("status", ["queued", "running"])
+def test_an_in_flight_record_stays_in_the_dict_only(handles, log, status):
     store = hosted_stores(handles).jobs
     state = _job_state(JOB_A).model_copy(update={"status": status, "stage": "segment" if status != "queued" else None})
     store.put(state)
     assert log == [] and not handles.root.exists() and store.read(JOB_A) == state
+
+
+@pytest.mark.parametrize("status", ["failed", "needs_more_photos", "needs_recapture"])
+def test_every_terminal_record_reaches_the_volume_so_lookup_outlives_the_dict_entry(handles, log, status):
+    store = hosted_stores(handles).jobs
+    state = _job_state(JOB_A).model_copy(update={"status": status, "stage": "segment"})
+    store.put(state)
+    final = handles.root / "rooms" / "judge" / state.room_id / JOB_FILE
+    assert JobState.model_validate_json(final.read_bytes()) == state and log == ["commit"]
+
+    handles.jobs.pop(JOB_A)
+    again = hosted_stores(handles).jobs
+    assert again.read(JOB_A) == state and again.list_ids() == [JOB_A] and again.job_of(state.room_id) == JOB_A
+
+
+def test_the_watchdogs_failed_mark_reaches_the_volume_and_outlives_the_dict_entry(handles, web, poll, wall):
+    running = _job_state(JOB_A)
+    web.put(running)
+    handles.jobs[call_key(JOB_A)] = "fc-1"
+    wall.at(JOB_A, 30)
+    poll.state = "crashed"
+    failed = web.read(JOB_A)
+    assert failed.status == "failed" and failed.stage == "segment"
+
+    handles.jobs.pop(JOB_A)
+    handles.jobs.pop(call_key(JOB_A))
+    assert hosted_stores(handles).jobs.read(JOB_A) == failed and web.job_of(running.room_id) == JOB_A
+
+
+def test_a_spawn_that_raises_leaves_its_failed_record_on_the_volume(handles, web, ticker):
+    queued = _submit(handles, web, ticker)
+    with pytest.raises(ExecutionError):
+        ModalJobRunner(web, Spawn(raises=ExecutionError("no running app"))).start(queued.id)
+    handles.jobs.pop(queued.id)
+    stored = hosted_stores(handles).jobs.read(queued.id)
+    assert stored.status == "failed" and stored.stage == "ingest" and stored.error is not None
 
 
 # --- The watchdog --------------------------------------------------------------------------

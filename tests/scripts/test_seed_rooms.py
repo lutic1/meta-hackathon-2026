@@ -28,10 +28,12 @@ from src.domain.schema import (
     CallRow,
     DryRunVerdict,
     JobState,
+    Placement,
     Room,
     RuleVerdict,
     Stage,
     StageRecord,
+    Tier2,
 )
 from src.infra.clocks import SessionClock
 from src.infra.modal import HostedStores, ModalHandles, hosted_stores
@@ -107,6 +109,19 @@ def full_job(room: Room, job_id: str = JOB, **update: Any) -> JobState:
     return job.model_copy(update=update)
 
 
+def demo_copy(room: Room, name: str = NAME) -> Room:
+    """The Room as its Demo copy stores it: named, each photo's paths naming the downscaled file the copy holds (decision 9)."""
+    photos = [photo.model_copy(update={"downscaled_path": photo_key(room.id, i), "original_path": photo_key(room.id, i)}) for i, photo in enumerate(room.photos)]
+    return room.model_copy(update={"name": name, "photos": photos})
+
+
+def with_glb(room: Room) -> Room:
+    """The Room with a Tier 2 model on its first interactable, a file no seed carries."""
+    tier2 = Tier2(glb_path=f"{room.id}/tier2/0.glb", placement=Placement(translation=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1)))
+    first = room.interactables[0].model_copy(update={"tier2": tier2})
+    return room.model_copy(update={"interactables": [first, *room.interactables[1:]]})
+
+
 @pytest.fixture
 def root(tmp_path: Path) -> Path:
     return tmp_path / "rooms"
@@ -165,10 +180,33 @@ def test_the_room_its_photos_its_name_and_its_job_record_land_under_rooms_demo_i
     assert files_under(mount) == {f"{demo}/room.json", f"{demo}/job.json", *(f"{demo}/photos/{i}.jpg" for i in range(len(built.photos)))}
     assert volume.forces == [True] and volume.commits == 1
     seeded = Room.model_validate_json((mount / demo / "room.json").read_bytes())
-    assert seeded.name == NAME and seeded == built.model_copy(update={"name": NAME})
+    assert seeded.name == NAME and seeded == demo_copy(built)
     for index in range(len(built.photos)):
         assert (mount / demo / f"photos/{index}.jpg").read_bytes() == artifact_store(root).read(photo_key(built.id, index))
     assert JobState.model_validate_json((mount / demo / "job.json").read_bytes()) == full_job(built)
+
+
+def test_every_asset_the_seeded_room_references_is_a_file_in_its_demo_folder_and_no_original_is_copied(root, volume, mount, built):
+    run_seed(root, volume, (built.id, NAME))
+    seeded = Room.model_validate_json((mount / f"rooms/demo/{built.id}/room.json").read_bytes())
+    for index, photo in enumerate(seeded.photos):
+        assert photo.original_path == photo.downscaled_path == photo_key(built.id, index)
+        assert (mount / "rooms/demo" / photo.original_path).read_bytes() == artifact_store(root).read(photo_key(built.id, index))
+    assert not (mount / f"rooms/demo/{built.id}/originals").exists()
+
+
+def test_a_room_referencing_an_asset_the_seed_does_not_carry_is_refused_before_anything_is_written(root, volume, mount, built):
+    artifact_store(root).put(f"{built.id}/room.json", with_glb(built).model_dump_json().encode())
+    with pytest.raises(seeder.SeedRefused, match="tier2/0.glb"):
+        run_seed(root, volume, (built.id, NAME))
+    assert volume.forces == [] and not mount.exists()
+
+
+def test_a_photo_missing_from_the_local_store_is_refused_before_anything_is_written(root, volume, mount, built):
+    (root / photo_key(built.id, 1)).unlink()
+    with pytest.raises(seeder.SeedRefused, match="photo 1"):
+        run_seed(root, volume, (built.id, NAME))
+    assert volume.forces == [] and not mount.exists()
 
 
 def test_a_reseed_overwrites_the_earlier_files(root, volume, mount, built):

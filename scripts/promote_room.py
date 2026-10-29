@@ -14,8 +14,11 @@ there are any) and the `done` job record at `job.json`. The checks are the
 seed script's own (`scripts/seed_rooms.py`): a name the schema refuses
 (more than 40 characters), a record that is missing or not `done`, or one
 without stage timings, call rows, validator and Dry run verdicts and a
-build time refuses the run; so does a Room with no photos or a photo
-missing from the Volume.
+build time refuses the run; so does a Room with no photos, a photo
+missing from the Volume, or a Demo copy referencing any file the copy
+would not hold (the seed script's manifest check: each photo's
+`original_path` is rewritten to its downscaled key, and every remaining
+reference must be a file about to go up).
 
 The files then go up in one `batch_upload(force=True)`, laid out as a
 seeded room is (Room, `photos/<i>.jpg`, the cards at the same keys,
@@ -48,6 +51,7 @@ from scripts.seed_rooms import (
     Seed,
     SeedRefused,
     checked,
+    demo_copy,
     demo_files,
     named,
     open_volume,
@@ -116,7 +120,7 @@ def card_keys(volume: Volume, room: Room) -> list[str]:
 
 def plan(volume: Volume, room_id: str, name: str) -> Seed:
     """Read and check the Judge room; any refusal raises `SeedRefused` and nothing is written."""
-    room = named(judge_room(volume, room_id), name)
+    room = demo_copy(named(judge_room(volume, room_id), name))
     job = final_job(volume, room.id)
     if not room.photos:
         raise SeedRefused(f"{room.id}: the Room has no photos")

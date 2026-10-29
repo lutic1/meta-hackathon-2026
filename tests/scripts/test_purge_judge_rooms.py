@@ -209,6 +209,36 @@ def test_after_the_purge_the_demo_room_is_listed_served_and_played_to_completion
     assert result.status_code == 200 and all(p["solved"] for p in result.json()["puzzles"])
 
 
+def test_a_build_that_ended_without_a_room_is_purged_with_its_job_id_after_its_dict_entries_expire(monkeypatch, handles, hosted, capsys):
+    for judge in hosted.judges:
+        handles.jobs.pop(judge.state.id)
+        handles.jobs.pop(call_key(judge.state.id))
+    assert run_main(monkeypatch, handles)[0] == 0
+    out = capsys.readouterr().out.splitlines()
+    printed = {DeletionRecord.model_validate_json(line.removeprefix("deleted ")).job_id for line in out if line.startswith("deleted ")}
+    assert printed == {judge.state.id for judge in hosted.judges}
+    stores = hosted_stores(handles)
+    assert all(stores.artifacts.deleted_room(judge.state.id) == judge.room_id for judge in hosted.judges)
+
+
+def test_a_deletion_whose_job_keys_lingered_is_finished_from_its_record_before_the_stale_job_entry(monkeypatch, handles, hosted, capsys):
+    assert run_main(monkeypatch, handles)[0] == 0
+    lingering = hosted.judges[0]
+    first = DeletionRecord.model_validate_json(hosted.record(lingering).read_bytes())
+    stale = lingering.state.model_copy(update={"status": "running", "stage": "scene"})
+    handles.jobs[lingering.state.id] = stale.model_dump(mode="json")  # a job key the earlier deletion never popped
+    handles.jobs[call_key(lingering.state.id)] = "fc-judge"
+    capsys.readouterr()
+
+    assert run_main(monkeypatch, handles)[0] == 0
+
+    out = capsys.readouterr().out.splitlines()
+    assert [line for line in out if line.startswith("deleted ")] == [f"deleted {first.model_dump_json()}"]
+    assert lingering.state.id not in handles.jobs and call_key(lingering.state.id) not in handles.jobs
+    assert DeletionRecord.model_validate_json(hosted.record(lingering).read_bytes()) == first
+    hosted.assert_demo_intact()
+
+
 # --- A failed deletion is named and the rest still go ----------------------------
 
 

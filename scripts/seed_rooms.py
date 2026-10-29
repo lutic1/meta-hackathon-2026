@@ -13,7 +13,12 @@ names it. A name the schema refuses (more than 40 characters), a Room with
 no `done` record, or a record without stage timings, call rows, validator
 and Dry run verdicts and a build time refuses the whole run, and the
 Volume is never opened. The originals are not seeded: play reads the
-downscaled photos only.
+downscaled photos only, so the Demo copy of the Room names, for each photo,
+its downscaled key as both `downscaled_path` and `original_path` and leaves
+no path to a file the Demo partition lacks. Before anything is written,
+every asset the Demo copy references (each photo's two paths, each Tier 2
+`glb_path`) is checked against the files about to go up; a photo missing
+locally or any other reference to a file not carried refuses the run.
 
 The files then go up in one `batch_upload(force=True)`, so a reseed
 overwrites the earlier files, and the batch is committed to the Volume
@@ -97,6 +102,24 @@ def named(room: Room, name: str) -> Room:
         raise SeedRefused(f"{room.id}: the name {name!r} is longer than 40 characters") from None
 
 
+def demo_copy(room: Room) -> Room:
+    """The Room as the Demo partition stores it: each photo's `downscaled_path` and `original_path` name its downscaled key, the only photo file seeded."""
+    photos = [photo.model_copy(update={"downscaled_path": key, "original_path": key}) for photo, key in zip(room.photos, photo_keys(room), strict=True)]
+    return room.model_copy(update={"photos": photos})
+
+
+def photo_keys(room: Room) -> list[str]:
+    """The artifact key of each downscaled photo, in upload order."""
+    return [photo_key(room.id, index) for index in range(len(room.photos))]
+
+
+def referenced(room: Room) -> list[str]:
+    """Every artifact key the Room references: each photo's two paths and each Tier 2 model, each once."""
+    keys = [key for photo in room.photos for key in (photo.downscaled_path, photo.original_path)]
+    keys += [ix.tier2.glb_path for ix in room.interactables if ix.tier2 is not None]
+    return list(dict.fromkeys(keys))
+
+
 def final_job(root: Path, room_id: str) -> JobState:
     """The `done` job record that names the Room, holding everything the Build view reads."""
     jobs = job_store(root)
@@ -146,15 +169,29 @@ def plan(root: Path, demo_rooms: Sequence[DemoRoom]) -> list[Seed]:
             stored = Room.model_validate_json(store.read(room_key(demo.room_id)))
         except (KeyError, ValueError):
             raise SeedRefused(f"{demo.room_id}: no Room is stored under {root}/") from None
-        room = named(stored, demo.name)
+        room = demo_copy(named(stored, demo.name))
         job = final_job(root, room.id)
-        keys = [photo_key(room.id, index) for index in range(len(room.photos))] + card_keys(root, room)
-        seeds.append(Seed(room=room, job=job, files=demo_files(room, job, {key: store.read(key) for key in keys})))
+        artifacts: dict[str, bytes] = {}
+        for index, key in enumerate(photo_keys(room)):
+            try:
+                artifacts[key] = store.read(key)
+            except KeyError:
+                raise SeedRefused(f"{room.id}: photo {index} is not stored under {root}/{room.id}/") from None
+        artifacts |= {key: store.read(key) for key in card_keys(root, room)}
+        seeds.append(Seed(room=room, job=job, files=demo_files(room, job, artifacts)))
     return seeds
 
 
 def demo_files(room: Room, job: JobState, artifacts: Mapping[str, bytes]) -> dict[str, bytes]:
-    """Every Volume path of one Demo room with its bytes: the photos and Clue cards in `artifacts` by key, the named Room and its job record."""
+    """Every Volume path of one Demo room with its bytes: the photos and Clue cards in `artifacts` by key, the named Room and its job record.
+
+    The manifest is checked first: a key the Room references that is not in
+    `artifacts` raises `SeedRefused`, so no Demo room goes up with a
+    dangling path.
+    """
+    missing = [key for key in referenced(room) if key not in artifacts]
+    if missing:
+        raise SeedRefused(f"{room.id}: the Room references files the Demo copy would not hold: {', '.join(missing)}")
     files = {f"{DEMO_PREFIX}/{key}": data for key, data in artifacts.items()}
     files[f"{DEMO_PREFIX}/{room_key(room.id)}"] = room.model_dump_json().encode()
     files[f"{DEMO_PREFIX}/{room.id}/{JOB_FILE}"] = job.model_dump_json().encode()

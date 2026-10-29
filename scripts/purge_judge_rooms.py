@@ -12,8 +12,11 @@ its mount, so the purge runs in one short-lived container of its own app
 that mounts `keyframe-data` at `/data`, its output streamed back.
 
 `purge` runs `delete_judge_room` on every directory under `rooms/judge/`,
-those of Builds that ended without a Room included, and prints each ids-only
-record it returns. A room whose deletion fails is named on stderr and the
+those of Builds that ended without a Room included (each keeps its final job
+record there, so its job id is known after the Dict entry expires), and on
+every room whose deletion record under `rooms/deleted/` names a job whose
+keys are still in `keyframe-jobs`, which that call pops from the record
+before reading any stale job entry; it prints each ids-only record returned. A room whose deletion fails is named on stderr and the
 remaining rooms are still attempted; any failure exits 1, and a rerun
 completes what an earlier attempt left. `--dry-run` prints the `room_id`
 and `job_id` of every Judge room that would go and deletes nothing, so no
@@ -45,7 +48,9 @@ from src.infra.modal import (
     DictJobStore,
     ModalHandles,
     VolumeFiles,
+    call_key,
     delete_judge_room,
+    deletion_records,
 )
 
 if TYPE_CHECKING:
@@ -68,9 +73,15 @@ def judge_room_ids(handles: ModalHandles) -> list[str]:
     return [name for name in files.names(JUDGE_DIR) if (handles.root / JUDGE_DIR / name).is_dir()]
 
 
+def lingering_room_ids(handles: ModalHandles) -> list[str]:
+    """The room id of every deletion record whose job still has a key in `keyframe-jobs`: an earlier deletion left it unfinished."""
+    records = deletion_records(VolumeFiles(handles.volume, handles.root))
+    return sorted(r.room_id for r in records if r.job_id is not None and (r.job_id in handles.jobs or call_key(r.job_id) in handles.jobs))
+
+
 def purge(handles: ModalHandles, *, today: date, dry_run: bool = False) -> int:
-    """Delete every Judge room, printing each ids-only record; 1 when any deletion failed, after every room was attempted."""
-    room_ids = judge_room_ids(handles)
+    """Delete every Judge room and finish every lingering deletion, printing each ids-only record; 1 when any failed, after every room was attempted."""
+    room_ids = sorted({*judge_room_ids(handles), *lingering_room_ids(handles)})
     if not room_ids:
         print(f"nothing to purge: {JUDGE_DIR}/ holds no Judge room")
         return 0

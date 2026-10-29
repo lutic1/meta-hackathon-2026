@@ -201,7 +201,7 @@ def test_a_judge_room_goes_with_its_photos_originals_sessions_and_listed_cache_e
     scene = Scene(handles, ticker, four_lock_room, code_and_find_room, ending)
     assert (scene.folder / "originals" / "0.jpg").exists() and (scene.folder / "photos" / "0.jpg").exists()
     assert json.loads((scene.folder / CACHE_KEYS_FILE).read_bytes()) == ["k-arch", "k-arch-2"]
-    assert (scene.folder / ROOM_FILE).exists() == (ending == "done") == (scene.folder / JOB_FILE).exists()
+    assert (scene.folder / ROOM_FILE).exists() == (ending == "done") and (scene.folder / JOB_FILE).exists()
 
     record = delete_judge_room(handles, scene.room_id, today=NOV_10)
 
@@ -238,9 +238,20 @@ def test_the_deletion_record_holds_the_room_id_job_id_date_and_session_ids_and_n
     assert not [text for text in content if text and text in raw]
 
 
+@pytest.mark.parametrize("ending", ["failed", "needs_more_photos", "needs_recapture"])
+def test_a_judge_build_that_ended_without_a_room_keeps_its_job_id_after_the_dict_entry_expires(handles, ticker, four_lock_room, code_and_find_room, ending):
+    scene = Scene(handles, ticker, four_lock_room, code_and_find_room, ending)
+    handles.jobs.pop(scene.state.id)
+    handles.jobs.pop(call_key(scene.state.id))
+    assert delete_judge_room(handles, scene.room_id, today=NOV_10) == DeletionRecord(room_id=scene.room_id, job_id=scene.state.id, deleted_on=NOV_10)
+    scene.assert_deleted()
+    assert hosted_stores(handles).artifacts.deleted_room(scene.state.id) == scene.room_id
+
+
 def test_a_judge_room_whose_job_record_is_gone_is_still_deleted_with_a_null_job_id(handles, ticker, four_lock_room, code_and_find_room):
     scene = Scene(handles, ticker, four_lock_room, code_and_find_room, "failed")
     handles.jobs.pop(scene.state.id)
+    (scene.folder / JOB_FILE).unlink()
     assert delete_judge_room(handles, scene.room_id, today=NOV_10) == DeletionRecord(room_id=scene.room_id, job_id=None, deleted_on=NOV_10)
     assert not scene.folder.exists()
 
@@ -277,6 +288,16 @@ def test_an_unknown_room_id_raises_key_error_and_writes_no_record(handles):
 def test_a_room_already_deleted_returns_its_first_record_again(handles, ticker, four_lock_room, code_and_find_room):
     scene = Scene(handles, ticker, four_lock_room, code_and_find_room)
     first = delete_judge_room(handles, scene.room_id, today=NOV_10)
+    assert delete_judge_room(handles, scene.room_id, today=date(2026, 11, 11)) == first
+    scene.assert_deleted()
+
+
+def test_a_rerun_reads_the_deletion_record_before_a_stale_job_entry_and_pops_it(handles, ticker, four_lock_room, code_and_find_room):
+    scene = Scene(handles, ticker, four_lock_room, code_and_find_room)
+    first = delete_judge_room(handles, scene.room_id, today=NOV_10)
+    stale = scene.state.model_copy(update={"status": "running", "stage": "scene"})
+    handles.jobs[scene.state.id] = stale.model_dump(mode="json")  # a late write after the deletion, its job still young
+    handles.jobs[call_key(scene.state.id)] = "fc-judge"
     assert delete_judge_room(handles, scene.room_id, today=date(2026, 11, 11)) == first
     scene.assert_deleted()
 

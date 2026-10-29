@@ -22,9 +22,11 @@ from tests.scripts.test_seed_rooms import (
     JOB,
     NAME,
     DirVolume,
+    demo_copy,
     files_under,
     full_job,
     snapshot,
+    with_glb,
 )
 
 REPO = Path(__file__).resolve().parents[2]
@@ -112,12 +114,28 @@ def test_the_room_its_photos_its_cards_its_name_and_its_job_record_land_under_ro
     }
     assert volume.forces == [True] and volume.commits == 1
     promoted = Room.model_validate_json((demo / "room.json").read_bytes())
-    assert promoted.name == NAME and promoted == judge.model_copy(update={"name": NAME})
+    assert promoted.name == NAME and promoted == demo_copy(judge)
     for index, photo in enumerate(judge.photos):
         assert (demo / f"photos/{index}.jpg").read_bytes() == Path(photo.downscaled_path).read_bytes()
     for index, puzzle in enumerate(judge.puzzles):
         assert (demo / f"cards/{puzzle.id}.png").read_bytes() == f"card {index}".encode()
     assert JobState.model_validate_json((demo / "job.json").read_bytes()) == full_job(judge)
+
+
+def test_every_asset_the_promoted_room_references_is_a_file_in_its_demo_folder(volume, mount, judge):
+    run_promote(volume, judge.id, NAME)
+    promoted = Room.model_validate_json((mount / "rooms/demo" / judge.id / "room.json").read_bytes())
+    for index, photo in enumerate(promoted.photos):
+        assert photo.original_path == photo.downscaled_path == f"{judge.id}/photos/{index}.jpg"
+        assert (mount / "rooms/demo" / photo.original_path).read_bytes() == Path(judge.photos[index].downscaled_path).read_bytes()
+    assert not (mount / "rooms/demo" / judge.id / "originals").exists()
+
+
+def test_a_room_referencing_an_asset_the_promotion_does_not_carry_is_refused_before_anything_is_written(volume, mount, judge):
+    (mount / "rooms/judge" / judge.id / "room.json").write_bytes(with_glb(judge).model_dump_json().encode())
+    with pytest.raises(promoter.SeedRefused, match="tier2/0.glb"):
+        run_promote(volume, judge.id, NAME)
+    assert volume.forces == [] and not (mount / "rooms/demo").exists()
 
 
 def test_the_originals_and_the_cache_keys_stay_under_rooms_judge_and_the_judge_copy_is_untouched(volume, mount, judge):

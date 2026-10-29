@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Runbook action (ledger-export uploads spend/exports/ as an artifact to download and commit; purge needs confirm; promote needs room_id and room_name)
+        description: Runbook action (ledger-export uploads spend/exports/ as an artifact to download and commit; purge needs confirm; promote needs room_id and room_name; quota-probe runs the build quota's process race on an ephemeral Dict, never keyframe-jobs)
         type: choice
-        options: [ledger-export, purge-dry-run, purge, warm, cool, autoscaler-settings, promote]
+        options: [ledger-export, purge-dry-run, purge, warm, cool, autoscaler-settings, promote, quota-probe]
       environment:
         description: Modal Environment (main holds the judging data, dev a development copy)
         type: choice
@@ -54,7 +54,7 @@ jobs:
         run: |
           python3 - <<'EOF'
           import json, os, sys
-          ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote")
+          ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe")
           DEFAULTS = {"action": "", "environment": "main", "room_id": "", "room_name": "", "confirm": ""}
           if os.environ["EVENT"] == "push":
               try:
@@ -133,3 +133,5 @@ jobs:
         run: |
           [ -n "$ROOM_ID" ] && [ -n "$ROOM_NAME" ] || { echo "refusing to promote a Judge room in $MODAL_ENVIRONMENT: the promote action needs both room_id and room_name, got room_id='$ROOM_ID' room_name='$ROOM_NAME'"; exit 1; }
           uv run scripts/promote_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID" "$ROOM_NAME"
+      - if: env.ACTION == 'quota-probe'
+        run: uv run scripts/quota_probe.py --env "$MODAL_ENVIRONMENT"

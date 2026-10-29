@@ -13,7 +13,7 @@ from tests.test_ci_workflow import SETUP_UV
 REPO = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github/workflows/ops.yml"
 REQUEST = ".github/ops/request.json"
-ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote")
+ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe")
 UPLOAD_ARTIFACT = "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"
 VARIABLES = ("ACTION", "MODAL_ENVIRONMENT", "ROOM_ID", "ROOM_NAME", "CONFIRM")
 
@@ -111,7 +111,7 @@ def test_checkout_uv_and_sync_run_before_the_env_guarded_action_steps():
     assert steps[:3] == [("uses", "actions/checkout@v7"), ("uses", SETUP_UV), ("run", "uv sync --locked")]
     assert len(steps) == 3 + len(ACTIONS) + 1  # the ledger export has a second step, the upload
     assert re.findall(r"^      - if: env\.ACTION == '([a-z-]+)'$", _job("ops"), re.MULTILINE) == [
-        "ledger-export", "ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote",
+        "ledger-export", "ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe",
     ]
 
 
@@ -133,6 +133,7 @@ def test_every_runbook_command_is_present_once_with_the_environment_variable():
         'uv run modal function autoscaler update -e "$MODAL_ENVIRONMENT" keyframe/web --min-containers 1',
         'uv run modal function autoscaler update -e "$MODAL_ENVIRONMENT" keyframe/web --min-containers 0',
         'uv run scripts/promote_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID" "$ROOM_NAME"\n',
+        'uv run scripts/quota_probe.py --env "$MODAL_ENVIRONMENT"\n',
     )
     for command in commands:
         assert text.count(command) == 1, command
@@ -161,6 +162,19 @@ def test_the_promotion_runs_only_when_both_room_values_are_given():
     assert '[ -n "$ROOM_ID" ] && [ -n "$ROOM_NAME" ] || {' in promote and "exit 1; }" in promote
     assert promote.index('[ -n "$ROOM_ID" ]') < promote.index("uv run scripts/promote_room.py")
     assert "seed_rooms.py" not in text  # the Demo room comes from the Volume, never from a checkout
+
+
+def test_the_quota_probe_runs_from_a_dispatch_or_a_request_file_on_an_ephemeral_dict_only(tmp_path: Path):
+    probe = _job("ops").split("- if: env.ACTION == 'quota-probe'\n", 1)[1]
+    assert probe == '        run: uv run scripts/quota_probe.py --env "$MODAL_ENVIRONMENT"\n'
+    assert "quota-probe runs" in _text().split("options:", 1)[0]  # the action's description says what it does
+    (tmp_path / "dispatch").mkdir()
+    inputs = {"action": "quota-probe", "environment": "dev", "confirm": "", "room_id": "", "room_name": ""}
+    code, _, outputs = _run_request(tmp_path / "dispatch", "workflow_dispatch", inputs=inputs)
+    assert code == 0 and outputs["action"] == "quota-probe" and outputs["environment"] == "dev"
+    (tmp_path / "push").mkdir()
+    code, _, outputs = _run_request(tmp_path / "push", "push", request={"action": "quota-probe", "environment": "dev"})
+    assert code == 0 and outputs == {"action": "quota-probe", "environment": "dev", "room_id": "", "room_name": "", "confirm": ""}
 
 
 def test_no_deploy_and_no_unpinned_third_party_action():

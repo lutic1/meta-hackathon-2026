@@ -216,8 +216,10 @@ def test_every_path_a_judge_build_writes_is_under_its_judge_folder_whatever_its_
         f"{folder}/{CACHE_KEYS_FILE}",
         f"{CACHE_DIR}/k-arch.json",
     }
+    if status is not None:  # every terminal record, a Room or not, lands beside the photos (decision 57)
+        expected |= {f"{folder}/{JOB_FILE}"}
     if status == "done":
-        expected |= {f"{folder}/{ROOM_FILE}", f"{folder}/{JOB_FILE}"}
+        expected |= {f"{folder}/{ROOM_FILE}"}
     assert written == expected
     assert _snapshot(handles.root / "rooms" / "demo") == demo_before
     assert (handles.root / folder / "originals" / "0.jpg").read_bytes() == judge.uploads[0].original
