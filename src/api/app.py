@@ -160,6 +160,7 @@ stored Room and `GET /rooms/<room_id>` never change (AD-12).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -180,7 +181,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import TypeAdapter, ValidationError
 from pydantic.json_schema import models_json_schema
 from starlette.concurrency import run_in_threadpool
-from starlette.staticfiles import PathLike
+from starlette.datastructures import Headers
+from starlette.responses import FileResponse
+from starlette.staticfiles import NotModifiedResponse, PathLike
 from starlette.types import Scope
 
 from src.api.errors import (
@@ -1067,6 +1070,11 @@ class WebDist(StaticFiles):
     years. A hashed bundle under `assets/` never changes under its URL, so it
     is kept for a year; the shell and every file copied from `web/public`
     under its own name revalidate on each load, cheaply against the ETag.
+
+    Starlette's ETag hashes only mtime and size, and every file in the Modal
+    image has mtime 0, so a new build's shell of the same length would answer
+    304 to the old one. The ETag is therefore the file's content hash, and no
+    `Last-Modified` is sent to revalidate against instead.
     """
 
     def __init__(self, directory: Path) -> None:
@@ -1074,10 +1082,20 @@ class WebDist(StaticFiles):
         self.hashed = directory.resolve() / HASHED_ASSETS
 
     def file_response(self, full_path: PathLike, stat_result: os.stat_result, scope: Scope, status_code: int = 200) -> Response:
-        """Starlette's response (a 304 on a matching ETag) with the policy for the file it resolved, symlinks followed."""
-        response = super().file_response(full_path, stat_result, scope, status_code)
+        """The file with a content ETag and the policy for the file it resolved, symlinks followed; a 304 on a matching ETag."""
+        etag = content_etag(os.fspath(full_path), stat_result.st_size, stat_result.st_mtime_ns, stat_result.st_ino)
+        response = FileResponse(full_path, status_code=status_code, stat_result=stat_result, headers={"etag": etag})
+        del response.headers["last-modified"]
         response.headers["Cache-Control"] = IMMUTABLE if Path(full_path).parent == self.hashed else REVALIDATE
+        if self.is_not_modified(response.headers, Headers(scope=scope)):
+            return NotModifiedResponse(response.headers)
         return response
+
+
+@cache
+def content_etag(path: str, size: int, mtime_ns: int, ino: int) -> str:
+    """The strong ETag of a `web/dist` file's bytes, once per file: the build never changes inside a running container."""
+    return f'"{hashlib.md5(Path(path).read_bytes(), usedforsecurity=False).hexdigest()}"'
 
 
 def create_app(

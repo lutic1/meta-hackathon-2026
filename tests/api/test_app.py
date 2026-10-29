@@ -1,6 +1,7 @@
 """Story 1.11: the room routes serve `PlayView` and the stored photo bytes under `/api/`, the envelope answers an unknown room, and `web/dist` is mounted at `/` only when it exists (AD-3, AD-9, AD-13)."""
 
 import json
+import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -237,6 +238,30 @@ def assert_cache_headers(client: TestClient) -> None:
 
 def test_the_client_shell_revalidates_and_hashed_bundles_are_immutable(tmp_path: Path, four_lock_room: Room):
     assert_cache_headers(TestClient(make_app(tmp_path, four_lock_room, web_dist=built_dist(tmp_path))))
+
+
+def image_dist(root: Path, bundle: str) -> Path:
+    """A `web/dist` as the Modal image holds it: every file at mtime 0, the shell naming one hashed bundle."""
+    dist = root / "web" / "dist"
+    files = {"index.html": f'<!doctype html><script src="/assets/index-{bundle}.js"></script>'}
+    files[f"assets/index-{bundle}.js"] = f"console.log('{bundle}')"
+    for name, text in files.items():
+        (dist / name).parent.mkdir(parents=True, exist_ok=True)
+        (dist / name).write_text(text)
+        os.utime(dist / name, (0, 0))
+    return dist
+
+
+def test_a_new_deploy_answers_a_stale_shell_with_the_new_one(tmp_path: Path, four_lock_room: Room):
+    old_dist, new_dist = image_dist(tmp_path / "old", "abc123"), image_dist(tmp_path / "new", "def456")
+    assert len((old_dist / "index.html").read_bytes()) == len((new_dist / "index.html").read_bytes())
+    old = TestClient(make_app(tmp_path / "old", four_lock_room, web_dist=old_dist)).get("/")
+    new = TestClient(make_app(tmp_path / "new", four_lock_room, web_dist=new_dist))
+    for headers in ({"If-None-Match": old.headers["etag"]}, {"If-Modified-Since": "Thu, 01 Jan 1970 00:00:00 GMT"}):
+        response = new.get("/", headers=headers)
+        assert response.status_code == 200 and response.text == (new_dist / "index.html").read_text(), headers
+        assert response.headers["etag"] != old.headers["etag"] and "last-modified" not in response.headers
+    assert new.get("/", headers={"If-None-Match": new.get("/").headers["etag"]}).status_code == 304
 
 
 def test_the_default_app_points_at_web_dist_and_rooms():
