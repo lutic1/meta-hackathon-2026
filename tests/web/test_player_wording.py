@@ -44,7 +44,7 @@ def test_the_capture_screen_shows_the_builds_left_the_server_counts_now():
     assert "const answer = await checkAccess(held)" in left and "return answer.ok ? answer.builds_left : null" in left
     for name in ("capture.ts", "build-progress.ts"):
         assert "claimJudgeBuild" not in _code(name), name
-    assert "takeCaptureRequest() ? await judgeBuildsLeft() : null" in _code("shell.ts")
+    assert "place.route.name === 'buildYourOwn' ? await judgeBuildsLeft() : null" in _code("shell.ts")
 
 
 # --- Item 62: statuses and plurals ------------------------------------------------------

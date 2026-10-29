@@ -65,6 +65,8 @@ export interface PlaySession {
 export interface PlayFrame {
   body: HTMLElement
   topBar: HTMLElement
+  /** The top bar's wordmark, whose link to the start asks the Leave room confirmation first. */
+  wordmark: HTMLAnchorElement
   controls: HTMLElement
   guide: Meta['guide']
   mode: Meta['mode']
@@ -117,7 +119,7 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * plays the unlock moment (`lockOpened`): the solved Hotspot blooms and the Scene frame glows once, the Solved chip
  * lifts in and the Guide speaks one aside for the lock type in the Hint area. A reload plays none of it for locks
  * already open. "How hints work" under the hint button says when the Guide offers a hint and why each Rung
- * arrived, in player words. "Leave room" in the top bar, or
+ * arrived, in player words. "Leave room" in the top bar, the top bar's wordmark (a link to the start elsewhere), or
  * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
  * confirming goes to `#/` in place of the Play route (`LeaveRoom.exit`, so Back never resumes the play-through) and
  * records no Room result. A state that shows a Trickster window open asks for its
@@ -293,6 +295,7 @@ export function mountPlay(
   const leaveRoom = mountLeaveRoom({
     body: frame.body,
     held: [frame.topBar, sceneColumn, sideColumn],
+    wordmark: frame.wordmark,
     modalOpen: () => welcoming || cardLog.isOpen(),
     focusScene: () => {
       unfocus?.()

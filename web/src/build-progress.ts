@@ -2,22 +2,24 @@ import type { JobState, Meta } from '../types'
 import { accessCode } from './access-code.ts'
 import { getBuild, photoUrl, postBuild, RequestFailed, startSession } from './api/index.ts'
 import { type EndAction, buildEnd } from './build-end.ts'
-import { carryPhotos, heldPhotos, passPhotos, releasePhotos, requestCapture } from './build-photos.ts'
+import { carryPhotos, heldPhotos, passPhotos, releasePhotos } from './build-photos.ts'
 import { stageRows } from './build-stages.ts'
 import { buildViewLink } from './build-view.ts'
-import { captureColumn, HOSTED_REFUSALS } from './capture.ts'
+import { backButton, captureColumn, goHome, HOSTED_REFUSALS } from './capture.ts'
 import { buildAccepted, buildDequeued, buildEnded, buildQueued, sessionOpened, startTimer } from './capture-timer.ts'
 import { primaryButton } from './components/button.ts'
 import { type BannerAction, type BannerState, bannerSlot, showBanner } from './components/error-banner.ts'
+import { type ConfirmationCopy, leaveRoomConfirmation } from './components/leave-room-confirmation.ts'
 import { reveal } from './components/fade.ts'
 import { fitChips, maskPreview, type TilePhoto } from './components/mask-preview.ts'
 import { compactPhotoTray } from './components/photo-tray.ts'
 import { stageList } from './components/stage-list.ts'
 import { statusStrip } from './components/status-strip.ts'
+import { askToLeave } from './leave-room.ts'
 import { announce } from './live-region.ts'
 import { MAX_PHOTOS } from './photos.ts'
 import { sessionStart } from './profile/index.ts'
-import { captureHref, placeHref } from './router.ts'
+import { captureHref, placeHref, type Route } from './router.ts'
 import { type RoomGone, roomGone } from './room-gone.ts'
 import type { Size } from './scene/geometry.ts'
 import { strings } from './strings.ts'
@@ -32,6 +34,14 @@ export interface BuildScreen {
   right: HTMLElement
   /** Runs once the screen is in the page: starts polling; returns the teardown that stops it. */
   mount: () => () => void
+}
+
+/** "Back to the start" asks first while the Build still runs: it keeps building, and this page's address returns to it. */
+const LEAVE_PAGE: ConfirmationCopy = {
+  question: strings.leavePageQuestion,
+  sentence: strings.leavePageBody,
+  stay: strings.stay,
+  leave: strings.leave,
 }
 
 /** The warning a `queued` Build shows (Hosted): it waits in line and starts on its own, so it offers no action. */
@@ -95,6 +105,11 @@ async function photoSize(url: string): Promise<Size | null> {
  * and the Timer go on as they were, and the next answered poll removes the strip and renders from job state. A
  * refused poll, which ends the polling, removes it too.
  *
+ * "Back to the start", on top of the left area, goes to `#/`; while the Build is not known to have ended (before the
+ * first answered poll, `queued` or `running`) it first asks, with the Leave room confirmation's card and focus handling
+ * over `page.body` (the top bar and both columns inert): "Your room keeps building. Leave this page? This page's
+ * address brings you back.", "Stay" focused, Escape or "Stay" returning focus to the button, "Leave" going home.
+ *
  * A poll refused with 410 `room_deleted` (the Build's Judge room was deleted), or a session start refused with it or
  * with 404 `room_not_found`, is handed to `onGone`, which replaces the page body with that Room's card; a poll refused
  * with 404 `job_not_found` (a link no Build has) is handed to it as `room_not_found`, the unknown-room card.
@@ -104,6 +119,7 @@ export function buildScreen(
   profile: string,
   mode: Meta['mode'],
   retention: string,
+  page: { body: HTMLElement; topBar: HTMLElement },
   onGone: (gone: RoomGone) => void,
 ): BuildScreen {
   const held = heldPhotos(jobId)
@@ -121,13 +137,31 @@ export function buildScreen(
   picker.multiple = true
   picker.hidden = true
   const strip = statusStrip(strings.reconnectingBuild)
+  /** The job status the last answered poll read; null before the first. */
+  let status: JobState['status'] | null = null
+  /** Closes the confirmation "Back to the start" opened, while it shows. */
+  let asking: (() => void) | undefined
+  const back = backButton(strings.backToStart, () => backToStart())
   const left = document.createElement('section')
   left.className = 'capture-left'
-  left.append(banners, actions, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), maskSlot, traySlot, picker)
+  left.append(back, banners, actions, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), maskSlot, traySlot, picker)
+  const right = captureColumn(retention, profile, mode, banners)
+  const frame = { body: page.body, held: [page.topBar, left, right] }
+
+  /** Home at once once the Build has ended; while it may still run, after the confirmation. */
+  function backToStart(): void {
+    if (status !== null && status !== 'queued' && status !== 'running') return goHome(profile)
+    if (asking !== undefined) return
+    const stay = (): void => {
+      asking = undefined
+      back.focus()
+    }
+    asking = askToLeave(frame, leaveRoomConfirmation(LEAVE_PAGE), stay, () => goHome(profile))
+  }
 
   return {
     left,
-    right: captureColumn(retention, profile, mode, banners),
+    right,
     mount: () => {
       let mounted = true
       let polling: ReturnType<typeof setTimeout> | undefined
@@ -213,11 +247,11 @@ export function buildScreen(
         actions.hidden = false
       }
 
-      /** The Capture screen, in Hosted mode too: this tab still holds the Access code its Upload sent. */
+      /** The Capture screen: Local `#/`, Hosted `#/build-your-own`, as this tab still holds the code its Upload sent. */
       function startOver(): void {
         releasePhotos()
-        requestCapture()
-        location.hash = placeHref({ route: { name: 'home' }, profile })
+        const capture: Route = mode === 'hosted' ? { name: 'buildYourOwn' } : { name: 'home' }
+        location.hash = placeHref({ route: capture, profile })
       }
 
       /**
@@ -291,6 +325,7 @@ export function buildScreen(
       }
 
       function apply(job: JobState): void {
+        status = job.status
         queue(job)
         stages.update(stageRows(job))
         if (!masked && (job.mask_preview ?? []).length > 0) {
@@ -340,6 +375,7 @@ export function buildScreen(
       void poll()
       return () => {
         mounted = false
+        asking?.()
         clearTimeout(polling)
         if (started) releasePhotos()
       }

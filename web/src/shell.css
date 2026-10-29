@@ -124,6 +124,10 @@
   padding: 0;
   border: 0;
 }
+/* "Back to the three cards" (Hosted Capture) and "Back to the start" (Build progress): sized to the label. */
+.capture-back {
+  align-self: flex-start;
+}
 .capture-actions {
   display: flex;
   gap: var(--spacing-3);

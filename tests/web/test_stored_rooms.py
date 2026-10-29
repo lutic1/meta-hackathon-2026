@@ -86,7 +86,7 @@ def test_a_refused_start_shows_the_session_start_refused_banner_whose_try_again_
     assert "actions: [{ label: strings.tryAgain, onActivate: () => void start(room, slot) }]" in refused
     # The banner slot sits at the top of the left area, above the list; showBanner moves focus to the banner.
     capture = _ts("capture.ts")
-    assert "left.append(banners, controls)" in capture
+    assert "left.append(...(back === null ? [] : [back]), banners, controls)" in capture
     assert "storedRooms(below, profile, mode, banners)," in capture
     assert "const banners = bannerSlot()" in capture
 

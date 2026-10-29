@@ -314,7 +314,7 @@ def test_open_profile_file_sits_below_the_unchanged_privacy_line_and_the_tray_st
     for rule in rules.values():
         assert not {"overflow", "max-height", "height", "text-overflow", "-webkit-line-clamp", "white-space"} & set(rule)
     # Before and during a Build the right column takes the control, its refusals going to that surface's banner slot.
-    assert "right: captureColumn(retention, profile, mode, banners)" in _code("build-progress.ts")
+    assert "const right = captureColumn(retention, profile, mode, banners)" in _code("build-progress.ts")
 
 
 def test_a_refused_file_shows_the_error_banner_which_takes_focus_and_a_good_one_clears_it():

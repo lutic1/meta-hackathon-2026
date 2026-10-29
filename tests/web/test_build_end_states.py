@@ -129,7 +129,7 @@ def test_start_over_opens_the_empty_capture_screen_and_stands_in_when_no_photos_
     screen = _code("build-progress.ts")
     start_over = _function(screen, "startOver")
     assert "releasePhotos()" in start_over
-    assert "location.hash = placeHref({ route: { name: 'home' }, profile })" in start_over
+    assert "location.hash = placeHref({ route: capture, profile })" in start_over  # Local `#/`, Hosted `#/build-your-own`
     end = _function(screen, "end")
     assert "const kinds = new Set(state.actions.map((kind) => (held === null ? 'startOver' : kind)))" in end
     assert "if (kind === 'startOver') return { label: strings.startOver, onActivate: startOver }" in screen

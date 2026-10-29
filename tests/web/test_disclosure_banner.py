@@ -164,7 +164,7 @@ def test_demo_settings_are_read_only_by_the_mode_indicator_the_triggers_header_a
             continue
         assert not re.search(r"\bscripted\b|\bcut1\b|timescale|DEMO_(?!VIDEO)", code, flags=re.IGNORECASE), path
     router = _code((WEB_SRC / "router.ts").read_text())
-    assert set(re.findall(r"name: '(\w+)'", router)) <= {"home", "build", "view", "play", "done", "triggers"}
+    assert set(re.findall(r"name: '(\w+)'", router)) <= {"home", "buildYourOwn", "build", "view", "play", "done", "triggers"}
 
 
 def test_how_hints_work_never_opens_by_itself_under_a_disclosure():

@@ -104,9 +104,9 @@ def test_the_completion_top_bar_keeps_show_all_objects_card_log_and_leave_room_i
     assert "showAll.remove()" in behind and "log.remove()" in behind and "leave.remove()" in behind
     assert "mountPlayBehind(sceneColumn, sideColumn, session, controls, (gone) => {" in _ts("completion.ts")
     assert "mountCompletion(element, sceneColumn, sideColumn, session, profile, mode, bar.controls)" in shell
-    # Unpressed (the toggle's default) and taking no input: the shell holds the whole top bar inert on #/done.
+    # Unpressed (the toggle's default) and taking no input: the shell holds the controls inert on #/done.
     assert "on:" not in play.split("return toggleButton({", 1)[1].split("})", 1)[0]
-    assert "bar.element.inert = done" in shell
+    assert "bar.controls.inert = done" in shell
 
 
 def test_show_all_draws_a_2px_dashed_outline_with_halo_no_fill_and_no_label_across_scene_changes():

@@ -103,7 +103,7 @@ def test_the_left_area_is_the_banner_slot_then_the_dropzone_the_tray_upload_and_
     capture = _ts("capture.ts")
     assert "controls.append(\n    dropzone.element,\n    tray,\n    actions,\n" in capture
     assert "typeof below === 'number' ? buildsLeftLine(below) : storedRooms(below, profile, mode, banners)," in capture
-    assert "left.append(banners, controls)" in capture
+    assert "left.append(...(back === null ? [] : [back]), banners, controls)" in capture
     assert "const controls = document.createElement('fieldset')" in capture
     rules = _css("shell.css")
     assert rules[".capture-controls"] == {"margin": "0", "padding": "0", "border": "0"}
@@ -322,7 +322,7 @@ def test_an_accepted_upload_disables_everything_but_the_retention_summary_and_th
     send = _function(capture, "send")
     assert "show(outcome)" in send and "if (outcome === null) controls.disabled = true" in send
     # The banners and the right column sit outside the fieldset the Build disables.
-    assert "left.append(banners, controls)" in capture and "right.append(" in capture
+    assert "left.append(...(back === null ? [] : [back]), banners, controls)" in capture and "right.append(" in capture
     assert "controls.append(" in capture and "banners" not in capture.split("controls.append(", 1)[1].split("storedRooms(", 1)[0]
 
 
@@ -345,7 +345,7 @@ def test_the_sample_button_starts_a_session_on_the_first_demo_room_by_the_landin
     assert "const start = roomStarter(profile, mode, banners)" in capture  # the path the landing's verb and the cards use
     assert "sample === undefined ? undefined : () => void start(sample)" in capture
     shell = _ts("shell.ts")
-    hosted = shell.split("place.route.name === 'home' && resumed !== null", 1)[1].split("} else if", 1)[0]
+    hosted = shell.split("} else if (buildsLeft !== null) {", 1)[1].split("} else if", 1)[0]
     assert "const rooms = await listRooms().catch(() => null)" in hosted and "sample: rooms?.[0]" in hosted
     assert "captureScreen(content.buildsLeft, content.profile, content.mode, content.retention, bar.timer, content.sample)" in shell
     # Local mode is unchanged: the Capture screen over the Stored Rooms list offers no sample room.

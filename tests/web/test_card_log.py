@@ -226,7 +226,7 @@ def test_it_never_opens_over_another_modal_and_no_modal_opens_over_it():
     # The Completion screen keeps the button in place under its inert top bar.
     behind = play.split("export function mountPlayBehind(", 1)[1]
     assert "const log = cardLogButton(() => undefined)" in behind and "controls.append(showAll, log, leave)" in behind
-    assert "bar.element.inert = done" in _code(_ts("shell.ts"))
+    assert "bar.controls.inert = done" in _code(_ts("shell.ts"))
     users = {path for path, text in source_ts().items() if "mountCardLog(" in _code(text)}
     assert users == {"web/src/play.ts", "web/src/card-log.ts"}
 

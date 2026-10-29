@@ -45,7 +45,9 @@ def test_the_play_screen_shows_the_card_for_a_served_welcome_until_play_has_begu
     # setting of `GET /meta`.
     shell = _ts("shell.ts")
     assert "content = { name, session: state, guide: meta.guide, mode: meta.mode, profile: place.profile }" in shell
-    assert "const frame = { body: element, topBar: bar.element, controls: bar.controls, guide: content.guide, mode: content.mode }" in shell
+    frame = shell.split("const frame = {", 1)[1].split("}", 1)[0]
+    for part in ("body: element,", "topBar: bar.element,", "controls: bar.controls,", "guide: content.guide,", "mode: content.mode,"):
+        assert part in frame, part
 
 
 def test_the_card_is_a_560px_parchment_sheet_over_the_scrim_that_fades_in_over_300ms():

@@ -1,9 +1,10 @@
-// Hash routes (UX-DR8): `#/`, `#/build/<job_id>`, `#/build/<job_id>/view`, `#/play/<session_id>` and
-// `#/done/<session_id>`, plus `#/triggers/<session_id>`, the second window the Triggers panel opens in under cut 5,
-// each carrying `?profile=` (AD-14).
+// Hash routes (UX-DR8): `#/`, `#/build-your-own` (the Hosted Capture screen an accepted Access code opens),
+// `#/build/<job_id>`, `#/build/<job_id>/view`, `#/play/<session_id>` and `#/done/<session_id>`, plus
+// `#/triggers/<session_id>`, the second window the Triggers panel opens in under cut 5, each carrying `?profile=` (AD-14).
 
 export type Route =
   | { name: 'home' }
+  | { name: 'buildYourOwn' }
   | { name: 'build'; jobId: string }
   | { name: 'view'; jobId: string }
   | { name: 'play'; sessionId: string }
@@ -37,6 +38,7 @@ const BUILD_VIEW_ROUTE = /^\/build\/([\w-]+)\/view$/ // job ids are `job_` plus 
 export function parsePlace(hash: string, search: string, carried = DEFAULT_PROFILE): Place {
   const [path, query = ''] = hash.replace(/^#/, '').split('?', 2)
   const profile = new URLSearchParams(query).get('profile') || new URLSearchParams(search).get('profile') || carried
+  if (path === '/build-your-own') return { route: { name: 'buildYourOwn' }, profile }
   const build = BUILD_ROUTE.exec(path)
   if (build !== null) return { route: { name: 'build', jobId: build[1] }, profile }
   const view = BUILD_VIEW_ROUTE.exec(path)
@@ -52,6 +54,7 @@ export function placeHref({ route, profile }: Place): string {
   const path =
     route.name === 'home'
       ? '/'
+      : route.name === 'buildYourOwn' ? '/build-your-own'
       : route.name === 'view' ? `/build/${route.jobId}/view`
       : `/${route.name}/${route.name === 'build' ? route.jobId : route.sessionId}`
   return `#${path}?profile=${encodeURIComponent(profile)}`

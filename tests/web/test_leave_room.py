@@ -61,11 +61,16 @@ def test_the_card_is_a_plain_480px_chrome_raised_sheet_over_the_scrim_that_fades
 
 def test_the_card_holds_the_question_the_sentence_keep_playing_then_leave_room():
     ts = _code(_ts("components/leave-room-confirmation.ts"))
-    assert "heading.className = 'leave-room-heading display-sm'" in ts and "heading.textContent = strings.leaveRoomQuestion" in ts
-    assert "sentence.className = 'leave-room-sentence body-md'" in ts and "sentence.textContent = strings.leaveRoomBody" in ts
-    assert "const keepPlaying = button('button-primary', strings.keepPlaying)" in ts
-    assert "const leave = button('button-secondary', strings.leaveRoom)" in ts
-    assert "actions.append(keepPlaying, leave)" in ts and "card.append(heading, sentence, actions)" in ts
+    assert "heading.className = 'leave-room-heading display-sm'" in ts and "heading.textContent = copy.question" in ts
+    assert "sentence.className = 'leave-room-sentence body-md'" in ts and "sentence.textContent = copy.sentence" in ts
+    assert "const stay = button('button-primary', copy.stay)" in ts
+    assert "const leave = button('button-secondary', copy.leave)" in ts
+    assert "actions.append(stay, leave)" in ts and "card.append(heading, sentence, actions)" in ts
+    # The Play screen's words by default: the question, the sentence, "Keep playing" then "Leave room".
+    room = ts.split("const LEAVE_ROOM: ConfirmationCopy = {", 1)[1].split("}", 1)[0]
+    assert "question: strings.leaveRoomQuestion" in room and "sentence: strings.leaveRoomBody" in room
+    assert "stay: strings.keepPlaying" in room and "leave: strings.leaveRoom" in room
+    assert "export function leaveRoomConfirmation(copy: ConfirmationCopy = LEAVE_ROOM): LeaveRoomConfirmation {" in ts
     assert "card.setAttribute('role', 'dialog')" in ts and "card.setAttribute('aria-modal', 'true')" in ts
     assert "card.setAttribute('aria-labelledby', HEADING_ID)" in ts and "card.setAttribute('aria-describedby', SENTENCE_ID)" in ts
     assert "show: () => fadeIn(card)" in ts
@@ -73,12 +78,13 @@ def test_the_card_holds_the_question_the_sentence_keep_playing_then_leave_room()
 
 def test_focus_starts_on_keep_playing_is_trapped_and_the_scene_hotspots_and_top_bar_are_inert():
     leave = _code(_ts("leave-room.ts"))
-    opened = leave.split("function open(refocus: () => void): void {", 1)[1].split("\n  const guard", 1)[0]
+    assert "close = askToLeave(frame, leaveRoomConfirmation(), keep, frame.leave)" in leave
+    opened = leave.split("export function askToLeave(", 1)[1].split("\nexport ", 1)[0]
     assert "for (const element of frame.held) element.inert = true" in opened
     assert "for (const element of frame.held) element.inert = false" in opened
-    assert opened.index("confirmation.show()") < opened.index("keepPlaying.focus()")
+    assert opened.index("confirmation.show()") < opened.index("confirmation.stay.focus()")
     # Tab and Shift+Tab cycle the two buttons; a pointer press never moves focus out of the card.
-    assert "const order = [keepPlaying, leave]" in opened and "event.preventDefault()" in opened
+    assert "const order = [confirmation.stay, confirmation.leave]" in opened and "event.preventDefault()" in opened
     assert "const step = event.shiftKey ? order.length - 1 : 1" in opened
     assert "order[at === -1 ? 0 : (at + step) % order.length].focus()" in opened
     assert "document.addEventListener('mousedown', keepFocus, true)" in opened
@@ -89,9 +95,11 @@ def test_focus_starts_on_keep_playing_is_trapped_and_the_scene_hotspots_and_top_
 def test_escape_or_keep_playing_closes_and_returns_focus_to_leave_room_or_the_first_hotspot_after_back():
     leave = _code(_ts("leave-room.ts"))
     assert "if (event.key === 'Escape') {" in leave and "keep()" in leave
-    assert "keepPlaying.addEventListener('click', keep)" in leave
-    keep = leave.split("function keep(): void {", 1)[1].split("\n    }\n", 1)[0]
-    assert "close?.()" in keep and "refocus()" in keep
+    assert "confirmation.stay.addEventListener('click', keep)" in leave
+    keep = leave.split("function keep(): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "close()" in keep and "stay()" in keep
+    refocus = leave.split("const keep = (): void => {", 1)[1].split("\n    }\n", 1)[0]
+    assert "close = undefined" in refocus and "refocus()" in refocus
     assert "open(() => button.focus())" in leave and "open(frame.focusScene)" in leave
     play = _code(_ts("play.ts"))
     assert "unfocus = focusFirstHotspot(sceneColumn)" in play.split("focusScene: () => {", 1)[1].split("},", 1)[0]
@@ -99,7 +107,8 @@ def test_escape_or_keep_playing_closes_and_returns_focus_to_leave_room_or_the_fi
 
 def test_confirming_goes_home_and_records_no_room_result():
     leave = _code(_ts("leave-room.ts"))
-    assert "leave.addEventListener('click', () => {\n      close?.()\n      frame.leave()\n    })" in leave
+    assert "confirmation.leave.addEventListener('click', () => {\n    close()\n    leave()\n  })" in leave
+    assert "close = askToLeave(frame, leaveRoomConfirmation(), keep, frame.leave)" in leave
     play = _code(_ts("play.ts"))
     gone = play.split("leave: () => ", 1)[1].split("\n", 1)[0]
     # Through `LeaveRoom.exit`, as the Exit's route to Completion: the Play route and its guard leave the history,

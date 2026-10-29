@@ -2,7 +2,6 @@ import './shell.css'
 import type { Meta, RoomSummary, SessionState } from '../types'
 import { getMeta, getSession, listRooms, RequestFailed } from './api/index.ts'
 import { judgeBuildsLeft } from './access-code.ts'
-import { requestCapture, takeCaptureRequest } from './build-photos.ts'
 import { buildScreen } from './build-progress.ts'
 import { type BuildViewOptions, type BuildViewState, buildViewSurface, loadBuildView } from './build-view.ts'
 import { captureScreen } from './capture.ts'
@@ -62,10 +61,12 @@ function refusedProfile(error: unknown): null {
  * it is the Capture screen, its Retention summary the `retention` text of the same `GET /meta`. In Hosted mode `#/` is
  * the Hosted landing: it reads `GET /rooms` once, and a failed read shows the landing's own failed state, never the
  * unreachable strip, so the title block stays usable; its "Try again" renders the route afresh. An Access code the
- * landing accepts renders `#/` once more as the Capture screen, with the builds left in place of the Stored Rooms
- * list, and so does a Build end state's "Add photos" or "Start over" while the tab holds that code; any other visit
- * to `#/` ("Build another room", "Leave room") is the Hosted landing again. That Hosted Capture screen reads `GET
- * /rooms` once more for the first Demo room its dropzone offers as the sample room; a failed read offers none.
+ * landing accepts opens `#/build-your-own`, the Capture screen with the builds left in place of the Stored Rooms list,
+ * as does a Build end state's "Add photos" or "Start over" while the tab holds that code, so the browser's Back
+ * returns to the landing; with no code held (Local mode, a reloaded tab) that route is `#/` in place. That Hosted
+ * Capture screen reads `GET /rooms` once more for the first Demo room its dropzone offers as the sample room; a
+ * failed read offers none. The top bar's wordmark links to `#/` on every route; on `#/done/<session_id>` only the
+ * Play screen's controls are inert, so the wordmark still goes home.
  * `#/build/<job_id>`
  * holds the global lines, the Timer of that Build and the Capture screen during that Build, in both modes. The top
  * bar's Timer slot shows the run the route owns (see `timerOwner`), the Capture screen the run its own Upload starts.
@@ -130,16 +131,20 @@ export function startShell(root: HTMLElement): void {
 
   async function render(): Promise<void> {
     const mine = ++generation
-    const place = currentPlace()
+    let place = currentPlace()
     const meta = metas.get(place.profile) ?? (await answered(mine, () => getMeta(place.profile).catch(refusedProfile)))
     if (meta === undefined) return
     if (meta === null) return showRefusedProfile(place)
     metas.set(place.profile, meta)
     let disclosure = meta.disclosure
     let content: Content = { name: 'empty' }
-    // Hosted `#/` is the Capture screen once when asked for and this tab holds an Access code, with the builds left
-    // the server counts now; without that count it is the landing, where the code is entered again.
-    const resumed = place.route.name === 'home' && takeCaptureRequest() ? await judgeBuildsLeft() : null
+    // Hosted `#/build-your-own` is the Capture screen while this tab holds an Access code, with the builds left the
+    // server counts now; without that count (Local mode, a reloaded tab) it is `#/` in place, where the code is entered again.
+    const buildsLeft = place.route.name === 'buildYourOwn' ? await judgeBuildsLeft() : null
+    if (place.route.name === 'buildYourOwn' && buildsLeft === null) {
+      place = { route: { name: 'home' }, profile: place.profile }
+      history.replaceState(history.state, '', placeHref(place))
+    }
     if (place.route.name === 'view') {
       const state = await loadBuildView(place.route.jobId)
       if (state.name === 'ready') disclosure = state.view.disclosure
@@ -164,15 +169,14 @@ export function startShell(root: HTMLElement): void {
       const rooms = await answered(mine, listRooms)
       if (rooms === undefined) return
       content = { name: 'rooms', rooms, profile: place.profile, mode: meta.mode, retention: meta.retention }
-    } else if (place.route.name === 'home' && resumed !== null) {
+    } else if (buildsLeft !== null) {
       const rooms = await listRooms().catch(() => null)
       const { profile } = place
-      content = { name: 'capture', buildsLeft: resumed, sample: rooms?.[0], profile, mode: meta.mode, retention: meta.retention }
+      content = { name: 'capture', buildsLeft, sample: rooms?.[0], profile, mode: meta.mode, retention: meta.retention }
     } else if (place.route.name === 'home') {
       const rooms = await listRooms().catch(() => null)
       const onAccepted = (): void => {
-        requestCapture()
-        void render()
+        location.hash = placeHref({ route: { name: 'buildYourOwn' }, profile: place.profile })
       }
       content = { name: 'landing', rooms, profile: place.profile, mode: meta.mode, onRetry: () => void render(), onAccepted }
     }
@@ -182,7 +186,7 @@ export function startShell(root: HTMLElement): void {
     const bar = topBar(meta, played)
     const body = surface(content, bar)
     const done = content.name === 'done'
-    bar.element.inert = done // the Play screen's controls stay in place, taking no input
+    bar.controls.inert = done // the Play screen's controls stay in place, taking no input; the wordmark still goes home
     show(bar.element, body.element, ...(banner === null ? [] : [banner]))
     const unmountBody = body.mount?.()
     const owns = timerOwner(place.route)
@@ -214,7 +218,7 @@ interface Surface {
 /**
  * What a route's body holds: the Build view, the Play layout for a session, the Completion screen over it, the Capture
  * screen with the Stored Rooms list (Local `#/`), the Hosted landing (Hosted `#/`, `rooms` null when `GET /rooms`
- * failed), the Capture screen once its Access code is accepted (Hosted `#/`, `sample` the first Demo room listed, if
+ * failed), the Capture screen once its Access code is accepted (Hosted `#/build-your-own`, `sample` the first Demo room listed, if
  * any, for the dropzone's sample-room button), the Capture screen during a Build
  * (`#/build/<job_id>`), the Session-gone state of a session the server refused, or nothing yet.
  */
@@ -238,11 +242,12 @@ type Content =
 
 /**
  * The Timer run each route owns: `#/build/<job_id>` the run of that Build, the Play and Completion screens the run of
- * the Session the Build opened (never a replayed stored Room's). null on the Build view and on `#/`, where the Capture
- * screen shows only the run its own Upload starts.
+ * the Session the Build opened (never a replayed stored Room's). null on the Build view, on `#/` and on
+ * `#/build-your-own`, where the Capture screen shows only the run its own Upload starts.
  */
 function timerOwner(route: Route): ((run: TimerRun) => boolean) | null {
   if (route.name === 'home') return null
+  if (route.name === 'buildYourOwn') return null
   if (route.name === 'view' || route.name === 'triggers') return null
   if (route.name === 'build') return (run) => run.jobId === route.jobId
   return (run) => run.sessionId === route.sessionId
@@ -319,7 +324,8 @@ function surface(content: Content, bar: TopBar): Surface {
   if (content.name === 'build') {
     element.classList.add('capture-layout')
     const { jobId, profile, mode, retention } = content
-    const build = buildScreen(jobId, profile, mode, retention, (gone) => showRoomGone(element, gone, mode, profile))
+    const page = { body: element, topBar: bar.element }
+    const build = buildScreen(jobId, profile, mode, retention, page, (gone) => showRoomGone(element, gone, mode, profile))
     element.append(build.left, build.right)
     return { element, mount: build.mount }
   }
@@ -335,7 +341,14 @@ function surface(content: Content, bar: TopBar): Surface {
   sideColumn.className = 'side-column'
   element.append(sceneColumn, sideColumn)
   if (content.name === 'play') {
-    const frame = { body: element, topBar: bar.element, controls: bar.controls, guide: content.guide, mode: content.mode }
+    const frame = {
+      body: element,
+      topBar: bar.element,
+      wordmark: bar.wordmark,
+      controls: bar.controls,
+      guide: content.guide,
+      mode: content.mode,
+    }
     return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame) }
   }
   element.classList.add('completion-layout')

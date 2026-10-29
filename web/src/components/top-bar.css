@@ -17,9 +17,14 @@
   gap: var(--spacing-4);
   min-width: 0;
 }
+/* The wordmark links to the start: the bar's own text, underlined only on hover; the shared focus ring. */
 .top-bar-wordmark {
   flex: none;
   color: var(--text);
+  text-decoration: none;
+}
+.top-bar-wordmark:hover {
+  text-decoration: underline;
 }
 /* {components.mode-indicator}: body-sm in text-muted. */
 .mode-indicator {

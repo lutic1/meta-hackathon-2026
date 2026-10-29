@@ -4,7 +4,7 @@ import { postBuild, RequestFailed, type UploadPhoto } from './api/index.ts'
 import { holdPhotos, takeCarriedPhotos } from './build-photos.ts'
 import { buildAccepted, mountTimer, startTimer, stopTimer } from './capture-timer.ts'
 import { accessRefused, buildQuota, buildsLeftLine, tooManyTries } from './components/access-code-build.ts'
-import { primaryButton } from './components/button.ts'
+import { primaryButton, secondaryButton } from './components/button.ts'
 import { captureDropzone } from './components/capture-dropzone.ts'
 import { type BannerState, bannerSlot, showBanner } from './components/error-banner.ts'
 import { photoTray } from './components/photo-tray.ts'
@@ -12,7 +12,7 @@ import { openProfileControl } from './components/profile-file.ts'
 import { retentionSummary } from './components/retention-summary.ts'
 import { downscale, isJpeg, isValidSet, MAX_ORIGINAL_BYTES } from './photos.ts'
 import { CUT_2, openProfileFile, FileNotSaved, saveProfileFile } from './profile/index.ts'
-import { captureHref } from './router.ts'
+import { captureHref, placeHref } from './router.ts'
 import { roomStarter, storedRooms } from './stored-rooms.ts'
 import { strings } from './strings.ts'
 
@@ -48,6 +48,18 @@ function line(text: string): HTMLParagraphElement {
   element.className = 'capture-line body-md'
   element.textContent = text
   return element
+}
+
+/** Goes to the start, `#/`: the Hosted landing, or Local mode's Capture screen. */
+export function goHome(profile: string): void {
+  location.hash = placeHref({ route: { name: 'home' }, profile })
+}
+
+/** A secondary button at the top of the left column, sized to its label, that leaves the screen. */
+export function backButton(label: string, onActivate: () => void): HTMLButtonElement {
+  const back = secondaryButton({ label, onActivate })
+  back.classList.add('capture-back')
+  return back
 }
 
 function release(photos: readonly ChosenPhoto[]): void {
@@ -96,10 +108,11 @@ export function captureColumn(retention: string, profile: string, mode: Meta['mo
 }
 
 /**
- * The Capture screen before a Build (Local `#/`, UX-DR62; Hosted `#/` once an Access code is accepted). Right: the
- * Input requirement standing alone, the iPhone tip, the faces, documents and belongings reminder, then the Retention
- * summary as `GET /meta` serves it for the mode, all there before any photo is chosen. Left: the banner slot, the
- * dropzone, the Photo tray, Upload and, under it, `below`: the Stored Rooms list in Local mode, or in Hosted mode,
+ * The Capture screen before a Build (Local `#/`, UX-DR62; Hosted `#/build-your-own` once an Access code is
+ * accepted). Right: the Input requirement standing alone, the iPhone tip, the faces, documents and belongings
+ * reminder, then the Retention summary as `GET /meta` serves it for the mode, all there before any photo is chosen.
+ * Left: in Hosted mode "Back to the three cards" on top (to the landing, disabled while an upload is pending), the
+ * banner slot, the dropzone, the Photo tray, Upload and, under it, `below`: the Stored Rooms list in Local mode, or in Hosted mode,
  * which has no Stored Rooms list, the accepted check's status line "{n} of 20 builds left". In Hosted mode `sample`
  * is the first Demo room listed, and the dropzone offers "No photos handy? Play the sample room" under "Choose
  * photos", which starts a Session on it by the landing's own path (`roomStarter`, its refusal banner in the slot);
@@ -159,9 +172,11 @@ export function captureScreen(
     actions,
     typeof below === 'number' ? buildsLeftLine(below) : storedRooms(below, profile, mode, banners),
   )
+  // Hosted: "Back to the three cards" returns to the landing; the tab keeps its Access code. Local `#/` is the start.
+  const back = typeof below === 'number' ? backButton(strings.backToCards, () => goHome(profile)) : null
   const left = document.createElement('section')
   left.className = 'capture-left'
-  left.append(banners, controls)
+  left.append(...(back === null ? [] : [back]), banners, controls)
   const right = captureColumn(retention, profile, mode, banners)
   const carried = takeCarriedPhotos()
 
@@ -185,6 +200,7 @@ export function captureScreen(
     const shown = photos.map(({ url, jpeg }) => ({ url, rejected: !jpeg }))
     tray.replaceChildren(...(photos.length === 0 ? [] : [photoTray(shown, remove, uploading)]))
     dropzone.button.disabled = uploading
+    if (back !== null) back.disabled = uploading
     if (dropzone.sample !== null) dropzone.sample.disabled = uploading
     upload.disabled = !isValidSet(photos)
   }

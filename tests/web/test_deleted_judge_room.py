@@ -126,7 +126,7 @@ def test_both_build_routes_show_the_card_when_the_room_is_gone():
     assert "return gone === null ? { name: 'failed' } : { name: 'gone', gone }" in view
     assert "if (state.name === 'gone') {" in shell and "showRoomGone(element, state.gone, meta.mode, profile)" in shell
     # #/build/<job_id>: a refused poll or session start that names a gone Room.
-    assert "buildScreen(jobId, profile, mode, retention, (gone) => showRoomGone(element, gone, mode, profile))" in shell
+    assert "buildScreen(jobId, profile, mode, retention, page, (gone) => showRoomGone(element, gone, mode, profile))" in shell
     poll = progress.split("async function poll(): Promise<void> {", 1)[1].split("\n      }\n", 1)[0]
     assert "const gone = roomGone(error)\n            if (gone !== null) onGone(gone)" in poll
     start = progress.split("async function start(roomId: string): Promise<void> {", 1)[1].split("\n      }\n", 1)[0]

@@ -6,12 +6,27 @@ import { strings } from '../strings.ts'
 export interface LeaveRoomConfirmation {
   /** The scrim, holding the card; it covers whatever positioned box it is appended to. */
   element: HTMLElement
-  /** "Keep playing", the primary button, focused when the card opens. */
-  keepPlaying: HTMLButtonElement
-  /** "Leave room", the secondary button that confirms. */
+  /** The primary button that stays ("Keep playing"), focused when the card opens. */
+  stay: HTMLButtonElement
+  /** The secondary button that confirms ("Leave room"). */
   leave: HTMLButtonElement
   /** Fades the card in over 300 ms (instant under reduced motion); call once the element is in the page. */
   show: () => void
+}
+
+/** The card's words: its question, its one sentence, the button that stays and the one that leaves. */
+export interface ConfirmationCopy {
+  question: string
+  sentence: string
+  stay: string
+  leave: string
+}
+
+const LEAVE_ROOM: ConfirmationCopy = {
+  question: strings.leaveRoomQuestion,
+  sentence: strings.leaveRoomBody,
+  stay: strings.keepPlaying,
+  leave: strings.leaveRoom,
 }
 
 const HEADING_ID = 'leave-room-heading'
@@ -28,9 +43,10 @@ function button(className: string, label: string): HTMLButtonElement {
 /**
  * `{components.leave-room-confirmation}` (UX-DR46): the scrim and, centered on it, the plain 480 px `chrome-raised`
  * card, never parchment: the question as its `display-sm` heading, the one `body-md` sentence, then "Keep playing"
- * (primary) and "Leave room" (secondary), left-aligned.
+ * (primary) and "Leave room" (secondary), left-aligned. The Build progress screen's "Back to the start" asks with the
+ * same card in its own words (`copy`).
  */
-export function leaveRoomConfirmation(): LeaveRoomConfirmation {
+export function leaveRoomConfirmation(copy: ConfirmationCopy = LEAVE_ROOM): LeaveRoomConfirmation {
   const element = document.createElement('div')
   element.className = 'leave-room-scrim'
   const card = document.createElement('section')
@@ -42,17 +58,17 @@ export function leaveRoomConfirmation(): LeaveRoomConfirmation {
   const heading = document.createElement('h2')
   heading.id = HEADING_ID
   heading.className = 'leave-room-heading display-sm'
-  heading.textContent = strings.leaveRoomQuestion
+  heading.textContent = copy.question
   const sentence = document.createElement('p')
   sentence.id = SENTENCE_ID
   sentence.className = 'leave-room-sentence body-md'
-  sentence.textContent = strings.leaveRoomBody
-  const keepPlaying = button('button-primary', strings.keepPlaying)
-  const leave = button('button-secondary', strings.leaveRoom)
+  sentence.textContent = copy.sentence
+  const stay = button('button-primary', copy.stay)
+  const leave = button('button-secondary', copy.leave)
   const actions = document.createElement('div')
   actions.className = 'leave-room-actions'
-  actions.append(keepPlaying, leave)
+  actions.append(stay, leave)
   card.append(heading, sentence, actions)
   element.append(card)
-  return { element, keepPlaying, leave, show: () => fadeIn(card) }
+  return { element, stay, leave, show: () => fadeIn(card) }
 }

@@ -1,5 +1,6 @@
 import './top-bar.css'
 import type { Meta } from '../../types'
+import { placeHref } from '../router.ts'
 import { fill, strings } from '../strings.ts'
 
 /**
@@ -15,6 +16,8 @@ export function modeIndicatorText(meta: Meta, played: number): string {
 
 export interface TopBar {
   element: HTMLElement
+  /** The wordmark, a link to the start (`#/`) on every screen; the Play screen asks the Leave room confirmation first. */
+  wordmark: HTMLAnchorElement
   /** The centered slot the Timer and its label sit in. */
   timer: HTMLElement
   /** The right end, where the Play screen puts its controls. */
@@ -24,16 +27,18 @@ export interface TopBar {
 }
 
 /**
- * The 48 px `chrome` top bar: the wordmark and the mode indicator, the centered Timer slot, the controls slot.
- * `played` is the current profile's count of Room results.
+ * The 48 px `chrome` top bar: the wordmark, a link to the start named "Keyframe, back to the start", and the mode
+ * indicator, the centered Timer slot, the controls slot. `played` is the current profile's count of Room results.
  */
 export function topBar(meta: Meta, played: number): TopBar {
   const element = document.createElement('header')
   element.className = 'top-bar'
   const start = document.createElement('div')
   start.className = 'top-bar-start'
-  const wordmark = document.createElement('span')
+  const wordmark = document.createElement('a')
   wordmark.className = 'top-bar-wordmark display-sm'
+  wordmark.href = placeHref({ route: { name: 'home' }, profile: meta.profile })
+  wordmark.setAttribute('aria-label', strings.wordmarkLink)
   wordmark.textContent = strings.wordmark
   // Plain text, never focusable and never styled as a Disclosure.
   const mode = document.createElement('span')
@@ -48,5 +53,5 @@ export function topBar(meta: Meta, played: number): TopBar {
   const showPlayed = (count: number): void => {
     mode.textContent = modeIndicatorText(meta, count)
   }
-  return { element, timer, controls, showPlayed }
+  return { element, wordmark, timer, controls, showPlayed }
 }

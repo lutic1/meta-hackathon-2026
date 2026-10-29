@@ -15,8 +15,6 @@ export interface HeldPhotos {
 let held: HeldPhotos | null = null
 /** The files "Add photos" hands to the next Capture screen, the set already uploaded first. */
 let carried: File[] = []
-/** Whether the next Hosted `#/` render is the Capture screen rather than the Hosted landing. */
-let toCapture = false
 
 /** Takes over the object URLs of `photos`, releasing any set held for an earlier Build. */
 export function holdPhotos(photos: HeldPhotos): void {
@@ -50,19 +48,4 @@ export function takeCarriedPhotos(): File[] {
   const files = carried
   carried = []
   return files
-}
-
-/**
- * Asks the next `#/` render for the Capture screen: an accepted Access code, or an end state's "Add photos" or "Start
- * over". Local `#/` is the Capture screen anyway; Hosted `#/` is otherwise the Hosted landing.
- */
-export function requestCapture(): void {
-  toCapture = true
-}
-
-/** Whether the Capture screen was asked for, once. */
-export function takeCaptureRequest(): boolean {
-  const requested = toCapture
-  toCapture = false
-  return requested
 }

@@ -147,20 +147,16 @@ def test_quota_from_the_check_leaves_the_demo_rooms_playable():
 # --- Accepted: the Capture screen, the code in memory only --------------------------------
 
 
-def test_an_accepted_code_opens_the_capture_screen_once_with_no_stored_rooms_list():
+def test_an_accepted_code_opens_the_capture_screen_with_no_stored_rooms_list():
     shell = _code("shell.ts")
     render = shell.split("async function render()", 1)[1].split("\n  }\n", 1)[0]
-    # Once: the request is taken by the next `#/` render, so a later visit to `#/` is the landing again.
-    assert "const resumed = place.route.name === 'home' && takeCaptureRequest() ? await judgeBuildsLeft() : null" in render
-    capture = render.split("} else if (place.route.name === 'home' && resumed !== null) {", 1)[1].split("} else if", 1)[0]
-    assert "content = { name: 'capture', buildsLeft: resumed, sample: rooms?.[0], profile, mode: meta.mode, retention: meta.retention }" in capture
-    assert render.index("meta.mode === 'local') {") < render.index("&& resumed !== null) {")  # Local `#/` stays the list
-    on_accepted = render.split("const onAccepted = (): void => {", 1)[1].split("}", 1)[0]
-    assert "requestCapture()" in on_accepted and "void render()" in on_accepted
-    held = _code("build-photos.ts")
-    assert "export function requestCapture(): void {\n  toCapture = true\n}" in held
-    take = _function(held, "takeCaptureRequest")
-    assert "const requested = toCapture" in take and "toCapture = false" in take and "return requested" in take
+    # Its own route, `#/build-your-own`, so `#/` is always the landing and the browser's Back returns to it.
+    assert "const buildsLeft = place.route.name === 'buildYourOwn' ? await judgeBuildsLeft() : null" in render
+    capture = render.split("} else if (buildsLeft !== null) {", 1)[1].split("} else if", 1)[0]
+    assert "content = { name: 'capture', buildsLeft, sample: rooms?.[0], profile, mode: meta.mode, retention: meta.retention }" in capture
+    assert render.index("meta.mode === 'local') {") < render.index("} else if (buildsLeft !== null) {")  # Local `#/` stays the list
+    on_accepted = render.split("const onAccepted = (): void => {", 1)[1].split("\n      }\n", 1)[0]
+    assert "location.hash = placeHref({ route: { name: 'buildYourOwn' }, profile: place.profile })" in on_accepted
     assert "const capture = captureScreen(content.buildsLeft, content.profile, content.mode, content.retention, bar.timer, content.sample)" in shell
     screen = _code("capture.ts")
     assert "typeof below === 'number' ? buildsLeftLine(below) : storedRooms(below, profile, mode, banners)," in screen
@@ -234,7 +230,7 @@ def test_the_two_hosted_lines_sit_under_the_stage_list_in_hosted_mode_only():
     lines = _function(build, "hostedLines")
     assert "for (const text of [strings.ownLink, strings.targetMeasured]) {" in lines
     assert "line.className = 'build-hosted-line body-sm'" in lines
-    assert "left.append(banners, actions, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), maskSlot, traySlot, picker)" in build
+    assert "left.append(back, banners, actions, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), maskSlot, traySlot, picker)" in build
     assert css_rules((WEB_SRC / "shell.css").read_text())[".build-hosted-line"]["color"] == "var(--text)"
 
 
@@ -303,7 +299,7 @@ def test_try_again_maps_the_hosted_refusals_of_post_builds_like_upload():
     capture = _code("capture.ts")
     assert "export const HOSTED_REFUSALS: ReadonlyMap<string, BannerState> = new Map([" in capture
     build = _code("build-progress.ts")
-    assert "import { captureColumn, HOSTED_REFUSALS } from './capture.ts'" in build
+    assert "import { backButton, captureColumn, goHome, HOSTED_REFUSALS } from './capture.ts'" in build
     caught = _function(build, "retry").split("} catch (error) {", 1)[1]
     assert "const hosted = error instanceof RequestFailed && error.code !== null ? HOSTED_REFUSALS.get(error.code) : undefined" in caught
     # A refusal shows its own banner, whose actions are none, so "Try again" does not spend another access attempt.
@@ -313,8 +309,8 @@ def test_try_again_maps_the_hosted_refusals_of_post_builds_like_upload():
 
 def test_hosted_add_photos_and_start_over_reopen_the_capture_screen_while_the_tab_holds_the_code():
     start_over = _function(_code("build-progress.ts"), "startOver")
-    assert start_over.index("requestCapture()") < start_over.index(
-        "location.hash = placeHref({ route: { name: 'home' }, profile })")
+    assert "const capture: Route = mode === 'hosted' ? { name: 'buildYourOwn' } : { name: 'home' }" in start_over
+    assert "location.hash = placeHref({ route: capture, profile })" in start_over
     holder = _code("access-code.ts")
     hold = _function(holder, "holdAccessCode")
     assert "export function holdAccessCode(code: string, buildsLeft: number): void {" in holder

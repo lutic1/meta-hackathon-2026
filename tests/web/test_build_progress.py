@@ -72,11 +72,11 @@ def test_the_build_route_is_the_capture_layout_with_the_stage_list_in_place_of_t
     shell = _code("shell.ts")
     assert ("content = { name: 'build', jobId: place.route.jobId, profile: place.profile, mode: meta.mode, retention: meta.retention }"
             in shell)
-    assert "const build = buildScreen(jobId, profile, mode, retention, (gone) => showRoomGone(element, gone, mode, profile))" in shell
+    assert "const build = buildScreen(jobId, profile, mode, retention, page, (gone) => showRoomGone(element, gone, mode, profile))" in shell
     assert "element.append(build.left, build.right)" in shell and "mount: build.mount" in shell
     screen = _code("build-progress.ts")
-    assert "left.append(banners, actions, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), maskSlot, traySlot, picker)" in screen
-    assert "right: captureColumn(retention, profile, mode, banners)" in screen
+    assert "left.append(back, banners, actions, stages.element, ...(mode === 'hosted' ? [hostedLines()] : []), maskSlot, traySlot, picker)" in screen
+    assert "const right = captureColumn(retention, profile, mode, banners)" in screen
     assert "captureDropzone" not in screen and "storedRooms" not in screen
     capture = _code("capture.ts")
     assert ("export function captureColumn(retention: string, profile: string, mode: Meta['mode'], banners: HTMLElement): "

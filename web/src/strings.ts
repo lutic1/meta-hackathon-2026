@@ -20,6 +20,7 @@
 
 export const strings = {
   wordmark: 'Keyframe',
+  wordmarkLink: 'Keyframe, back to the start',
   serverUnreachable: "Keyframe can't reach its server. Retrying.",
   profileNameRefused: "Keyframe can't use the profile name “{name}”.",
   profileNameRefusedBody: 'Profile names are plain file names, like dev or playtest.',
@@ -227,6 +228,11 @@ export const strings = {
   recaptureBody: 'Try brighter, closer shots where labels and printed text are readable.',
   addPhotos: 'Add photos',
   startOver: 'Start over',
+  backToStart: 'Back to the start',
+  leavePageQuestion: 'Your room keeps building. Leave this page?',
+  leavePageBody: "This page's address brings you back.",
+  leave: 'Leave',
+  stay: 'Stay',
   showAllObjects: 'Show all objects',
   showAllTip: "Tip: 'Show all objects' in the top bar outlines everything you can click.",
   lockNotThis: 'Puzzle {n}: not this, {count}.',

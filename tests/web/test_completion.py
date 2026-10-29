@@ -186,7 +186,7 @@ def test_the_stats_are_three_across_in_mono_timer_under_the_parchment_rule_with_
 
 def test_the_top_bar_stays_in_place_but_inert_and_the_timer_frozen():
     shell = _code("shell.ts")
-    assert "const done = content.name === 'done'" in shell and "bar.element.inert = done" in shell
+    assert "const done = content.name === 'done'" in shell and "bar.controls.inert = done" in shell
     assert "mountTimer(bar.timer, owns, done)" in shell
     timer = _code("capture-timer.ts")
     assert "if (shown?.stoppedAt === null && !frozen) ticking ??= setInterval(render, TICK_MS)" in timer
