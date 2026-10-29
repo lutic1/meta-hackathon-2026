@@ -1,12 +1,14 @@
 import './landing.css'
 import type { Meta, PlayView, RoomSummary } from '../types'
 import { getBuildView, getRoom } from './api/index.ts'
+import { CLIP } from './clip.ts'
 import { ACCESS_CODE_FIELD, accessCodeBuild } from './components/access-code-build.ts'
 import { type AttractFrame, attractFrame } from './components/attract-frame.ts'
 import { primaryButton, secondaryButton, secondaryLink } from './components/button.ts'
 import { type DemoRoomCard, demoRoomCard } from './components/demo-room-card.ts'
 import { bannerSlot } from './components/error-banner.ts'
 import { evidenceCard } from './components/evidence-card.ts'
+import { sampleClip } from './components/sample-clip.ts'
 import { roomTitle } from './components/stored-room-row.ts'
 import { buildViewHref, CUT_0 } from './router.ts'
 import { roomStarter } from './stored-rooms.ts'
@@ -212,8 +214,9 @@ function howToPlay(): HTMLElement {
 /**
  * The Hosted landing (UX-DR57, UX-DR68), a title screen: the left area holds the banner slot, the hero with the one
  * primary verb, the stage (the first Demo room's attract frame, once its `PlayView` and first photo have answered,
- * with its clue and "How to play" beside it), the cast, then a row with the Riddler's sample page from the same
- * `PlayView` and "How a room is built", with any further cards three across under it in served order; the right
+ * with its clue and "How to play" beside it, and the ten-second clip under "How to play" while that room is the one
+ * `CLIP` shows), the cast, then a row with the Riddler's sample page from the same `PlayView` and "How a room is
+ * built", with any further cards three across under it in served order; the right
  * column holds the Access-code build, whose accepted code calls `onAccepted` with the builds left, over the first
  * Demo room's card. `rooms` is null when `GET /rooms` failed: the plain failed line with "Try again" (`onRetry`)
  * stands in the row's place. An empty list keeps the hero and the cast, notes that the sample room opens soon and
@@ -270,6 +273,7 @@ export function hostedLanding(
 
   const cards: DemoRoomCard[] = [demoRoomCard(first, profile, () => void start(first))]
   stage.append(attract, howToPlay())
+  if (first.room_id === CLIP.roomId) stage.append(sampleClip())
   const sample = document.createElement('ul')
   sample.className = 'demo-room-list'
   sample.append(cards[0].element)

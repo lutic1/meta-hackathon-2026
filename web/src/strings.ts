@@ -278,6 +278,8 @@ export const strings = {
   attractFrame: 'Play {name}',
   lockOfM: 'Lock {n} of {m}',
   howToPlay: 'How to play',
+  clipCaption: 'Ten seconds in this room.',
+  clipLabel: 'A ten-second play-through of this room: a wrong click, a pickup, a lock opening, the way out.',
   howArchitect: 'reads your photos with muse-spark-1.3 and outlines every object with sam-3.1.',
   howRiddler: 'writes {locks} from what was found; a test run that never sees the answers checks each one opens.',
   howRiddlerUncounted: 'writes the locks from what was found; a test run that never sees the answers checks each one opens.',

@@ -106,6 +106,36 @@
   grid-column: 2;
   grid-row: 2;
 }
+/* The ten-second clip under "How to play", while the first Demo room is the room it shows: the stage takes a third
+   row for it and the frame spans all three; the box keeps the clip's 960 x 454 aspect at the column's width, so
+   nothing shifts while it loads, under the gilt rule, with its caption in label type. */
+.landing-stage:has(> .landing-clip) {
+  grid-template-rows: auto auto 1fr;
+}
+.landing-stage:has(> .landing-clip) .attract-frame {
+  grid-row: 1 / span 3;
+}
+.landing-clip {
+  grid-column: 2;
+  grid-row: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin: 0;
+}
+.landing-clip-video {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 960 / 454;
+  border: 1px solid var(--gilt);
+  border-radius: var(--rounded-sm);
+  background: var(--canvas);
+  box-shadow: var(--elevation-vignette);
+}
+.landing-clip-caption {
+  color: var(--text-muted);
+}
 /* The cast: two across, four from 1440 px; each wizard the 96 px portrait beside its name and role. Hover lifts the
    row to chrome with the lamp glow and turns the ring lamp; keyboard focus does the same under the focus ring. */
 .landing-cast {
