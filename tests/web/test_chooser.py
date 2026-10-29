@@ -37,9 +37,9 @@ def _rules() -> dict[str, dict[str, str]]:
 def test_the_chooser_strings_are_the_experience_lines():
     strings = _strings()
     assert strings["chooserSubline"] == "Pick a card. Any card." and strings["chooserGroup"] == "Three ways in"
-    assert (strings["watchCardEyebrow"], strings["watchCardTitle"], strings["watchCardTag"]) == ("Ten seconds", "Watch the demo", "0:10")
+    assert (strings["watchCardEyebrow"], strings["watchCardTitle"], strings["watchCardTag"]) == ("One play-through", "Watch the demo", "0:37")
     assert strings["watchCardLine"] == "See a room played: a wrong click, a pickup, a lock opening, the way out."
-    assert (strings["watchCardPrompt"], strings["watchBackTag"]) == ("Watch it bigger", "muted · 0:10")
+    assert (strings["watchCardPrompt"], strings["watchBackTag"]) == ("Watch it bigger", "muted · 0:37")
     assert (strings["playCardEyebrow"], strings["playCardPrompt"]) == ("The sample room", "Step inside")
     assert (strings["buildCardEyebrow"], strings["buildCardTitle"], strings["buildCardTag"]) == ("Your photos", "Build your own", "~3 min")
     assert strings["buildCardLine"] == (

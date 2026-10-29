@@ -1,7 +1,8 @@
-"""Story 7.16, owner decisions Oct 28 and Oct 29: the ten-second clip of the sample room on the Hosted landing. Since
+"""Story 7.16, owner decisions Oct 28 and Oct 29: the clip of the sample room on the Hosted landing. Since
 the chooser (Oct 29) it plays twice: on the Watch card's front as its own derived loop (the Scene photo only, muted,
 under a pause toggle) and on the Watch back larger, with native controls, as the demo video until the full one is set.
-Autoplaying muted and looping unless reduced motion or Pause motion is set.
+Autoplaying muted and looping unless reduced motion or Pause motion is set. Owner report Oct 29 ("watch the demo is way
+to fast"): it plays at real speed, with time to read each line, and its tags name its real length.
 
 As in test_hosted_landing.py, the client checks read the TypeScript and the stylesheet (the client has no test
 runner); the last check serves the committed files from the hosted app with their media types.
@@ -40,6 +41,15 @@ def _dimensions(mp4: Path) -> tuple[int, int]:
     return width, height
 
 
+def _seconds(mp4: Path) -> float:
+    """The length in an MP4's movie header (`mvhd`, version 0: timescale and duration after the two times)."""
+    data = mp4.read_bytes()
+    at = data.index(b"mvhd") + 4
+    assert data[at] == 0
+    timescale, duration = int.from_bytes(data[at + 12 : at + 16]), int.from_bytes(data[at + 16 : at + 20])
+    return duration / timescale
+
+
 def test_the_clip_files_are_committed_under_web_public_clip():
     for stem in ("play", "card"):
         poster = "poster.jpg" if stem == "play" else "card-poster.jpg"
@@ -47,7 +57,8 @@ def test_the_clip_files_are_committed_under_web_public_clip():
         assert webm.read_bytes()[:4] == b"\x1a\x45\xdf\xa3"  # EBML: a WebM file
         assert mp4.read_bytes()[4:8] == b"ftyp"
         assert still.read_bytes()[:3] == b"\xff\xd8\xff"
-    assert all((CLIP / name).stat().st_size < 600_000 for name in FILES)
+    # Raised from 600 KB (the ten-second cut) to fit the real-speed one (Oct 29): its largest file is play.webm, 691 KB.
+    assert all((CLIP / name).stat().st_size < 700_000 for name in FILES)
     # Both are cut from one 2x recording (2560 x 1440 of a 1280 x 720 page), so neither is ever scaled up (Oct 29).
     assert _dimensions(CLIP / "play.mp4") == (1280, 604) and _dimensions(CLIP / "card.mp4") == (630, 840)
 
@@ -60,19 +71,31 @@ def test_one_module_names_the_clip_the_card_loop_and_the_demo_video():
     # The card's loop is derived from the clip; the lines that make it stay beside it, in its doc comment.
     assert "webm: '/clip/card.webm'" in clip and "mp4: '/clip/card.mp4'" in clip and "poster: '/clip/card-poster.jpg'" in clip
     doc = (WEB_SRC / "clip.ts").read_text()
-    assert "crop=2560:1208:0:96" in doc and "crop=630:840:581:171" in doc
-    assert "between(n\\,88\\,97)+between(n\\,264\\,272)+between(n\\,400\\,409)" in doc
+    assert "crop=2560:1208:0:96" in doc and "crop=630:840:581:170" in doc
+    assert "between(n\\,300\\,304)+between(n\\,701\\,705)+between(n\\,896\\,904)" in doc
     # The full demo video is unset for now, so the Watch back falls back to the clip; its aspect sizes the panel.
     assert "const FULL_DEMO_VIDEO: VideoSources | null = null" in clip
     assert "export const DEMO_VIDEO: VideoSources = FULL_DEMO_VIDEO ?? CLIP" in clip
     assert "export const DEMO_VIDEO_ASPECT: number = FULL_DEMO_VIDEO_ASPECT ?? 1280 / 604" in clip
 
 
+def test_the_clip_plays_at_real_speed_and_its_tags_name_its_length():
+    """Owner report Oct 29: "watch the demo is way to fast". Neither video is sped up, so the play runs well past ten
+    seconds, and the Watch card's tag and the Watch back's tag read the clip's own length."""
+    clip, card = _seconds(CLIP / "play.mp4"), _seconds(CLIP / "card.mp4")
+    assert 30 <= clip <= 50 and 25 <= card < clip
+    doc = (WEB_SRC / "clip.ts").read_text()
+    assert "setpts=(PTS-STARTPTS)*" not in doc and "setpts=N/30/TB" in doc  # no speed-up factor on either cut
+    strings = _strings()
+    length = f"{int(round(clip)) // 60}:{int(round(clip)) % 60:02d}"
+    assert strings["watchCardTag"] == length and strings["watchBackTag"] == f"muted · {length}"
+    assert not any(re.search(r"\bten\b", strings[key], re.IGNORECASE) for key in ("clipCaption", "clipLabel", "watchCardEyebrow"))
+
+
 def test_the_clip_strings_are_the_experience_lines():
     strings = _strings()
-    assert strings["clipCaption"] == "Ten seconds in this room."
-    assert strings["clipLabel"] == (
-        "A ten-second play-through of this room: a wrong click, a pickup, a lock opening, the way out.")
+    assert strings["clipCaption"] == "A play-through of this room."
+    assert strings["clipLabel"] == "A play-through of this room: a wrong click, a pickup, a lock opening, the way out."
     voice = _section("Voice and Tone")
     assert strings["clipCaption"] in voice and strings["clipLabel"] in voice
     assert "clipPause" not in strings  # the card's toggle is an icon, named by its accessible name alone
