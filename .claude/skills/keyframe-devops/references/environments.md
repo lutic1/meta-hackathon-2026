@@ -36,9 +36,9 @@ Four environments, one lock. The code files are authoritative; this page and the
 
 - **Machine:** Linux x86_64, `debian_slim` (renders as `python:3.13.3-slim-bookworm` under builder 2025.06; bookworm ships glibc 2.36), CPU only.
 - **Python:** 3.13 from `debian_slim(python_version="3.13")`; packages from `uv_sync(uv_version="0.11.32", extra_options="--no-dev")`, which reads `uv.lock` with `--frozen`. So `uv lock --check` must pass before every deploy. Bookworm's glibc 2.36 is below the containers' 2.39, so `check.sh` compiles the lock for `manylinux_2_28`.
-- **Node:** none at runtime; `web/dist` is built on the Mac and mounted with `add_local_dir`.
+- **Node:** none at runtime; `web/dist` is built before the deploy (on the Mac, or by `check.sh --predeploy` in `deploy.yml`) and added with `add_local_dir`.
 - **Ollama:** none (`GUIDE=verbatim`; Settings refuses `MODE=hosted` with `GUIDE=ollama`).
 - **Provider:** `meta` for the Trickster and builds; rungs verbatim.
-- **Secrets:** Modal Secret `keyframe`, with `required_keys` `MODEL_API_KEY`, `FAL_KEY`, `ACCESS_CODE` (plus `OPENAI_COMPATIBLE_API_KEY` if the hosted fallback is used). `MODE=hosted` and `GUIDE=verbatim` are set on the image with `.env()`. `MIN_CONTAINERS` comes from the deploy shell.
+- **Secrets:** Modal Secret `keyframe`, with `required_keys` `MODEL_API_KEY`, `FAL_KEY`, `ACCESS_CODE` only; `SPEND_CAP_USD` (the hosted allocation, default 20, which the local `HOSTED_SPEND_CAP_USD` must equal) and `OPENAI_COMPATIBLE_API_KEY` (if the hosted fallback is used) are optional. `MODE=hosted` and `GUIDE=verbatim` are set on the image with `.env()`. `MIN_CONTAINERS` comes from the deploy shell, or from `deploy.yml`'s input or pushed branch (`deploy/main-warm` is 1). (amended 29 Oct 2026, correct-course record)
 - **Runs:** the FastAPI `asgi_app` (`max_containers=1`), `run_build`, the `ledger_export` and `session_sweep` Crons, smoke checks after deploy.
 - **Never runs:** Ollama, pytest (dev group excluded), `.env` (`add_local_python_source` ships only `.py` files), automatic deploys (a deploy runs only when `deploy.yml` is started from the Actions tab or a commit master carries is pushed to a `deploy/` branch).

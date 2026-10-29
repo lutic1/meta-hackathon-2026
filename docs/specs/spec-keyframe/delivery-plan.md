@@ -43,7 +43,7 @@ Effort estimates for Tier 1 sum to 37.5 h with the Build view (2.5 h, Oct 21 est
 
 | Cut | Ships instead | Recovers | Running total | Effect |
 |---|---|---|---|---|
-| 0 | No Build view; the main demo shows the puzzle JSON and the model table from the README | 2.5 h | 35 h | CAP-14 dropped |
+| 0 | No Build view; the main demo shows the puzzle JSON and the model table from the README | 2.5 h | 35 h | CAP-14 dropped; the switch is `CUT_0` in `web/src/router.ts`, fixed at build time (false today): set true, it drops every Build view link and `#/build/<job_id>/view` resolves as an unknown route (amended 29 Oct 2026, correct-course record) |
 | 1 | Trickster pre-authored edits plus a scripted reject | 2.0 h | 33 h | CAP-5 proposals come from the scripted source (no live Spark path); the validator still runs on every card (AD-15) |
 | 2 | Profile as a JSON file | 1.0 h | 32 h | None |
 | 3 | Rung text verbatim, no Ollama phrasing | 1.5 h | 30.5 h | CAP-4 met trivially; the README drops the phrasing claim; the privacy line stays |

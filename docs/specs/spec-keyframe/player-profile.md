@@ -19,7 +19,7 @@ Recomputed after each room: `time_to_first_hint` (median seconds), `mean_rung_pe
 
 ## Trickster bounds
 
-At most one change per 3-minute window, only between puzzles, from the fixed menu (`decoy`, `merge`, `loosen`, `shortcut` in `schema-v1.md`) and a game-state summary (open locks, time, rungs used), never the profile. At most 6 Spark calls per session. Every proposal is re-validated with the eight validator rules; a failing proposal is shown as the rejected card and the room is unchanged.
+At most one change per 3-minute window, only between puzzles, from the fixed menu (`decoy`, `merge`, `loosen`, `shortcut` in `schema-v1.md`) and a game-state summary (open locks, time, rungs used), never the profile. An edit names only puzzles still locked: the prompt lists only those (the Exit keeps its marking), and the bounds (`edit_bounds`) refuse an edit on an open puzzle, a merge with either side open, and a shortcut whose removed prerequisite is open; once every puzzle but the Exit is open, a window makes no proposal call and adds no card. (amended 29 Oct 2026, correct-course record) At most 6 Spark calls per session. Every proposal is re-validated with the eight validator rules; a failing proposal is shown as the rejected card and the room is unchanged.
 
 ## Demo timescale
 

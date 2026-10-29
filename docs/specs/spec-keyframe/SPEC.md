@@ -52,7 +52,7 @@ Escape rooms are scripted once for everyone and never about the player's own thi
   - **success:** A call that would pass `SPEND_CAP_USD` is refused and surfaced; with `CACHE=on` an identical image-hash plus prompt plus model call is served without billing; the counter survives restarts.
 - **CAP-10** Hosted judge URL (Tier 1.5)
   - **intent:** Judges open a URL, play cached demo rooms, and may build their own room behind an access code.
-  - **success:** A build outlasting the host's 150 s web timeout still completes and reaches the judge; at most 20 own-room builds; rung text is shown verbatim (no Guide model); judge-uploaded rooms are deleted Tue Nov 10.
+  - **success:** A build outlasting the host's 150 s web timeout still completes and reaches the judge; at most 20 own-room builds; rung text is shown verbatim (no Guide model); judge-uploaded rooms are deleted Tue Nov 10. A Demo room is never a Judge room: the builder's room promoted from a judge-URL build is moved out of the Judge partition, so the purge keeps it. (amended 29 Oct 2026, correct-course record)
 - **CAP-11** Navigable 3D room (Tier 2, gated, default no-go)
   - **intent:** The room is rebuilt as a walkable 3D scene with up to 20 reconstructed objects and raycast-triggered puzzles.
   - **success:** At the Mon Nov 2 gate: 7 of 10 interactables recognizable in position, 30 fps or better on the M1, puzzles trigger by raycast. Any miss ships Tier 1.

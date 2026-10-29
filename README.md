@@ -17,7 +17,9 @@ Transcribe lets you talk to them.
 
 **Input:** 6 to 10 JPEG photos of one room. On an iPhone, set
 Settings > Camera > Formats to Most Compatible before shooting;
-HEIC and PNG photos are rejected.
+HEIC and PNG photos are rejected. Each photo is at most 20 MiB (its
+1280 px downscale at most 2 MiB); a larger one is refused with 413
+`upload_too_large` before anything is stored. (amended 29 Oct 2026, correct-course record)
 
 Product brief (BMAD):
 [docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/brief.md](docs/planning-artifacts/briefs/brief-Keyframe-2026-10-20/brief.md),
@@ -44,6 +46,11 @@ beside it.
   with "Save profile file".
   In Hosted mode there is no `/profile/<name>` route, every Session start sends `Derived.fresh()`, and hosted rooms show the First-room welcome.
 
+Cut 0 (no Build view) is not taken. It is a build-time switch,
+`CUT_0` in `web/src/router.ts`, false in this build; set true, it drops
+every link to the Build view and `#/build/<job_id>/view` resolves as an
+unknown route, with no request to `/api/builds/<job_id>/view`. (amended 29 Oct 2026, correct-course record)
+
 ## This repo
 
 Model-access scaffold for the build. Model access lands at kickoff
@@ -68,8 +75,9 @@ scripts/doctor.py          Mac and cloud environment check, stdlib only
 .github/workflows/deploy.yml  from the Actions tab or a push of a master commit to deploy/main,
                            deploy/main-warm or deploy/dev: check.sh --predeploy, then modal
                            deploy with the Modal token from the Actions secrets
-.github/workflows/ops.yml  the runbook's ops actions, from the Actions tab or a push to
-                           ops/** of one .github/ops/request.json commit on top of master
+.github/workflows/ops.yml  the eight ops actions (Hosted mode and ops below), from the Actions
+                           tab or a push to ops/** of one .github/ops/request.json commit
+                           on top of master
 docs/MONDAY.md             the Mon Oct 26 kickoff checklist
 docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
 _bmad/                     BMAD Method v6 install (hackathon tooling)
@@ -106,7 +114,12 @@ rooms `uv run scripts/load_fixtures.py` stores. `MODEL_PROVIDER=mock` runs
 Builds on the deterministic mock (fixture work and the tests; its call
 rows name the `mock` host, never a live one); `MODEL_PROVIDER=meta` runs
 live Builds, and a Build whose provider setting is missing ends `failed`
-naming it. See
+naming it. Keys beyond the obvious: `MODEL_ARCHITECT`, `MODEL_RIDDLER`,
+`MODEL_DRYRUN`, `MODEL_TRICKSTER` and `MODEL_IMAGE` (per-role model ids,
+default `muse-spark-1.3`, and `muse-image-1.0` for images);
+`DEMO_PROPOSALS_DIR` (the folder of recorded and authored Trickster
+proposals that `DEMO_TRICKSTER=scripted`, `authored` and `record` use;
+unset, `proposals/` at the repo root); `HOSTED_SPEND_CAP_USD` (below). (amended 29 Oct 2026, correct-course record) See
 [docs/MONDAY.md](docs/MONDAY.md) for the kickoff checklist (no paid call on Oct 26; the first live
 calls run Tue Oct 27 behind the spend cap through `scripts/sit.py`).
 
@@ -128,6 +141,52 @@ secrets), which runs the same ladder, then `modal deploy` and a
 `GET /api/meta` smoke test. The push path exists by the owner's decision
 of Oct 29; `.github/workflows/ops.yml` takes the same two paths, a push
 to `ops/**` carrying its inputs in `.github/ops/request.json`.
+
+## Hosted mode and ops
+
+The judge URL runs `src/api/modal_app.py` on Modal: app `keyframe` with
+`web` (one container of 20 concurrent inputs, `MIN_CONTAINERS` from
+Settings), `run_build` (spawned per Build, timeout 900 s) and two Crons,
+`ledger_export` (06:00 America/New_York) and `session_sweep` (minute 17
+of every hour); Dicts `keyframe-jobs` (job state, `call:<job_id>`, the 20
+`build:<n>` quota slots), `keyframe-sessions` and `keyframe-ledger`;
+Volume `keyframe-data` at `/data` (`rooms/demo/`, `rooms/judge/`,
+`rooms/deleted/`, `cache/`, `spend/`). The Secret `keyframe` must hold
+`MODEL_API_KEY`, `FAL_KEY` and `ACCESS_CODE` (its `required_keys`, so a
+deploy without one fails); `SPEND_CAP_USD` (the hosted allocation,
+default 20) and `OPENAI_COMPATIBLE_API_KEY` are optional.
+`HOSTED_SPEND_CAP_USD` in the local `.env` (default 20) is the hosted
+allocation the local ledger export adds to the local one for the
+combined ceiling, and must equal `SPEND_CAP_USD` in the hosted Secret;
+the export records `local_cap_usd`, `hosted_cap_usd` and
+`hosted_cap_source` (`env` or `default`) beside `ceiling_usd`.
+
+`.github/workflows/ops.yml` runs one action in the Modal Environment
+chosen (`main` or `dev`, default `main`):
+
+- `ledger-export`: `scripts/ledger.py export`, uploaded as a workflow
+  artifact to download and commit; the workflow never commits.
+- `purge-dry-run`, and `purge` only when `confirm` is the word `purge`:
+  `scripts/purge_judge_rooms.py`. A listed id that is also a Demo room is
+  kept (`kept <room_id>: a Demo room`) and gets no deletion record.
+- `warm` and `cool`: the `keyframe/web` autoscaler's minimum set to 1 or
+  0, then its settings printed; `autoscaler-settings` only prints them.
+- `promote` (needs `room_id` and `room_name`): `scripts/promote_room.py`
+  moves a Judge room to `rooms/demo/<room_id>/` under that name. It
+  uploads the Demo copy, checks that it reads back, then removes the
+  Judge copy; it writes no deletion record and leaves the claimed quota
+  slot, Sessions and Cache entries alone. Run again once the Judge copy
+  is gone, it reports the room already promoted. A Demo room is never a
+  Judge room.
+- `quota-probe`: `scripts/quota_probe.py` races separate processes for
+  the 20 slot keys on an ephemeral Dict, never `keyframe-jobs`: 30
+  claimers must win exactly 20 slots, then 8 must win exactly the last.
+
+By push, the request is one commit on top of master that adds only
+`.github/ops/request.json`, a JSON object of strings with the keys
+`action`, `environment`, `room_id`, `room_name` and `confirm`
+(`environment` defaults to `main`, the rest to empty), on a new
+`ops/<action>-<n>` branch. The file never lands on master. (amended 29 Oct 2026, correct-course record)
 
 ## Key dates
 

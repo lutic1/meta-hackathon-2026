@@ -1,6 +1,6 @@
 # Hosted runbook: secrets, dev URL, deploy, warm window
 
-Every command here needs a Modal account and token, so all of them are live-only. Their flags were checked with `--help` on modal 1.6.2 on 2026-10-21. None was run against Modal. A person runs them by hand, or starts `.github/workflows/deploy.yml` or `.github/workflows/ops.yml` from the Actions tab or by a push to their dedicated branches (below). There is no CD: no merge, schedule, hook or push to master or a `keyframe/**` branch runs `modal deploy`.
+Every command here needs a Modal account and token, so all of them are live-only. Their flags were checked with `--help` on modal 1.6.2 on 2026-10-21. Run live since, all through the workflows: deploys to `main` (first on Wed Oct 28, run 3; runs 7 and 8 on Thu Oct 29), ops `promote` (GitHub run 40795627220), `quota-probe` (40821411610) and `purge-dry-run` (40829951452). (amended 29 Oct 2026, correct-course record) A person runs them by hand, or starts `.github/workflows/deploy.yml` or `.github/workflows/ops.yml` from the Actions tab or by a push to their dedicated branches (below). There is no CD: no merge, schedule, hook or push to master or a `keyframe/**` branch runs `modal deploy`.
 
 ## One-time setup
 
@@ -10,7 +10,7 @@ Every command here needs a Modal account and token, so all of them are live-only
    `modal secret create keyframe --from-dotenv ~/keyframe-hosted.env` (add `-e dev` for the dev copy, and `--force` to replace it).
    - Put only hosted keys in it: `MODEL_API_KEY`, `FAL_KEY`, `ACCESS_CODE`, and `OPENAI_COMPATIBLE_API_KEY` if the Riddler fallback runs hosted.
    - `MODEL_API_KEY`, `FAL_KEY` and `ACCESS_CODE` are the Secret's `required_keys` in `src/api/modal_app.py`, so `modal serve` and `modal deploy` fail by name when one is missing (an old key name counts as missing); the Meta adapter runs keyless (AD-14), so nothing later refuses a keyless Secret before the first Build fails.
-   - Add `SPEND_CAP_USD` with the hosted allocation (20 through Wed Nov 4, and whatever the reset sets after it). Under `MODE=hosted` an unset `SPEND_CAP_USD` already defaults to 20 (AD-6, AD-14).
+   - Add `SPEND_CAP_USD` with the hosted allocation (20 through Wed Nov 4, and whatever the reset sets after it). Under `MODE=hosted` an unset `SPEND_CAP_USD` already defaults to 20 (AD-6, AD-14). Set `HOSTED_SPEND_CAP_USD` in the local `.env` to the same value: the local ledger export adds it to the local allocation for the combined ceiling and records it as `hosted_cap_usd`, with `hosted_cap_source` `env`, or `default` (20) when unset. (amended 29 Oct 2026, correct-course record)
    - Never pass `KEY=value` pairs on the command line, where they land in shell history.
    - Never point `--from-dotenv` at the repo's `.env`. It holds local-only values (`GUIDE=ollama`, `OLLAMA_HOST`), and `Settings` refuses `MODE=hosted` with `GUIDE=ollama` (AD-14).
    - Key names may contain only letters, digits and underscores, and cannot start with a digit (https://modal.com/docs/guide/secrets.md).
@@ -47,7 +47,7 @@ By hand:
 - The same update, followed by the settings printout, runs from `.github/workflows/ops.yml` (Actions tab, ops, Run workflow, action `warm` on Thu Nov 5 and `cool` on Tue Nov 10; `autoscaler-settings` only prints them), with the token from the repository's Actions secrets.
 - Check the result with `modal function autoscaler settings keyframe/web`. It shows the active overrides, and who set them and when.
 - In Python the same call is `modal.Function.from_name("keyframe", "web").autoscaler.update(min_containers=1)`. `update_autoscaler()` is deprecated in 1.6.2.
-- Any `modal deploy` resets overrides to the decorator value, so keep `MIN_CONTAINERS=1` in the deploy shell for the whole window.
+- Any `modal deploy` resets overrides to the decorator value, so keep `MIN_CONTAINERS=1` in the deploy shell, or deploy through `deploy/main-warm`, for the whole window. (amended 29 Oct 2026, correct-course record)
 - Cost: `budgets.md` assumes about 1 core and 2 GiB for 120 hours, roughly $8 at list price. `web` sets no `cpu` or `memory`, so it requests Modal's default 0.125 core and 128 MiB and is billed on the higher of request and use (https://modal.com/docs/guide/resources.md). For an idle container, $8 is an upper bound. An idle warm container is still billed.
 
 ## Scheduled functions
@@ -61,13 +61,13 @@ By hand:
 ## Scripts on the Mac
 
 - `seed_rooms.py`, `purge_judge_rooms.py` and `ledger.py export` pass `environment_name=` to every `from_name`. Check `modal environment list` and `MODAL_ENVIRONMENT` before running them anyway. A profile set to `dev` must not decide which Volume is seeded or purged.
-- Run `purge_judge_rooms.py` against a dev judge room before Tue Nov 10.
+- Run `purge_judge_rooms.py` against a dev judge room before Tue Nov 10. It keeps any listed id that is also a Demo room, printing `kept <room_id>: a Demo room`, and writes no record for it. The `main` dry run of Thu Oct 29 (GitHub run 40829951452) listed the Demo room `room_01M61TZ74F0FP3X9HHTMXGTPB9`, from the Judge copy the earlier copying promotion left; re-run `promote` for it to remove that copy.
 - `ledger.py export`, `purge_judge_rooms.py --dry-run` and the real purge run the same way from `.github/workflows/ops.yml` (actions `ledger-export`, `purge-dry-run` and `purge`, the last only when the `confirm` input is the word `purge`), with `--env` set from the workflow's Environment input.
-- The Demo room is promoted from a Judge room built on the judge URL, not seeded from the Mac: the ops workflow's `promote` action runs `promote_room.py` with its `room_id` and `room_name` inputs (both required), copying the Room, photos, cards and job record to `rooms/demo/` and leaving the originals, `cache-keys.json` and the Judge copy in place. The Demo copy's photos name their downscaled key as `original_path` too, and every file the Room references is checked against the upload before anything is written, as `seed_rooms.py` does.
-- The quota's live atomicity check is the ops workflow's `quota-probe` action: `quota_probe.py --env <Environment>` races 30 processes for the 20 slot keys on a `modal.Dict.ephemeral()` in that Environment (never `keyframe-jobs`), then 8 processes for the last slot with 19 prefilled, prints the counts and exits 1 unless exactly 20 and exactly 1 won. Run it on `dev` before judge uploads are enabled and record the result.
+- The Demo room is promoted from a Judge room built on the judge URL, not seeded from the Mac: the ops workflow's `promote` action runs `promote_room.py` with its `room_id` and `room_name` inputs (both required), which moves the room. It uploads the Room, photos, cards and job record to `rooms/demo/` (skipped when an earlier promotion left exactly these files), checks that the copy reads back (the Room parses, every file it references is there), then removes the Judge copy whole, originals and `cache-keys.json` included. It writes no deletion record and opens no Dict, so the claimed quota slot, Sessions and Cache entries are untouched; run again once the Judge copy is gone, it reports `already promoted` and exits 0. A Demo room is never a Judge room. The Demo copy's photos name their downscaled key as `original_path` too, and every file the Room references is checked before anything is written, as `seed_rooms.py` does.
+- The quota's live atomicity check is the ops workflow's `quota-probe` action: `quota_probe.py --env <Environment>` races 30 processes for the 20 slot keys on a `modal.Dict.ephemeral()` in that Environment (never `keyframe-jobs`), then 8 processes for the last slot with 19 prefilled, prints the counts and exits 1 unless exactly 20 and exactly 1 won. The script defaults to `dev`; the ops action passes the workflow's Environment (default `main`). It ran in `main` on Thu Oct 29 and passed (GitHub run 40821411610: 20 of 30, 1 of 8): an ephemeral Dict claims no real slot, but the processes shared one runner. (amended 29 Oct 2026, correct-course record)
 
 ## Inspect
 
 - `modal app logs keyframe --since 2h` shows recent logs. `--function-call fc-...` filters to one build runner.
 - `modal dict items keyframe-jobs 20` shows in-flight jobs (plain JSON dicts, per hosted-code.md).
-- `modal volume ls keyframe-data rooms/demo` lists the seeded Demo rooms.
+- `modal volume ls keyframe-data rooms/demo` lists the seeded or promoted Demo rooms; `rooms/judge` should not hold any of their ids. (amended 29 Oct 2026, correct-course record)

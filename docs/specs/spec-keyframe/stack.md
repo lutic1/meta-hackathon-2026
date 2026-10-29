@@ -7,7 +7,7 @@ Companion to `SPEC.md`. Two modes, local and hosted; in both, Chrome on the M1 i
 | Component | Runs on | Model or service | Fallback |
 |---|---|---|---|
 | Front end | Browser | Vite, Three.js; Tier 1 photo scenes as textured planes with polygon hotspots | DOM-only scenes if Three.js costs more than 2 h |
-| Photo capture, downscale | Browser, then backend | JPEG input only (HEIC and PNG rejected; iPhone set to Most Compatible); Canvas downscale to 1280 px; originals kept for Tier 2 | None |
+| Photo capture, downscale | Browser, then backend | JPEG input only (HEIC and PNG rejected; iPhone set to Most Compatible); Canvas downscale to 1280 px; originals kept for Tier 2; at most 20 MiB an original and 2 MiB a downscale, else 413 `upload_too_large` (amended 29 Oct 2026, correct-course record) | None |
 | Architect (object list) | Meta Model API | `muse-spark-1.3`, Chat Completions, image input, JSON schema, reasoning low | Same call, boxes only, if SAM masks are unusable after 60 minutes |
 | Masks | Meta Model API | `sam-3.1` via `POST /v1/responses`, one noun phrase per call, decoded with `meta-sam-parser` | Spark boxes as hotspots |
 | Riddler | Meta Model API | `muse-spark-1.3`, Chat Completions, JSON schema, reasoning medium | Muse Spark Open on Baseten by `base_url` swap |
@@ -35,7 +35,7 @@ Companion to `SPEC.md`. Two modes, local and hosted; in both, Chrome on the M1 i
 
 ## Async build job
 
-`POST /builds` stores the photos, spawns the pipeline, and returns a job id; the client polls `GET /builds/{id}`, which reads job state and artifacts. Nothing lives in process memory. Local mode keeps job state in a JSON file under the cache directory; hosted mode keeps it in a `modal.Dict` with artifacts on the Volume. The API is identical in both modes because Modal web requests time out at 150 s and a build runs 110 s nominal, up to about 260 s with two regenerations.
+`POST /builds` validates and stores the photos inside the request as the ingest stage (6 to 10 pairs; a body past 10 times 22 MiB plus 1 MiB, or a file past its cap, is refused 413 `upload_too_large` before any slot, id or file exists), then persists the job `queued`, starts the runner at the Architect and answers 202 with the whole JobState (200 with a `failed` one if storing fails); the client polls `GET /builds/{id}`, which reads job state and artifacts. (amended 29 Oct 2026, correct-course record) Nothing lives in process memory. Local mode keeps job state in a JSON file under the cache directory; hosted mode keeps it in a `modal.Dict` with artifacts on the Volume. The API is identical in both modes because Modal web requests time out at 150 s and a build runs 110 s nominal, up to about 260 s with two regenerations.
 
 ## Privacy line
 
@@ -48,6 +48,7 @@ Verbatim for the README and the capture screen: "the player profile stays on you
 | `PROFILE` | `dev`, `playtest`, `demo` | `dev` | IndexedDB database name; video and playtest use fresh profiles |
 | `CACHE` | `on`, `off` | `on` | Serve identical calls from the cache; `off` for proof takes |
 | `SPEND_CAP_USD` | dollars, per mode | local 60 and hosted 20 through Wed Nov 4 (80 in all); local 5 and hosted 20 from Thu Nov 5 (25 in all) | Per-call refusal against the mode's own persisted counter; `Settings` reads the override per mode and the Modal Secret `keyframe` carries the hosted value; the daily export prints both totals and their sum against the combined ceiling; dollars move between the allocations only by a Settings change after an export shows the room (`budgets.md`) |
+| `HOSTED_SPEND_CAP_USD` | dollars | 20 | The hosted allocation the local ledger export adds to the local one for the combined ceiling; must equal `SPEND_CAP_USD` in the hosted Secret; the export records `local_cap_usd`, `hosted_cap_usd` and `hosted_cap_source` (`env` or `default`) (amended 29 Oct 2026, correct-course record) |
 | `DEMO_TIMESCALE` | integer n, 1 or more | 1 | Divides the nudge threshold, rung spacing, and Trickster window by n; never the capture (build) timer, which runs in real time |
 | `DEMO_TRICKSTER` | `live`, `record`, `scripted`, `authored` | `live` | `live` proposes live; `record` proposes live and writes the proposals into the recorded-proposals artifact (local mode only); `scripted` replays them; `authored` serves the pre-authored cut 1 file; the validator runs live in every value (AD-15) |
 | `MIN_CONTAINERS` | 0, 1 | 0 | Warm hosted container, Thu Nov 5 to Mon Nov 9 only, and only if the Official Rules allow post-deadline changes to the hosted deployment (`delivery-plan.md`, Mon Oct 26 check) |
