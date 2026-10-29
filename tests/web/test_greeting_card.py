@@ -175,80 +175,65 @@ def test_the_play_screen_reads_a_pending_greeting_then_its_line_with_the_same_sh
     assert landed["opening_line"]["text"] == expected
 
 
-def _seconds(ms: int) -> str:
-    """`seconds` in triggers-panel.ts: whole, or with one decimal when the server's value has one."""
-    value = round(ms / 100) / 10
-    return str(int(value)) if value == int(value) else str(value)
-
-
-def triggers_header(thresholds: dict[str, Any]) -> tuple[str, str]:
-    """`triggersHeader` in triggers-panel.ts, over the same strings: what the Triggers header prints."""
+def hints_intro(thresholds: dict[str, Any] | None) -> list[str]:
+    """`hintsIntro` in triggers-panel.ts, over the same strings: the opening lines of "How hints work"."""
     strings = _strings()
-
-    def one_x(ms: int, base: int) -> str:
-        return "" if ms == base else " " + strings["atOneX"].format(s=_seconds(base))
-
-    nudge = strings["triggersNudge"].format(threshold=_seconds(thresholds["nudge_threshold_ms"]))
-    spacing = strings["triggersSpacing"].format(spacing=_seconds(thresholds["rung_spacing_ms"]))
-    timing = (f"{nudge}{one_x(thresholds['nudge_threshold_ms'], thresholds['nudge_threshold_base_ms'])} "
-              f"{spacing}{one_x(thresholds['rung_spacing_ms'], thresholds['rung_spacing_base_ms'])}")
-    source = strings["thresholdFresh"] if thresholds["source"] == "fresh" else strings["thresholdDerived"]
-    return timing, source
+    if thresholds is None or thresholds["source"] == "fresh":
+        return [strings["hintsExplained"]]
+    return [strings["hintsExplained"], strings["thresholdDerived"]]
 
 
-def test_the_mirror_follows_the_header_code():
-    header = _ts("components/triggers-panel.ts")
-    assert "return String(Math.round(ms / 100) / 10)" in header
-    assert "return [timing, thresholds.source === 'fresh' ? strings.thresholdFresh : strings.thresholdDerived]" in header
+def test_the_mirror_follows_the_panel_code():
+    panel = _ts("components/triggers-panel.ts")
+    assert ("return thresholds === null || thresholds.source === 'fresh' ? [strings.hintsExplained] : "
+            "[strings.hintsExplained, strings.thresholdDerived]") in panel
 
 
 DERIVED_SOURCE = "Set by how you played last time (kept in this browser)"
+EXPLAINED = "The Guide offers a hint when you have been quiet for a while or tried three wrong answers, and whenever you ask."
 
 
 @pytest.mark.parametrize(("persistence", "nudge"), [(0, 90), (1, 135), (-1, 60)])
-def test_the_header_shows_the_threshold_how_the_player_played_last_time(
+def test_how_hints_work_says_a_returning_players_wait_was_set_by_how_they_played_last_time(
     tmp_path: Path, code_and_find_room: Room, persistence: float, nudge: int
 ):
     client = TestClient(make_app(tmp_path, code_and_find_room, phraser=SpyPhraser(), spawn=Later()))
     session_id = begin(client, code_and_find_room, RETURNING.model_copy(update={"sessions": 1, "persistence": persistence}))["id"]
     state = client.get(f"/api/sessions/{session_id}").json()
-    assert triggers_header(state["thresholds"]) == (
-        f"Nudge after {nudge} s idle or 3 wrong attempts · next hint no sooner than 90 s", DERIVED_SOURCE)
+    assert state["thresholds"]["nudge_threshold_ms"] == nudge * 1000  # the server's wait follows the profile
+    assert hints_intro(state["thresholds"]) == [EXPLAINED, DERIVED_SOURCE]
 
 
-def test_a_fresh_profile_shows_the_default_for_a_first_room(tmp_path: Path, code_and_find_room: Room):
+def test_a_fresh_profile_shows_the_explanation_alone(tmp_path: Path, code_and_find_room: Room):
     client = TestClient(make_app(tmp_path, code_and_find_room, phraser=SpyPhraser(), spawn=Later()))
     state = client.get(f"/api/sessions/{begin(client, code_and_find_room, Derived.fresh())['id']}").json()
-    assert triggers_header(state["thresholds"]) == (
-        "Nudge after 90 s idle or 3 wrong attempts · next hint no sooner than 90 s", "Default for a first room")
+    assert hints_intro(state["thresholds"]) == [EXPLAINED]
 
 
-def test_every_hosted_session_shows_the_default_for_a_first_room(tmp_path: Path, code_and_find_room: Room):
+def test_every_hosted_session_shows_the_explanation_alone(tmp_path: Path, code_and_find_room: Room):
     app = make_hosted_app(tmp_path, hosted_handles(tmp_path), code_and_find_room, phraser=SpyPhraser(), spawn=Later())
     client = TestClient(app)
     returning = RETURNING.model_copy(update={"sessions": 1, "persistence": 1})
     state = client.get(f"/api/sessions/{begin(client, code_and_find_room, returning)['id']}").json()
-    assert triggers_header(state["thresholds"])[1] == "Default for a first room"
+    assert hints_intro(state["thresholds"]) == [EXPLAINED]
 
 
-def test_at_demo_timescale_6_every_number_comes_from_session_state(tmp_path: Path, code_and_find_room: Room):
+def test_at_demo_timescale_6_the_panel_shows_no_number_and_the_server_keeps_the_scaled_wait(tmp_path: Path, code_and_find_room: Room):
     settings = Settings(demo_timescale=6, guide="verbatim")
     client = TestClient(make_app(tmp_path, code_and_find_room, settings=settings, phraser=SpyPhraser(), spawn=Later()))
     returning = RETURNING.model_copy(update={"sessions": 1, "persistence": 0})
     state = client.get(f"/api/sessions/{begin(client, code_and_find_room, returning)['id']}").json()
-    assert triggers_header(state["thresholds"]) == (
-        "Nudge after 15 s idle (90 s at 1×) or 3 wrong attempts · next hint no sooner than 15 s (90 s at 1×)",
-        DERIVED_SOURCE,
-    )
+    assert (state["thresholds"]["nudge_threshold_ms"], state["thresholds"]["nudge_threshold_base_ms"]) == (15_000, 90_000)
+    assert hints_intro(state["thresholds"]) == [EXPLAINED, DERIVED_SOURCE]
 
 
-def test_the_header_shows_only_what_session_state_reports():
+def test_the_panel_shows_only_what_session_state_reports():
     panel = _code(_ts("components/triggers-panel.ts"))
-    assert "const thresholds = state.thresholds ?? null" in panel
+    assert "hintsIntro(state.thresholds ?? null)" in panel
     for path in WEB_SRC.rglob("*.ts"):
         code = _code(path.read_text())
         assert "persistence" not in code or path.relative_to(WEB_SRC).parts[0] == "profile", path
-        assert "nudge_threshold" not in code or path.name == "triggers-panel.ts", path
+        assert "nudge_threshold" not in code, path
 
 
 # --- Accessibility floor ------------------------------------------------------------------------------------------

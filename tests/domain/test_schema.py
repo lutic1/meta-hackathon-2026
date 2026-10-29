@@ -435,7 +435,7 @@ def test_session_state_fields():
         "active_puzzle_id", "opening_line", "phrasing", "rung_changes", "trickster_window", "trickster_calls", "cards",
         "room_revision", "disclosure", "judge_room", "thresholds", "trigger_events", "hint_reply",
     }
-    assert set(schema.HintReply.model_fields) == {"puzzle_id", "rung", "text"}
+    assert set(schema.HintReply.model_fields) == {"puzzle_id", "rung", "text", "next_hint_ms"}
     assert set(schema.Thresholds.model_fields) == {
         "nudge_threshold_ms", "nudge_threshold_base_ms", "rung_spacing_ms", "rung_spacing_base_ms", "source",
     }

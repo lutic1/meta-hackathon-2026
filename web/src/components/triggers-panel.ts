@@ -3,14 +3,8 @@ import type { PlayView, RungChangeEvent, SessionState, Thresholds } from '../../
 import { CUT_5, placeHref } from '../router.ts'
 import { fill, strings } from '../strings.ts'
 import { secondaryButton, toggleButton } from './button.ts'
-import { rungLabel } from './hint-area.ts'
 
 const LIST_ID = 'triggers-list'
-
-/** Seconds from ms as the panel prints them: whole, or with one decimal when the server's value has one. */
-function seconds(ms: number): string {
-  return String(Math.round(ms / 100) / 10)
-}
 
 /** `text` with every number in a `mono-sm` span, the rest plain (DESIGN.md: `body-sm` rows, `mono-sm` numbers). */
 function withNumbers(text: string): Node[] {
@@ -24,61 +18,53 @@ function withNumbers(text: string): Node[] {
 }
 
 /**
- * The header's two lines from the server's effective values: "Nudge after {threshold} s idle or 3 wrong attempts ·
- * next hint no sooner than {spacing} s", each number followed by its 1× value where the session clock scaled it (a
- * Demo timescale above 1), then where the threshold came from. Nothing here computes a threshold or a spacing.
+ * The panel's opening lines in player words: when the Guide offers a hint, then, for a returning player (the
+ * threshold came from the Derived block), that the wait was set by how they played last time. Nothing here computes
+ * a threshold or a spacing.
  */
-export function triggersHeader(thresholds: Thresholds): [string, string] {
-  const oneX = (ms: number, base: number): string => (ms === base ? '' : ` ${fill(strings.atOneX, { s: seconds(base) })}`)
-  const nudge = fill(strings.triggersNudge, { threshold: seconds(thresholds.nudge_threshold_ms) })
-  const spacing = fill(strings.triggersSpacing, { spacing: seconds(thresholds.rung_spacing_ms) })
-  const timing = `${nudge}${oneX(thresholds.nudge_threshold_ms, thresholds.nudge_threshold_base_ms)} ${spacing}${oneX(
-    thresholds.rung_spacing_ms,
-    thresholds.rung_spacing_base_ms,
-  )}`
-  return [timing, thresholds.source === 'fresh' ? strings.thresholdFresh : strings.thresholdDerived]
+export function hintsIntro(thresholds: Thresholds | null): string[] {
+  return thresholds === null || thresholds.source === 'fresh' ? [strings.hintsExplained] : [strings.hintsExplained, strings.thresholdDerived]
 }
 
 /**
  * Why a Rung arrived, from the logged events its `triggered_by` names (`trigger_events`, their type and `t_ms`), read
- * off the shapes the Rung selector writes: three or more name the wrong attempts, so "3 wrong attempts"; a lone
- * Trickster Card is the Loosen card that opened the Rung; else it was Idle, "Idle {s} s" being the triggering event's
- * `t_ms` minus the `t_ms` of the other event named (the one Idle counts from), or minus 0 when none is. Every `t_ms`
- * is the server's session clock, never scaled and never read from the browser.
+ * off the shapes the Rung selector writes: three or more name the wrong attempts, "after three wrong tries"; a lone
+ * Trickster Card is the Loosen card that opened it early; a lone Hint request is an ask, "when you asked"; else it was
+ * a quiet stretch, its seconds being the triggering event's `t_ms` minus the `t_ms` of the other event named (the one
+ * Idle counts from), or minus 0 when none is. Every `t_ms` is the server's session clock, never scaled and never read
+ * from the browser.
  */
 export function triggerCause(change: RungChangeEvent, events: SessionState['trigger_events'] = {}): string {
   const named = change.triggered_by.map((position) => events[position])
   const tick = named.at(-1)
-  if (named.length >= 3 || tick === undefined) return strings.threeWrongAttempts
-  if (named.length === 1 && tick.type === 'trickster_card') return strings.loosenCard
+  if (named.length >= 3 || tick === undefined) return strings.afterThreeWrongTries
+  if (named.length === 1 && tick.type === 'trickster_card') return strings.openedByTrickster
+  if (named.length === 1 && tick.type === 'hint_request') return strings.whenYouAsked
   const from = named.length === 2 ? (named[0]?.t_ms ?? 0) : 0
-  return fill(strings.idleSeconds, { s: Math.round((tick.t_ms - from) / 1000) })
+  return fill(strings.afterQuietSeconds, { s: Math.round((tick.t_ms - from) / 1000) })
 }
 
-/** One row: "Puzzle {n} · {Rung name} · {cause} · worded on this Mac · {s} s" or "… · as written"; never Rung text. */
+/** One row: "Puzzle {n}, hint {k}, {cause}", then ", worded on this Mac" when the Guide model worded it; never Rung text. */
 export function triggersRow(room: PlayView, change: RungChangeEvent, events: SessionState['trigger_events']): string {
   const n = room.puzzles.findIndex((puzzle) => puzzle.id === change.puzzle_id) + 1
-  const worded =
-    change.phrased && change.phrasing_ms !== null
-      ? fill(strings.wordedOnThisMac, { s: (change.phrasing_ms / 1000).toFixed(1) })
-      : strings.asWritten
-  return [rungLabel(n, change.rung), triggerCause(change, events), worded].join(strings.modeSeparator)
+  const row = fill(strings.hintRow, { n, k: change.rung, cause: triggerCause(change, events) })
+  return change.phrased ? `${row}, ${strings.wordedOnThisMac}` : row
 }
 
 export interface TriggersList {
-  /** The header and the rows on `chrome`; the rows scroll past `{spacing.triggers-panel-max}`. */
+  /** The opening lines and the rows on `chrome`; the rows scroll past `{spacing.triggers-panel-max}`. */
   element: HTMLElement
-  /** Draws `state`: the header from its `thresholds`, one row per `rung_changes[]` entry, newest last and in view. */
+  /** Draws `state`: the opening lines, one row per `rung_changes[]` entry, newest last and in view. */
   render: (state: SessionState) => void
   /** Scrolls the newest row into view (the list has no height while it is hidden). */
   reveal: () => void
 }
 
 /**
- * The Triggers panel's content (`{components.triggers-panel}`, FR-16, UX-DR33), the same in place and, under cut 5,
- * in the second window: one plain `body-sm` header, then one `body-sm` row per Rung change with `mono-sm` numbers,
- * the newest last in `text`, older rows `text-muted`, or "No hint changes yet." with none. The rows are never written
- * to the live region; the Rung line already announced each one.
+ * The content of "How hints work" (`{components.triggers-panel}`, FR-16, UX-DR33; player words, owner decision Oct 29),
+ * the same in place and, under cut 5, in the second window: the plain `body-sm` opening lines, then the hint history,
+ * one `body-sm` row per Rung change with `mono-sm` numbers, the newest last in `text`, older rows `text-muted`, or
+ * "No hints yet." with none. The rows are never written to the live region; the Rung line already announced each one.
  */
 export function triggersList(room: PlayView): TriggersList {
   const element = document.createElement('div')
@@ -86,15 +72,11 @@ export function triggersList(room: PlayView): TriggersList {
   element.className = 'triggers-panel'
   const header = document.createElement('p')
   header.className = 'triggers-header body-sm'
-  const timing = document.createElement('span')
-  const source = document.createElement('span')
-  source.className = 'triggers-source'
-  header.append(timing, source)
   const rows = document.createElement('ol')
   rows.className = 'triggers-rows'
   const empty = document.createElement('p')
   empty.className = 'triggers-empty body-sm'
-  empty.textContent = strings.noHintChanges
+  empty.textContent = strings.noHintsYet
   element.append(header, empty, rows)
   let drawn = -1
 
@@ -104,9 +86,14 @@ export function triggersList(room: PlayView): TriggersList {
   }
 
   function render(state: SessionState): void {
-    const thresholds = state.thresholds ?? null
-    header.hidden = thresholds === null
-    if (thresholds !== null) [timing.textContent, source.textContent] = triggersHeader(thresholds)
+    header.replaceChildren(
+      ...hintsIntro(state.thresholds ?? null).map((line) => {
+        const span = document.createElement('span')
+        span.className = 'triggers-line'
+        span.textContent = line
+        return span
+      }),
+    )
     if (state.rung_changes.length === drawn) return
     drawn = state.rung_changes.length
     empty.hidden = drawn > 0
@@ -133,11 +120,9 @@ export interface TriggersPanel {
 }
 
 /**
- * The Triggers toggle "Triggers ({n})" under the hint controls, n the number of Rung changes: a secondary button with
- * an expanded state, collapsed at first. While a Disclosure is active (FR-16) the panel opens by itself as soon as a
- * row exists, on load or when the first Rung change arrives, so until then only the toggle with its count shows; the
- * player's own toggle ends that, and the player can open or collapse it at any time. `onOpen` tells the Hint area,
- * which may grow past its cap while the panel is open.
+ * "How hints work" under the hint button: a quiet text button with an expanded state, collapsed until the player
+ * opens it (owner decision Oct 29: it replaced the "Triggers ({n})" toggle, and it no longer opens by itself under a
+ * Disclosure). `onOpen` tells the Hint area, which may grow past its cap while the panel is open.
  * Under cut 5 the same button opens `#/triggers/<session_id>` in a second window instead, and nothing opens in place;
  * the window is 1024 px wide, since below that the Narrow-screen message replaces every route.
  */
@@ -151,41 +136,22 @@ export function triggersPanel(
   element.className = 'triggers'
   const list = triggersList(room)
   const href = placeHref({ route: { name: 'triggers', sessionId: session.id }, profile })
-  /** Whether the panel still opens by itself once a row exists: under a Disclosure, until the player works the toggle. */
-  let auto = !CUT_5 && session.disclosure.length > 0
-  let open = false
+  const label = strings.howHintsWork
   const toggle = CUT_5
-    ? secondaryButton({ label: '', onActivate: () => window.open(href, `triggers-${session.id}`, 'popup,width=1024,height=480') })
-    : toggleButton({
-        label: '',
-        state: 'expanded',
-        controls: LIST_ID,
-        onToggle: (on) => {
-          auto = false
-          show(on)
-        },
-      })
-  toggle.classList.add('triggers-toggle')
+    ? secondaryButton({ label, onActivate: () => window.open(href, `triggers-${session.id}`, 'popup,width=1024,height=480') })
+    : toggleButton({ label, state: 'expanded', controls: LIST_ID, onToggle: show })
+  toggle.className = 'triggers-toggle body-sm' // a quiet text button, not the secondary one
   list.element.hidden = true
   element.append(toggle, ...(CUT_5 ? [] : [list.element]))
 
   function show(on: boolean): void {
-    open = on
     toggle.setAttribute('aria-expanded', String(on))
     list.element.hidden = !on
     onOpen(on)
     if (on) list.reveal()
   }
 
-  function render(state: SessionState): void {
-    const label = document.createElement('span') // one flex item, so the name reads "Triggers (2)" unbroken
-    label.append(...withNumbers(fill(strings.triggers, { n: state.rung_changes.length })))
-    toggle.replaceChildren(label)
-    list.render(state)
-    if (auto && !open && state.rung_changes.length > 0) show(true)
-  }
-
-  onOpen(open)
-  render(session)
-  return { element, render, reveal: list.reveal }
+  onOpen(false)
+  list.render(session)
+  return { element, render: list.render, reveal: list.reveal }
 }

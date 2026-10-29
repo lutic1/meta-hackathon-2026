@@ -1,4 +1,5 @@
-"""FR-16, UX-DR33, UX-DR80, UX-DR84, NFR-14: the Triggers panel, which shows why each Rung arrived.
+"""FR-16, UX-DR33, UX-DR80, UX-DR84, NFR-14: "How hints work", which says when the Guide offers a hint and why each
+Rung arrived, in player words (owner decision Oct 29: it replaced the "Triggers ({n})" toggle and its header).
 
 The client has no test runner (a runner is added only through bmad-correct-course), so these checks read the
 TypeScript and the stylesheets; `npm run build` and `tsc --noEmit` prove they compile, and the criteria are checked
@@ -30,49 +31,42 @@ def _function(text: str, name: str) -> str:
 PANEL = "components/triggers-panel.ts"
 
 
-def test_the_triggers_strings_are_the_experience_lines():
+def test_the_how_hints_work_strings_are_the_experience_lines():
     strings = _strings()
-    assert strings["triggers"].format(n=2) == "Triggers (2)"
-    header = f"{strings['triggersNudge'].format(threshold=90)} {strings['triggersSpacing'].format(spacing=90)}"
-    assert header == "Nudge after 90 s idle or 3 wrong attempts · next hint no sooner than 90 s"
-    scaled = (f"{strings['triggersNudge'].format(threshold=15)} {strings['atOneX'].format(s=90)} "
-              f"{strings['triggersSpacing'].format(spacing=15)} {strings['atOneX'].format(s=90)}")
-    assert scaled == "Nudge after 15 s idle (90 s at 1×) or 3 wrong attempts · next hint no sooner than 15 s (90 s at 1×)"
+    assert strings["howHintsWork"] == "How hints work"
+    assert strings["hintsExplained"] == (
+        "The Guide offers a hint when you have been quiet for a while or tried three wrong answers, and whenever you ask.")
     assert strings["thresholdDerived"] == "Set by how you played last time (kept in this browser)"
-    assert strings["thresholdFresh"] == "Default for a first room"
-    row = " · ".join([strings["rungNudge"].format(n=2), strings["idleSeconds"].format(s=92),
-                      strings["wordedOnThisMac"].format(s="1.6")])
-    assert row == "Puzzle 2 · Nudge · Idle 92 s · worded on this Mac · 1.6 s"
-    assert (strings["threeWrongAttempts"], strings["loosenCard"], strings["asWritten"]) == (
-        "3 wrong attempts", "Loosen card", "as written")
-    assert strings["noHintChanges"] == "No hint changes yet."
+    row = strings["hintRow"].format(n=2, k=1, cause=strings["afterThreeWrongTries"])
+    assert row == "Puzzle 2, hint 1, after three wrong tries"
+    quiet = strings["hintRow"].format(n=2, k=1, cause=strings["afterQuietSeconds"].format(s=92))
+    assert f"{quiet}, {strings['wordedOnThisMac']}" == "Puzzle 2, hint 1, after 92 quiet seconds, worded on this Mac"
+    assert (strings["whenYouAsked"], strings["openedByTrickster"]) == ("when you asked", "opened early by the Trickster")
+    assert strings["noHintsYet"] == "No hints yet."
 
 
-def test_the_toggle_sits_under_the_hint_controls_collapsed_until_a_row_exists_under_a_disclosure():
+def test_how_hints_work_is_a_quiet_text_button_under_the_hint_button_collapsed_until_the_player_opens_it():
     panel, play = _ts(PANEL), _ts("play.ts")
-    # Collapsed at first on every session: the toggle alone. While a Disclosure is active the panel opens by itself as
-    # soon as a row exists (FR-16), on load or when the first Rung change arrives, until the player works the toggle.
-    assert "let auto = !CUT_5 && session.disclosure.length > 0" in panel
-    toggle = panel.split("toggleButton({", 1)[1].split("})", 1)[0]
-    assert "on:" not in toggle and "controls: LIST_ID," in toggle
-    assert "onToggle: (on) => {\n          auto = false\n          show(on)\n        }," in toggle
+    # Collapsed on every session, Disclosure or not, until the player opens it.
+    code = _code(panel)
+    assert "auto" not in code and "disclosure" not in code
+    assert "toggleButton({ label, state: 'expanded', controls: LIST_ID, onToggle: show })" in panel
+    assert "const label = strings.howHintsWork" in panel
+    assert "toggle.className = 'triggers-toggle body-sm'" in panel  # a quiet text button, not the secondary one
     assert "list.element.hidden = true" in panel and "list.element.hidden = !on" in panel
     show = _function(panel, "show")
     assert "toggle.setAttribute('aria-expanded', String(on))" in show and "onOpen(on)" in show
-    # "Triggers ({n})" with n the number of Rung changes, its count in mono-sm, redrawn from every state.
-    render = panel.split("  function render(state: SessionState): void {\n    const label", 1)[1].split("\n  }\n", 1)[0]
-    assert "label.append(...withNumbers(fill(strings.triggers, { n: state.rung_changes.length })))" in render
-    assert "toggle.replaceChildren(label)" in render
-    assert "list.render(state)" in render
-    assert render.rstrip().endswith("if (auto && !open && state.rung_changes.length > 0) show(true)")
-    assert "number.className = 'mono-sm'" in panel
-    # In the Hint area's pinned lower part, after the helper line, drawn from every state the Play screen receives.
-    assert "lower.append(ask, helper, triggers)" in _ts("components/hint-area.ts")
+    assert "return { element, render: list.render, reveal: list.reveal }" in panel
+    # In the Hint area's pinned lower part, under the hint button, drawn from every state the Play screen receives.
+    assert "lower.append(ask, triggers)" in _ts("components/hint-area.ts")
     assert "hints.triggers.append(triggers.element)" in play and "parts.push(triggers.render)" in play
     assert "triggersPanel(view, latest, currentPlace().profile, (open) => area.triggersOpen(open))" in play
     assert "element.classList.toggle('is-triggers-open', open)" in _ts("components/hint-area.ts")
     rules = _rules("components/triggers-panel.css")
-    assert rules[".triggers-toggle"]["align-self"] == "flex-start"
+    toggle = rules[".triggers-toggle"]
+    assert toggle["align-self"] == "flex-start" and toggle["color"] == "var(--text-muted)"
+    assert toggle["text-decoration"] == "underline" and toggle["background"] == "transparent" and toggle["border"] == "0"
+    assert rules[".triggers-toggle:hover,\n.triggers-toggle[aria-expanded='true']"] == {"color": "var(--text)"}
 
 
 def test_open_the_hint_area_may_grow_until_the_wizard_notes_reach_notes_min():
@@ -94,14 +88,14 @@ def test_open_the_hint_area_may_grow_until_the_wizard_notes_reach_notes_min():
     assert "--spacing-notes-min: 280px;" in _ts("tokens.css")
 
 
-def test_the_header_reads_the_servers_effective_values_with_their_1x_values_and_the_source():
-    header = _function(_ts(PANEL), "triggersHeader")
-    assert "seconds(thresholds.nudge_threshold_ms)" in header and "seconds(thresholds.rung_spacing_ms)" in header
-    assert "oneX(thresholds.nudge_threshold_ms, thresholds.nudge_threshold_base_ms)" in header
-    assert "oneX(\n    thresholds.rung_spacing_ms,\n    thresholds.rung_spacing_base_ms,\n  )" in header
-    assert "(ms === base ? '' : ` ${fill(strings.atOneX, { s: seconds(base) })}`)" in header
-    assert "thresholds.source === 'fresh' ? strings.thresholdFresh : strings.thresholdDerived" in header
-    assert "[timing.textContent, source.textContent] = triggersHeader(thresholds)" in _ts(PANEL)
+def test_the_opening_lines_say_when_the_guide_offers_a_hint_and_for_a_returning_player_where_the_wait_came_from():
+    intro = _function(_ts(PANEL), "hintsIntro")
+    assert ("return thresholds === null || thresholds.source === 'fresh' ? [strings.hintsExplained] : "
+            "[strings.hintsExplained, strings.thresholdDerived]") in intro
+    assert "...hintsIntro(state.thresholds ?? null).map((line) => {" in _ts(PANEL)
+    # No number of seconds and no threshold: the panel never shows the nudge threshold or the spacing.
+    code = _code(_ts(PANEL))
+    assert "nudge_threshold" not in code and "rung_spacing" not in code
 
 
 def test_no_web_module_computes_a_threshold_or_a_spacing():
@@ -117,20 +111,20 @@ def test_no_web_module_computes_a_threshold_or_a_spacing():
 def test_the_cause_is_read_off_the_events_triggered_by_names():
     cause = _function(_ts(PANEL), "triggerCause")
     assert "change.triggered_by.map((position) => events[position])" in cause
-    # The shapes select_rung writes: 3 wrong attempts (plus the event that met the spacing), a lone Loosen card, or
-    # Idle as (event,) or (anchor, event), whatever type the event is; a card that only met the spacing is not a cause.
-    assert "if (named.length >= 3 || tick === undefined) return strings.threeWrongAttempts" in cause
-    assert "if (named.length === 1 && tick.type === 'trickster_card') return strings.loosenCard" in cause
+    # The shapes select_rung writes: 3 wrong attempts (plus the event that met the spacing), a lone Loosen card, a lone
+    # Hint request (an ask opens its Rung alone), or Idle as (event,) or (anchor, event), whatever type the event is.
+    assert "if (named.length >= 3 || tick === undefined) return strings.afterThreeWrongTries" in cause
+    assert "if (named.length === 1 && tick.type === 'trickster_card') return strings.openedByTrickster" in cause
+    assert "if (named.length === 1 && tick.type === 'hint_request') return strings.whenYouAsked" in cause
     assert "named.some(" not in cause
     assert "const from = named.length === 2 ? (named[0]?.t_ms ?? 0) : 0" in cause
-    assert cause.rstrip().endswith("return fill(strings.idleSeconds, { s: Math.round((tick.t_ms - from) / 1000) })")
+    assert cause.rstrip().endswith("return fill(strings.afterQuietSeconds, { s: Math.round((tick.t_ms - from) / 1000) })")
 
 
-def test_each_row_names_the_puzzle_the_rung_the_cause_and_where_it_was_worded_never_its_text():
+def test_each_row_names_the_puzzle_the_hint_number_the_cause_and_where_it_was_worded_never_its_text():
     row = _function(_ts(PANEL), "triggersRow")
-    assert "fill(strings.wordedOnThisMac, { s: (change.phrasing_ms / 1000).toFixed(1) })" in row
-    assert "change.phrased && change.phrasing_ms !== null" in row and ": strings.asWritten" in row
-    assert "[rungLabel(n, change.rung), triggerCause(change, events), worded].join(strings.modeSeparator)" in row
+    assert "const row = fill(strings.hintRow, { n, k: change.rung, cause: triggerCause(change, events) })" in row
+    assert "return change.phrased ? `${row}, ${strings.wordedOnThisMac}` : row" in row
     code = _code(_ts(PANEL))
     assert "change.text" not in code and ".text" not in code.replace("textContent", "")
     assert "solution" not in code
@@ -141,12 +135,12 @@ def test_rows_are_body_sm_with_mono_sm_numbers_newest_last_in_text_capped_and_ke
     assert "row.className = 'triggers-row body-sm'" in panel and "header.className = 'triggers-header body-sm'" in panel
     assert "...state.rung_changes.map((change) => {" in panel  # session order: newest last
     assert "rows.scrollTop = rows.scrollHeight" in panel and "if (on) list.reveal()" in panel
-    # Opened on load, the list is still detached when it first renders, so the Play screen reveals it once attached.
-    assert "return { element, render, reveal: list.reveal }" in panel
+    # The list is still detached when it first renders, so the Play screen reveals it once attached.
+    assert "return { element, render: list.render, reveal: list.reveal }" in panel
     play = _ts("play.ts")
     attached = play.index("sideColumn.append(hints.element)")
     assert play.index("triggers.reveal()", attached) < play.index("holdInputs()", attached)
-    assert "empty.textContent = strings.noHintChanges" in panel and "empty.hidden = drawn > 0" in panel
+    assert "empty.textContent = strings.noHintsYet" in panel and "empty.hidden = drawn > 0" in panel
     rules = _rules("components/triggers-panel.css")
     assert rules[".triggers-rows"]["max-height"] == "var(--spacing-triggers-panel-max)"
     assert rules[".triggers-rows"]["overflow-y"] == "auto"
@@ -187,5 +181,5 @@ def test_the_toggle_meets_the_accessibility_floor_and_every_panel_pair_is_in_the
     table = design_text().split("### Contrast (load-bearing pairs)", 1)[1].split("\n## ", 1)[0]
     rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]
             for line in table.splitlines() if line.startswith("| `")]
-    for fg, bg in (("text", "chrome"), ("text-muted", "chrome"), ("lamp", "chrome-raised")):
+    for fg, bg in (("text", "chrome"), ("text-muted", "chrome"), ("text-muted", "chrome-raised"), ("text", "chrome-raised")):
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"

@@ -10,9 +10,9 @@
 // Accessibility Floor, and the Narrow-screen message's lines only in Responsive & Platform. The feedback line's lines
 // (feedback.ts) are chosen per reply and written once to the live region. The Guide's unlock asides are client-side
 // presentation (lock-opened.ts): never a Rung, never logged.
-// The Leave room confirmation's one line is its heading (the question) over its sentence. The Triggers header is its Voice and
-// Tone line split after "idle", where the threshold's 1× value goes at a Demo timescale above 1, as in "Nudge after
-// 15 s idle (90 s at 1×) …". The cut-2 controls and their line are worded only in the Information Architecture's
+// The Leave room confirmation's one line is its heading (the question) over its sentence. A "How hints work" row is
+// "Puzzle {n}, hint {k}, {cause}", the cause one of the four lines after it, then ", worded on this Mac" when the
+// Guide model worded it. The cut-2 controls and their line are worded only in the Information Architecture's
 // Cut 2 placeholder, and EXPERIENCE.md words no refusal of a profile file, so its banner heading follows the photos'
 // "Keyframe couldn't read these photos." for one file. EXPERIENCE.md names the Card log's "close control" without
 // wording it, so the control is named by that verb alone, "Close", inside the dialog named "Card log".
@@ -223,11 +223,10 @@ export const strings = {
   goToDemoRooms: 'Go to the demo rooms',
   deletedOn: 'Deleted Tue Nov 10',
   hintArea: 'Hint area',
-  hintPlaceholder: 'Stuck? Ask the Guide for a hint',
   askTheGuide: 'Ask the Guide',
-  hintFieldLabel: 'Ask the Guide for a hint on Puzzle {n}',
-  hintHelper: 'Your words stay in this browser. The Guide only hears that you asked.',
-  asking: 'Asking',
+  getHint: 'Get a hint for Puzzle {n}',
+  nextHintIn: 'Next hint in {time}',
+  guideThinking: 'The Guide is thinking',
   thinkingOnThisMac: 'thinking on this Mac',
   rungNudge: 'Puzzle {n} · Nudge',
   rungDirection: 'Puzzle {n} · Direction',
@@ -263,18 +262,16 @@ export const strings = {
   demoRoomMeta: '{n} puzzles · 15 to 25 min',
   demoRoomPortraits: 'The Architect, the Riddler, the Guide and the Trickster',
   demoRoomsFailed: "Keyframe couldn't load the demo rooms.",
-  triggers: 'Triggers ({n})',
-  triggersNudge: 'Nudge after {threshold} s idle',
-  triggersSpacing: 'or 3 wrong attempts · next hint no sooner than {spacing} s',
-  atOneX: '({s} s at 1×)',
+  howHintsWork: 'How hints work',
+  hintsExplained: 'The Guide offers a hint when you have been quiet for a while or tried three wrong answers, and whenever you ask.',
   thresholdDerived: 'Set by how you played last time (kept in this browser)',
-  thresholdFresh: 'Default for a first room',
-  idleSeconds: 'Idle {s} s',
-  threeWrongAttempts: '3 wrong attempts',
-  loosenCard: 'Loosen card',
-  wordedOnThisMac: 'worded on this Mac · {s} s',
-  asWritten: 'as written',
-  noHintChanges: 'No hint changes yet.',
+  hintRow: 'Puzzle {n}, hint {k}, {cause}',
+  afterQuietSeconds: 'after {s} quiet seconds',
+  afterThreeWrongTries: 'after three wrong tries',
+  whenYouAsked: 'when you asked',
+  openedByTrickster: 'opened early by the Trickster',
+  wordedOnThisMac: 'worded on this Mac',
+  noHintsYet: 'No hints yet.',
   buildYourOwnRoom: 'Build your own room',
   accessCode: 'Access code',
   checkCode: 'Check code',

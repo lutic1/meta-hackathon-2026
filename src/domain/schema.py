@@ -699,6 +699,8 @@ class HintReply(Model):
     rung: RungLevel
     text: str
     """The line exactly as shown."""
+    next_hint_ms: Milliseconds | None
+    """How long until an ask opens that Puzzle's next Rung, on the session clock; null when none follows (the near-answer, or no Puzzle)."""
 
 
 class SessionState(Model):

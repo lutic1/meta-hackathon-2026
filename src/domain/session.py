@@ -43,8 +43,7 @@ and the session's `Thresholds`, which every replayed state reports (AR-31).
 The API stores what fixes them as the session's `SessionHeader`, beside the
 log, so a restarted process rebuilds the same machine.
 
-Rungs (AD-4): after every event but a `rung_change` or a `hint_request`
-(a Hint request never triggers a Rung), `apply` asks
+Rungs (AD-4): after every event but a `rung_change`, `apply` asks
 `select_rung` (`domain/rungs.py`) whether a Rung opens on the Active puzzle,
 over the session's `Thresholds` (the 1x ones of `Derived.fresh()` when the
 machine was given none), and, when one does, records the `rung_change` in the
@@ -59,10 +58,13 @@ live and no Rung change is ever duplicated. The API words a selected Rung
 through the Guide port before it appends it, so the stored `rung_change`
 carries the line exactly as shown.
 
-A `hint_request` is answered with `current_rung_text`: the text of the
-current Rung of the Puzzle it resolved to, which is the Active puzzle after
-it, or nothing while no Rung is open there or no Puzzle is active (the API
-then answers the No-hint line).
+A `hint_request` opens the next Rung on the Puzzle it resolved to, which is
+the Active puzzle after it, at once when none is open there and otherwise
+once the Rung spacing has passed since that Puzzle's last Rung change (owner
+decision Oct 29); it is answered with `current_rung_text`, the text of that
+Puzzle's current Rung, or nothing once no Puzzle is active (the API then
+answers the No-hint line), and `next_hint_ms`, how long until an ask opens
+the next Rung there.
 
 Trickster edits (AD-12): the machine is built over the stored Room and
 judges each event over the Effective room, `apply_edit` folded over the
@@ -103,6 +105,7 @@ from pydantic import Field
 from .edits import accepted_edit, apply_edit
 from .redact import to_card_view
 from .rungs import (
+    NEAR_ANSWER,
     RUNG_NAMES,
     TRICKSTER_WINDOW_MS,
     Judged,
@@ -212,6 +215,14 @@ class SessionStateMachine:
         if puzzle_id is None or state.current_rung[puzzle_id] == 0:
             return None
         return self._rung_text(puzzle_id, state.current_rung[puzzle_id])
+
+    def next_hint_ms(self, state: SessionState, t_ms: Milliseconds) -> Milliseconds | None:
+        """How long after `t_ms` an ask opens the Active puzzle's next Rung: 0 when it would now, None when none follows or no Puzzle is active."""
+        puzzle_id = state.active_puzzle_id
+        if puzzle_id is None or state.current_rung[puzzle_id] >= NEAR_ANSWER:
+            return None
+        last = next((change for change in reversed(state.rung_changes) if change.puzzle_id == puzzle_id), None)
+        return 0 if last is None else max(0, self._rung_thresholds.rung_spacing_ms - (t_ms - last.t_ms))
 
     def is_complete(self, state: SessionState) -> bool:
         """Whether the exit lock has opened."""
@@ -329,12 +340,13 @@ class SessionStateMachine:
             active_puzzle_id=new.active_puzzle_id,
             accepted_edit=edit,
         )
-        if not isinstance(event, RungChangeEvent | HintRequestEvent):
+        if not isinstance(event, RungChangeEvent):
             loosen = edit.payload if edit is not None and isinstance(edit.payload, LoosenPayload) else None
             step = select_rung(
                 [*history, judged],
                 self._rung_thresholds,
                 loosen=None if loosen is None else (loosen.puzzle, loosen.rung),
+                asked=isinstance(event, HintRequestEvent),
             )
             if step is not None and step.rung > new.current_rung[step.puzzle_id]:
                 self._record_rung(new, RungChangeEvent(

@@ -12,13 +12,12 @@ otherwise; in Local mode the same test decides whether a session start is
 greeted.
 
 `select_rung(events, thresholds)` runs inside `SessionStateMachine.apply`
-after every event but a `rung_change` or a `hint_request`, over the log as
-`apply` judged it (`Judged`), and names at most one Rung to open on the
-Active puzzle. Time reaches it only as `t_ms` and the session's
-`Thresholds`, whose nudge threshold `nudge_threshold_ms` computed from the
-Derived block, so the same log always selects the same Rungs, live or
-replayed. This module imports only the standard library, pydantic and the
-domain (AD-1).
+after every event but a `rung_change`, over the log as `apply` judged it
+(`Judged`), and names at most one Rung to open on the Active puzzle. Time
+reaches it only as `t_ms` and the session's `Thresholds`, whose nudge
+threshold `nudge_threshold_ms` computed from the Derived block, so the same
+log always selects the same Rungs, live or replayed. This module imports
+only the standard library, pydantic and the domain (AD-1).
 
 Idle counts from the `t_ms` of the last click, lock input or `hint_request`;
 an `idle_tick` never resets it. The nudge (rung 1) opens once Idle reaches
@@ -27,7 +26,10 @@ the near-answer each need a further stall (Idle at the nudge threshold,
 counted from the later of the last click, lock input or `hint_request` and
 the Puzzle's previous `rung_change`) or 3 further Wrong attempts, and open
 no sooner than the Rung spacing after the previous Rung, whatever the
-persistence. Nothing follows the near-answer: no reveal and no skip.
+persistence. A `hint_request` (`asked`) opens the next Rung at once: with
+no Rung open on the Puzzle, always; with one open, once the Rung spacing has
+passed since that Rung (owner decision Oct 29). Nothing follows the
+near-answer: no reveal and no skip.
 """
 
 from __future__ import annotations
@@ -114,6 +116,7 @@ def select_rung(
     thresholds: Thresholds,
     *,
     loosen: tuple[PuzzleId, RungName] | None = None,
+    asked: bool = False,
 ) -> RungStep | None:
     """The Rung the last event opens on the Active puzzle, or None.
 
@@ -122,6 +125,8 @@ def select_rung(
     Derived block reaches the timing only through its nudge threshold.
     `loosen` is the Loosen hook: an accepted `loosen` card opens the named
     Rung on its Puzzle at once, outside the spacing, triggered by the card.
+    `asked` marks a `hint_request`: it opens the next Rung once the spacing
+    allows, triggered by the request alone.
     """
     if not events:
         return None
@@ -139,6 +144,8 @@ def select_rung(
     t_ms = events[now].t_ms
     if since is not None and t_ms - events[since].t_ms < thresholds.rung_spacing_ms:
         return None
+    if asked:
+        return RungStep(puzzle_id, rung + 1, (now,))
     start = 0 if since is None else since + 1
     wrong = [i for i in range(start, now + 1) if events[i].wrong_attempt == puzzle_id]
     if len(wrong) >= WRONG_ATTEMPTS_PER_RUNG:

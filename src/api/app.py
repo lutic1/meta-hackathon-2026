@@ -57,10 +57,14 @@ Derived block `Derived.fresh()`; only an id with no stored header answers 404
 `session_not_found`, or 410 `room_deleted` when a deletion record names it. `t_ms` is
 stamped from the session clock at append, so a body carrying one is refused.
 A `hint_request` is answered on its reply in `hint_reply`: the current Rung
-of the Puzzle it resolved to, routed through the `HintPhraser`, or with no
-Rung open (or no Puzzle active, once the Exit has opened) the fixed
-`NO_HINT_LINE`, never phrased; it never opens a Rung, and a `puzzle_id` that
-is not in the Room is a malformed body, refused with nothing appended. Each
+of the Puzzle it resolved to, with `next_hint_ms`, how long until an ask
+opens the next one. A Rung the request itself opened (the state machine
+opens one at once when none is showing, else once the Rung spacing has
+passed) answers in the words its `rung_change` was appended with; a Rung
+already open is routed through the `HintPhraser` again. With no Puzzle active
+(once the Exit has opened) it answers the fixed `NO_HINT_LINE`, never
+phrased. A `puzzle_id` that is not in the Room is a malformed body, refused
+with nothing appended. Each
 appended event is logged as one JSON line with `session_id`, the event type
 and `duration_ms` (AR-22). Every session state served, the greeted start
 reply included, carries its Room's Disclosure list, composed once at the
@@ -855,14 +859,19 @@ def session_routes(
             update={"text": line.text, "phrased": line.phrased, "phrasing_ms": line.latency_ms if line.phrased else None}
         )
 
-    def hint_reply(session: OpenSession, state: SessionState) -> HintReply:
-        """The current Rung of the Puzzle the request resolved to, through the Guide port, else the No-hint line, never phrased."""
+    def hint_reply(session: OpenSession, state: SessionState, t_ms: Milliseconds) -> HintReply:
+        """The current Rung of the Puzzle the request at `t_ms` resolved to and the wait for the next, else the No-hint line, never phrased.
+
+        A Rung the request opened shares its `t_ms` and answers in the words it was appended with, so it is worded once.
+        """
         puzzle_id = state.active_puzzle_id
         rung_text = session.machine.current_rung_text(state)
         if puzzle_id is None or rung_text is None:
-            return HintReply(puzzle_id=puzzle_id, rung=0, text=NO_HINT_LINE)
-        line = phraser.phrase(rung_text, session.derived)
-        return HintReply(puzzle_id=puzzle_id, rung=state.current_rung[puzzle_id], text=line.text)
+            return HintReply(puzzle_id=puzzle_id, rung=0, text=NO_HINT_LINE, next_hint_ms=None)
+        rung = state.current_rung[puzzle_id]
+        opened = next((c for c in state.rung_changes if (c.puzzle_id, c.rung, c.t_ms) == (puzzle_id, rung, t_ms)), None)
+        text = opened.text if opened is not None else phraser.phrase(rung_text, session.derived).text
+        return HintReply(puzzle_id=puzzle_id, rung=rung, text=text, next_hint_ms=session.machine.next_hint_ms(state, t_ms))
 
     def welcome(room_id: RoomId) -> Callable[[Milliseconds], Event]:
         """The Room's welcome: the Demo room line on a Demo room, else the First-room line."""
@@ -939,10 +948,15 @@ def session_routes(
             raise RequestValidationError(
                 [{"loc": ("body", "puzzle_id"), "msg": "names no puzzle in this room", "type": "value_error"}]
             )
+        posted: list[Event] = []
+
+        def build(t_ms: Milliseconds) -> Event:
+            posted.append(EVENT.validate_python({**body.model_dump(), "t_ms": t_ms}))
+            return posted[-1]
+
         with session.lock:
-            log_ = events(session_id)
-            state = append(session_id, session, log_, lambda t_ms: EVENT.validate_python({**body.model_dump(), "t_ms": t_ms}))
-            return state.model_copy(update={"hint_reply": hint_reply(session, state)}) if hint else state
+            state = append(session_id, session, events(session_id), build)
+            return state.model_copy(update={"hint_reply": hint_reply(session, state, posted[-1].t_ms)}) if hint else state
 
     @router.post("/{session_id}/trickster")
     def post_trickster(session_id: str) -> SessionState:

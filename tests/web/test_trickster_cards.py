@@ -193,14 +193,14 @@ def test_at_most_two_cards_stack_newest_on_top_above_the_rung_line_the_rest_behi
     assert "export const CARDS_STACKED = 2" in hint
     assert "upper.append(stack, more, rungLine)" in hint and "stack.className = 'hint-cards'" in hint
     restack = _function(hint, "restack")
-    # Newest on top: the last held Cards, reversed; only one while the Triggers panel is open.
+    # Newest on top: the last held Cards, reversed; only one while "How hints work" is open.
     assert "const shown = held.slice(-(triggersShown ? 1 : CARDS_STACKED)).reverse()" in restack
     assert "more.textContent = fill(strings.moreInCardLog, { n: rest })" in restack and "more.hidden = rest === 0" in restack
     assert "more.className = 'hint-more body-sm'" in hint
     toggled = _function(hint, "triggersOpen")
     assert "element.classList.toggle('is-triggers-open', open)" in toggled and "restack()" in toggled
     # The hint controls stay in the pinned lower part, outside the scrolling upper part.
-    assert "lower.append(ask, helper, triggers)" in hint and "element.append(upper, lower)" in hint
+    assert "lower.append(ask, triggers)" in hint and "element.append(upper, lower)" in hint
     rules = _rules("components/hint-area.css")
     assert rules[".hint-cards"]["flex-direction"] == "column" and rules[".hint-cards[hidden]"]["display"] == "none"
     assert rules[".hint-more"]["color"] == "var(--lamp)"  # a link on dark (tests/web/test_card_log.py)
@@ -218,7 +218,7 @@ def test_while_a_card_is_stacked_the_tray_grows_past_its_cap_until_the_wizard_no
 def test_short_of_room_the_triggers_panel_gives_way_to_its_newest_row_before_the_card_and_the_rung_line_scroll():
     # The tray's bands are its flex items (the lower part and the Triggers slot are display: contents), so the panel
     # shrinks first, to one body-sm row inside its padding (the newest, scrolled to), then the upper part scrolls; the
-    # field, "Ask the Guide", the helper line and the toggle never shrink.
+    # hint button and "How hints work" never shrink.
     rules = _rules("components/hint-area.css")
     assert rules[".hint-lower,\n.hint-triggers"] == {"display": "contents"}
     assert rules[".hint-upper"]["flex"] == "1 1 auto" and rules[".hint-upper"]["min-height"] == "0"
@@ -226,7 +226,7 @@ def test_short_of_room_the_triggers_panel_gives_way_to_its_newest_row_before_the
         "flex-shrink": "1000",
         "min-height": "calc(1.45 * 14px)",
     }
-    assert rules[".hint-ask"]["flex"] == "none" and rules[".hint-helper"]["flex"] == "none"
+    assert rules[".hint-ask"]["flex"] == "none"
     panel = _rules("components/triggers-panel.css")
     assert panel[".triggers"] == {"display": "contents"}
     assert panel[".triggers-toggle"]["flex"] == "none" and panel[".triggers-panel"]["overflow-y"] == "auto"
@@ -278,12 +278,12 @@ def test_after_a_reload_no_card_is_restacked_and_the_introduction_is_not_shown_a
     assert "first: cardsHeard + index === 0" in hint
 
 
-def test_a_card_stays_until_dismissed_and_focus_moves_to_the_next_card_else_the_hint_field():
+def test_a_card_stays_until_dismissed_and_focus_moves_to_the_next_card_else_the_hint_button():
     hint = _code(_ts("components/hint-area.ts"))
     dismiss = _function(hint, "dismiss")
     assert "held.splice(held.indexOf(card), 1)" in dismiss and "card.remove()" in dismiss
     assert "const next = stack.children[at] ?? stack.lastElementChild" in dismiss
-    assert "if (next instanceof HTMLElement) next.focus()\n    else field.focus()" in dismiss
+    assert "if (next instanceof HTMLElement) next.focus()\n    else button.focus()" in dismiss
     card = _code(_ts("components/trickster-card.ts"))
     assert "element.tabIndex = -1" in card  # focusable from script, so focus can land on the next Card
     assert "dismiss.setAttribute('aria-label', strings.dismissCard)" in card and "dismiss.type = 'button'" in card

@@ -165,11 +165,9 @@ def test_demo_settings_are_read_only_by_the_mode_indicator_the_triggers_header_a
     assert set(re.findall(r"name: '(\w+)'", router)) <= {"home", "build", "view", "play", "done", "triggers"}
 
 
-def test_the_triggers_panel_under_a_disclosure_shows_only_its_toggle_until_a_row_exists_then_opens_by_itself():
+def test_how_hints_work_never_opens_by_itself_under_a_disclosure():
+    # Owner decision Oct 29: the coupled rule is retired; the panel opens only when the player asks.
     panel = _code((COMPONENTS / "triggers-panel.ts").read_text())
-    assert "let auto = !CUT_5 && session.disclosure.length > 0" in panel
+    assert "disclosure" not in panel and "auto" not in panel
     assert "list.element.hidden = true" in panel and "list.element.hidden = !on" in panel
-    render = panel.split("function render(state: SessionState): void {\n    const label", 1)[1].split("\n  }\n", 1)[0]
-    assert "if (auto && !open && state.rung_changes.length > 0) show(true)" in render
-    # The player's own toggle ends the automatic opening either way, so a collapsed panel stays collapsed.
-    assert "onToggle: (on) => {\n          auto = false\n          show(on)\n        }," in panel
+    assert "onOpen(false)" in panel

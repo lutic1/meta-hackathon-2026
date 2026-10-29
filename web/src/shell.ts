@@ -66,7 +66,7 @@ function refused(error: unknown): 'room_deleted' | null {
  * `room_deleted`, or 404 `room_not_found` on the view) holds only the Deleted Judge room notice or the unknown-room
  * card in its body (`showRoomGone`). `#/done/<session_id>` is the Completion screen over the
  * dimmed Play screen, its top bar inert and its Timer frozen. `#/triggers/<session_id>` is cut 5's second window,
- * the Triggers panel of that session with its Room's Disclosure lines. Below 1024 px the Narrow-screen message, a
+ * the "How hints work" panel of that session with its Room's Disclosure lines. Below 1024 px the Narrow-screen message, a
  * sibling of `root`, replaces the whole app on every route; `root` is only hidden meanwhile, so its state survives
  * the resize.
  */

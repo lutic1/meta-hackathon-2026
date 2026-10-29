@@ -14,7 +14,7 @@ export const GLOW_MS = 150
 /** Under reduced motion the lit ring is held this long, with no animation (NFR-14). */
 export const GLOW_REDUCED_MS = 2000
 
-/** At most this many Cards stack in the Hint area; only the newest while the Triggers panel is open (UX-DR30). */
+/** At most this many Cards stack in the Hint area; only the newest while "How hints work" is open (UX-DR30). */
 export const CARDS_STACKED = 2
 
 /** The label of each Rung, by its number: 0 is the No-hint line, labelled with its Puzzle alone. */
@@ -33,12 +33,17 @@ interface Line {
   shown: Shown | null
 }
 
+/** "Next hint in m:ss" counts whole seconds: 90 reads "1:30". */
+export function countdown(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 /** "Puzzle {n} · Nudge", "· Direction" or "· Near-answer", or "Puzzle {n}" alone for the No-hint line (rung 0). */
 export function rungLabel(n: number, rung: number): string {
   return fill(RUNG_LABELS[rung] ?? strings.puzzleHeading, { n })
 }
 
-/** A Rung a Loosen card opened: its one triggering log event is the `trickster_card`, as the Triggers panel reads it. */
+/** A Rung a Loosen card opened: its one triggering log event is the `trickster_card`, as "How hints work" reads it. */
 function byLoosen(change: RungChangeEvent, events: SessionState['trigger_events']): boolean {
   const [only, ...rest] = change.triggered_by
   return only !== undefined && rest.length === 0 && events?.[only]?.type === 'trickster_card'
@@ -61,13 +66,13 @@ export function openedRungs(
 
 export interface HintArea {
   element: HTMLElement
-  /** Draws `state`: the field's label from the Active puzzle, and each newly arrived `rung_change` as the Rung line. */
+  /** Draws `state`: the button's label from the Active puzzle, and each newly arrived `rung_change` as the Rung line. */
   render: (state: SessionState) => void
   /** After "Begin": the opening line as the first Guide line, never announced, unless a Rung line already shows. */
   opening: (line: string) => void
-  /** The slot under the helper line that holds the Triggers toggle and its panel. */
+  /** The slot under the hint button that holds "How hints work" and its panel. */
   triggers: HTMLElement
-  /** The Triggers panel opened or closed: the tray may grow past its cap, and only the newest Card stacks. */
+  /** "How hints work" opened or closed: the tray may grow past its cap, and only the newest Card stacks. */
   triggersOpen: (open: boolean) => void
   /** The Guide's unlock aside (lock-opened.ts): a Guide line in the Rung line's place, no label, no glow. */
   aside: (line: string) => void
@@ -82,19 +87,21 @@ function paragraph(className: string): HTMLParagraphElement {
 /**
  * The Hint area (`{components.hint-area}`, FR-14, UX-DR30 to UX-DR32): a `chrome-raised` tray pinned under the Wizard
  * notes, up to `{spacing.hint-area-max}`, its upper part scrolling (the Cards, then the Rung line) over a lower part
- * that never scrolls: the hint field and "Ask the Guide", the permanent helper line, and the slot of the Triggers
- * toggle. While the Triggers panel is open (`is-triggers-open`) or a Card is stacked, the tray may grow past its cap
- * until the Wizard notes reach `{spacing.notes-min}`; short of room the open panel gives way first, to its newest
- * row, and then the upper part scrolls to its end: the line that arrives, or the Card that enters over it (its
- * sentence, its outcome and the Rung line in one frame, the introduction a scroll above). Each time a Card enters
- * or is dismissed the bands are restacked, so `onStacked` is called for the panel to scroll its newest row back into
- * view; the panel's toggle reveals the row itself.
+ * that never scrolls: the primary "Get a hint for Puzzle {n}" and the slot of "How hints work". While that panel is
+ * open (`is-triggers-open`) or a Card is stacked, the tray may grow past its cap until the Wizard notes reach
+ * `{spacing.notes-min}`; short of room the open panel gives way first, to its newest row, and then the upper part
+ * scrolls to its end: the line that arrives, or the Card that enters over it (its sentence, its outcome and the Rung
+ * line in one frame, the introduction a scroll above). Each time a Card enters or is dismissed the bands are
+ * restacked, so `onStacked` is called for the panel to scroll its newest row back into view; its button reveals the
+ * row itself.
  *
- * Enter or the button posts exactly one `hint_request` with no `puzzle_id`: the server answers for the Active puzzle,
- * the entry marked "Current". The typed text is never read, so it leaves the browser in no body, query or header; it
- * stays visible in the read-only field while the button reads "Asking" and one request is in flight, and clears when
- * the reply lands. With `guide` `ollama` the Guide portrait shows the static `lamp` ring and "thinking on this Mac"
- * until then; with `verbatim` no thinking state ever shows.
+ * The button posts exactly one `hint_request` with no `puzzle_id`: the server answers for the Active puzzle, the
+ * entry marked "Current" and the Puzzle the button names (owner decision Oct 29: the ask opens that Puzzle's next
+ * Rung when it is due). While one request is in flight the button reads "The Guide is thinking" and the Guide's ring
+ * glows (the Guide pulse, a static lit ring with no animation); with `guide` `ollama` the Rung line also shows
+ * "thinking on this Mac" until the reply lands. A reply whose `next_hint_ms` says the next Rung is not due yet turns
+ * the label into "Next hint in m:ss", counting down by the second from the server's value (never a clock reading),
+ * until it is due or another Puzzle is active; a press meanwhile repeats the current Rung.
  *
  * The Rung line (`{components.rung-line}`) is the Guide portrait, the label "Puzzle {n} · {Rung name}" ("Puzzle {n}"
  * alone on the No-hint line) and the line. Every new line fades the shown one out and itself in (200 ms each way,
@@ -110,12 +117,12 @@ function paragraph(className: string): HTMLParagraphElement {
  * Rung line replaces it.
  *
  * Trickster cards (FR-19, UX-DR40 to UX-DR42) stack above the Rung line, newest on top: at most `CARDS_STACKED`, only
- * the newest while the Triggers panel is open, the rest behind the link "{n} more in the Card log", which opens the
+ * the newest while "How hints work" is open, the rest behind the link "{n} more in the Card log", which opens the
  * Card log through `openCardLog` (focus returns to it when the log closes). Each new entry of the
  * state's `cards[]` (the `TricksterCard` projection) enters with a 200 ms fade once the lock-open state has played out
  * (the Solved chip's `OPEN_HOLD_MS`, then the entry collapse and the next Puzzle's fade-in; a collected item's fade-in
  * starts with the state and ends sooner), and is written once to the live region. A Card stays until dismissed;
- * dismissing it moves focus to the Card now in its place, else the one above, else the hint field. The Session's
+ * dismissing it moves focus to the Card now in its place, else the one above, else the hint button. The Session's
  * first Card carries the Trickster's introduction. Cards already in the first state are never stacked, so after a
  * reload none is re-stacked or announced and the introduction never shows again.
  */
@@ -156,31 +163,6 @@ export function hintArea(
   more.addEventListener('click', () => openCardLog(more))
   upper.append(stack, more, rungLine)
 
-  const lower = document.createElement('div')
-  lower.className = 'hint-lower'
-  const ask = document.createElement('div')
-  ask.className = 'hint-ask'
-  const field = document.createElement('input')
-  field.type = 'text'
-  field.className = 'hint-field body-sm'
-  field.placeholder = strings.hintPlaceholder
-  field.autocomplete = 'off'
-  const helper = paragraph('hint-helper body-sm')
-  helper.id = 'hint-helper'
-  helper.textContent = strings.hintHelper
-  field.setAttribute('aria-describedby', helper.id)
-  const button = primaryButton({ label: strings.askTheGuide, pendingLabel: strings.asking, onActivate: request })
-  field.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return
-    event.preventDefault()
-    button.click() // the button ignores it while a request is in flight
-  })
-  ask.append(field, button)
-  const triggers = document.createElement('div')
-  triggers.className = 'hint-triggers' // the Triggers toggle and its panel
-  lower.append(ask, helper, triggers)
-  element.append(upper, lower)
-
   const place = (puzzleId: string | null): number | null => {
     const index = room.puzzles.findIndex((puzzle) => puzzle.id === puzzleId)
     return index < 0 ? null : index + 1
@@ -200,6 +182,47 @@ export function hintArea(
   /** The Cards in the Hint area, oldest first, each until it is dismissed. */
   const held: HTMLElement[] = []
   let triggersShown = false
+  /** The Puzzle the last reply answered and the whole seconds until an ask opens its next Rung; 0 once it is due. */
+  let wait: { puzzleId: string | null; seconds: number } = { puzzleId: null, seconds: 0 }
+  let ticking: ReturnType<typeof setInterval> | undefined
+
+  const lower = document.createElement('div')
+  lower.className = 'hint-lower'
+  const ask = document.createElement('div')
+  ask.className = 'hint-ask'
+  const button = primaryButton({ label: askLabel, pendingLabel: strings.guideThinking, onActivate: request })
+  ask.append(button)
+  const triggers = document.createElement('div')
+  triggers.className = 'hint-triggers' // "How hints work" and its panel
+  lower.append(ask, triggers)
+  element.append(upper, lower)
+
+  /** "Get a hint for Puzzle {n}" for the Active puzzle, or "Next hint in m:ss" while its next Rung is not due. */
+  function askLabel(): string {
+    const n = place(latest.active_puzzle_id)
+    if (n === null) return strings.askTheGuide
+    if (wait.seconds > 0 && wait.puzzleId === latest.active_puzzle_id) {
+      return fill(strings.nextHintIn, { time: countdown(wait.seconds) })
+    }
+    return fill(strings.getHint, { n })
+  }
+
+  /** Relabels the button, unless a request is in flight (it reads "The Guide is thinking" until it settles). */
+  function relabel(): void {
+    if (!button.hasAttribute('aria-busy')) button.textContent = askLabel()
+  }
+
+  /** Counts the reply's wait down by the second, from the server's value. */
+  function countDown(reply: HintReply): void {
+    clearInterval(ticking)
+    wait = { puzzleId: reply.puzzle_id, seconds: Math.ceil((reply.next_hint_ms ?? 0) / 1000) }
+    if (wait.seconds === 0) return
+    ticking = setInterval(() => {
+      wait.seconds -= 1
+      if (wait.seconds <= 0 || !element.isConnected) clearInterval(ticking)
+      relabel()
+    }, 1000)
+  }
 
   function changeLine(change: RungChangeEvent): Line {
     const n = place(change.puzzle_id)
@@ -256,21 +279,21 @@ export function hintArea(
   }
 
   async function request(): Promise<void> {
-    field.readOnly = true
+    element.classList.add('is-asking')
     if (guide === 'ollama') think(true)
     try {
       const reply = (await play.post({ type: 'hint_request' })).hint_reply ?? null
-      field.value = ''
       if (reply === null) {
         think(false)
         return
       }
+      countDown(reply)
       announce(`${strings.speakerGuide} ${reply.text}`)
       present(replyLine(reply), false)
     } catch {
-      think(false) // nothing reached the server; the field keeps its words (the reconnecting state lands in 1.24)
+      think(false) // nothing reached the server (the reconnecting state lands in 1.24)
     } finally {
-      field.readOnly = false
+      element.classList.remove('is-asking')
     }
   }
 
@@ -298,7 +321,7 @@ export function hintArea(
     onStacked()
     const next = stack.children[at] ?? stack.lastElementChild
     if (next instanceof HTMLElement) next.focus()
-    else field.focus()
+    else button.focus()
   }
 
   /** Stacks every waiting Card, each fading in and written once to the live region; nothing while a lock-open plays. */
@@ -343,8 +366,7 @@ export function hintArea(
   function render(state: SessionState): void {
     latest = state
     receiveCards(state)
-    const n = place(state.active_puzzle_id)
-    field.setAttribute('aria-label', n === null ? strings.askTheGuide : fill(strings.hintFieldLabel, { n }))
+    relabel()
     const arrived = state.rung_changes.slice(heard)
     heard = state.rung_changes.length
     const newest = arrived.at(-1)

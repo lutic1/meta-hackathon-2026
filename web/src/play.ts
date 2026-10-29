@@ -104,8 +104,8 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
  * that opens nothing, a pickup, a solved lock, the way out or a Wrong attempt. A state that shows a lock newly open
  * plays the unlock moment (`lockOpened`): the solved Hotspot blooms and the Scene frame glows once, the Solved chip
  * lifts in and the Guide speaks one aside for the lock type in the Hint area. A reload plays none of it for locks
- * already open. The Triggers toggle under the hint controls shows why each Rung
- * arrived, its panel opening by itself once a row exists while a Disclosure is active. "Leave room" beside it, or
+ * already open. "How hints work" under the hint button says when the Guide offers a hint and why each Rung
+ * arrived, in player words. "Leave room" in the top bar, or
  * the browser Back button, asks the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card;
  * confirming goes to `#/` in place of the Play route (`LeaveRoom.exit`, so Back never resumes the play-through) and
  * records no Room result. A state that shows a Trickster window open asks for its

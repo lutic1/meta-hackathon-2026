@@ -150,13 +150,23 @@ def test_no_rung_before_90000_ms_of_idle_and_the_nudge_on_the_first_tick_at_or_p
     assert state.current_rung[PZ["find_key"]] == 1 and state.rungs_used == 1
 
 
-@pytest.mark.parametrize("activity", [click("rug", 10_000), code("door_code", "7342", 10_000), hint(None, 10_000)])
-def test_idle_counts_from_the_last_click_lock_input_or_hint_request(code_and_find_room: Room, activity: Event):
+@pytest.mark.parametrize("activity", [click("rug", 10_000), code("door_code", "7342", 10_000)])
+def test_idle_counts_from_the_last_click_or_lock_input(code_and_find_room: Room, activity: Event):
     machine = SessionStateMachine(code_and_find_room)
     log = play(machine, opening(0), activity, *ticks(15_000, 95_000))
     assert rungs(log) == []
     log = play(machine, opening(0), activity, *ticks(15_000, 100_000))
     assert summary(log) == [("find_key", 1, [1, 19], 100_000)]
+
+
+def test_idle_counts_from_the_last_hint_request_too(code_and_find_room: Room):
+    machine = SessionStateMachine(code_and_find_room)
+    wrong = [code("clock_code", "0", t) for t in (1_000, 2_000, 3_000)]
+    # The ask inside the spacing repeats the nudge and opens nothing, but the direction's stall counts from it.
+    log = play(machine, opening(0), *wrong, hint(None, 10_000), *ticks(15_000, 95_000))
+    assert summary(log) == [("clock_code", 1, [1, 2, 3], 3_000)]
+    log = play(machine, *ticks(100_000, 100_000), after=log)
+    assert summary(log)[1:] == [("clock_code", 2, [5, len(log) - 2], 100_000)]
 
 
 def test_an_idle_tick_never_resets_idle(code_and_find_room: Room):
@@ -169,7 +179,7 @@ def test_a_puzzle_that_is_not_the_active_puzzle_never_receives_an_idle_rung(four
     machine = SessionStateMachine(four_lock_room)
     log = play(machine, opening(0), hint("clock_code", 1_000), *ticks(6_000, 600_000))
     assert {r.puzzle_id for r in rungs(log)} == {PZ["clock_code"]}
-    assert [r.t_ms for r in rungs(log)] == [91_000, 181_000, 271_000]
+    assert [r.t_ms for r in rungs(log)] == [1_000, 91_000, 181_000]  # the ask opens the nudge; stalls open the rest
 
 
 # --- The Active puzzle moves on after a solve (1.8) -----------------------------------
@@ -179,12 +189,10 @@ def test_a_puzzle_that_is_not_the_active_puzzle_never_receives_an_idle_rung(four
 def test_after_a_code_lock_opens_the_idle_nudge_goes_to_the_next_find_puzzle(code_and_find_room: Room, before: list[Event]):
     machine = SessionStateMachine(code_and_find_room)
     head = [opening(0), click("key", 1_000), *before, code("clock_code", "415", 2_000)]
-    opened = len(head) - 1
     assert machine.replay(SESSION, head).active_puzzle_id == PZ["find_lantern"]
     log = play(machine, *head, *ticks(7_000, 92_000))
-    tick = len(head) + 17
-    assert log[tick].t_ms == 92_000
-    assert summary(log) == [("find_lantern", 1, [opened, tick], 92_000)]
+    opened, tick = log.index(head[-1]), log.index(idle(92_000))
+    assert [entry for entry in summary(log) if entry[0] != "clock_code"] == [("find_lantern", 1, [opened, tick], 92_000)]
 
 
 # --- Wrong attempts ---------------------------------------------------------------------
@@ -241,7 +249,7 @@ def test_an_order_stop_and_the_disarm_on_a_change_of_active_puzzle_never_count(f
         events += [order_start("shelf_order", 2_000), click("lantern", 2_000), click("candle", 2_000), stop]
     log = play(machine, *events, order_start("shelf_order", 3_000), click("candle", 3_000))
     state = machine.replay(SESSION, log)
-    assert rungs(log) == [] and state.wrong_attempts[PZ["shelf_order"]] == 0
+    assert all(r.puzzle_id != PZ["shelf_order"] for r in rungs(log)) and state.wrong_attempts[PZ["shelf_order"]] == 0
     assert state.order_buffer.clicks == [click("candle").interactable_id]
 
 
@@ -375,20 +383,66 @@ def test_at_timescale_6_an_idle_only_log_reaches_the_three_rungs_at_15_30_and_45
     assert [(r.rung, r.t_ms) for r in rungs(log)] == [(1, 15_000), (2, 30_000), (3, 45_000)]
 
 
-# --- A Hint request never triggers a Rung (Story 3.3) ---------------------------------------
+# --- Asking opens the next Rung, the spacing allowing (owner decision Oct 29, FR-15/16) -----------------
 
 
-def test_a_hint_request_never_triggers_a_rung_even_with_three_wrong_attempts_waiting_on_the_spacing(code_and_find_room: Room):
+def test_an_ask_with_no_rung_showing_opens_the_nudge_on_the_active_puzzle_at_once(code_and_find_room: Room):
+    machine = SessionStateMachine(code_and_find_room)
+    log = play(machine, opening(0), hint(None, 5_000))
+    assert summary(log) == [("find_key", 1, [1], 5_000)]
+    state = machine.replay(SESSION, log)
+    assert state.current_rung[PZ["find_key"]] == 1 and machine.current_rung_text(state) == code_and_find_room.puzzles[0].rungs.nudge
+    # The ask still counts as a hint used, and as an Early ask: no Rung was showing when it was made.
+    result = next(p for p in machine.result(SESSION, log).puzzles if p.puzzle_id == PZ["find_key"])
+    assert result.hint_requested and result.early_ask and result.rungs_used == 1
+
+
+def test_an_ask_inside_the_spacing_repeats_the_rung_and_reports_the_wait_and_past_it_opens_the_next(code_and_find_room: Room):
     machine = SessionStateMachine(code_and_find_room, thresholds=DEMO)
-    wrong = [code("clock_code", "0", t) for t in (1_000, 2_000, 3_000, 4_000, 5_000, 6_000)]
+    log = play(machine, opening(0), hint(None, 1_000))
+    assert machine.next_hint_ms(machine.replay(SESSION, log), 1_000) == 15_000  # the full spacing after the Rung it opened
+    log = play(machine, hint(None, 10_000), after=log)
+    state = machine.replay(SESSION, log)
+    assert summary(log) == [("find_key", 1, [1], 1_000)] and state.current_rung[PZ["find_key"]] == 1
+    assert machine.next_hint_ms(state, 10_000) == 6_000  # 15000 ms spacing, 9000 ms gone
+    log = play(machine, hint(None, 16_000), hint(None, 31_000), after=log)
+    assert summary(log)[1:] == [("find_key", 2, [4], 16_000), ("find_key", 3, [6], 31_000)]
+    # Nothing follows the near-answer: an ask repeats it, with no wait to count down.
+    log = play(machine, hint(None, 60_000), after=log)
+    state = machine.replay(SESSION, log)
+    assert len(rungs(log)) == 3 and machine.next_hint_ms(state, 60_000) is None
+
+
+def test_the_wait_counts_from_the_puzzles_last_rung_change_whatever_opened_it(code_and_find_room: Room):
+    machine = SessionStateMachine(code_and_find_room, thresholds=DEMO)
+    wrong = [code("clock_code", "0", t) for t in (1_000, 2_000, 3_000)]
     log = play(machine, opening(0), *wrong)
-    assert [(r.rung, r.t_ms) for r in rungs(log)] == [(1, 3_000)]  # the next three wait on the 15000 ms spacing
-    log = play(machine, hint(None, 20_000), hint("clock_code", 21_000), after=log)
-    assert [(r.rung, r.t_ms) for r in rungs(log)] == [(1, 3_000)]
-    assert machine.replay(SESSION, log).current_rung[PZ["clock_code"]] == 1
-    # The next event that is not a Hint request opens the waiting direction Rung.
-    log = play(machine, click("rug", 22_000), after=log)
-    assert [(r.rung, r.t_ms) for r in rungs(log)] == [(1, 3_000), (2, 22_000)]
+    assert summary(log) == [("clock_code", 1, [1, 2, 3], 3_000)]
+    state = machine.replay(SESSION, log)
+    assert machine.next_hint_ms(state, 5_000) == 13_000
+    log = play(machine, hint(None, 5_000), hint(None, 18_000), after=log)
+    assert summary(log)[1:] == [("clock_code", 2, [6], 18_000)]
+    # The next Puzzle has no Rung showing: an ask there opens its nudge at once, whatever the clock's wait.
+    log = play(machine, click("key", 19_000), code("clock_code", "415", 20_000), hint(None, 21_000), after=log)
+    assert summary(log)[2:] == [("find_lantern", 1, [10], 21_000)]
+    assert machine.next_hint_ms(machine.replay(SESSION, log), 21_000) == 15_000
+
+
+def test_asks_replay_to_exactly_the_rungs_appended_live(four_lock_room: Room):
+    machine = SessionStateMachine(four_lock_room, thresholds=DEMO)
+    log = play(machine, opening(0), hint(None, 1_000), hint(None, 2_000), *ticks(5_000, 20_000), hint(None, 21_000),
+               hint("clock_code", 22_000), hint(None, 40_000))
+    replayed = machine.replay(SESSION, log)
+    assert replayed.rung_changes == rungs(log) and len(rungs(log)) == 4
+    assert SessionStateMachine(four_lock_room, thresholds=DEMO).replay(SESSION, log) == replayed
+
+
+def test_an_ask_once_the_exit_is_open_opens_nothing_and_has_no_wait(code_and_find_room: Room):
+    machine = SessionStateMachine(code_and_find_room, thresholds=DEMO)
+    log = play(machine, opening(0), click("key", 1_000), code("clock_code", "415", 2_000), click("lantern", 3_000),
+               code("door_code", "7342", 4_000), hint(None, 5_000))
+    state = machine.replay(SESSION, log)
+    assert rungs(log) == [] and state.active_puzzle_id is None and machine.next_hint_ms(state, 5_000) is None
 
 
 def test_current_rung_text_is_the_verbatim_text_of_the_active_puzzles_current_rung(code_and_find_room: Room):

@@ -2,9 +2,9 @@
    hint-area-max; its upper part scrolls inside it, its lower part (the hint controls) never does. The arrival glow
    lights its edge with the portrait's ring. On a short window it stops where the Wizard notes reach notes-min, so
    its upper part scrolls and the pinned controls stay in view. The tray's bands are its flex items: the upper part,
-   then the hint field row, the helper line, the Triggers toggle and the open Triggers panel, 8 px apart (the lower
-   part and the Triggers slot are display: contents), so short of room the panel gives way first, to its newest row,
-   and only then does the upper part scroll; the controls never shrink. */
+   then the hint button, "How hints work" and its open panel, 8 px apart (the lower part and the panel's slot are
+   display: contents), so short of room the panel gives way first, to its newest row, and only then does the upper
+   part scroll; the controls never shrink. */
 .hint-area {
   box-sizing: border-box;
   display: flex;
@@ -18,7 +18,7 @@
   color: var(--text);
   transition: box-shadow var(--motion-hover) var(--motion-ease);
 }
-/* While the Triggers panel is open, or a Card is stacked (the open item "Hint area cap and the first Card"), the
+/* While "How hints work" is open, or a Card is stacked (the open item "Hint area cap and the first Card"), the
    tray may grow past its cap until the Wizard notes, above it in the side column with one column gap between, reach
    notes-min. */
 .hint-area.is-triggers-open,
@@ -28,7 +28,7 @@
 .hint-area.is-glowing {
   box-shadow: var(--elevation-lamp-glow);
 }
-/* The upper part scrolls inside the tray, 16 px above the hint field; it gives way only once the panel is at its
+/* The upper part scrolls inside the tray, 16 px above the hint button; it gives way only once the panel is at its
    newest row. */
 .hint-upper {
   display: flex;
@@ -87,13 +87,15 @@
 .rung-line.is-thinking .wizard-portrait {
   border-color: var(--lamp);
 }
-.hint-area.is-glowing .rung-line .wizard-portrait {
+/* The arrival glow, and the Guide pulse while a Hint request is in flight: the lit ring, held, never looping. */
+.hint-area.is-glowing .rung-line .wizard-portrait,
+.hint-area.is-asking .rung-line .wizard-portrait {
   border-color: var(--lamp);
   box-shadow: var(--elevation-lamp-glow);
 }
 
-/* The pinned lower part: the field and "Ask the Guide" side by side, the helper line, then the Triggers slot, each
-   a band of the tray that never scrolls or shrinks. */
+/* The pinned lower part: the hint button across the tray, then the slot of "How hints work", each a band of the
+   tray that never scrolls or shrinks. */
 .hint-lower,
 .hint-triggers {
   display: contents;
@@ -101,32 +103,9 @@
 .hint-ask {
   display: flex;
   flex: none;
-  gap: var(--spacing-2);
-}
-/* {components.hint-field}: 44 px on chrome, 1 px hairline, rounded md; its text and placeholder in body-sm. */
-.hint-field {
-  box-sizing: border-box;
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 44px;
-  margin: 0;
-  padding: 0 var(--spacing-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--rounded-md);
-  background: var(--chrome);
-  color: var(--text);
-}
-.hint-field::placeholder {
-  color: var(--text-muted);
-  opacity: 1;
 }
 .hint-ask > .button-primary {
-  flex: none;
-}
-.hint-helper {
-  flex: none;
-  margin: 0;
-  color: var(--text-muted);
+  flex: 1 1 auto;
 }
 
 /* Trickster cards stack above the Rung line, newest on top; under them, the count of older ones is a lamp link that

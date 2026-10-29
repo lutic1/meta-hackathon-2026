@@ -17,6 +17,7 @@ from tests.api.test_sessions import (
     FRESH_THRESHOLDS,
     WELCOME,
     Ticker,
+    click,
     code,
     demo_client,
     post,
@@ -56,14 +57,23 @@ def test_a_stall_after_activity_names_the_event_idle_counts_from_and_the_tick(tm
     client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker))
     session_id = start(client, code_and_find_room)
     ticker.advance(4_000)
-    post(client, session_id, {"type": "hint_request"})
+    post(client, session_id, click("rug"))
     state: dict = {"rung_changes": []}
     while not state["rung_changes"]:
         ticker.advance(5_000)
         state = client.get(f"/api/sessions/{session_id}").json()
     anchor, tick = named(state, state["rung_changes"][0])
-    assert anchor == {"type": "hint_request", "t_ms": 4_000} and tick["type"] == "idle_tick"
+    assert anchor == {"type": "click", "t_ms": 4_000} and tick["type"] == "idle_tick"
     assert tick["t_ms"] - anchor["t_ms"] >= FRESH_THRESHOLDS.nudge_threshold_ms
+
+
+def test_a_rung_an_ask_opened_names_the_hint_request_alone(tmp_path: Path, code_and_find_room: Room):
+    ticker = Ticker()
+    client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker))
+    session_id = start(client, code_and_find_room)
+    ticker.advance(4_000)
+    state = post(client, session_id, {"type": "hint_request"})
+    assert named(state, state["rung_changes"][0]) == [{"type": "hint_request", "t_ms": 4_000}]
 
 
 def test_three_wrong_codes_name_three_lock_inputs(tmp_path: Path, code_and_find_room: Room):

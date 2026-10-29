@@ -1,5 +1,8 @@
-"""Story 3.3: a Hint request returns the current Rung through the Guide port, or the No-hint line, and opens nothing (AD-3, AD-4, FR-14, FR-15, FR-17, NFR-5).
+"""Story 3.3: a Hint request opens the next Rung when it is due and returns the current Rung through the Guide port (AD-3, AD-4, FR-14, FR-15, FR-17, NFR-5).
 
+Owner decision Oct 29: an ask opens the Active puzzle's next Rung at once when
+none is showing, and once the Rung spacing has passed when one is; otherwise
+it repeats the current Rung with the wait until the next (`next_hint_ms`).
 Every reply to a `hint_request` carries `hint_reply`; a selected `rung_change`
 is worded through the injected `HintPhraser` before it is appended, and the
 session state reports its thresholds (AR-31).
@@ -125,31 +128,41 @@ def assert_the_phraser_saw_only_whole_rungs(room: Room, phraser: SpyVerbatim) ->
         assert "solution" not in seen
 
 
-# --- At rung 2, ten Hint requests each answer the direction -------------------------------------
+# --- At rung 2, ten Hint requests inside the spacing each answer the direction and count down ------------------
 
 
-def test_ten_hint_requests_at_rung_2_each_answer_the_direction_through_the_phraser_and_open_no_rung(
+def test_ten_hint_requests_inside_the_spacing_at_rung_2_each_answer_the_direction_and_the_wait_then_one_opens_the_next(
     tmp_path: Path, code_and_find_room: Room
 ):
     ticker, phraser = Ticker(), RecordingPhraser()
     client = demo_client(tmp_path, code_and_find_room, ticker, phraser)
     session_id = start(client, code_and_find_room)
-    climb(client, session_id, ticker, 2)
+    climb(client, session_id, ticker, 2)  # the direction opens at 22000 ms; the spacing is 15000 ms at timescale 6
     phraser.phrased.clear()
     rungs_before = [e for e in stored(tmp_path, session_id) if isinstance(e, RungChangeEvent)]
-    direction = puzzle(code_and_find_room, "clock_code").rungs.direction
-    for _ in range(10):
-        ticker.advance(20_000)  # past the spacing and the nudge threshold each time: still no Rung
+    clock = puzzle(code_and_find_room, "clock_code").rungs
+    for n in range(1, 11):
+        ticker.advance(1_000)
         state = post(client, session_id, HINT)
-        assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 2, "text": worded(direction)}
+        assert state["hint_reply"] == {
+            "puzzle_id": PZ["clock_code"], "rung": 2, "text": worded(clock.direction), "next_hint_ms": 15_000 - n * 1_000,
+        }
         assert state["current_rung"][PZ["clock_code"]] == 2 and state["active_puzzle_id"] == PZ["clock_code"]
-    assert phraser.phrased == [(direction, Derived.fresh())] * 10  # exactly the Rung text and the Derived block (AD-3)
+    assert phraser.phrased == [(clock.direction, Derived.fresh())] * 10  # exactly the Rung text and the Derived block (AD-3)
     log = stored(tmp_path, session_id)
     assert [e for e in log if isinstance(e, RungChangeEvent)] == rungs_before
     hints = hint_events(log)
     assert len(hints) == 10 and all(event.puzzle_id is None for event in hints)
-    assert [event.t_ms for event in hints] == list(range(42_000, 222_001, 20_000))  # stamped by the server clock
+    assert [event.t_ms for event in hints] == list(range(23_000, 32_001, 1_000))  # stamped by the server clock
     assert client.get(f"/api/sessions/{session_id}").json()["hint_reply"] is None  # never replayed
+    # Past the spacing the ask opens the near-answer, worded once on its way into the log, and nothing follows it.
+    ticker.advance(5_000)
+    state = post(client, session_id, HINT)
+    assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 3, "text": worded(clock.near_answer), "next_hint_ms": None}
+    assert phraser.phrased[10:] == [(clock.near_answer, Derived.fresh())]
+    (change,) = [e for e in stored(tmp_path, session_id) if isinstance(e, RungChangeEvent)][len(rungs_before):]
+    assert (change.rung, change.t_ms, change.text) == (3, 37_000, worded(clock.near_answer))
+    assert stored(tmp_path, session_id)[change.triggered_by[0]].type == "hint_request"
 
 
 def test_a_hint_request_naming_an_available_unsolved_puzzle_is_answered_for_it_and_makes_it_the_active_puzzle(
@@ -158,15 +171,16 @@ def test_a_hint_request_naming_an_available_unsolved_puzzle_is_answered_for_it_a
     ticker = Ticker()
     client = demo_client(tmp_path, code_and_find_room, ticker, RecordingPhraser())
     session_id = start(client, code_and_find_room)
-    climb(client, session_id, ticker, 1)
+    climb(client, session_id, ticker, 1)  # the clock's nudge at 6000 ms
     ticker.advance(1_000)
     state = post(client, session_id, {"type": "hint_request", "puzzle_id": PZ["find_key"]})
     assert state["active_puzzle_id"] == PZ["find_key"]
-    assert state["hint_reply"] == {"puzzle_id": PZ["find_key"], "rung": 0, "text": NO_HINT_LINE}
+    key_nudge = puzzle(code_and_find_room, "find_key").rungs.nudge
+    assert state["hint_reply"] == {"puzzle_id": PZ["find_key"], "rung": 1, "text": worded(key_nudge), "next_hint_ms": 15_000}
     ticker.advance(1_000)
     state = post(client, session_id, {"type": "hint_request", "puzzle_id": PZ["clock_code"]})
     nudge = puzzle(code_and_find_room, "clock_code").rungs.nudge
-    assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": worded(nudge)}
+    assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": worded(nudge), "next_hint_ms": 13_000}
     assert [event.puzzle_id for event in hint_events(stored(tmp_path, session_id))] == [PZ["find_key"], PZ["clock_code"]]
 
 
@@ -221,21 +235,16 @@ def test_hint_requests_naming_an_open_puzzle_then_a_locked_one_are_answered_for_
     ticker.advance(1_000)
     state = post(client, session_id, click("key"))  # B (find_key) opens; A is the clock, C (the door) waits on the lantern
     assert state["active_puzzle_id"] == PZ["clock_code"]
-    for named in ("find_key", "door_code"):
+    nudge = puzzle(code_and_find_room, "clock_code").rungs.nudge
+    for named, wait in (("find_key", 15_000), ("door_code", 14_000)):
         ticker.advance(1_000)
         state = post(client, session_id, {"type": "hint_request", "puzzle_id": PZ[named]})
-        assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 0, "text": NO_HINT_LINE}
+        assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": worded(nudge), "next_hint_ms": wait}
         assert state["active_puzzle_id"] == PZ["clock_code"]
     assert [event.puzzle_id for event in hint_events(stored(tmp_path, session_id))] == [PZ["find_key"], PZ["door_code"]]
     result = {p["puzzle_id"]: p for p in client.get(f"/api/sessions/{session_id}/result").json()["puzzles"]}
     assert result[PZ["clock_code"]]["hint_requested"] and result[PZ["clock_code"]]["early_ask"]
     assert not any(result[PZ[name]]["hint_requested"] for name in ("find_key", "door_code", "find_lantern"))
-    # With a Rung open on A, the same requests answer A's current Rung.
-    state = climb(client, session_id, ticker, 1)
-    ticker.advance(1_000)
-    state = post(client, session_id, {"type": "hint_request", "puzzle_id": PZ["door_code"]})
-    nudge = puzzle(code_and_find_room, "clock_code").rungs.nudge
-    assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": worded(nudge)}
 
 
 def test_once_the_exit_has_opened_a_hint_request_returns_the_no_hint_line_against_no_puzzle(
@@ -250,17 +259,18 @@ def test_once_the_exit_has_opened_a_hint_request_returns_the_no_hint_line_agains
     ticker.advance(1_000)
     state = post(client, session_id, HINT)
     assert state["active_puzzle_id"] is None
-    assert state["hint_reply"] == {"puzzle_id": None, "rung": 0, "text": NO_HINT_LINE} and phraser.phrased == []
+    assert state["hint_reply"] == {"puzzle_id": None, "rung": 0, "text": NO_HINT_LINE, "next_hint_ms": None}
+    assert phraser.phrased == []
     assert hint_events(stored(tmp_path, session_id))[-1].puzzle_id is None
     result = client.get(f"/api/sessions/{session_id}/result").json()
     assert not any(p["hint_requested"] or p["early_ask"] for p in result["puzzles"])
 
 
-# --- At rung 0: the No-hint line, never phrased, logged as an Early ask --------------------------------
+# --- At rung 0: the ask opens the nudge at once, worded once, logged as an Early ask --------------------------
 
 
 @pytest.mark.parametrize("phraser", [SpyVerbatim(), RecordingPhraser()], ids=["verbatim", "guide-model"])
-def test_at_rung_0_the_reply_is_exactly_the_no_hint_line_and_phrase_is_never_called(
+def test_at_rung_0_an_ask_opens_the_nudge_at_once_worded_once_and_logged_as_an_early_ask(
     tmp_path: Path, code_and_find_room: Room, phraser: SpyVerbatim | RecordingPhraser
 ):
     phraser.phrased.clear()
@@ -271,35 +281,37 @@ def test_at_rung_0_the_reply_is_exactly_the_no_hint_line_and_phrase_is_never_cal
     post(client, session_id, click("key"))
     ticker.advance(1_000)
     state = post(client, session_id, HINT)
-    assert state["hint_reply"]["text"] == "A fair ask. Look around a little longer; I'll speak up if you stay stuck."
-    assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 0, "text": NO_HINT_LINE}
-    assert phraser.phrased == []
-    result = {p["puzzle_id"]: p for p in client.get(f"/api/sessions/{session_id}/result").json()["puzzles"]}
-    assert result[PZ["clock_code"]]["early_ask"] and not result[PZ["clock_code"]]["nudge_fired"]
-    # The request releases no Rung: the nudge still waits for 3 Wrong attempts (or its threshold).
+    nudge = puzzle(code_and_find_room, "clock_code").rungs.nudge
+    shown = worded(nudge) if isinstance(phraser, RecordingPhraser) else nudge
+    assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 1, "text": shown, "next_hint_ms": 90_000}
+    assert phraser.phrased == [(nudge, Derived.fresh())]  # worded once, on its way into the log
     log = stored(tmp_path, session_id)
-    assert not any(isinstance(e, RungChangeEvent) for e in log) and state["current_rung"][PZ["clock_code"]] == 0
-    for n in range(3):
+    (change,) = [e for e in log if isinstance(e, RungChangeEvent)]
+    assert (change.puzzle_id, change.rung, change.t_ms, change.text) == (PZ["clock_code"], 1, 2_000, shown)
+    assert log[change.triggered_by[0]].type == "hint_request" and len(change.triggered_by) == 1
+    result = {p["puzzle_id"]: p for p in client.get(f"/api/sessions/{session_id}/result").json()["puzzles"]}
+    assert result[PZ["clock_code"]]["early_ask"] and result[PZ["clock_code"]]["nudge_fired"]
+    # Three Wrong attempts inside the spacing open nothing further.
+    for _ in range(3):
         ticker.advance(1_000)
         state = post(client, session_id, code("clock_code", "000"))
-        assert state["current_rung"][PZ["clock_code"]] == (1 if n == 2 else 0)
+        assert state["current_rung"][PZ["clock_code"]] == 1
 
 
-def test_after_an_early_ask_the_idle_nudge_still_waits_its_threshold(tmp_path: Path, code_and_find_room: Room):
+def test_an_ask_inside_the_spacing_repeats_the_nudge_with_the_wait_and_past_it_opens_the_direction(
+    tmp_path: Path, code_and_find_room: Room
+):
     ticker = Ticker()
     client = TestClient(make_app(tmp_path, code_and_find_room, clock=ticker, phraser=SpyVerbatim()))
     session_id = start(client, code_and_find_room)
-    ticker.advance(5_000)
-    post(client, session_id, HINT)  # an Early ask on the find at 5000 ms
-    while ticker.ms < 5_000 + 90_000 - 5_000:
-        ticker.advance(5_000)
-        client.get(f"/api/sessions/{session_id}")
-    assert not any(isinstance(e, RungChangeEvent) for e in stored(tmp_path, session_id))
-    ticker.advance(5_000)
-    state = client.get(f"/api/sessions/{session_id}").json()
-    rungs = [e for e in stored(tmp_path, session_id) if isinstance(e, RungChangeEvent)]
-    assert [(r.puzzle_id, r.rung, r.t_ms) for r in rungs] == [(PZ["find_key"], 1, 95_000)]
-    assert state["current_rung"][PZ["find_key"]] == 1
+    rungs = puzzle(code_and_find_room, "find_key").rungs
+    for advance, rung, text, wait in ((5_000, 1, rungs.nudge, 90_000), (45_000, 1, rungs.nudge, 45_000),
+                                      (44_999, 1, rungs.nudge, 1), (1, 2, rungs.direction, 90_000)):
+        ticker.advance(advance)
+        reply = post(client, session_id, HINT)["hint_reply"]
+        assert reply == {"puzzle_id": PZ["find_key"], "rung": rung, "text": text, "next_hint_ms": wait}
+    changes = [e for e in stored(tmp_path, session_id) if isinstance(e, RungChangeEvent)]
+    assert [(c.rung, c.t_ms) for c in changes] == [(1, 5_000), (2, 95_000)]
 
 
 # --- At the near-answer, further Hint requests repeat it -------------------------------------------------
@@ -315,7 +327,7 @@ def test_at_the_near_answer_further_hint_requests_repeat_it_and_nothing_follows(
     for _ in range(4):
         ticker.advance(30_000)
         state = post(client, session_id, HINT)
-        assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 3, "text": worded(near_answer)}
+        assert state["hint_reply"] == {"puzzle_id": PZ["clock_code"], "rung": 3, "text": worded(near_answer), "next_hint_ms": None}
         keys = ("locks_open", "inventory", "current_rung", "wrong_attempts", "active_puzzle_id", "rung_changes")
         assert {k: state[k] for k in keys} == {k: before[k] for k in keys}
     assert [e for e in stored(tmp_path, session_id) if e.type != "hint_request"] == log
@@ -379,7 +391,7 @@ def test_the_session_state_reports_the_effective_thresholds_their_1x_values_and_
 
 
 @pytest.mark.parametrize("rung", [0, 1, 2])
-def test_the_scripted_attack_suite_opens_nothing_and_returns_nothing_above_the_current_rung(
+def test_the_scripted_attack_suite_opens_no_lock_and_returns_nothing_above_the_current_rung(
     tmp_path: Path, four_lock_room: Room, rung: int
 ):
     room = with_sentinel_solutions(four_lock_room)
@@ -389,6 +401,7 @@ def test_the_scripted_attack_suite_opens_nothing_and_returns_nothing_above_the_c
     before = climb(client, session_id, ticker, rung)
     assert before["current_rung"][PZ["clock_code"]] == rung
     named = [None, *(p.id for p in room.puzzles)]
+    state = before
     for attack in SCRIPTED_ATTACK_SUITE:
         ticker.advance(500)
         log = stored(tmp_path, session_id)
@@ -396,18 +409,19 @@ def test_the_scripted_attack_suite_opens_nothing_and_returns_nothing_above_the_c
         assert smuggled.status_code == 422 and stored(tmp_path, session_id) == log
         for puzzle_id in named:
             ticker.advance(500)
+            previous = state["current_rung"]
             state = post(client, session_id, HINT if puzzle_id is None else {**HINT, "puzzle_id": puzzle_id})
             reply = state["hint_reply"]
             current = state["current_rung"][reply["puzzle_id"]]
-            assert reply["rung"] == current
-            assert reply["text"] == (NO_HINT_LINE if current == 0 else rung_text(room, reply["puzzle_id"], current))
+            assert reply["rung"] == current and reply["text"] == rung_text(room, reply["puzzle_id"], current)
+            # An ask opens at most the next Rung, and only on the Puzzle it was answered for.
+            assert all(n - previous[p] in ((0, 1) if p == reply["puzzle_id"] else (0,)) for p, n in state["current_rung"].items())
             higher = [rung_text(room, p.id, n) for p in room.puzzles for n in range(state["current_rung"][p.id] + 1, 4)]
             assert not any(text in json.dumps(state) for text in higher)
             assert attack not in json.dumps(state)
     after = client.get(f"/api/sessions/{session_id}").json()
-    for key in ("locks_open", "inventory", "current_rung", "rung_changes"):
+    for key in ("locks_open", "inventory"):
         assert after[key] == before[key]
-    assert bool(phraser.phrased) == (rung > 0)
     assert_the_phraser_saw_only_whole_rungs(room, phraser)
 
 
@@ -438,9 +452,13 @@ def test_no_play_response_carries_a_solution_a_sentinel_or_a_rung_above_the_curr
         current = SessionState.model_validate(body).current_rung if "current_rung" in body else {}
         higher = [text for (puzzle_id, n), text in all_rungs.items() if n > current.get(puzzle_id, 0)]
         assert not any(text.encode() in response.content for text in higher), response.request.url
-    # Every Rung the Guide port saw, for each appended rung_change and each answered Hint request, and nothing else (AD-3).
-    rung_changes = [e for e in stored(tmp_path, session_id) if isinstance(e, RungChangeEvent)]
+    # Every Rung the Guide port saw: each appended rung_change once (a Rung an ask opened is answered in those words),
+    # and each Hint request that repeated a Rung already open, and nothing else (AD-3).
+    log = stored(tmp_path, session_id)
+    rung_changes = [e for e in log if isinstance(e, RungChangeEvent)]
     answered = [r.json()["hint_reply"] for r in responses if r.request.method == "POST" and r.json().get("hint_reply")]
-    assert rung_changes and any(reply["rung"] > 0 for reply in answered)
-    assert len(phraser.phrased) == len(rung_changes) + sum(reply["rung"] > 0 for reply in answered)
+    asked_open = sum(change.triggered_by == [i] and log[i].type == "hint_request"
+                     for i in range(len(log)) for change in rung_changes)
+    assert rung_changes and asked_open and any(reply["rung"] > 0 for reply in answered)
+    assert len(phraser.phrased) == len(rung_changes) + sum(reply["rung"] > 0 for reply in answered) - asked_open
     assert_the_phraser_saw_only_whole_rungs(room, phraser)

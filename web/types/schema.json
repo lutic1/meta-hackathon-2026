@@ -788,12 +788,25 @@
         "text": {
           "title": "Text",
           "type": "string"
+        },
+        "next_hint_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Hint Ms"
         }
       },
       "required": [
         "puzzle_id",
         "rung",
-        "text"
+        "text",
+        "next_hint_ms"
       ],
       "title": "HintReply",
       "type": "object"

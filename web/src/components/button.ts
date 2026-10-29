@@ -1,7 +1,8 @@
 import './button.css'
 
 export interface PrimaryButtonOptions {
-  label: string
+  /** Its label, or a function read again each time a request settles (a label that follows the state). */
+  label: string | (() => string)
   /** Shown while `onActivate` is in flight; repeat activation is ignored until it settles. */
   pendingLabel: string
   onActivate: () => Promise<void>
@@ -23,7 +24,7 @@ export interface SecondaryLinkOptions {
 
 export interface ToggleButtonOptions {
   label: string
-  /** `pressed` ("Show all objects") or `expanded` (the Triggers toggle, "Show the build JSON"). */
+  /** `pressed` ("Show all objects") or `expanded` ("How hints work", "Show the build JSON"). */
   state: 'pressed' | 'expanded'
   on?: boolean
   /** Id of the element an `expanded` toggle opens. */
@@ -41,7 +42,8 @@ function button(className: string, label: string): HTMLButtonElement {
 
 /** `{components.button-primary}`: lamp fill, `on-lamp` label, 44 px; Enter and Space activate it. */
 export function primaryButton({ label, pendingLabel, onActivate }: PrimaryButtonOptions): HTMLButtonElement {
-  const element = button('button-primary', label)
+  const settled = (): string => (typeof label === 'string' ? label : label())
+  const element = button('button-primary', settled())
   let pending = false
   element.addEventListener('click', () => {
     if (pending) return
@@ -50,7 +52,7 @@ export function primaryButton({ label, pendingLabel, onActivate }: PrimaryButton
     element.setAttribute('aria-busy', 'true')
     void onActivate().finally(() => {
       pending = false
-      element.textContent = label
+      element.textContent = settled()
       element.removeAttribute('aria-busy')
     })
   })

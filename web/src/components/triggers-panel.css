@@ -1,17 +1,26 @@
-/* {components.triggers-panel}: the toggle row (a secondary button whose count is mono-sm), then, open, a list on
-   chrome, rounded md, its foreground text-muted: one plain body-sm header line, then the rows, capped at
-   triggers-panel-max and scrolling, the newest row last and in text. The toggle and the panel are bands of the Hint
-   area's tray (the slot is display: contents), 8 px apart, with 4 px more above the toggle. */
+/* {components.triggers-panel}: "How hints work", a quiet text button (text-muted, underlined, text on hover), then,
+   open, a panel on chrome, rounded md, its foreground text-muted: the plain body-sm opening lines, then the hint
+   history, capped at triggers-panel-max and scrolling, the newest row last and in text. The button and the panel are
+   bands of the Hint area's tray (the slot is display: contents), 8 px apart. */
 .triggers {
   display: contents;
 }
 .triggers-toggle {
   flex: none;
   align-self: flex-start;
-  margin-top: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color var(--motion-hover) var(--motion-ease);
 }
-.triggers-toggle .mono-sm {
-  color: inherit;
+.triggers-toggle:hover,
+.triggers-toggle[aria-expanded='true'] {
+  color: var(--text);
 }
 .triggers-panel {
   display: flex;
@@ -31,7 +40,7 @@
   flex: none;
   margin: 0;
 }
-.triggers-source {
+.triggers-line {
   display: block;
 }
 .triggers-rows {

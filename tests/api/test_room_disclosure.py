@@ -304,7 +304,7 @@ def test_the_same_posted_events_at_6x_scripted_append_only_what_normal_session_l
     demo_log, demo_state, demo_unchanged = _play(tmp_path / "demo", built_room, DEMO_ENV, 6)
     live_log, live_state, live_unchanged = _play(tmp_path / "live", built_room, {}, 1)
     assert demo_log == live_log
-    assert [event["t_ms"] for event in demo_log] == [0, 1500, 3000, 4500, 6000, 12000]
+    assert [event["t_ms"] for event in demo_log] == [0, 1500, 3000, 4500, 6000, 6000, 12000]  # the ask opens a nudge
     posted = {"click", "lock_input", "hint_request"}
     assert {event["type"] for event in demo_log} - posted <= set(SERVER_EVENTS)
     for position, event in enumerate(demo_log):
