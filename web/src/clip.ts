@@ -1,7 +1,7 @@
 /**
  * The clip of the Hosted landing: a scripted play-through of one Demo room, at real speed. Re-recording it means
- * swapping the six files under `web/public/clip/`, the room id, the lengths in `strings.ts` (`watchCardTag`,
- * `watchBackTag`), and re-running the lines under `CLIP_CARD` on the new recording.
+ * swapping the six files under `web/public/clip/`, the room id, its length in `strings.ts` (`watchBackTag`), and
+ * re-running the lines under `CLIP_CARD` on the new recording.
  */
 export const CLIP = {
   roomId: 'room_01M61TZ74F0FP3X9HHTMXGTPB9',
@@ -44,6 +44,32 @@ export interface VideoSources {
   readonly webm: string
   readonly mp4: string
   readonly poster: string
+}
+
+/**
+ * The tutorial, the Watch back's first tab (owner decision Oct 29): the owner's own ten-second generated video (a framed
+ * photo clicked into, a glowing outline round a pillow, a key and a card landing in the inventory, a padlocked door, the
+ * door opening into light), slowed to half speed, 20 s. Plain half speed, each frame held: motion interpolation
+ * (`minterpolate`, mci and aobmc) smeared the pan and warped the padlock on this footage. Its sound is dropped (it would
+ * be distorted at half speed), and five captions are burned in from `tutorial.ass` (1280 x 720): EB Garamond Medium
+ * 46 px (the woff2 under `web/public/fonts/eb-garamond/` saved as a TTF with fontTools) in parchment `&HBEDBE8&`,
+ * centred at y 545 on a soft band (the box 150..1130 x 504..584 in `#0A0806` at 81 %, `\blur14`) under a 2 px gilt
+ * hairline (`#B08A4E`, 240..1040 at y 503), just above the video's own inventory bar; the band and the hairline fade in
+ * and out with the video, and each caption fades in and out over 250 ms (`\fad(250,250)`), never two at once:
+ *   0.25-2.75 s   Snap a room. Your photos become the game.
+ *   3.00-6.10 s   Read a riddle, then click the thing it means.
+ *   6.35-10.00 s   Pick things up. They wait in your inventory.
+ *   10.25-15.60 s   Use them where they belong to open the locks.
+ *   15.85-19.80 s   Open the last lock and walk out.
+ *   VF="setpts=2.0*PTS,fps=30,ass=tutorial.ass:fontsdir=fonts"
+ *   ffmpeg -i tutorial-source.mp4 -vf "$VF" -an -c:v libx264 -pix_fmt yuv420p -crf 24 -preset slow -movflags +faststart tutorial.mp4
+ *   ffmpeg -i tutorial-source.mp4 -vf "$VF" -an -c:v libvpx-vp9 -b:v 0 -crf 34 -row-mt 1 -pix_fmt yuv420p tutorial.webm
+ *   ffmpeg -ss 1.5 -i tutorial.mp4 -frames:v 1 -q:v 3 tutorial-poster.jpg (the first caption)
+ */
+export const TUTORIAL: VideoSources = {
+  webm: '/tutorial/tutorial.webm',
+  mp4: '/tutorial/tutorial.mp4',
+  poster: '/tutorial/tutorial-poster.jpg',
 }
 
 /**

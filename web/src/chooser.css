@@ -955,6 +955,7 @@
 }
 .chooser-panel-title {
   margin: 0;
+  text-wrap: balance;
   color: var(--text);
 }
 .chooser-grow {
@@ -1046,6 +1047,37 @@
   height: 100%;
   object-fit: contain;
   background: #0a0806;
+}
+.chooser-watch-video[hidden] {
+  display: none;
+}
+/* The Watch back's two tabs, Tutorial and Real play-through: the selected one lamp-edged and underlined. */
+.chooser-tabs {
+  display: flex;
+  flex: none;
+  gap: var(--spacing-2);
+}
+.chooser-tab {
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid #b08a4e99;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--parchment);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-hover) var(--motion-ease),
+    border-color var(--motion-hover) var(--motion-ease);
+}
+.chooser-tab:hover {
+  border-color: var(--lamp);
+}
+.chooser-tab[aria-selected='true'] {
+  border-color: var(--lamp);
+  background: var(--lamp-hover-fill);
+  box-shadow: inset 0 -2px 0 var(--lamp);
+  color: var(--text);
 }
 .chooser-watch-foot {
   display: flex;

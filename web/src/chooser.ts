@@ -2,7 +2,7 @@ import './chooser.css'
 import type { RoomSummary } from '../types'
 import { photoUrl } from './api/index.ts'
 import { buildViewLink } from './build-view.ts'
-import { CLIP_CARD, DEMO_VIDEO, DEMO_VIDEO_ASPECT, type VideoSources } from './clip.ts'
+import { CLIP_CARD, DEMO_VIDEO, DEMO_VIDEO_ASPECT, TUTORIAL, type VideoSources } from './clip.ts'
 import { ACCESS_CODE_FIELD, accessCodeBuild } from './components/access-code-build.ts'
 import { primaryButton, secondaryButton } from './components/button.ts'
 import { roomTitle } from './components/stored-room-row.ts'
@@ -224,8 +224,9 @@ type State = 'arriving' | 'rest' | 'choosing' | 'chosen' | 'returning'
  * needed and Build's that an access code is. Hover or focus brings a card forward into the light
  * (it lifts, squares up, tilts toward the pointer and shows its prompt) while the other two step back and dim. Choosing
  * one (click, Enter or Space) gives it one full turn, handing over at the edge-on moment to one shared back panel, a
- * modal dialog that finishes the turn: Watch plays the demo video larger with controls; Play shows the first Demo
- * room, its hosts, how to play and "Play this room" (the guarded start, "Opening the room…" while pending); Build holds
+ * modal dialog that finishes the turn: Watch plays the captioned tutorial larger with controls, the real play-through a
+ * tab away; Play shows the first Demo room, its hosts, how to play and "Play this room" (the guarded start, "Opening the
+ * room…" while pending); Build holds
  * the three steps and the Access-code build. Escape, Back or a click on the bare stage turns it home, focus returning
  * to the card. The cards are one Tab stop, Play first; arrows, Home and End move between them; Tab is trapped in the
  * dialog and everything outside it is inert. The footer holds the key hints, "Watch the intro", which reopens the
@@ -451,17 +452,82 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     return Promise.resolve()
   }
 
-  // Watch back: the demo video larger, with native controls.
-  const panelVideo = element('video')
-  panelVideo.controls = true
-  panelVideo.defaultMuted = true
-  panelVideo.muted = true
-  panelVideo.loop = true
-  panelVideo.playsInline = true
-  panelVideo.preload = 'metadata'
-  panelVideo.tabIndex = 0
-  panelVideo.setAttribute('aria-label', strings.clipLabel)
-  sourced(panelVideo, DEMO_VIDEO)
+  // Watch back: two tabs, the captioned tutorial first and the real play-through, each video larger with native controls.
+  function watchVideo(sources: VideoSources, label: string): HTMLVideoElement {
+    const video = element('video')
+    video.controls = true
+    video.defaultMuted = true
+    video.muted = true
+    video.loop = true
+    video.playsInline = true
+    video.preload = 'metadata'
+    video.tabIndex = 0
+    video.setAttribute('aria-label', label)
+    sourced(video, sources)
+    return video
+  }
+  const tutorialVideo = watchVideo(TUTORIAL, strings.tutorialLabel)
+  const panelVideo = watchVideo(DEMO_VIDEO, strings.clipLabel)
+  const watchVideos = [tutorialVideo, panelVideo]
+  // The tutorial's accessible description is its five captions, which are burned into the video.
+  const tutorialLines = [strings.tutorialLine1, strings.tutorialLine2, strings.tutorialLine3, strings.tutorialLine4, strings.tutorialLine5]
+  const described = element('p', '', tutorialLines.join(' '))
+  described.id = 'chooser-tutorial-lines'
+  described.hidden = true
+  tutorialVideo.setAttribute('aria-describedby', described.id)
+  const watchBoxes = watchVideos.map((video, k) => element('div', 'chooser-watch-video', video, ...(k === 0 ? [described] : [])))
+  const watchTabs = [strings.watchTabTutorial, strings.watchTabPlayThrough].map((label, k) => {
+    const tab = element('button', 'chooser-tab label', label)
+    tab.type = 'button'
+    tab.id = `chooser-watch-tab-${k}`
+    const box = watchBoxes[k]
+    box.id = `chooser-watch-panel-${k}`
+    tab.setAttribute('role', 'tab')
+    tab.setAttribute('aria-controls', box.id)
+    box.setAttribute('role', 'tabpanel')
+    box.setAttribute('aria-labelledby', tab.id)
+    return tab
+  })
+  const tablist = element('div', 'chooser-tabs', ...watchTabs)
+  tablist.setAttribute('role', 'tablist')
+  tablist.setAttribute('aria-label', strings.watchTabs)
+  const watchTags = [tagChip(strings.tutorialTag), tagChip(strings.watchBackTag)]
+  const watchHead = head(strings.tutorialCaption, tablist, ...watchTags)
+  const watchTitle = watchHead.querySelector('h2')
+  let watchTab = 0
+  /** Shows tab `k`'s video, heading and tag, pausing the other video. */
+  function showTab(k: number): void {
+    watchTab = k
+    watchTabs.forEach((tab, n) => {
+      tab.setAttribute('aria-selected', String(n === k))
+      tab.tabIndex = n === k ? 0 : -1
+      watchBoxes[n].hidden = n !== k
+      watchTags[n].hidden = n !== k
+      if (n !== k) watchVideos[n].pause()
+    })
+    if (watchTitle !== null) watchTitle.textContent = k === 0 ? strings.tutorialCaption : strings.clipCaption
+  }
+  showTab(watchTab)
+  /** Selects tab `k` by the player's hand: its video plays from the start (never under reduced motion or Pause motion). */
+  function selectTab(k: number, focus: boolean): void {
+    if (k !== watchTab) {
+      showTab(k)
+      if (!reduced && !still) {
+        watchVideos[k].currentTime = 0
+        play(watchVideos[k])
+      }
+    }
+    if (focus) watchTabs[k].focus()
+  }
+  watchTabs.forEach((tab, i) => {
+    tab.addEventListener('click', () => selectTab(i, false))
+    tab.addEventListener('keydown', (event) => {
+      const next: Record<string, number> = { ArrowRight: (i + 1) % 2, ArrowLeft: (i + 1) % 2, Home: 0, End: 1 }
+      if (!(event.key in next)) return
+      event.preventDefault()
+      selectTab(next[event.key], true)
+    })
+  })
   const watchActions = element('div', 'chooser-actions', secondaryButton({ label: strings.buildCardTitle, onActivate: () => void goto(2) }))
   if (first !== undefined) {
     watchActions.append(primaryButton({ label: strings.playSampleRoom, pendingLabel: strings.playSampleRoom, onActivate: () => goto(1) }))
@@ -469,8 +535,8 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   const watchView = element(
     'div',
     'chooser-view',
-    head(strings.clipCaption, tagChip(strings.watchBackTag)),
-    element('div', 'chooser-watch-video', panelVideo),
+    watchHead,
+    ...watchBoxes,
     element('div', 'chooser-watch-foot', voice('trickster', strings.tricksterVoice), watchActions),
   )
 
@@ -1062,7 +1128,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     return ((geo.H * P_ROW) / (P_ROW - LIFT_Z)) / ((panel.offsetHeight * P_PANEL) / (P_PANEL - LIFT_Z))
   }
   function focusPanel(i: number): void {
-    const target = i === 0 ? panelVideo : i === 1 ? playFocus : panel.querySelector<HTMLElement>(`#${ACCESS_CODE_FIELD}`)
+    const target = i === 0 ? watchVideos[watchTab] : i === 1 ? playFocus : panel.querySelector<HTMLElement>(`#${ACCESS_CODE_FIELD}`)
     target?.focus({ preventScroll: true })
   }
   /** Fades the stage out, makes the change, and fades it back in: every change under reduced motion. */
@@ -1104,8 +1170,8 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       panel.style.visibility = ''
       focusPanel(i)
       if (i === 0 && !reduced && !still) {
-        panelVideo.currentTime = 0
-        play(panelVideo)
+        watchVideos[watchTab].currentTime = 0
+        play(watchVideos[watchTab])
       }
       if (i === 1) panelCycler.start()
       if (queuedHome) goHome()
@@ -1162,6 +1228,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     if (state !== 'chosen') return
     const i = chosen
     const { slot, card: turning, deal, reverse, choose: button } = cards[i]
+    tutorialVideo.pause()
     panelVideo.pause()
     panelCycler.stop()
     state = 'returning'
@@ -1240,6 +1307,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     stillToggle.setAttribute('aria-pressed', String(still))
     if (still) {
       frontVideo.pause()
+      tutorialVideo.pause()
       panelVideo.pause()
       frontCycler.stop()
       panelCycler.stop()
@@ -1335,6 +1403,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
         for (const timer of timers) clearTimeout(timer)
         for (const animation of section.getAnimations({ subtree: true })) animation.cancel()
         frontVideo.pause()
+        tutorialVideo.pause()
         panelVideo.pause()
         frontCycler.stop()
         panelCycler.stop()

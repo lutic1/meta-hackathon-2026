@@ -81,14 +81,15 @@ def test_one_module_names_the_clip_the_card_loop_and_the_demo_video():
 
 def test_the_clip_plays_at_real_speed_and_its_tags_name_its_length():
     """Owner report Oct 29: "watch the demo is way to fast". Neither video is sped up, so the play runs well past ten
-    seconds, and the Watch card's tag and the Watch back's tag read the clip's own length."""
+    seconds, and the Watch back's play-through tag reads the clip's own length (the Watch card's tag reads the
+    tutorial's since it came first, test_watch_tutorial.py)."""
     clip, card = _seconds(CLIP / "play.mp4"), _seconds(CLIP / "card.mp4")
     assert 30 <= clip <= 50 and 25 <= card < clip
     doc = (WEB_SRC / "clip.ts").read_text()
     assert "setpts=(PTS-STARTPTS)*" not in doc and "setpts=N/30/TB" in doc  # no speed-up factor on either cut
     strings = _strings()
     length = f"{int(round(clip)) // 60}:{int(round(clip)) % 60:02d}"
-    assert strings["watchCardTag"] == length and strings["watchBackTag"] == f"muted · {length}"
+    assert strings["watchBackTag"] == f"muted · {length}"
     assert not any(re.search(r"\bten\b", strings[key], re.IGNORECASE) for key in ("clipCaption", "clipLabel", "watchCardEyebrow"))
 
 
@@ -123,16 +124,19 @@ def test_the_watch_card_plays_its_own_loop_muted_and_looping_and_shows_in_every_
 
 
 def test_the_watch_back_plays_the_demo_video_larger_with_native_controls():
+    """Since the tutorial (Oct 29) the demo video is the Watch back's second tab, "Real play-through"
+    (test_watch_tutorial.py checks the tabs)."""
     chooser = _chooser()
-    back = chooser.split("const panelVideo = element('video')", 1)[1].split("const watchActions", 1)[0]
-    for line in ("panelVideo.controls = true", "panelVideo.muted = true", "panelVideo.loop = true",
-                 "panelVideo.tabIndex = 0", "panelVideo.setAttribute('aria-label', strings.clipLabel)",
-                 "sourced(panelVideo, DEMO_VIDEO)"):
-        assert line in back, line
-    assert "head(strings.clipCaption, tagChip(strings.watchBackTag))" in chooser
-    # It plays from the start once the panel is open, never under reduced motion or Pause motion.
+    made = chooser.split("function watchVideo(sources: VideoSources, label: string): HTMLVideoElement {", 1)[1].split("\n  }\n", 1)[0]
+    for line in ("video.controls = true", "video.muted = true", "video.loop = true", "video.tabIndex = 0",
+                 "video.setAttribute('aria-label', label)", "sourced(video, sources)"):
+        assert line in made, line
+    assert "const panelVideo = watchVideo(DEMO_VIDEO, strings.clipLabel)" in chooser
+    assert "const watchTags = [tagChip(strings.tutorialTag), tagChip(strings.watchBackTag)]" in chooser
+    assert "watchTitle.textContent = k === 0 ? strings.tutorialCaption : strings.clipCaption" in chooser
+    # The selected tab's video plays from the start once the panel is open, never under reduced motion or Pause motion.
     finish = chooser.split("const finish = (): void => {", 1)[1].split("\n    }\n", 1)[0]
-    assert "if (i === 0 && !reduced && !still) {\n        panelVideo.currentTime = 0\n        play(panelVideo)" in finish
+    assert "if (i === 0 && !reduced && !still) {\n        watchVideos[watchTab].currentTime = 0\n        play(watchVideos[watchTab])" in finish
     # The panel takes the video's aspect: Watch is as wide as the aspect allows at the panel's height.
     assert "let watchWidth = Math.round(videoHeight * DEMO_VIDEO_ASPECT) + 60" in chooser
 

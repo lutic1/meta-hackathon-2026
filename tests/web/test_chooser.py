@@ -37,8 +37,9 @@ def _rules() -> dict[str, dict[str, str]]:
 def test_the_chooser_strings_are_the_experience_lines():
     strings = _strings()
     assert strings["chooserSubline"] == "Pick a card. Any card." and strings["chooserGroup"] == "Three ways in"
-    assert (strings["watchCardEyebrow"], strings["watchCardTitle"], strings["watchCardTag"]) == ("One play-through", "Watch the demo", "0:37")
-    assert strings["watchCardLine"] == "See a room played: a wrong click, a pickup, a lock opening, the way out."
+    # Since the tutorial (Oct 29) the card promises both videos and its tag reads the tutorial's length.
+    assert (strings["watchCardEyebrow"], strings["watchCardTitle"], strings["watchCardTag"]) == ("Two videos", "Watch the demo", "0:20")
+    assert strings["watchCardLine"] == "A twenty-second tutorial, then a real room played start to finish."
     assert (strings["watchCardPrompt"], strings["watchBackTag"]) == ("Watch it bigger", "muted · 0:37")
     assert (strings["playCardEyebrow"], strings["playCardPrompt"]) == ("The sample room", "Step inside")
     assert (strings["buildCardEyebrow"], strings["buildCardTitle"], strings["buildCardTag"]) == ("Your photos", "Build your own", "~3 min")
@@ -102,8 +103,8 @@ def test_the_play_card_reads_the_first_demo_room_and_its_photos_from_the_api_at_
     assert "fact(strings.photoCount, urls.length)" in ts
     # The photos come from the API at runtime; nothing under web/ is a room photo.
     for path in (WEB_SRC.parent / "public").rglob("*"):
-        # The clip's posters and the intro's title frame are stills of the owner's videos, not room photos.
-        assert path.suffix.lower() not in {".jpg", ".jpeg"} or path.parent.name in {"clip", "intro"}, path
+        # The clip's posters, the intro's title frame and the tutorial's first caption are stills of videos, not room photos.
+        assert path.suffix.lower() not in {".jpg", ".jpeg"} or path.parent.name in {"clip", "intro", "tutorial"}, path
 
 
 def test_play_this_room_is_the_guarded_start_with_its_pending_label_so_no_session_starts_twice():
@@ -192,7 +193,7 @@ def test_choosing_makes_everything_outside_the_dialog_inert_and_locks_the_scroll
     assert "setModal(false)" in _body(ts, "  function goHome(then?: () => void): void {")
     assert "button.setAttribute('aria-expanded', 'true')" in ts and "button.setAttribute('aria-expanded', 'false')" in ts
     # Focus moves in on open and back to the card on the way home.
-    assert "const target = i === 0 ? panelVideo : i === 1 ? playFocus : panel.querySelector<HTMLElement>(`#${ACCESS_CODE_FIELD}`)" in ts
+    assert "const target = i === 0 ? watchVideos[watchTab] : i === 1 ? playFocus : panel.querySelector<HTMLElement>(`#${ACCESS_CODE_FIELD}`)" in ts
     assert "button.focus({ preventScroll: true })" in ts
 
 
