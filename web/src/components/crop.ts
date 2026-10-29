@@ -24,8 +24,9 @@ function photo(roomId: string, index: number): Promise<HTMLImageElement> {
 }
 
 /**
- * A `size` px square crop of `interactable` cut from its photo using its polygons' bounds (AD-11; never `box`), drawn
- * once the photo has loaded. Decorative: the label beside it names the object.
+ * A `size` px square crop of `interactable` cut from its photo using its first polygon's bounds (AD-11; never `box`),
+ * drawn once the photo has loaded. One instance, so instances far apart never shrink the object to a slice of the room.
+ * Decorative: the label beside it names the object.
  */
 export function crop(roomId: string, interactable: PlayInteractable, size: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
@@ -33,11 +34,11 @@ export function crop(roomId: string, interactable: PlayInteractable, size: numbe
   canvas.setAttribute('aria-hidden', 'true')
   canvas.width = canvas.height = Math.round(size * window.devicePixelRatio)
   canvas.style.width = canvas.style.height = `${size}px`
-  const polygons = interactable.polygons ?? []
-  if (polygons.flat().length === 0) return canvas
+  const polygon = interactable.polygons?.[0] ?? []
+  if (polygon.length === 0) return canvas
   photo(roomId, interactable.photo).then(
     (image) => {
-      const square = squareAround(bounds(polygons), { width: image.naturalWidth, height: image.naturalHeight })
+      const square = squareAround(bounds([polygon]), { width: image.naturalWidth, height: image.naturalHeight })
       canvas
         .getContext('2d')
         ?.drawImage(image, square.x, square.y, square.width, square.height, 0, 0, canvas.width, canvas.height)

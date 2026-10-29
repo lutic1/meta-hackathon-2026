@@ -3,20 +3,20 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Runbook action (ledger-export uploads spend/exports/ as an artifact to download and commit; purge needs confirm; promote needs room_id and room_name; quota-probe runs the build quota's process race on an ephemeral Dict, never keyframe-jobs)
+        description: Runbook action (ledger-export uploads spend/exports/ as an artifact to download and commit; purge needs confirm; promote needs room_id and room_name; quota-probe runs the build quota's process race on an ephemeral Dict, never keyframe-jobs; patch-demo-room applies ops/patches/<room_id>.json to that Demo room's outlines, a dry run unless confirm is the word patch)
         type: choice
-        options: [ledger-export, purge-dry-run, purge, warm, cool, autoscaler-settings, promote, quota-probe]
+        options: [ledger-export, purge-dry-run, purge, warm, cool, autoscaler-settings, promote, quota-probe, patch-demo-room]
       environment:
         description: Modal Environment (main holds the judging data, dev a development copy)
         type: choice
         options: [main, dev]
         default: main
       confirm:
-        description: The word purge, only for the purge action; every other action ignores it
+        description: The word purge for the purge action, or the word patch for patch-demo-room to write (anything else is its dry run); every other action ignores it
         type: string
         default: ""
       room_id:
-        description: The Judge room to promote to the Demo partition, only for the promote action
+        description: The Judge room to promote to the Demo partition (promote), or the Demo room to patch (patch-demo-room)
         type: string
         default: ""
       room_name:
@@ -53,8 +53,8 @@ jobs:
           INPUTS: ${{ toJSON(inputs) }}
         run: |
           python3 - <<'EOF'
-          import json, os, sys
-          ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe")
+          import json, os, re, sys
+          ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe", "patch-demo-room")
           DEFAULTS = {"action": "", "environment": "main", "room_id": "", "room_name": "", "confirm": ""}
           if os.environ["EVENT"] == "push":
               try:
@@ -79,6 +79,8 @@ jobs:
               sys.exit(f"refusing the ops request: unknown action {values['action']!r}; the actions are {', '.join(ACTIONS)}")
           if values["environment"] not in ("main", "dev"):
               sys.exit(f"refusing the ops request: unknown environment {values['environment']!r}; the environments are main, dev")
+          if values["action"] == "patch-demo-room" and not re.fullmatch(r"room_[0-9A-HJKMNP-TV-Z]{26}", values["room_id"]):
+              sys.exit(f"refusing the ops request: patch-demo-room needs a room_id naming the Demo room, not {values['room_id']!r}")
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.writelines(f"{key}={value}\n" for key, value in values.items())
           EOF
@@ -133,5 +135,12 @@ jobs:
         run: |
           [ -n "$ROOM_ID" ] && [ -n "$ROOM_NAME" ] || { echo "refusing to promote a Judge room in $MODAL_ENVIRONMENT: the promote action needs both room_id and room_name, got room_id='$ROOM_ID' room_name='$ROOM_NAME'"; exit 1; }
           uv run scripts/promote_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID" "$ROOM_NAME"
+      - if: env.ACTION == 'patch-demo-room'
+        run: |
+          if [ "$CONFIRM" = patch ]; then
+            uv run scripts/patch_demo_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID" --patch "ops/patches/$ROOM_ID.json"
+          else
+            uv run scripts/patch_demo_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID" --patch "ops/patches/$ROOM_ID.json" --dry-run
+          fi
       - if: env.ACTION == 'quota-probe'
         run: uv run scripts/quota_probe.py --env "$MODAL_ENVIRONMENT"

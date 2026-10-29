@@ -178,6 +178,14 @@ chosen (`main` or `dev`, default `main`):
   slot, Sessions and Cache entries alone. Run again once the Judge copy
   is gone, it reports the room already promoted. A Demo room is never a
   Judge room.
+- `patch-demo-room` (needs `room_id`): `scripts/patch_demo_room.py`
+  applies `ops/patches/<room_id>.json` (on master) to that Demo room's
+  outlines, a dry run unless `confirm` is the word `patch`. Each entry
+  replaces one Interactable's polygons, its `instances` and its `box`;
+  an unknown id, a polygon with fewer than 3 points, a point outside its
+  photo's frame or a Room the validator refuses is refused with nothing
+  written. Only `room.json` is rewritten, then read back; `job.json`
+  keeps the pipeline's own output.
 - `quota-probe`: `scripts/quota_probe.py` races separate processes for
   the 20 slot keys on an ephemeral Dict, never `keyframe-jobs`: 30
   claimers must win exactly 20 slots, then 8 must win exactly the last.

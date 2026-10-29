@@ -204,14 +204,17 @@ def test_open_locks_collapse_their_entry_and_wrong_attempts_show_the_servers_cou
     assert rules[".chip"]["border-radius"] == "var(--rounded-sm)"
 
 
-def test_evidence_cards_are_inset_rows_a_note_until_solved_then_a_64px_crop_cut_from_the_polygons_bounds():
+def test_evidence_cards_are_inset_rows_a_note_until_solved_then_a_64px_crop_cut_from_the_first_polygons_bounds():
     card, crop, geometry = _ts("components/evidence-card.ts"), _ts("components/crop.ts"), _ts("scene/geometry.ts")
     assert "const THUMB_PX = 64" in card and "crop(roomId, interactable, THUMB_PX)" in card
     assert "label.className = 'evidence-card-label label'" in card and "label.textContent = interactable.label" in card
     assert "attribute.className = 'evidence-card-attribute body-sm'" in card
     assert "attribute.textContent = evidence.visible_attribute" in card
-    # The crop is the polygons' bounds squared inside the photo; `box` is never read.
-    assert "squareAround(bounds(polygons), { width: image.naturalWidth, height: image.naturalHeight })" in crop
+    # The crop is the first polygon's bounds (one instance, so far-apart instances never shrink it to a slice of the
+    # room) squared inside the photo; `box` is never read.
+    assert "const polygon = interactable.polygons?.[0] ?? []" in crop and "if (polygon.length === 0) return canvas" in crop
+    assert "squareAround(bounds([polygon]), { width: image.naturalWidth, height: image.naturalHeight })" in crop
+    assert ".box" not in crop
     assert "export function bounds(polygons: readonly Polygon[]): Rect" in geometry
     rules = _rules("components/evidence-card.css")
     row = rules[".evidence-card"]

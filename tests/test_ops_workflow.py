@@ -13,7 +13,7 @@ from tests.test_ci_workflow import SETUP_UV
 REPO = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github/workflows/ops.yml"
 REQUEST = ".github/ops/request.json"
-ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe")
+ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe", "patch-demo-room")
 UPLOAD_ARTIFACT = "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"
 VARIABLES = ("ACTION", "MODAL_ENVIRONMENT", "ROOM_ID", "ROOM_NAME", "CONFIRM")
 
@@ -99,6 +99,8 @@ def test_a_dispatch_takes_the_inputs_and_a_push_the_request_file_with_the_same_d
         ({"action": "warm", "extra": "x"}, "unknown key"),
         ({"action": "promote", "room_id": "a", "room_name": "b\nc=d"}, "one line"),
         ({"action": "warm", "confirm": 1}, "must be a string"),
+        ({"action": "patch-demo-room"}, "needs a room_id"),
+        ({"action": "patch-demo-room", "room_id": "../x"}, "needs a room_id"),
     ],
 )
 def test_a_bad_or_missing_request_file_fails_clearly(tmp_path: Path, request_body: dict[str, object] | None, message: str):
@@ -111,7 +113,8 @@ def test_checkout_uv_and_sync_run_before_the_env_guarded_action_steps():
     assert steps[:3] == [("uses", "actions/checkout@v7"), ("uses", SETUP_UV), ("run", "uv sync --locked")]
     assert len(steps) == 3 + len(ACTIONS) + 1  # the ledger export has a second step, the upload
     assert re.findall(r"^      - if: env\.ACTION == '([a-z-]+)'$", _job("ops"), re.MULTILINE) == [
-        "ledger-export", "ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe",
+        "ledger-export", "ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "patch-demo-room",
+        "quota-probe",
     ]
 
 
@@ -175,6 +178,24 @@ def test_the_quota_probe_runs_from_a_dispatch_or_a_request_file_on_an_ephemeral_
     (tmp_path / "push").mkdir()
     code, _, outputs = _run_request(tmp_path / "push", "push", request={"action": "quota-probe", "environment": "dev"})
     assert code == 0 and outputs == {"action": "quota-probe", "environment": "dev", "room_id": "", "room_name": "", "confirm": ""}
+
+
+PATCH = '"ops/patches/$ROOM_ID.json"'
+
+
+def test_the_demo_room_patch_is_a_dry_run_unless_confirm_is_the_word_patch_and_reads_its_file_from_the_checkout():
+    patch = _job("ops").split("- if: env.ACTION == 'patch-demo-room'\n", 1)[1]
+    command = f'uv run scripts/patch_demo_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID" --patch {PATCH}'
+    assert patch.count(command + " --dry-run\n") == 1 and patch.count(command + "\n") == 1
+    assert 'if [ "$CONFIRM" = patch ]; then' in patch
+    assert patch.index('[ "$CONFIRM" = patch ]') < patch.index(command + "\n") < patch.index("else") < patch.index("--dry-run")
+    assert "patch-demo-room" in _text().split("options:", 1)[0]  # the action's description says what it does
+
+
+def test_the_request_validator_accepts_patch_demo_room_with_a_room_id(tmp_path: Path):
+    request = {"action": "patch-demo-room", "room_id": "room_01M61TZ74F0FP3X9HHTMXGTPB9", "confirm": "patch"}
+    code, _, outputs = _run_request(tmp_path, "push", request=request)
+    assert code == 0 and outputs == {**request, "environment": "main", "room_name": ""}
 
 
 def test_no_deploy_and_no_unpinned_third_party_action():

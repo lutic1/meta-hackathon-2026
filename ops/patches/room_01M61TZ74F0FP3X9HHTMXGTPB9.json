@@ -1,0 +1,18 @@
+{
+  "reason": "Hand-corrected 29 Oct 2026: the build's Architect-box fallbacks missed the real grille and the pillow pair the riddle points at; job.json keeps the pipeline's original output.",
+  "interactables": [
+    {
+      "id": "ix_01M61V1ACGZFANRYAX39W29673",
+      "polygons": [
+        [[200, 1084], [253, 1071], [233, 1176], [168, 1190]]
+      ]
+    },
+    {
+      "id": "ix_01M61V1ACGTGK2QA16BZP494AC",
+      "polygons": [
+        [[648, 725], [657, 701], [715, 675], [721, 695], [753, 689], [757, 720], [744, 747], [700, 743], [682, 733], [653, 733]],
+        [[296, 668], [347, 653], [384, 658], [412, 702], [363, 711], [325, 718], [300, 699]]
+      ]
+    }
+  ]
+}
