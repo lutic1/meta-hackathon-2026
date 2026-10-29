@@ -210,9 +210,10 @@ function waitingLine(n: number): HTMLParagraphElement {
  * the notes stood, then the notes draw the latest state: the entry collapses, newly available entries fade in and are
  * announced once in the live region ("Puzzle {n} is now in the notes."), and "Current" moves with
  * `active_puzzle_id`. Whenever "Current" moves (and on the first draw) the sheet scrolls so the Current entry stands at
- * its top, after the Open hold, so the player reads the Puzzle now in play (playtest Oct 29). Focus is never taken:
- * it stays where the player left it, and focus inside the entry whose lock input gave way to the Solved chip moves to
- * that entry's heading, which stays drawn. Everything follows session state; nothing follows a click.
+ * its top, after the Open hold, and again whenever the sheet's size changes, so the player reads the Puzzle now in play
+ * (playtest Oct 29). Focus is never taken: it stays where the player left it, and focus inside the entry whose lock
+ * input gave way to the Solved chip moves to that entry's heading, which stays drawn. Everything follows session
+ * state; nothing follows a click.
  *
  * `reshape` takes the Effective room refetched after an accepted edit (FR-19, AD-12) and keeps every entry, so the
  * Code field's value and keyboard focus stay: an entry's Evidence cards and count change in place, a card the Room
@@ -269,6 +270,13 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
     const padding = parseFloat(getComputedStyle(element).paddingTop)
     element.scrollTop += entry.getBoundingClientRect().top - element.getBoundingClientRect().top - padding
   }
+
+  // A sheet that grew or shrank (a Card stacking or leaving in the Hint area) keeps a stale scrollTop: the Current
+  // entry is followed again so it stays in view (playtest Oct 29).
+  new ResizeObserver(() => {
+    const current = followed == null ? undefined : entries.get(followed)?.element
+    if (current?.isConnected) follow(current)
+  }).observe(element)
 
   function draw(state: SessionState, afterOpening: boolean): void {
     drawn = drawKey(state)

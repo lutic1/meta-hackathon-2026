@@ -167,6 +167,24 @@ def test_the_sheet_scrolls_to_the_current_entry_when_active_puzzle_id_moves_with
     assert "scrolls the sheet so the Current entry stands at its top" in row
 
 
+def test_the_sheet_follows_the_current_entry_again_whenever_its_size_changes():
+    """Playtest Oct 29 (second replay): a Trickster card stacking in the Hint area shrank the sheet from 546 px to
+    299 px while it stayed scrolled to the solved Puzzle, so the Current entry and the card just added to it were out
+    of view. One ResizeObserver on the sheet re-follows the entry "Current" last moved to whenever the sheet's size
+    changes (a Card stacking or leaving, the Hint area growing or shrinking), as `follow` does: instantly, never
+    focused."""
+    notes = _code(_ts("components/wizard-notes.ts"))
+    assert notes.count("new ResizeObserver(") == 1
+    observer = notes.split("new ResizeObserver(", 1)[1].split(".observe(element)", 1)[0]
+    assert "followed" in observer and "follow(" in observer and "isConnected" in observer
+    assert "focus(" not in observer and "scrollIntoView" not in observer and "smooth" not in notes
+    # Nothing threads a callback from the Hint area into the notes for it.
+    assert "notes.follow" not in _code(_ts("play.ts")) and "follow:" not in notes
+    experience = (REPO / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md").read_text()
+    row = experience.split("\n| Wizard notes |", 1)[1].split("\n", 1)[0]
+    assert "and again whenever the sheet's height changes" in row
+
+
 def test_open_locks_collapse_their_entry_and_wrong_attempts_show_the_servers_count():
     notes = _ts("components/wizard-notes.ts")
     update = notes.split("function update(", 1)[1].split("\n  }\n", 1)[0]
