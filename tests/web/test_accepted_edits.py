@@ -97,7 +97,10 @@ def test_the_scene_keeps_its_photo_and_lays_changed_hotspots_again_with_focus_on
     assert "const focused = svg.contains(document.activeElement) ? document.activeElement?.id : undefined" in reshape
     assert "layHotspots(view, size, current)" in reshape
     assert "layer.elements[0].querySelector<SVGElement>(`[id=\"${focused}\"]`)?.focus()" in reshape
-    assert "show(" not in reshape and "strip" not in reshape and "useOn" not in reshape
+    # The strip stays; only its object counts are redrawn in place from the new Room (playtest Oct 29).
+    assert "strip?.setCounts(objectCounts(view))" in reshape
+    kept = reshape.replace("strip?.setCounts(objectCounts(view))", "")
+    assert "show(" not in kept and "strip" not in kept and "useOn" not in kept
     assert "return { unmount, reshape, lastTarget: () => lastTarget, bloom, say: feedback.say }" in scene
 
 

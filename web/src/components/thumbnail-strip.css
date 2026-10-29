@@ -1,5 +1,7 @@
 /* The Thumbnail strip: a row of {components.thumbnail} 8 px apart that scrolls inside its own row; 4 px of padding,
-   and as much scroll padding when a focused thumbnail scrolls into view, keep the focus ring inside the scroller. Others sit at 80% opacity, hover borders lamp-strong, current lamp. */
+   and as much scroll padding when a focused thumbnail scrolls into view, keep the focus ring inside the scroller. Others sit at 80% opacity, hover borders lamp-strong, current lamp.
+   Each carries its photo's object count on a parchment caption badge at its bottom-right corner; a photo with no
+   objects has no badge and sits at 50% opacity, unless it is the current one. */
 .thumbnail-strip {
   display: flex;
   align-items: center;
@@ -11,6 +13,7 @@
   overflow-y: hidden;
 }
 .thumbnail {
+  position: relative;
   box-sizing: border-box;
   flex: none;
   width: 96px;
@@ -35,7 +38,29 @@
 .thumbnail:hover {
   border-color: var(--lamp-strong);
 }
+.thumbnail.is-empty {
+  opacity: 0.5;
+}
 .thumbnail[aria-current='true'] {
   border-color: var(--lamp);
   opacity: 1;
+}
+.thumbnail-count {
+  position: absolute;
+  right: var(--spacing-1);
+  bottom: var(--spacing-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--spacing-1);
+  border-radius: var(--rounded-sm);
+  background: var(--parchment);
+  color: var(--ink);
+  pointer-events: none;
+}
+.thumbnail-count[hidden] {
+  display: none;
 }

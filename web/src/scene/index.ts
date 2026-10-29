@@ -14,7 +14,7 @@ import type { PlayInteractable, PlayView } from '../../types'
 import { photoUrl } from '../api/index.ts'
 import { feedbackLine } from '../components/feedback-line.ts'
 import { GLOW_MS, GLOW_REDUCED_MS } from '../components/hint-area.ts'
-import { type ThumbnailStrip, thumbnailStrip } from '../components/thumbnail-strip.ts'
+import { objectCounts, type ThumbnailStrip, thumbnailStrip } from '../components/thumbnail-strip.ts'
 import { glowOnce } from '../fade.ts'
 import type { PlaySession } from '../play.ts'
 import { strings } from '../strings.ts'
@@ -89,7 +89,7 @@ function firstPointerResponse(sessionId: string): void {
  * `say` shows the Play screen's feedback line for a reply over the bottom edge of the frame.
  *
  * `reshape` lays the shown photo's Hotspots again from a refetched `PlayView` when its Interactables changed, keeping
- * the photo, the strip and the selection; keyboard focus on a Hotspot that is still there stays on it. Returns the
+ * the photo, the strip (its object counts redrawn in place) and the selection; keyboard focus on a Hotspot that is still there stays on it. Returns the
  * teardown and `reshape`.
  */
 export function mountScene(
@@ -207,6 +207,7 @@ export function mountScene(
   function reshape(view: PlayView): void {
     const before = room
     room = view
+    strip?.setCounts(objectCounts(view))
     // A photo still loading lays the new Room's Hotspots when it is live.
     if (before === undefined || size === undefined || photo.hidden || layer === undefined) return
     const on = (shown: PlayView): string =>
@@ -271,7 +272,7 @@ export function mountScene(
       if (!mounted) return
       room = view
       frame.prepend(useOnChip(new Map(view.interactables.map(({ id, label }) => [id, label])), play.useOn))
-      strip = thumbnailStrip(play.roomId, view.photos.length, (index) => void show(index))
+      strip = thumbnailStrip(play.roomId, objectCounts(view), (index) => void show(index))
       stripRow.prepend(strip.element)
       return show(first)
     })

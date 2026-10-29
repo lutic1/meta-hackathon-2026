@@ -6,7 +6,10 @@ four-lock fixture room the way the Play screen reads it.
 """
 
 import io
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -16,7 +19,8 @@ from PIL import Image
 from src.domain.schema import Room
 from tests.api.test_app import make_app
 from tests.fixtures.rooms import IX
-from tests.web.design import WEB_SRC, css_rules, design_text, source_ts
+from tests.web.design import REPO, WEB_SRC, css_rules, design_text, source_ts
+from tests.web.test_strings import _strings
 
 
 def _ts(name: str) -> str:
@@ -209,8 +213,8 @@ def test_a_non_target_click_shows_only_the_label_chip_8px_above_for_2s_or_until_
 
 def test_the_thumbnail_strip_has_one_96_by_72_button_per_photo_in_upload_order():
     strip, scene = _ts("components/thumbnail-strip.ts"), _ts("scene/index.ts")
-    assert "thumbnailStrip(play.roomId, view.photos.length, (index) => void show(index))" in scene
-    assert "Array.from({ length: count }, (_, index) => {" in strip
+    assert "thumbnailStrip(play.roomId, objectCounts(view), (index) => void show(index))" in scene
+    assert "const thumbnails = counts.map((_, index) => {" in strip
     assert "image.src = photoUrl(roomId, index)" in strip
     assert "image.alt = fill(strings.photoThumbnail, { n: index + 1 })" in strip
     assert "image.width = 96" in strip and "image.height = 72" in strip
@@ -228,6 +232,108 @@ def test_the_thumbnail_strip_has_one_96_by_72_button_per_photo_in_upload_order()
     assert thumbnail["border"] == "2px solid transparent" and thumbnail["box-sizing"] == "border-box"
     assert rules[".thumbnail:hover"] == {"border-color": "var(--lamp-strong)"}
     assert rules[".thumbnail[aria-current='true']"] == {"border-color": "var(--lamp)", "opacity": "1"}
+
+
+# Builds the shipped Thumbnail strip with a stand-in `document` (stylesheet imports load as empty modules) and prints,
+# per thumbnail, its badge, whether it is dimmed and its description, before and after `setCounts`.
+STRIP_RUNNER = """
+import { register } from 'node:module'
+import { readFileSync } from 'node:fs'
+register('data:text/javascript,' + encodeURIComponent(`
+  export async function load(url, context, next) {
+    return url.endsWith('.css') ? { format: 'module', source: '', shortCircuit: true } : next(url, context)
+  }
+`))
+const node = (tag) => {
+  const classes = new Set()
+  return {
+    tag, id: '', textContent: '', hidden: false, children: [], attributes: {}, style: {},
+    get className() { return [...classes].join(' ') },
+    set className(value) { classes.clear(); for (const name of value.split(' ').filter(Boolean)) classes.add(name) },
+    classList: {
+      contains: (name) => classes.has(name),
+      toggle: (name, on) => (on ?? !classes.has(name)) ? classes.add(name) : classes.delete(name),
+    },
+    setAttribute(name, value) { this.attributes[name] = String(value) },
+    removeAttribute(name) { delete this.attributes[name] },
+    append(...children) { this.children.push(...children) },
+    addEventListener() {},
+  }
+}
+globalThis.document = { createElement: node }
+const { objectCounts, thumbnailStrip } = await import(process.argv[1])
+const { view, later } = JSON.parse(readFileSync(0, 'utf8'))
+const counts = objectCounts(view)
+const strip = thumbnailStrip('room', counts, () => undefined)
+const byId = (id) => strip.element.children.flatMap((thumbnail) => thumbnail.children).find((child) => child.id === id)
+const read = () => strip.element.children.map((thumbnail) => {
+  const badge = thumbnail.children.find((child) => child.className.includes('thumbnail-count'))
+  return {
+    badge: badge === undefined || badge.hidden ? null : badge.textContent,
+    hiddenBadge: badge?.attributes['aria-hidden'] ?? null,
+    empty: thumbnail.classList.contains('is-empty'),
+    description: byId(thumbnail.attributes['aria-describedby'])?.textContent ?? null,
+  }
+})
+const first = read()
+strip.setCounts(objectCounts(later))
+process.stdout.write(JSON.stringify({ counts, first, after: read() }))
+"""
+needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs the client's Thumbnail strip")
+
+SQUARE = [[[0, 0], [10, 0], [10, 10], [0, 10]]]
+
+
+def _ix(id: str, photo: int, polygons: list | None = SQUARE) -> dict:
+    return {"id": id, "label": id, "photo": photo, "polygons": polygons, "instances": 1, "attributes": []}
+
+
+@needs_node
+def test_each_thumbnail_carries_a_badge_counting_the_objects_on_its_photo_and_a_photo_with_none_is_dimmed():
+    """Playtest Oct 29: objects are outlined on one photo each and the lounge photos look alike, so nothing told the
+    player which photo holds things. Each thumbnail counts the Hotspots its photo draws (an Interactable with no
+    drawable polygon draws none); a photo with none has no badge, is dimmed and is described as having no objects."""
+    # The owner's room in miniature: three objects in the entryway, one at the door, none on photo 2, two on photo 3.
+    interactables = [_ix("rug", 0), _ix("vent", 0), _ix("light", 0), _ix("door", 1), _ix("tree", 3), _ix("tv", 3),
+                     _ix("unmasked", 2, None), _ix("sliver", 2, [[[0, 0], [5, 5]]])]
+    view = {"photos": [{"hash": str(i), "size": 1} for i in range(4)], "interactables": interactables}
+    later = {**view, "interactables": [*interactables, _ix("decoy", 2)]}  # an accepted edit adds an object
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", STRIP_RUNNER, (WEB_SRC / "components/thumbnail-strip.ts").as_uri()],
+        cwd=REPO, input=json.dumps({"view": view, "later": later}), capture_output=True, text=True, check=True,
+    )
+    out = json.loads(result.stdout)
+    assert out["counts"] == [3, 1, 0, 2]
+    assert [t["badge"] for t in out["first"]] == ["3", "1", None, "2"]
+    assert [t["empty"] for t in out["first"]] == [False, False, True, False]
+    assert [t["description"] for t in out["first"]] == ["3 objects", "1 object", "no objects", "2 objects"]
+    assert all(t["hiddenBadge"] == "true" for t in out["first"] if t["badge"] is not None)  # the description says it
+    # The refetched Effective room redraws the counts in place.
+    assert [t["badge"] for t in out["after"]] == ["3", "1", "1", "2"]
+    assert [t["empty"] for t in out["after"]] == [False, False, False, False]
+    assert out["after"][2]["description"] == "1 object"
+
+
+def test_the_count_badge_is_a_parchment_caption_chip_and_a_photo_with_no_objects_sits_at_half_opacity():
+    strip, scene = _ts("components/thumbnail-strip.ts"), _ts("scene/index.ts")
+    assert "strip?.setCounts(objectCounts(view))" in scene.split("function reshape(", 1)[1].split("\n  }\n", 1)[0]
+    assert "thumbnail.setAttribute('aria-describedby', description.id)" in strip
+    # Both stay out of the name, "Photo {n}": the badge is aria-hidden, the description hidden and only referenced.
+    assert "description.hidden = true" in strip and "badge.setAttribute('aria-hidden', 'true')" in strip
+    text = (WEB_SRC / "components/thumbnail-strip.css").read_text()
+    rules = _rules("components/thumbnail-strip.css")
+    assert rules[".thumbnail"]["position"] == "relative"
+    badge = rules[".thumbnail-count"]
+    assert badge["position"] == "absolute" and badge["background"] == "var(--parchment)" and badge["color"] == "var(--ink)"
+    assert badge["border-radius"] == "var(--rounded-sm)" and badge["pointer-events"] == "none"
+    assert rules[".thumbnail.is-empty"] == {"opacity": "0.5"}
+    # The current photo stays at full opacity even when it holds nothing: its rule comes after the dimmed one.
+    assert text.index(".thumbnail.is-empty {") < text.index(".thumbnail[aria-current='true'] {")
+    strings = _strings()
+    assert (strings["photoObjects"].format(k=3), strings["photoObject"], strings["photoNoObjects"]) == (
+        "3 objects", "1 object", "no objects")
+    row = design_text().split("| Thumbnail strip |", 1)[1].split("\n", 1)[0]
+    assert "count badge" in row and "50% opacity" in row
 
 
 def test_the_first_pointer_response_is_signalled_once_per_session_and_never_by_the_keyboard():

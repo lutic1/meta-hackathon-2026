@@ -146,6 +146,27 @@ def test_the_active_puzzle_marker_follows_active_puzzle_id_with_a_lamp_ink_rule_
     assert "rule: '3px solid {colors.lamp-ink}'" in marker and "labelColor: '{colors.lamp-ink}'" in marker
 
 
+def test_the_sheet_scrolls_to_the_current_entry_when_active_puzzle_id_moves_without_taking_focus():
+    """Playtest Oct 29: after the pillows opened Puzzle 1 the sheet showed Puzzle 3 while Puzzle 2 was Current. Each
+    draw whose `active_puzzle_id` differs from the one the sheet last followed scrolls the sheet (only the sheet) so
+    the Current entry stands at its top; nothing is focused, so keyboard focus stays in the Scene."""
+    notes = _ts("components/wizard-notes.ts")
+    draw = notes.split("function draw(state: SessionState, afterOpening: boolean): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (state.active_puzzle_id !== followed) {" in draw
+    assert draw.index("element.replaceChildren(...rows)") < draw.index("follow(")  # the rows are in place first
+    # A frame later, so the Hint area mounted after the first draw has taken its share of the side column.
+    assert draw.index("requestAnimationFrame(() => {") < draw.index("follow(current)")
+    follow = notes.split("function follow(", 1)[1].split("\n  }\n", 1)[0]
+    assert "element.scrollTop +=" in follow and "focus(" not in follow and "scrollIntoView" not in follow
+    assert "parseFloat(getComputedStyle(element).paddingTop)" in follow  # the entry's top meets the sheet's padding
+    # The Open hold draws nothing, so the sheet moves only once the solved entry has collapsed.
+    render = notes.split("function render(state: SessionState): void {", 1)[1].split("\n  }\n", 1)[0]
+    assert "follow(" not in render
+    experience = (REPO / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md").read_text()
+    row = experience.split("\n| Wizard notes |", 1)[1].split("\n", 1)[0]
+    assert "scrolls the sheet so the Current entry stands at its top" in row
+
+
 def test_open_locks_collapse_their_entry_and_wrong_attempts_show_the_servers_count():
     notes = _ts("components/wizard-notes.ts")
     update = notes.split("function update(", 1)[1].split("\n  }\n", 1)[0]

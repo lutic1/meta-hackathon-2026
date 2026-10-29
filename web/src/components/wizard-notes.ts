@@ -209,9 +209,10 @@ function waitingLine(n: number): HTMLParagraphElement {
  * unlock moment; the Scene and the Hint area play their parts from lock-opened.ts) as the whole cards fade in where
  * the notes stood, then the notes draw the latest state: the entry collapses, newly available entries fade in and are
  * announced once in the live region ("Puzzle {n} is now in the notes."), and "Current" moves with
- * `active_puzzle_id`. Focus is never taken: it stays where the player left it, and focus inside the entry whose lock
- * input gave way to the Solved chip moves to that entry's heading, which stays drawn. Everything follows session
- * state; nothing follows a click.
+ * `active_puzzle_id`. Whenever "Current" moves (and on the first draw) the sheet scrolls so the Current entry stands at
+ * its top, after the Open hold, so the player reads the Puzzle now in play (playtest Oct 29). Focus is never taken:
+ * it stays where the player left it, and focus inside the entry whose lock input gave way to the Solved chip moves to
+ * that entry's heading, which stays drawn. Everything follows session state; nothing follows a click.
  *
  * `reshape` takes the Effective room refetched after an accepted edit (FR-19, AD-12) and keeps every entry, so the
  * Code field's value and keyboard focus stay: an entry's Evidence cards and count change in place, a card the Room
@@ -234,6 +235,8 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
   let latest: SessionState | undefined
   let holding = false
   let opened: readonly RungChangeEvent[] = []
+  /** The `active_puzzle_id` the sheet last scrolled to; undefined before the first draw. */
+  let followed: string | null | undefined
 
   const place = (id: string): number => room.puzzles.findIndex((puzzle) => puzzle.id === id) + 1
 
@@ -259,6 +262,12 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
     }
     const line = [...waiting].find(([id]) => entries.get(id)?.element.contains(focused))?.[1].line
     if (line?.isConnected) line.focus()
+  }
+
+  /** Scrolls the sheet, and nothing around it, so `entry` stands at its top; focus stays where it is. */
+  function follow(entry: HTMLElement): void {
+    const padding = parseFloat(getComputedStyle(element).paddingTop)
+    element.scrollTop += entry.getBoundingClientRect().top - element.getBoundingClientRect().top - padding
   }
 
   function draw(state: SessionState, afterOpening: boolean): void {
@@ -289,6 +298,14 @@ export function wizardNotes(room: PlayView, play: PlaySession): WizardNotes {
     }
     if (afterOpening && arrived.length > 0) {
       announce(arrived.map((made) => fill(strings.puzzleAvailable, { n: made.n })).join(' '))
+    }
+    if (state.active_puzzle_id !== followed) {
+      const id = (followed = state.active_puzzle_id)
+      // Next frame, once the side column's other parts are in and the sheet has its height (the first draw too).
+      requestAnimationFrame(() => {
+        const current = id === null ? undefined : entries.get(id)?.element
+        if (followed === id && current?.isConnected) follow(current)
+      })
     }
   }
 
