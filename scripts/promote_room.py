@@ -4,13 +4,13 @@
     uv run scripts/promote_room.py --room <room_id> "<name>"
     uv run scripts/promote_room.py --env main --room <room_id> "<name>"
 
-The Demo room is a Judge room built on the judge URL, copied on the Volume
+The Demo room is a Judge room built on the judge URL, moved on the Volume
 from `rooms/judge/<room_id>/` to `rooms/demo/<room_id>/` with `Room.name`
-set; nothing comes from this machine. Everything is read and checked
-through the remote Volume calls (`read_file`, `listdir`) before anything is
-written: the stored Room, its downscaled photos, the Clue cards 7.4 stored
-for it (the files under its folder keyed by one of its `pz_` ids, when
-there are any) and the `done` job record at `job.json`. The checks are the
+set; nothing comes from this machine, and a Demo room is never a Judge
+room. Everything is read and checked through the remote Volume calls
+(`read_file`, `listdir`) before anything is written: the stored Room,
+its downscaled photos, the Clue cards 7.4 stored for it (the files under
+its folder keyed by one of its `pz_` ids, when there are any) and the `done` job record at `job.json`. The checks are the
 seed script's own (`scripts/seed_rooms.py`): a name the schema refuses
 (more than 40 characters), a record that is missing or not `done`, or one
 without stage timings, call rows, validator and Dry run verdicts and a
@@ -22,14 +22,19 @@ reference must be a file about to go up).
 
 The files then go up in one `batch_upload(force=True)`, laid out as a
 seeded room is (Room, `photos/<i>.jpg`, the cards at the same keys,
-`job.json`), so a second promotion overwrites the earlier files and the
-hosted `ArtifactStore` lists the room while `GET /builds/<job_id>` falls
-through to its record (AD-7). The originals and `cache-keys.json` are
-never copied: they stay under `rooms/judge/<room_id>/` and go with the
-Nov 10 purge, which leaves the Demo copy, holding the downscaled photos
-only, in place. The Judge copy is never deleted or changed. The Volume is
-resolved in the Environment `--env` names (default `main`), never the
-CLI's active one, and needs a Modal token.
+`job.json`), so the hosted `ArtifactStore` lists the room while
+`GET /builds/<job_id>` falls through to its record (AD-7); a Demo copy an
+earlier promotion left that already holds exactly these files is not
+uploaded again, and one that differs is overwritten. The originals and
+`cache-keys.json` are never copied. Once the Demo copy reads back (its
+Room parses and every file it references is there), the Judge copy is
+removed whole with one `remove_file`, which a remote call persists with no
+commit; a Demo copy that does not read back keeps the Judge copy. No
+deletion record is written, and no Dict is opened, so the quota slot the
+Build claimed stays claimed and no Session or Cache entry is touched. Run
+again once the Judge copy is gone, it reports the room already promoted and
+exits 0. The Volume is resolved in the Environment `--env` names (default
+`main`), never the CLI's active one, and needs a Modal token.
 """
 
 from __future__ import annotations
@@ -55,6 +60,7 @@ from scripts.seed_rooms import (
     demo_files,
     named,
     open_volume,
+    referenced,
     seed,
 )
 from src.domain.schema import JobState, Room
@@ -69,23 +75,43 @@ JUDGE_PREFIX = f"/{ROOMS_DIR}/{JUDGE_PARTITION}"
 
 
 class Volume(Protocol):
-    """The three remote `modal.Volume` calls the script makes from outside a container."""
+    """The four remote `modal.Volume` calls the script makes from outside a container."""
 
     def listdir(self, path: str, *, recursive: bool = False) -> Sequence[FileEntry]: ...
 
     def read_file(self, path: str) -> Iterable[bytes]: ...
 
+    def remove_file(self, path: str, recursive: bool = False) -> None: ...
+
     def batch_upload(self, force: bool = False) -> AbstractContextManager[Batch]: ...
 
 
-def read(volume: Volume, key: str) -> bytes:
-    """The bytes of the Judge artifact at `key`; `KeyError(key)` when the Volume holds none."""
+def read(volume: Volume, key: str, prefix: str = JUDGE_PREFIX) -> bytes:
+    """The bytes of the artifact at `key` under `prefix` (the Judge partition by default); `KeyError(key)` when the Volume holds none."""
     from modal.exception import NotFoundError
 
     try:
-        return b"".join(volume.read_file(f"{JUDGE_PREFIX}/{key}"))
+        return b"".join(volume.read_file(f"{prefix}/{key}"))
     except (FileNotFoundError, NotFoundError):
         raise KeyError(key) from None
+
+
+def judge_copy_left(volume: Volume, room_id: str) -> bool:
+    """Whether anything is still under `rooms/judge/<room_id>/`."""
+    from modal.exception import NotFoundError
+
+    try:
+        return bool(volume.listdir(f"{JUDGE_PREFIX}/{room_id}"))
+    except (FileNotFoundError, NotFoundError):
+        return False
+
+
+def demo_room(volume: Volume, room_id: str) -> Room | None:
+    """The Room the Demo partition stores under `room_id`; `None` when there is none or it does not parse."""
+    try:
+        return Room.model_validate_json(read(volume, room_key(room_id), DEMO_PREFIX))
+    except (KeyError, ValueError):
+        return None
 
 
 def judge_room(volume: Volume, room_id: str) -> Room:
@@ -135,9 +161,37 @@ def plan(volume: Volume, room_id: str, name: str) -> Seed:
     return Seed(room=room, job=job, files=demo_files(room, job, artifacts))
 
 
-def promote(volume: Volume, item: Seed) -> None:
-    """Upload the Demo copy in one batch that may overwrite an earlier promotion; the Judge copy stays."""
-    seed(volume, [item])
+def holds(volume: Volume, item: Seed) -> bool:
+    """Whether the Volume already holds every file of the Demo copy, byte for byte."""
+    try:
+        return all(read(volume, path.removeprefix(f"{DEMO_PREFIX}/"), DEMO_PREFIX) == data for path, data in item.files.items())
+    except KeyError:
+        return False
+
+
+def promote(volume: Volume, item: Seed) -> bool:
+    """Upload the Demo copy unless the Volume holds it already, check it reads back, then remove the Judge copy; True when it was uploaded.
+
+    A Demo copy that does not read back raises `SeedRefused` with the Judge copy kept.
+    """
+    uploaded = not holds(volume, item)
+    if uploaded:
+        seed(volume, [item])
+    room = demo_room(volume, item.room.id)
+    missing = ["room.json"] if room is None else [key for key in referenced(room) if not _stored(volume, key)]
+    if missing:
+        raise SeedRefused(f"{item.room.id}: the Demo copy does not read back ({', '.join(missing)}); the Judge copy is kept")
+    volume.remove_file(f"{JUDGE_PREFIX}/{item.room.id}", recursive=True)
+    return uploaded
+
+
+def _stored(volume: Volume, key: str) -> bool:
+    """Whether the Demo partition holds a file at `key`."""
+    try:
+        read(volume, key, DEMO_PREFIX)
+    except KeyError:
+        return False
+    return True
 
 
 def main(argv: Sequence[str]) -> int:
@@ -147,15 +201,23 @@ def main(argv: Sequence[str]) -> int:
     args = parser.parse_args(argv)
     room_id, name = args.room
     volume = open_volume(args.env)
+    if not judge_copy_left(volume, room_id) and demo_room(volume, room_id) is not None:
+        print(f"already promoted: {room_id} is under {DEMO_PREFIX}/ in {args.env} and no Judge copy is left under {JUDGE_PREFIX}/")
+        return 0
     try:
         item = plan(volume, room_id, name)
     except SeedRefused as refusal:
         print(f"refused, nothing written: {refusal}", file=sys.stderr)
         return 1
-    promote(volume, item)
+    try:
+        uploaded = promote(volume, item)
+    except SeedRefused as refusal:
+        print(f"refused: {refusal}", file=sys.stderr)
+        return 1
+    copied = f"{len(item.files)} files under {DEMO_PREFIX}/" if uploaded else f"the Demo copy under {DEMO_PREFIX}/ already matched"
     print(
-        f"promoted {item.room.id} {item.room.name!r} with {item.job.id}: {len(item.files)} files under {DEMO_PREFIX}/ in {args.env}; "
-        f"the originals and cache keys stay under {JUDGE_PREFIX}/{item.room.id}/, untouched"
+        f"promoted {item.room.id} {item.room.name!r} with {item.job.id}: {copied} in {args.env}; "
+        f"removed the Judge copy under {JUDGE_PREFIX}/{item.room.id}/"
     )
     return 0
 

@@ -1,14 +1,16 @@
-"""`scripts/promote_room.py` copies a Judge room on the Volume to `rooms/demo/` with its name, leaving the originals, the cache keys and the Judge copy (AD-7, AD-9).
+"""`scripts/promote_room.py` moves a Judge room on the Volume to `rooms/demo/` with its name: the Demo copy goes up, reads back, then the Judge copy goes (AD-7, AD-9).
 
 No test reaches Modal: the Volume is a stand-in over a temporary mount
-whose `listdir` and `read_file` read it as the remote calls do and whose
-batch lands only when its block exits, as Modal commits a batch.
+whose `listdir`, `read_file` and `remove_file` act on it as the remote calls
+do and whose batch lands only when its block exits, as Modal commits a batch.
 """
 
 import importlib.util
 import json
+import shutil
 import sys
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +18,7 @@ import pytest
 from modal.volume import FileEntry, FileEntryType
 
 from src.domain.schema import JobState, Room
-from src.infra.modal import ModalHandles, hosted_stores
+from src.infra.modal import ModalHandles, hosted_stores, slot_key
 from tests.infra.test_modal import RecordingDict, StubVolume
 from tests.scripts.test_seed_rooms import (
     JOB,
@@ -64,6 +66,26 @@ class JudgeVolume(DirVolume):
             raise FileNotFoundError(path)
         yield file.read_bytes()
 
+    def remove_file(self, path: str, recursive: bool = False) -> None:
+        target = self.mount / path.lstrip("/")
+        self.removed.append(path)
+        if target.is_dir():
+            assert recursive, path
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+
+
+class DroppingVolume(JudgeVolume):
+    """A Volume whose batch loses photo 0, so the Demo copy never reads back whole."""
+
+    @contextmanager
+    def batch_upload(self, force: bool = False) -> Iterator[Any]:
+        with super().batch_upload(force) as batch:
+            put = batch.put_file
+            batch.put_file = lambda local, remote: None if remote.endswith("/photos/0.jpg") else put(local, remote)
+            yield batch
+
 
 @pytest.fixture
 def mount(tmp_path: Path) -> Path:
@@ -72,7 +94,9 @@ def mount(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def volume(mount: Path) -> JudgeVolume:
-    return JudgeVolume(mount)
+    volume = JudgeVolume(mount)
+    volume.removed = []
+    return volume
 
 
 @pytest.fixture
@@ -138,27 +162,64 @@ def test_a_room_referencing_an_asset_the_promotion_does_not_carry_is_refused_bef
     assert volume.forces == [] and not (mount / "rooms/demo").exists()
 
 
-def test_the_originals_and_the_cache_keys_stay_under_rooms_judge_and_the_judge_copy_is_untouched(volume, mount, judge):
-    before = snapshot(mount / "rooms/judge")
+def test_the_judge_copy_with_its_originals_and_cache_keys_is_removed_once_the_demo_copy_reads_back(volume, mount, judge):
     run_promote(volume, judge.id, NAME)
-    assert snapshot(mount / "rooms/judge") == before
+    assert volume.removed == [f"/rooms/judge/{judge.id}"] and not (mount / "rooms/judge" / judge.id).exists()
     assert not (mount / "rooms/demo" / judge.id / "originals").exists()
     assert not (mount / "rooms/demo" / judge.id / "cache-keys.json").exists()
     assert not (mount / "rooms/demo" / judge.id / "cards/pz_unknown.png").exists()
+    assert not (mount / "rooms/deleted").exists()  # a promotion is no deletion: no record is written
 
 
-def test_a_second_promotion_overwrites_the_earlier_files(volume, mount, judge):
+def test_a_demo_copy_that_does_not_read_back_keeps_the_judge_copy(mount, judge):
+    volume = DroppingVolume(mount)
+    volume.removed = []
+    before = snapshot(mount / "rooms/judge")
+    with pytest.raises(promoter.SeedRefused, match="does not read back"):
+        run_promote(volume, judge.id, NAME)
+    assert volume.removed == [] and snapshot(mount / "rooms/judge") == before
+
+
+def test_an_earlier_promotion_that_left_its_judge_copy_is_finished_without_copying_again(volume, mount, judge):
+    promoter.seed(volume, [promoter.plan(volume, judge.id, NAME)])  # an older promotion: the copy only
+    demo_before = snapshot(mount / "rooms/demo")
     run_promote(volume, judge.id, NAME)
-    run_promote(volume, judge.id, "The study, again")
-    assert Room.model_validate_json((mount / "rooms/demo" / judge.id / "room.json").read_bytes()).name == "The study, again"
-    assert volume.forces == [True, True]
+    assert volume.forces == [True] and snapshot(mount / "rooms/demo") == demo_before
+    assert not (mount / "rooms/judge" / judge.id).exists() and not (mount / "rooms/deleted").exists()
+
+
+def test_an_earlier_demo_copy_that_differs_is_overwritten_before_the_judge_copy_goes(volume, mount, judge):
+    promoter.seed(volume, [promoter.plan(volume, judge.id, "An older name")])
+    run_promote(volume, judge.id, NAME)
+    assert volume.forces == [True, True] and not (mount / "rooms/judge" / judge.id).exists()
+    assert Room.model_validate_json((mount / "rooms/demo" / judge.id / "room.json").read_bytes()).name == NAME
+
+
+def test_a_second_run_reports_already_promoted_writes_nothing_and_exits_0(monkeypatch, volume, mount, judge, capsys):
+    monkeypatch.setattr(promoter, "open_volume", lambda environment: volume)
+    assert promoter.main(["--room", judge.id, NAME]) == 0
+    capsys.readouterr()
+    demo_before = snapshot(mount / "rooms/demo")
+    assert promoter.main(["--room", judge.id, NAME]) == 0
+    assert "already promoted" in capsys.readouterr().out
+    assert volume.forces == [True] and volume.removed == [f"/rooms/judge/{judge.id}"]
+    assert snapshot(mount / "rooms/demo") == demo_before
+
+
+def test_the_promotion_leaves_the_claimed_quota_slot_and_writes_no_deletion_record(volume, mount, judge):
+    handles = ModalHandles(jobs=RecordingDict(), sessions=RecordingDict(), ledger=RecordingDict(), volume=StubVolume([]), root=mount)
+    handles.jobs[slot_key(1)] = JOB
+    run_promote(volume, judge.id, NAME)
+    stores = hosted_stores(handles)
+    assert handles.jobs[slot_key(1)] == JOB and stores.artifacts.deleted_room(judge.id) is None
+    assert stores.artifacts.deleted_room(JOB) is None
 
 
 def test_the_promoted_room_is_a_demo_room_whose_job_reads_done_through_the_hosted_stores_with_an_empty_dict(volume, mount, judge):
     run_promote(volume, judge.id, NAME)
     handles = ModalHandles(jobs=RecordingDict(), sessions=RecordingDict(), ledger=RecordingDict(), volume=StubVolume([]), root=mount)
     stores = hosted_stores(handles)
-    assert stores.artifacts.is_demo_room(judge.id) and stores.artifacts.is_judge_room(judge.id)
+    assert stores.artifacts.is_demo_room(judge.id) and not stores.artifacts.is_judge_room(judge.id)
     assert [(room.id, room.name) for room in stores.artifacts.list_rooms()] == [(judge.id, NAME)]
     job = stores.jobs.read(JOB)
     assert job.status == "done" and job.room_id == judge.id and dict(handles.jobs) == {}
@@ -235,11 +296,12 @@ def test_main_resolves_the_volume_in_the_named_environment_and_promotes(monkeypa
 
     monkeypatch.setattr(promoter, "open_volume", open_volume)
     assert promoter.main(["--room", judge.id, NAME]) == 0
+    out = capsys.readouterr().out
+    assert f"promoted {judge.id} {NAME!r} with {JOB}" in out and f"removed the Judge copy under /rooms/judge/{judge.id}/" in out
     assert promoter.main(["--env", "dev", "--room", judge.id, NAME]) == 0
     assert environments == ["main", "dev"]
     assert (mount / "rooms/demo" / judge.id / "job.json").exists()
-    out = capsys.readouterr().out
-    assert f"promoted {judge.id} {NAME!r} with {JOB}" in out and "rooms/judge" in out
+    assert "already promoted" in capsys.readouterr().out
 
 
 def test_main_refuses_a_long_name_writing_nothing(monkeypatch, volume, mount, judge, capsys):
@@ -249,8 +311,9 @@ def test_main_refuses_a_long_name_writing_nothing(monkeypatch, volume, mount, ju
     assert volume.forces == [] and not (mount / "rooms/demo").exists()
 
 
-def test_the_script_reuses_the_seed_script_and_neither_deletes_nor_opens_a_dict():
+def test_the_script_reuses_the_seed_script_removes_the_judge_copy_only_and_never_opens_a_dict():
     source = SCRIPT.read_text()
     assert "from scripts.seed_rooms import" in source
-    assert "remove_file" not in source and "Dict.from_name" not in source and "create_if_missing=" not in source
+    assert source.count("volume.remove_file(") == 1 and 'volume.remove_file(f"{JUDGE_PREFIX}/{item.room.id}", recursive=True)' in source
+    assert "Dict.from_name" not in source and "create_if_missing=" not in source
     assert "from_name(" not in source  # the Volume is opened through the seed script's open_volume

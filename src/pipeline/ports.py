@@ -54,9 +54,9 @@ class ArtifactStore(Protocol):
     `is_demo_room` tells whether a stored `room_id` is a Demo room (AD-9):
     hosted, one seeded under `rooms/demo/`; local, never. `POST /sessions`
     picks the welcome from it. `is_judge_room` tells whether it is a Judge
-    room: hosted, one stored under `rooms/judge/`; local, never. The session
-    state's `judge_room` flag is read from it (the Completion screen's
-    deletion line).
+    room: hosted, one stored under `rooms/judge/` and not under `rooms/demo/`;
+    local, never. The session state's `judge_room` flag is read from it (the
+    Completion screen's deletion line).
 
     `deleted_room` names the Room an ids-only deletion record holds for a
     room id, a job id or a session id the deletion took (AD-9): hosted, a

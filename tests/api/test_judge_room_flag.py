@@ -67,6 +67,19 @@ def test_a_judge_room_played_to_its_exit_still_carries_the_flag_on_the_state_the
     assert state["locks_open"] and state["judge_room"] is True
 
 
+def test_a_promoted_room_left_in_both_partitions_is_a_demo_room_and_its_completion_state_carries_no_deletion_line(
+    tmp_path: Path, handles: ModalHandles, code_and_find_room: Room, ticker: Ticker
+):
+    """A Judge room promoted by an older `scripts/promote_room.py` kept its Judge copy: a Demo room is never a Judge room."""
+    app = make_hosted_app(tmp_path, handles, code_and_find_room, clock=ticker)
+    store_room(hosted_stores(handles).artifacts, code_and_find_room)
+    client = TestClient(app)
+    session_id = begin(client, code_and_find_room)["id"]
+    play_to_the_exit(client, session_id, ticker)
+    state = client.get(f"/api/sessions/{session_id}").json()
+    assert state["locks_open"] and state["judge_room"] is False
+
+
 def test_every_local_room_session_carries_judge_room_false(tmp_path: Path, code_and_find_room: Room):
     client = TestClient(make_app(tmp_path, code_and_find_room))
     state = begin(client, code_and_find_room)

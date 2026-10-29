@@ -21,8 +21,12 @@ remaining rooms are still attempted; any failure exits 1, and a rerun
 completes what an earlier attempt left. `--dry-run` prints the `room_id`
 and `job_id` of every Judge room that would go and deletes nothing, so no
 record is written. With no Judge room it prints that there is nothing to
-purge. Demo rooms under `rooms/demo/` are never touched, and nothing on the
-local machine is written: not `rooms/`, not `.cache/`, not the git index.
+purge. Demo rooms under `rooms/demo/` are never touched: a listed id that
+is also a Demo room (a Judge copy an older promotion left) is kept, in the
+dry run and the real run alike, with `kept <room_id>: a Demo room` printed,
+so no deletion record names a Demo room and the purge never fails on one
+(`scripts/promote_room.py` removes that Judge copy). Nothing on the local
+machine is written: not `rooms/`, not `.cache/`, not the git index.
 """
 
 from __future__ import annotations
@@ -47,6 +51,7 @@ from src.infra.modal import (
     VOLUME,
     DictJobStore,
     ModalHandles,
+    VolumeArtifactStore,
     VolumeFiles,
     call_key,
     delete_judge_room,
@@ -80,13 +85,23 @@ def lingering_room_ids(handles: ModalHandles) -> list[str]:
 
 
 def purge(handles: ModalHandles, *, today: date, dry_run: bool = False) -> int:
-    """Delete every Judge room and finish every lingering deletion, printing each ids-only record; 1 when any failed, after every room was attempted."""
-    room_ids = sorted({*judge_room_ids(handles), *lingering_room_ids(handles)})
+    """Delete every Judge room and finish every lingering deletion, printing each ids-only record; 1 when any failed, after every room was attempted.
+
+    A listed id that is also a Demo room (`ArtifactStore.is_demo_room`) is kept and named, never deleted.
+    """
+    files = VolumeFiles(handles.volume, handles.root)
+    demo = VolumeArtifactStore(files)
+    room_ids: list[str] = []
+    for room_id in sorted({*judge_room_ids(handles), *lingering_room_ids(handles)}):
+        if demo.is_demo_room(room_id):
+            print(f"kept {room_id}: a Demo room")
+        else:
+            room_ids.append(room_id)
     if not room_ids:
         print(f"nothing to purge: {JUDGE_DIR}/ holds no Judge room")
         return 0
     if dry_run:
-        jobs = DictJobStore(handles.jobs, VolumeFiles(handles.volume, handles.root))
+        jobs = DictJobStore(handles.jobs, files)
         for room_id in room_ids:
             print(f"would delete room_id={room_id} job_id={jobs.job_of(room_id)}")
         print(f"dry run: {len(room_ids)} Judge rooms would go; nothing deleted")
@@ -103,7 +118,7 @@ def purge(handles: ModalHandles, *, today: date, dry_run: bool = False) -> int:
     if failed:
         print(f"purge incomplete: {len(failed)} of {len(room_ids)} Judge rooms failed: {' '.join(failed)}", file=sys.stderr)
         return 1
-    print(f"purged {len(room_ids)} Judge rooms; {JUDGE_DIR}/ is empty")
+    print(f"purged {len(room_ids)} Judge rooms; {JUDGE_DIR}/ holds no Judge room")
     return 0
 
 

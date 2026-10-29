@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 from datetime import date
@@ -299,6 +300,47 @@ def test_the_dry_run_lists_each_room_id_and_job_id_deletes_nothing_and_writes_no
     assert listed == sorted(f"would delete room_id={judge.room_id} job_id={judge.state.id}" for judge in hosted.judges)
     assert _snapshot(handles.root) == files_before and not (handles.root / "rooms" / "deleted").exists()
     assert dict(handles.jobs) == jobs_before and dict(handles.sessions) == sessions_before
+
+
+# --- A Demo room an older promotion left under rooms/judge/ is kept ----------------
+
+
+def leave_judge_copy(hosted: Hosted) -> Path:
+    """The Judge copy an older `scripts/promote_room.py` left beside the Demo room it promoted."""
+    stale = hosted.judge_dir / hosted.demo.id
+    shutil.copytree(hosted.handles.root / "rooms" / "demo" / hosted.demo.id, stale)
+    return stale
+
+
+def test_the_dry_run_keeps_a_demo_room_left_under_rooms_judge_and_lists_only_the_judge_rooms(monkeypatch, handles, hosted, capsys):
+    leave_judge_copy(hosted)
+    files_before = _snapshot(handles.root)
+
+    status, _ = run_main(monkeypatch, handles, "--dry-run")
+
+    assert status == 0
+    out = capsys.readouterr().out.splitlines()
+    assert f"kept {hosted.demo.id}: a Demo room" in out
+    listed = sorted(line for line in out if line.startswith("would delete "))
+    assert listed == sorted(f"would delete room_id={judge.room_id} job_id={judge.state.id}" for judge in hosted.judges)
+    assert _snapshot(handles.root) == files_before
+
+
+def test_the_purge_keeps_a_demo_room_left_under_rooms_judge_writes_no_record_for_it_and_still_deletes_every_judge_room(
+    monkeypatch, handles, hosted, capsys
+):
+    stale = leave_judge_copy(hosted)
+    stale_before = _snapshot(stale)
+
+    status, _ = run_main(monkeypatch, handles)
+
+    assert status == 0
+    captured = capsys.readouterr()
+    assert f"kept {hosted.demo.id}: a Demo room" in captured.out.splitlines() and "purge incomplete" not in captured.err
+    assert [path.name for path in hosted.judge_dir.iterdir()] == [hosted.demo.id] and _snapshot(stale) == stale_before
+    assert not (handles.root / "rooms" / "deleted" / f"{hosted.demo.id}.json").exists()
+    assert all(hosted.record(judge).exists() and not judge.folder.exists() for judge in hosted.judges)
+    hosted.assert_demo_intact()
 
 
 # --- Nothing to purge -------------------------------------------------------------

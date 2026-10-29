@@ -62,7 +62,7 @@ store writes every key of the port (`<room_id>/room.json`,
 `rooms/judge/`, so a Judge room plays by its id, and `list_rooms()` lists
 `rooms/demo/` alone, so no Judge room is ever listed; `is_demo_room(room_id)`
 is true only for a Room under `rooms/demo/`, `is_judge_room(room_id)` only
-for one under `rooms/judge/`, and `deleted_room(id_)` reads
+for one under `rooms/judge/` that is no Demo room, and `deleted_room(id_)` reads
 the deletion records under `rooms/deleted/` for one naming that room id or
 job id or one of the session ids its deletion took, so a route answers a
 deleted Judge room with 410. Cache entries live at
@@ -365,8 +365,12 @@ class VolumeArtifactStore:
         return self.files.exists(f"{self.demo}/{self._clean(room_key(room_id))}")
 
     def is_judge_room(self, room_id: str) -> bool:
-        """Whether the Room is stored under `rooms/judge/<room_id>/`, after one reload; a Demo room or an unknown id is not."""
-        return self.files.exists(f"{self.judge}/{self._clean(room_key(room_id))}")
+        """Whether the Room is stored under `rooms/judge/<room_id>/` and is no Demo room, each looked up after a reload; an unknown id is not.
+
+        A Demo room is never a Judge room, even with a Judge copy a
+        promotion left behind, so no deletion line shows on it.
+        """
+        return not self.is_demo_room(room_id) and self.files.exists(f"{self.judge}/{self._clean(room_key(room_id))}")
 
     def deleted_room(self, id_: str) -> RoomId | None:
         """The Room id of the deletion record under `rooms/deleted/` that names `id_` as its room id, job id or one of its session ids, after one reload; `None` when none does."""

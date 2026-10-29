@@ -419,7 +419,15 @@ def test_is_judge_room_is_true_for_a_judge_room_only_and_reloads_before_it_looks
     assert stores.artifacts.is_judge_room(four_lock_room.id) is True
     assert stores.artifacts.is_judge_room(code_and_find_room.id) is False
     assert stores.artifacts.is_judge_room("room_01ARZ3NDEKTSV4RRFFQ69G5FAV") is False
-    assert log.count("reload") == 3 and "commit" not in log
+    assert log.count("reload") == 5 and "commit" not in log  # the Demo look first, then the Judge one unless it was a Demo room
+
+
+def test_a_room_in_both_partitions_is_a_demo_room_and_never_a_judge_room(handles, stores, code_and_find_room):
+    """A promotion that left its Judge copy behind: the Demo copy decides, so no deletion line shows on it."""
+    seed_demo(handles, code_and_find_room)
+    store_room(stores.artifacts, code_and_find_room)
+    assert stores.artifacts.is_demo_room(code_and_find_room.id) is True
+    assert stores.artifacts.is_judge_room(code_and_find_room.id) is False
 
 
 def test_a_demo_room_id_never_reads_as_a_judge_room_through_a_climbing_key(stores):

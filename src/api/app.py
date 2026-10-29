@@ -75,8 +75,8 @@ line for a Room with a session already started (in this process or stored by
 an earlier one); a later session on the same Room never changes an earlier
 session's list. Every session state served also carries
 `judge_room`, read once at the session's start from
-`ArtifactStore.is_judge_room` (hosted, a Room under `rooms/judge/`; local,
-never): the client draws the Completion screen's deletion line from that flag
+`ArtifactStore.is_judge_room` (hosted, a Room under `rooms/judge/` that is
+no Demo room; local, never): the client draws the Completion screen's deletion line from that flag
 alone (FR-33).
 
 `GET /rooms` lists one `RoomSummary` per stored Room with a job record
