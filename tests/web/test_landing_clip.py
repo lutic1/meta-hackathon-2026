@@ -31,6 +31,15 @@ def _chooser() -> str:
     return _code("chooser.ts")
 
 
+def _dimensions(mp4: Path) -> tuple[int, int]:
+    """The width and height in an MP4's first track header (`tkhd`, version 0, after the 3 x 3 matrix)."""
+    data = mp4.read_bytes()
+    at = data.index(b"tkhd") + 4
+    end = at + (96 if data[at] == 1 else 84)
+    width, height = int.from_bytes(data[end - 8 : end - 4]) >> 16, int.from_bytes(data[end - 4 : end]) >> 16
+    return width, height
+
+
 def test_the_clip_files_are_committed_under_web_public_clip():
     for stem in ("play", "card"):
         poster = "poster.jpg" if stem == "play" else "card-poster.jpg"
@@ -39,6 +48,8 @@ def test_the_clip_files_are_committed_under_web_public_clip():
         assert mp4.read_bytes()[4:8] == b"ftyp"
         assert still.read_bytes()[:3] == b"\xff\xd8\xff"
     assert all((CLIP / name).stat().st_size < 600_000 for name in FILES)
+    # Both are cut from one 2x recording (2560 x 1440 of a 1280 x 720 page), so neither is ever scaled up (Oct 29).
+    assert _dimensions(CLIP / "play.mp4") == (1280, 604) and _dimensions(CLIP / "card.mp4") == (630, 840)
 
 
 def test_one_module_names_the_clip_the_card_loop_and_the_demo_video():
@@ -49,11 +60,12 @@ def test_one_module_names_the_clip_the_card_loop_and_the_demo_video():
     # The card's loop is derived from the clip; the lines that make it stay beside it, in its doc comment.
     assert "webm: '/clip/card.webm'" in clip and "mp4: '/clip/card.mp4'" in clip and "poster: '/clip/card-poster.jpg'" in clip
     doc = (WEB_SRC / "clip.ts").read_text()
-    assert "crop=236:334:218:18" in doc and "between(n\\,46\\,48)+between(n\\,144\\,148)+between(n\\,212\\,214)" in doc
+    assert "crop=2560:1208:0:96" in doc and "crop=630:840:581:171" in doc
+    assert "between(n\\,88\\,97)+between(n\\,264\\,272)+between(n\\,400\\,409)" in doc
     # The full demo video is unset for now, so the Watch back falls back to the clip; its aspect sizes the panel.
     assert "const FULL_DEMO_VIDEO: VideoSources | null = null" in clip
     assert "export const DEMO_VIDEO: VideoSources = FULL_DEMO_VIDEO ?? CLIP" in clip
-    assert "export const DEMO_VIDEO_ASPECT: number = FULL_DEMO_VIDEO_ASPECT ?? 960 / 454" in clip
+    assert "export const DEMO_VIDEO_ASPECT: number = FULL_DEMO_VIDEO_ASPECT ?? 1280 / 604" in clip
 
 
 def test_the_clip_strings_are_the_experience_lines():
