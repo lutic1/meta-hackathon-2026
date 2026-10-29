@@ -8,13 +8,21 @@ app over plain dicts and a temporary Volume, so the three reads the landing make
 sends, answer as the landing expects.
 """
 
+import json
 import re
+import shutil
+import subprocess
+from itertools import pairwise
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from fastapi.testclient import TestClient
 
 from src.api.meta import HOSTED_LINE
-from src.domain.schema import Derived, Room
+from src.domain.redact import to_play_view
+from src.domain.schema import Derived, PlayView, Room
 from tests.api.hosted import hosted_handles, make_hosted_app
 from tests.domain.test_redact import done_job
 from tests.infra.test_modal import seed_demo
@@ -260,17 +268,106 @@ def test_the_attract_frame_strings_are_the_experience_lines():
     assert strings["lockOfM"].format(n=1, m=5) == "Lock 1 of 5"
 
 
-def test_the_frame_picks_per_photo_the_first_interactable_with_a_hotspot_and_the_first_puzzle_whose_evidence_is_on_it():
-    ts = _attract()
-    slides = ts.split("export function attractSlides(view: PlayView): AttractSlide[] {", 1)[1].split("\n}\n", 1)[0]
-    assert "return view.photos.map((_, photo) => {" in slides
-    assert "const on = view.interactables.filter((interactable) => interactable.photo === photo)" in slides
-    assert "const interactable = on.find((candidate) => hotspotPath(candidate.polygons ?? []) !== '') ?? null" in slides
-    assert "view.puzzles.find((puzzle) => puzzle.evidence_cards.some((card) => on.some(({ id }) => id === card.interactable))) ??" in slides
-    assert "      view.puzzles[0]\n    return { photo, interactable, puzzle }" in slides
-    # Drawn from the PlayView alone: the module names no solution, rung or Derived field, and never a box.
+# Runs the shipped `attractSlides` on the PlayViews read from stdin and prints the slides it returns.
+SLIDES_RUNNER = """
+import { readFileSync } from 'node:fs'
+const { attractSlides } = await import(process.argv[1])
+const views = JSON.parse(readFileSync(0, 'utf8'))
+process.stdout.write(JSON.stringify(views.map((view) => attractSlides(view))))
+"""
+needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs the client's attract slides module")
+
+
+def _slides(*views: PlayView) -> list[list[dict[str, Any]]]:
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", SLIDES_RUNNER, (WEB_SRC / "components/attract-slides.ts").as_uri()],
+        input=json.dumps([view.model_dump(mode="json") for view in views]), cwd=REPO, capture_output=True, text=True,
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def _front_hall() -> PlayView:
+    """Shaped like the Demo room "The front hall and the lounge": eight photos, every lock's object on its own photo."""
+    def ix(n: int, label: str, photo: int) -> dict[str, Any]:
+        square = [[100 * n, 100], [100 * n + 80, 100], [100 * n + 80, 180], [100 * n, 180]]
+        return {"id": f"ix_{n:026d}", "label": label, "photo": photo, "polygons": [square], "instances": 1, "attributes": []}
+
+    def pz(n: int, lock_type: str, evidence: int, is_exit: bool = False) -> dict[str, Any]:
+        return {
+            "id": f"pz_{n:026d}", "lock_type": lock_type, "requires": [], "is_exit": is_exit, "clue": f"clue {n}",
+            "lore": "", "evidence_cards": [{"interactable": f"ix_{evidence:026d}", "visible_attribute": "seen"}],
+            "sequence_length": None,
+        }
+
+    return PlayView.model_validate({
+        "id": f"room_{1:026d}", "created": "2026-10-29T12:00:00Z", "name": "The front hall and the lounge",
+        "photos": [{"hash": f"{n:064x}", "size": 1} for n in range(8)],
+        "interactables": [
+            ix(1, "entryway rug", 0), ix(2, "floor vent", 0), ix(3, "ceiling light", 0), ix(4, "double front door", 1),
+            ix(5, "throw pillows", 2), ix(6, "potted tree", 3), ix(7, "sectional sofa", 5),
+        ],
+        "puzzles": [pz(1, "find", 5), pz(2, "find", 2), pz(3, "use_on", 7), pz(4, "find", 4, is_exit=True)],
+    })
+
+
+def _assert_spoils_nothing(view: PlayView, slides: list[dict[str, Any]]) -> None:
+    """No lit Interactable is named by an Evidence card, and no photo's clue has its Evidence on that photo."""
+    photo_of = {interactable.id: interactable.photo for interactable in view.interactables}
+    named = {card.interactable for puzzle in view.puzzles for card in puzzle.evidence_cards}
+    assert [slide["photo"] for slide in slides] == list(range(len(view.photos)))
+    for slide in slides:
+        if slide["interactable"] is not None:
+            assert slide["interactable"]["id"] not in named, slide
+        if slide["puzzle"] is not None:
+            assert all(photo_of[card["interactable"]] != slide["photo"] for card in slide["puzzle"]["evidence_cards"]), slide
+
+
+@needs_node
+def test_the_frame_never_lights_a_lock_s_object_or_pairs_a_clue_with_the_photo_that_holds_its_answer(four_lock_room: Room):
+    hall, four_lock = _front_hall(), to_play_view(four_lock_room)
+    hall_slides, four_lock_slides = _slides(hall, four_lock)
+    _assert_spoils_nothing(hall, hall_slides)
+    _assert_spoils_nothing(four_lock, four_lock_slides)
+    # Scenery is lit where a photo has it (the rug, the tree); a photo holding only a lock's object shows no outline.
+    lit = [slide["interactable"] and slide["interactable"]["label"] for slide in hall_slides]
+    assert lit == ["entryway rug", None, None, "potted tree", None, None, None, None]
+    assert [slide["interactable"] and slide["interactable"]["label"] for slide in four_lock_slides] == [
+        None, None, None, "iron lantern", None, "woven rug",
+    ]
+    # Every photo has a clue, never the Exit's while another lock's is eligible, and successive photos show different ones.
+    clues = [slide["puzzle"]["clue"] for slide in hall_slides]
+    assert "clue 4" not in clues and all(a != b for a, b in pairwise(clues)), clues
+    four_lock_clues = [slide["puzzle"]["clue"] for slide in four_lock_slides]
+    assert all(a != b for a, b in pairwise(four_lock_clues)), four_lock_clues
+    assert not any(slide["puzzle"]["is_exit"] for slide in four_lock_slides)
+
+
+@needs_node
+def test_a_photo_holding_every_lock_s_evidence_shows_no_clue_and_the_exit_s_clue_is_the_last_choice():
+    hall = _front_hall()
+
+    def moved(door_photo: int) -> PlayView:
+        """Two photos: every object on photo 0 but the front door, which is on `door_photo`."""
+        interactables = [
+            ix.model_copy(update={"photo": door_photo if ix.label == "double front door" else 0}) for ix in hall.interactables
+        ]
+        return hall.model_copy(update={"photos": hall.photos[:2], "interactables": interactables})
+
+    crowded, exit_left = _slides(moved(0), moved(1))
+    # Photo 0 holds every lock's object: no clue; photo 1 holds none, so its clue is a lock's, not the Exit's.
+    assert crowded[0]["puzzle"] is None and crowded[0]["interactable"]["label"] == "entryway rug"
+    assert crowded[1]["puzzle"] is not None and crowded[1]["puzzle"]["is_exit"] is False
+    # Photo 0 holds every lock's object but the Exit's, so the Exit's clue is the only one it may show.
+    assert exit_left[0]["puzzle"]["is_exit"] is True and exit_left[1]["puzzle"]["is_exit"] is False
+
+
+def test_the_frame_reads_the_play_view_alone():
+    ts = _code("components/attract-slides.ts") + _attract()
+    # Drawn from the PlayView alone: the modules name no solution, rung or Derived field, and never a box.
     assert "solution" not in ts and "rung" not in ts and "derived" not in ts.lower() and ".box" not in ts
-    assert "import type { PlayInteractable, PlayPuzzle, PlayView } from '../../types'" in ts
+    assert "import type { PlayInteractable, PlayPuzzle, PlayView } from '../../types'" in _code("components/attract-slides.ts")
+    assert "import { attractSlides, type AttractSlide } from './attract-slides.ts'" in _attract()
 
 
 def test_the_frame_draws_the_scene_s_hotspot_reveal_and_label_chip_over_each_photo():

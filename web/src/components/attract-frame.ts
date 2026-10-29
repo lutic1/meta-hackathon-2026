@@ -1,41 +1,17 @@
 import './attract-frame.css'
 import '../scene/scene.css'
-import type { PlayInteractable, PlayPuzzle, PlayView } from '../../types'
+import type { PlayView } from '../../types'
 import { photoUrl } from '../api/index.ts'
 import { contain, hotspotPath, type Size, topLeft } from '../scene/geometry.ts'
 import { CHIP_OFFSET_PX, hotspotReveal } from '../scene/hotspots.ts'
 import { fill, strings } from '../strings.ts'
 import { speakerPrefix, wizardPortrait } from '../wizards/portrait.ts'
+import { attractSlides, type AttractSlide } from './attract-slides.ts'
 
 const SVG = 'http://www.w3.org/2000/svg'
 
 /** Each photo holds this long before the next crossfades in over it (`--motion-attract`, 600 ms). */
 export const HOLD_MS = 4000
-
-export interface AttractSlide {
-  /** The photo's index in the Room. */
-  photo: number
-  /** The first Interactable on the photo with a Hotspot to draw, null when it has none. */
-  interactable: PlayInteractable | null
-  /** The first Puzzle whose Evidence names an Interactable on the photo, else the Room's first Puzzle. */
-  puzzle: PlayPuzzle
-}
-
-/**
- * What the frame shows over each photo of `view`, in the Room's photo order, read from the `PlayView` alone: the
- * first Interactable on the photo whose polygons draw a Hotspot, and the clue of the first Puzzle whose Evidence
- * names an Interactable on that photo, falling back to the first Puzzle's.
- */
-export function attractSlides(view: PlayView): AttractSlide[] {
-  return view.photos.map((_, photo) => {
-    const on = view.interactables.filter((interactable) => interactable.photo === photo)
-    const interactable = on.find((candidate) => hotspotPath(candidate.polygons ?? []) !== '') ?? null
-    const puzzle =
-      view.puzzles.find((puzzle) => puzzle.evidence_cards.some((card) => on.some(({ id }) => id === card.interactable))) ??
-      view.puzzles[0]
-    return { photo, interactable, puzzle }
-  })
-}
 
 interface Slide extends AttractSlide {
   /** The layer over the ground that crossfades: the photo plate, its Hotspot and chip. */
@@ -84,22 +60,25 @@ function slideElement(view: PlayView, slide: AttractSlide): Slide {
   const { puzzle } = slide
   const line = document.createElement('div')
   line.className = 'attract-clue-line'
-  const clue = document.createElement('p')
-  clue.className = 'wizard-line'
-  clue.append(speakerPrefix('riddler'), puzzle.clue)
-  const tag = document.createElement('span')
-  tag.className = 'chip chip-current label'
-  tag.textContent = fill(strings.lockOfM, { n: view.puzzles.indexOf(puzzle) + 1, m: view.puzzles.length })
-  line.append(clue, tag)
+  if (puzzle !== null) {
+    const clue = document.createElement('p')
+    clue.className = 'wizard-line'
+    clue.append(speakerPrefix('riddler'), puzzle.clue)
+    const tag = document.createElement('span')
+    tag.className = 'chip chip-current label'
+    tag.textContent = fill(strings.lockOfM, { n: view.puzzles.indexOf(puzzle) + 1, m: view.puzzles.length })
+    line.append(clue, tag)
+  }
   return { ...slide, element, plate, svg, chip, line }
 }
 
 /**
  * The attract frame of the Hosted landing (DESIGN.md Hosted landing, Motion): a Scene frame that plays the Demo
  * room `view` by itself. Its photos crossfade in order, each held 4 s, over the frame's ground, contained as the
- * Scene contains them; on each lies the lit Hotspot reveal and label chip of its first Interactable, drawn from the
- * polygons as the Scene draws them, and under the frame, on parchment, the Riddler's clue for that photo with its
- * "Lock {n} of {m}" tag. The frame is one control named "Play {name}": a click or Enter calls `onStart`, the verb's
+ * Scene contains them; on each lies the lit Hotspot reveal and label chip of its first scenery Interactable, drawn
+ * from the polygons as the Scene draws them, and under the frame, on parchment, a Riddler's clue whose Evidence is not
+ * on that photo with its "Lock {n} of {m}" tag (`attractSlides`; a photo without either shows the photo alone, the
+ * clue row keeping its height). The frame is one control named "Play {name}": a click or Enter calls `onStart`, the verb's
  * path. The cycle pauses while the pointer is over the frame or it has focus, and while the tab is hidden; under
  * reduced motion the first photo stays, with its Hotspot and clue, and nothing cycles. Photos load one ahead of the
  * cycle, never all at once; a photo that fails is passed over. Resolves once the first photo has loaded, with the
