@@ -65,7 +65,7 @@ def test_each_card_is_a_real_button_named_by_its_title_described_by_its_line_and
     ts = _chooser()
     card = _body(ts, "  function card(")
     assert "title.id = `chooser-title-${i}`" in card and "description.id = `chooser-line-${i}`" in card
-    for attribute in ("'aria-labelledby', title.id", "'aria-describedby', description.id", "'aria-haspopup', 'dialog'",
+    for attribute in ("'aria-labelledby', [title.id, ...named].join(' ')", "'aria-describedby', description.id", "'aria-haspopup', 'dialog'",
                       "'aria-expanded', 'false'", "'aria-controls', 'chooser-panel'"):
         assert f"choose.setAttribute({attribute})" in card, attribute
     assert "choose.type = 'button'" in card
@@ -243,17 +243,6 @@ def test_the_card_text_scales_with_the_card_and_never_drops_below_14_px():
     assert "@container (max-width: 270px) {\n  .chooser-hero-name {\n    display: none;" in (WEB_SRC / "chooser.css").read_text()
 
 
-def test_a_dimmed_card_s_text_keeps_at_least_6_3_to_1():
-    chrome, dim = _hex(PROPS["chrome"])[0], (0x0A / 255, 0x08 / 255, 0x06 / 255)
-    under = tuple(0.5 * c + 0.5 * d for c, d in zip(chrome, dim))  # the 50 % dim over the plate's chrome
-    for token in ("text", "text-muted", "lamp"):
-        colour = tuple(0.86 * c + 0.14 * u for c, u in zip(_hex(PROPS[token])[0], under))  # the plate at 86 %
-        assert contrast(colour, under) >= 6.3, token
-    rules = _rules()
-    assert rules[".chooser-slot.is-dimmed .chooser-dim"] == {"opacity": "0.5"}
-    assert rules[".chooser-slot.is-dimmed .chooser-plate"] == {"opacity": "0.86"}
-
-
 # --- Motion: the owner's exception, Pause motion and reduced motion ---------------------------
 
 
@@ -335,3 +324,165 @@ def test_the_contract_records_the_chooser_and_the_owner_s_motion_exception():
         assert state in states, state
     assert "the Hosted landing's chooser alone excepted" in experience
     assert "the Hosted landing's card announcement" in experience
+
+
+# --- The reviewer's feedback (owner decision Oct 29): one obvious start, the code up front, text that reads ----------
+
+FRONT_PAD = 24
+"""The card front's padding on both sides: its text's `cqw` is a hundredth of the card width less this."""
+CARD_W = {1024: 281, 1440: 380, 1920: 488}
+"""The card widths the browser measured at 1024 x 768, 1440 x 900 and 1920 x 1080 (the sizing test above)."""
+
+
+def _clamp_px(size: str, width: int) -> float:
+    """A card text's `clamp(min, n cqw, max)` (or a plain px size) in px on the card `width` px wide."""
+    plain = re.fullmatch(r"(\d+)px", size)
+    if plain:
+        return float(plain.group(1))
+    low, scale, high = re.fullmatch(r"clamp\((\d+)px, ([\d.]+)cqw, (\d+)px\)", size).groups()  # type: ignore[union-attr]
+    return min(float(high), max(float(low), float(scale) * (width - FRONT_PAD) / 100))
+
+
+def _mix(top: tuple[float, ...], under: tuple[float, ...], alpha: float) -> tuple[float, float, float]:
+    r, g, b = (alpha * t + (1 - alpha) * u for t, u in zip(top, under))
+    return r, g, b
+
+
+def test_at_rest_the_play_card_leads_forward_lit_and_prompted_while_watch_and_build_wait_a_step_back():
+    ts = _chooser()
+    assert "const lead = first === undefined ? -1 : 1" in ts
+    arc = _body(ts, "  function transformFor(i: number): string {")
+    assert "if (active === -1 && i === lead) return 'translate3d(0, -6px, 50px)'" in arc
+    assert "if (active === -1 && lead !== -1) return `translate3d(0, ${a * 10 + 4}px, ${-a * 120 - 50}px) rotateY(${-p * 10}deg)`" in arc
+    apply = _body(ts, "  function applyAll(): void {")
+    assert "const leading = chosen === -1 && active === -1 && i === lead && (state === 'rest' || state === 'arriving')" in apply
+    assert "slot.classList.toggle('is-lead', leading)" in apply
+    assert "slot.classList.toggle('is-back', chosen === -1 && active === -1 && lead !== -1 && i !== lead)" in apply
+    rules = _rules()
+    # The lead shows its prompt, its lamp rim, its pool and its plate at rest, as a card brought forward does.
+    assert rules[".chooser-slot.is-active .chooser-prompt,\n.chooser-slot.is-lead .chooser-prompt"] == {"opacity": "1", "transform": "none"}
+    assert rules[".chooser-slot.is-active .chooser-glow,\n.chooser-slot.is-lead .chooser-glow"] == {"opacity": "1"}
+    assert "pools[i].classList.toggle('is-lit', lit || leading)" in apply
+    # The two behind it dim less than a card stepped back by hover or focus, and keep their plate whole.
+    back, dimmed = rules[".chooser-slot.is-back .chooser-dim"], rules[".chooser-slot.is-dimmed .chooser-dim"]
+    assert float(back["opacity"]) < float(dimmed["opacity"])
+
+
+def test_the_play_card_carries_the_lamp_tag_no_upload_needed():
+    strings = _strings()
+    assert strings["noUploadNeeded"] == "No upload needed"
+    ts = _chooser()
+    assert "const playTags = [playTag, ...(first === undefined ? [] : [tagChip(strings.noUploadNeeded, 'is-lamp')])]" in ts
+    assert "card(1, MEDAL_KEY, frontPhotos, strings.playCardEyebrow, playTags, playLine, strings.playCardPrompt)" in ts
+    lamp = _rules()[".chooser-tag.is-lamp"]
+    assert lamp["background"] == "var(--lamp-strong)" and lamp["color"] == "var(--on-lamp)"
+    assert contrast(_hex(PROPS["on-lamp"])[0], _hex(PROPS["lamp-strong"])[0]) >= 7
+
+
+def test_the_card_group_s_one_tab_stop_starts_on_the_play_card_and_roves_with_focus():
+    ts = _chooser()
+    rove = _body(ts, "  function rove(i: number): void {")
+    assert "cards.forEach(({ choose: button }, k) => {\n      button.tabIndex = k === i ? 0 : -1\n    })" in rove
+    assert "clipToggle.tabIndex = i === 0 ? 0 : -1" in rove  # the Watch card's own toggle, a stop only after it
+    assert "rove(Math.max(lead, 0))" in ts  # Play first; Watch with no Demo room listed, when nothing leads
+    focus = ts.split("button.addEventListener('focus', () => {", 1)[1].split("\n    })", 1)[0]
+    assert "rove(i)" in focus
+    # The arrows still move across all three.
+    keys = ts.split("button.addEventListener('keydown', (event) => {", 1)[1].split("\n    })", 1)[0]
+    assert "cards[next[event.key]].choose.focus()" in keys
+
+
+def test_the_build_card_says_access_code_required_on_its_face_and_in_its_name():
+    strings = _strings()
+    assert strings["accessCodeRequired"] == "Access code required"
+    ts = _chooser()
+    assert "const codeTag = tagChip(strings.accessCodeRequired)" in ts and "codeTag.id = 'chooser-code-tag'" in ts
+    assert (
+        "card( 2, MEDAL_CAMERA, buildArt, strings.buildCardEyebrow, [tagChip(strings.buildCardTag), codeTag], [strings.buildCardLine], "
+        "strings.buildCardPrompt, [codeTag.id], )"
+    ) in " ".join(ts.split())
+    # The card's name is its title, then its code tag: "Build your own Access code required".
+    card = _body(ts, "  function card(")
+    assert "choose.setAttribute('aria-labelledby', [title.id, ...named].join(' '))" in card
+
+
+def test_the_build_back_says_under_the_field_that_the_code_is_in_the_submission():
+    strings = _strings()
+    assert strings["accessCodeJudges"] == "Judges: the code is in the submission."
+    ts = _chooser()
+    before, build = ts.split("const buildView = element(", 1)
+    build, after = build.split("const views = ", 1)[0].split("\n  )\n", 1)
+    assert "const judges = element('p', 'chooser-code-judges body-md', strings.accessCodeJudges)" in before
+    assert "element('div', 'chooser-code-form', accessCodeBuild(onAccepted, { heading: false }), judges)" in build
+    # The field is described by it too, after its own status line.
+    assert "const field = buildView.querySelector(`#${ACCESS_CODE_FIELD}`)" in after
+    assert "field?.setAttribute('aria-describedby', `${field.getAttribute('aria-describedby') ?? ''} ${judges.id}`.trim())" in after
+    assert _rules()[".chooser-code-judges"]["color"] == "var(--parchment)"
+
+
+def test_the_chooser_text_meets_the_reviewer_s_minimum_sizes():
+    rules = _rules()
+    # Card descriptions: at least 16 px at 1440, growing at 1920.
+    for selector in (".chooser-line", ".chooser-meta"):
+        size = rules[selector]["font-size"]
+        assert _clamp_px(size, CARD_W[1024]) >= 16 and _clamp_px(size, CARD_W[1440]) >= 16, selector
+        assert _clamp_px(size, CARD_W[1920]) > _clamp_px(size, CARD_W[1440]), selector
+    # Eyebrows and tags at least 13 px, on the cards and on the backs.
+    for selector in (".chooser-eyebrow", ".chooser-tag", ".chooser-panel .chooser-tag", ".chooser-panel .chooser-eyebrow"):
+        assert all(_clamp_px(rules[selector]["font-size"], w) >= 13 for w in CARD_W.values()), selector
+    # Key chips and the Pause motion label at least 14 px, wherever they stand.
+    for selector in (".chooser-kbd", ".chooser-keys .chooser-kbd", ".chooser-back .chooser-kbd", ".chooser-still-toggle"):
+        assert int(rules[selector]["font-size"].removesuffix("px")) >= 14, selector
+    # Voice lines (`wizard-line`, 19 px) and the backs' body (`body-md`, 16 px) at least 16 px; the footer's hints in
+    # `body-sm`, 14 px.
+    ts = _chooser()
+    for made in ("element('p', 'wizard-line', speakerPrefix(wizard)", "element('span', 'chooser-fact body-md', before",
+                 "element('span', 'body-md', ROLES[wizard])", "element('span', 'chooser-step-body body-md', body)",
+                 "element('p', 'chooser-code-note body-md', strings.accessCodeNote)",
+                 "element('p', 'chooser-code-judges body-md', strings.accessCodeJudges)", "element('footer', 'chooser-keys body-sm'"):
+        assert made in ts, made
+
+
+SENTENCES: dict[str, str] = {
+    ".chooser-subline": "lamp-lit canvas",
+    ".chooser-line": "chrome",
+    ".chooser-meta": "chrome",
+    ".chooser-voice p": "chrome",
+    ".chooser-fact": "chrome-raised",
+    ".chooser-hosts span:not(.wizard-portrait, .wizard-portrait *)": "chrome-raised",
+    ".chooser-step-body": "chrome-raised",
+    ".chooser-code-note": "chrome-raised",
+    ".chooser-code-judges": "chrome-raised",
+    ".chooser-keys": "canvas",
+}
+"""Every chooser text the player reads as a sentence, and the ground it sits on."""
+
+
+def test_every_sentence_reads_in_text_or_parchment_at_7_to_1_and_text_muted_is_left_to_labels():
+    rules = _rules()
+    canvas = _hex(PROPS["canvas"])[0]
+    grounds = {"canvas": canvas, "chrome": _hex(PROPS["chrome"])[0], "chrome-raised": _hex(PROPS["chrome-raised"])[0],
+               # the lamp from above at its brightest behind the subline (the beam and the static light, about 30 %)
+               "lamp-lit canvas": _mix(_hex(PROPS["lamp"])[0], canvas, 0.3)}
+    for selector, ground in SENTENCES.items():
+        colour = rules[selector]["color"]
+        assert colour in ("var(--text)", "var(--parchment)"), (selector, colour)
+        assert contrast(_hex(PROPS[colour[6:-1]])[0], grounds[ground]) >= 7, selector
+
+
+def test_a_card_stepped_back_keeps_its_text_at_7_to_1():
+    rules = _rules()
+    chrome, dark = _hex(PROPS["chrome"])[0], _hex("#0a0806")[0]
+    plate = {".chooser-line": "parchment", ".chooser-meta": "parchment", ".chooser-eyebrow": "lamp-strong", ".chooser-title": "text"}
+    for selector, token in plate.items():
+        assert rules[selector]["color"] == f"var(--{token})", selector
+    # The shade falls on the face under the plate; the plate's text stays whole, stepped back by hover or at rest.
+    assert ".chooser-slot.is-dimmed .chooser-plate" not in rules and ".chooser-slot.is-back .chooser-plate" not in rules
+    states = ((float(rules[".chooser-slot.is-dimmed .chooser-dim"]["opacity"]), 1.0), (float(rules[".chooser-slot.is-back .chooser-dim"]["opacity"]), 1.0))
+    for dim, shown in states:
+        under = _mix(dark, chrome, dim)
+        for token in plate.values():
+            assert contrast(_mix(_hex(PROPS[token])[0], under, shown), under) >= 7, (token, dim)
+        # The tags keep their own ground, dark or (the lamp tag) lamp, the plate's opacity over both words and ground.
+        for words, ground in (("text", _hex("#0a0806")[0]), ("on-lamp", _hex(PROPS["lamp-strong"])[0])):
+            assert contrast(_mix(_hex(PROPS[words])[0], under, shown), _mix(ground, under, shown)) >= 7, (words, dim)

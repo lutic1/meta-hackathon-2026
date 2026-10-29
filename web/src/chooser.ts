@@ -179,7 +179,7 @@ function voice(wizard: Wizard, line: string): HTMLElement {
 /** "{n} puzzles"-style chip: the number in mono, the words after it. */
 function fact(template: string, n: number | string): HTMLElement {
   const [before, after] = template.split('{n}')
-  return element('span', 'chooser-fact body-sm', before, element('b', '', String(n)), after)
+  return element('span', 'chooser-fact body-md', before, element('b', '', String(n)), after)
 }
 
 interface Cycler {
@@ -218,14 +218,16 @@ type State = 'arriving' | 'rest' | 'choosing' | 'chosen' | 'returning'
  * The Hosted landing's first screen, the hero-select chooser (DESIGN.md Hosted landing and Motion, EXPERIENCE.md
  * Hosted landing): the pitch over three tall gilt cards in a shallow arc on a gilt floor ring under the lamp, Watch
  * the demo, Play the sample room and Build your own, each a real button named by its title and described by its line.
- * They are dealt in with a 540-degree spin and breathe at rest. Hover or focus brings a card forward into the light
+ * They are dealt in with a 540-degree spin and breathe at rest, Play leading while a Demo room is listed (a little
+ * forward, lit, its prompt shown, the other two a step back), so the first move is plain; its tag says no upload is
+ * needed and Build's that an access code is. Hover or focus brings a card forward into the light
  * (it lifts, squares up, tilts toward the pointer and shows its prompt) while the other two step back and dim. Choosing
  * one (click, Enter or Space) gives it one full turn, handing over at the edge-on moment to one shared back panel, a
  * modal dialog that finishes the turn: Watch plays the demo video larger with controls; Play shows the first Demo
  * room, its hosts, how to play and "Play this room" (the guarded start, "Opening the room…" while pending); Build holds
  * the three steps and the Access-code build. Escape, Back or a click on the bare stage turns it home, focus returning
- * to the card. Arrows, Home and End move between the cards; Tab is trapped in the dialog and everything outside it is
- * inert. The footer holds the key hints and Pause motion, which holds every loop still. Under reduced motion nothing
+ * to the card. The cards are one Tab stop, Play first; arrows, Home and End move between them; Tab is trapped in the
+ * dialog and everything outside it is inert. The footer holds the key hints and Pause motion, which holds every loop still. Under reduced motion nothing
  * deals, spins or loops and every change is a 160 ms crossfade. With no Demo room listed, or a failed listing, Watch and
  * Build stay whole and the Play back holds the no-room line or the failed line with "Try again".
  */
@@ -256,9 +258,23 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   // ---- the three cards ----
   const titles = [strings.watchCardTitle, strings.playSampleRoom, strings.buildCardTitle]
   const order: number[] = first === undefined ? [] : [first.cover_photo]
+  /** The card that leads at rest, forward and lit with its prompt shown: Play, while a Demo room is listed. */
+  const lead = first === undefined ? -1 : 1
 
-  /** A card's slot in the arc with its nested planes, its front (art over plate) and its keyhole back. */
-  function card(i: number, medal: string, artwork: HTMLElement, eyebrow: string, tag: HTMLElement, line: (Node | string)[], prompt: string) {
+  /**
+   * A card's slot in the arc with its nested planes, its front (art over plate) and its keyhole back; `named` holds the
+   * ids of the tags its button's name reads after the title.
+   */
+  function card(
+    i: number,
+    medal: string,
+    artwork: HTMLElement,
+    eyebrow: string,
+    tags: HTMLElement[],
+    line: (Node | string)[],
+    prompt: string,
+    named: string[] = [],
+  ) {
     const title = element('h2', 'chooser-title', titles[i])
     title.id = `chooser-title-${i}`
     const description = element('p', 'chooser-line', ...line)
@@ -266,7 +282,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     const plate = element(
       'div',
       'chooser-plate',
-      element('div', 'chooser-plate-top', hidden(element('span', 'chooser-eyebrow', eyebrow)), tag),
+      element('div', 'chooser-plate-top', hidden(element('span', 'chooser-eyebrow', eyebrow)), ...tags),
       title,
       description,
       hidden(element('span', 'chooser-prompt', kbd(strings.keyEnter), prompt)),
@@ -274,7 +290,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     const glint = element('div', 'chooser-glint')
     const choose = element('button', 'chooser-choose')
     choose.type = 'button'
-    choose.setAttribute('aria-labelledby', title.id)
+    choose.setAttribute('aria-labelledby', [title.id, ...named].join(' '))
     choose.setAttribute('aria-describedby', description.id)
     choose.setAttribute('aria-haspopup', 'dialog')
     choose.setAttribute('aria-expanded', 'false')
@@ -302,8 +318,8 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     return { slot, deal, card: turning, tilt, glint, reverse, choose, front }
   }
 
-  function tagChip(text: string): HTMLElement {
-    return hidden(element('span', 'chooser-tag', element('i'), text))
+  function tagChip(text: string, variant = ''): HTMLElement {
+    return hidden(element('span', `chooser-tag ${variant}`.trim(), element('i'), text))
   }
 
   // Watch: the card's own loop of the clip, muted, with its own pause toggle (WCAG 2.2.2).
@@ -322,7 +338,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     MEDAL_PLAY,
     element('div', 'chooser-art', element('div', 'chooser-vwin', frontVideo)),
     strings.watchCardEyebrow,
-    tagChip(strings.watchCardTag),
+    [tagChip(strings.watchCardTag)],
     [strings.watchCardLine],
     strings.watchCardPrompt,
   )
@@ -344,7 +360,8 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     frontPhotos.append(element('div', 'chooser-placeholder'))
     frontPhotos.firstElementChild?.append(art(keyholeArt('chooser-lattice-none')))
   }
-  const playCard = card(1, MEDAL_KEY, frontPhotos, strings.playCardEyebrow, playTag, playLine, strings.playCardPrompt)
+  const playTags = [playTag, ...(first === undefined ? [] : [tagChip(strings.noUploadNeeded, 'is-lamp')])]
+  const playCard = card(1, MEDAL_KEY, frontPhotos, strings.playCardEyebrow, playTags, playLine, strings.playCardPrompt)
 
   // Build: a hand of the room's photos (none with no room listed) over the four wizards, lit in turn.
   const fan = element('div', 'chooser-fan')
@@ -368,9 +385,32 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   )
   const buildArt = hidden(element('div', 'chooser-art chooser-build-art', ...(first === undefined ? [] : [fan]), heroes))
   buildArt.classList.toggle('is-portraits-only', first === undefined)
-  const build = card(2, MEDAL_CAMERA, buildArt, strings.buildCardEyebrow, tagChip(strings.buildCardTag), [strings.buildCardLine], strings.buildCardPrompt)
+  // The code is asked for before the card is chosen: its tag sits beside the time and its button's name reads it.
+  const codeTag = tagChip(strings.accessCodeRequired)
+  codeTag.id = 'chooser-code-tag'
+  const build = card(
+    2,
+    MEDAL_CAMERA,
+    buildArt,
+    strings.buildCardEyebrow,
+    [tagChip(strings.buildCardTag), codeTag],
+    [strings.buildCardLine],
+    strings.buildCardPrompt,
+    [codeTag.id],
+  )
 
   const cards = [watch, playCard, build]
+  /**
+   * The group's one Tab stop is the card last focused, Play to begin with; the Watch card's clip toggle is a stop only
+   * after the Watch card (Pause motion in the footer pauses the clip from anywhere).
+   */
+  function rove(i: number): void {
+    cards.forEach(({ choose: button }, k) => {
+      button.tabIndex = k === i ? 0 : -1
+    })
+    clipToggle.tabIndex = i === 0 ? 0 : -1
+  }
+  rove(Math.max(lead, 0))
   const slots = cards.map(({ slot }) => slot)
   const row = element('div', 'chooser-row', ...slots)
   row.setAttribute('role', 'group')
@@ -458,7 +498,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       'ul',
       'chooser-hosts chooser-hosts-block',
       ...WIZARDS.map((wizard) =>
-        element('li', '', wizardPortrait(wizard, 48), element('div', '', element('b', 'label', NAMES[wizard]), element('span', 'body-sm', ROLES[wizard]))),
+        element('li', '', wizardPortrait(wizard, 48), element('div', '', element('b', 'label', NAMES[wizard]), element('span', 'body-md', ROLES[wizard]))),
       ),
     )
     hosts.setAttribute('aria-label', strings.theWizards)
@@ -534,13 +574,19 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     link.href = buildViewHref(first.job_id, profile)
     intro.append(link)
   }
+  // Under the field, where a judge looks for it: the code is in the submission.
+  const judges = element('p', 'chooser-code-judges body-md', strings.accessCodeJudges)
+  judges.id = 'chooser-code-judges'
   const buildView = element(
     'div',
     'chooser-view',
     head(strings.buildYourOwnRoom, voice('architect', strings.architectVoice)),
     steps,
-    element('div', 'chooser-code-box', intro, element('div', 'chooser-code-form', accessCodeBuild(onAccepted, { heading: false }))),
+    element('div', 'chooser-code-box', intro, element('div', 'chooser-code-form', accessCodeBuild(onAccepted, { heading: false }), judges)),
   )
+  // The field is described by that line too, after its own status line.
+  const field = buildView.querySelector(`#${ACCESS_CODE_FIELD}`)
+  field?.setAttribute('aria-describedby', `${field.getAttribute('aria-describedby') ?? ''} ${judges.id}`.trim())
   const views = [watchView, playView, buildView]
   for (const view of views) view.hidden = true
   panel.append(...views, ...corners())
@@ -812,6 +858,8 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       const side = Math.sign(i - chosen)
       return `translate3d(${side * (window.innerWidth * 0.75 + geo.W)}px, 30px, -420px) rotateY(${-side * 55}deg)`
     }
+    if (active === -1 && i === lead) return 'translate3d(0, -6px, 50px)'
+    if (active === -1 && lead !== -1) return `translate3d(0, ${a * 10 + 4}px, ${-a * 120 - 50}px) rotateY(${-p * 10}deg)`
     if (active === -1) return `translate3d(0, ${a * 10}px, ${-a * 120}px) rotateY(${-p * 9}deg)`
     if (i === active) return `translate3d(0, -10px, 80px) rotateY(${-p * 3}deg) scale(1.03)`
     return `translate3d(0, ${a * 10 + 8}px, ${-120 * a - 110}px) rotateY(${-p * 12}deg)`
@@ -820,14 +868,17 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     slots.forEach((slot, i) => {
       slot.style.transform = transformFor(i)
       const lit = chosen === -1 && active === i && state === 'rest'
+      const leading = chosen === -1 && active === -1 && i === lead && (state === 'rest' || state === 'arriving')
       slot.classList.toggle('is-active', lit)
+      slot.classList.toggle('is-lead', leading)
+      slot.classList.toggle('is-back', chosen === -1 && active === -1 && lead !== -1 && i !== lead)
       slot.classList.toggle('is-dimmed', chosen === -1 && active !== -1 && active !== i)
       slot.classList.toggle('is-away', chosen !== -1 && chosen !== i)
       slot.classList.toggle('is-chosen', chosen === i)
       shadows[i].classList.toggle('is-lit', lit)
       shadows[i].classList.toggle('is-gone', chosen !== -1)
-      pools[i].classList.toggle('is-lit', lit)
-      track.querySelector(`.chooser-plate-lit[data-i="${i}"]`)?.classList.toggle('is-on', lit)
+      pools[i].classList.toggle('is-lit', lit || leading)
+      track.querySelector(`.chooser-plate-lit[data-i="${i}"]`)?.classList.toggle('is-on', lit || leading)
     })
   }
 
@@ -910,6 +961,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   cards.forEach(({ choose: button }, i) => {
     button.addEventListener('focus', () => {
       lastAnnounced = ''
+      rove(i)
       if (state === 'rest') setActive(i)
     })
     button.addEventListener('click', () => choose(i))
