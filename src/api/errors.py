@@ -11,6 +11,8 @@ same envelope under `invalid_request`.
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -158,7 +160,21 @@ class InvalidRequest(ApiError):
     code = "invalid_request"
 
     def __init__(self, error: RequestValidationError) -> None:
-        super().__init__("; ".join(f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}" for e in error.errors()))
+        super().__init__("; ".join(_failure(e) for e in error.errors()))
+
+
+def _failure(error: Any) -> str:
+    """One failing location and why, built only from the schema's own words: a sent tag, extra key or value never appears."""
+    loc, msg = tuple(error["loc"]), str(error["msg"])
+    if error["type"] == "union_tag_invalid":
+        ctx = error["ctx"]
+        name = str(ctx["discriminator"]).strip("'")
+        msg = f"{name} names none of the expected tags: {ctx['expected_tags']}"
+    elif error["type"] == "extra_forbidden":
+        loc, msg = loc[:-1], "unexpected field"
+    elif isinstance(sent := error.get("input"), str) and sent and sent in msg:
+        msg = "value is not accepted"
+    return f"{'.'.join(str(part) for part in loc)}: {msg}"
 
 
 def envelope(error: ApiError) -> ErrorEnvelope:

@@ -196,6 +196,8 @@ def test_a_client_t_ms_any_field_beyond_puzzle_id_or_a_puzzle_not_in_the_room_an
     {"type": "hint_request", "puzzle_id": "pz_01ARZ3NDEKTSV4RRFFQ69G5FAV"},
     {"type": "hint_request", "text": "sk-live-0123456789abcdef"},
     {"type": "hint_request", "puzzle_id": "sk-live-0123456789abcdef"},
+    {"type": "sk-live-0123456789abcdef"},
+    {"type": "hint_request", "sk-live-0123456789abcdef": 1},
 ])
 def test_a_refused_body_is_never_echoed_in_the_message(tmp_path: Path, code_and_find_room: Room, body: dict[str, Any]):
     """Decision 37: a validation error names where the body failed, never a value the client sent."""
@@ -203,8 +205,8 @@ def test_a_refused_body_is_never_echoed_in_the_message(tmp_path: Path, code_and_
     session_id = start(client, code_and_find_room)
     response = client.post(f"/api/sessions/{session_id}/events", json=body)
     assert response.status_code == 422 and response.json() == INVALID_REQUEST
-    sent = [value for key, value in body.items() if key != "type"]
-    assert not any(value in response.text for value in sent), response.text
+    sent = [text for key, value in body.items() for text in (key, value) if isinstance(text, str) and text.startswith(("pz_", "sk-"))]
+    assert sent and not any(text in response.text for text in sent), response.text
 
 
 # --- A Hint request naming an open or locked Puzzle is answered for the Active puzzle ---------------
