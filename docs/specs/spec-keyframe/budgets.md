@@ -10,8 +10,9 @@ Companion to `SPEC.md`. Prices and limits were checked Oct 20 on the primary pag
 | SAM 3.1 segment | 1 per listed object, at most 12 | n/a | 10 s total | In parallel |
 | Riddler | 1 | medium | 45 s | Past 45 s: retry at low, or split into graph then rungs |
 | Dry run | 1 | low | 30 s | Never sees solutions |
+| Story (story mode) | 1, plus 1 retry when a line is refused | low | not budgeted | Never sees solutions; runs after the Dry run, before scene; its spend is recorded under stage `story` (amended 30 Oct 2026, story mode) |
 | Scene build, hotspots | 0 | n/a | 10 s | Mask decode (`meta-sam-parser`) runs in the backend |
-| Total | 3 Spark plus up to 12 SAM | | 110 s | Target 120 s or less, T0 Upload click to T1 first hotspot responding |
+| Total | 3 Spark plus up to 12 SAM (4 Spark with the story, amended 30 Oct 2026, story mode) | | 110 s | Target 120 s or less, T0 Upload click to T1 first hotspot responding |
 
 A regeneration repeats Riddler and dry run, about 75 s; the cap is 2, about 260 s in total, which serves CAP-2 integrity, not the video. A capture-proof take is kept only under 200 s (at most one visible retry). If the Oct 27 to 28 measurements miss 120 s, the target becomes measured p50 plus 25%.
 
@@ -32,7 +33,7 @@ Contributor-tier Spark ($0.10 and $0.20 per million, 150 RPM) is never used: Met
 
 ## Cost [ASSUMPTION, arithmetic from the prices above]
 
-- Clean build about $0.10 (vision $0.025, SAM $0.03, Riddler $0.022, dry run $0.024); $0.15 with one regeneration; under $0.25 with two.
+- Clean build about $0.10 (vision $0.025, SAM $0.03, Riddler $0.022, dry run $0.024); $0.15 with one regeneration; under $0.25 with two. Story mode adds the story call: measured on the Demo room Fri Oct 30, $0.0137 for one call and $0.0326 to $0.0414 for a call and its retry (ops `story-demo-room` dry runs). (amended 30 Oct 2026, story mode)
 - A full session about $0.21 (about 100k input and 20k output Spark tokens).
 - Four portraits plus up to 12 clue cards: $0.16 once.
 - Daily ceilings: Oct 26 $3, Oct 27 $5, Oct 28 $10, Oct 29 $10, Oct 30 $0, Oct 31 $5, Nov 1 $8, Nov 2 $10, Nov 3 $18, Nov 4 $10; total $79. Expected spend under them about $35.

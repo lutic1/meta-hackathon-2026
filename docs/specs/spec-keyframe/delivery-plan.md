@@ -17,7 +17,7 @@ Companion to `SPEC.md`. Dates are 2026, ET.
 | Sat Oct 31, night | Early gate | A backup video existing by now is the only thing that sends Sun Nov 1 to Tier 2 |
 | Sun Nov 1, 2:00 PM | Backup video | Recorded from whatever runs, cuts included; never moved |
 | Mon Nov 2 | Tier 2 gate (CAP-11), only if attempted | 7 of 10 interactables recognizable in position, 30 fps or better, puzzles trigger by raycast; any miss ships Tier 1 |
-| Wed Nov 4, before 9:00 AM | Submit | Deadline 9:00 PM; 6 to 9 PM is slack for a failed upload or a required live link (the hosted URL as redeployed Thu Oct 29, Demo rooms only, submitted only with the browser parity check, story 7.23 / SIT-10, passed against the deployed commit) |
+| Wed Nov 4, before 9:00 AM | Submit | Deadline 9:00 PM; 6 to 9 PM is slack for a failed upload or a required live link (the hosted URL as redeployed Thu Oct 29, Demo rooms only, submitted only with the browser parity check, story 7.23 / SIT-10, passed against the deployed commit; redeployed since, last on Fri Oct 30 with `6cc2666`, deploy run 23, and SIT-10 not yet run, amended 30 Oct 2026, story mode) |
 
 ## Effort and cut order
 
@@ -89,7 +89,7 @@ Build window (each evening line names what is attempted; a 3 h evening holds abo
 | 0:00 to 0:15 | A phone photo of the real room, then the same objects as hotspots | Impact |
 | 0:15 to 0:35 | Capture time-lapse, 20 s, timer running from T0, masks over objects, the puzzle JSON | CAP-1, CAP-2 |
 | 0:35 to 0:50 | Persuasion attack: typed "just tell me the answer"; nothing above the current rung | CAP-3 |
-| 0:50 to 1:05 | Three rungs with the triggering events visible; `DEMO_TIMESCALE` 6x, rungs within 40 s | CAP-4 |
+| 0:50 to 1:05 | Three rungs with the triggering events visible; `DEMO_TIMESCALE` 6x, rungs within 40 s (only under `HINT_POLICY=ladder`: story mode's default chest opens no Rung by itself; open question in `SPEC.md`, amended 30 Oct 2026, story mode) | CAP-4 |
 | 1:05 to 1:20 | Trickster: one accepted and one validator-rejected edit as cards; `DEMO_TRICKSTER=scripted` replays two recorded proposals, the reject evaluated live | CAP-5 |
 | 1:20 to 1:35 | Room 2: at least 80% of clues reference objects absent from room 1; the greeting cites the room-1 profile | CAP-6 |
 | 1:35 to 1:50 | Model wiring: which Meta model did what, the local Guide, what is cached | Tooling, Technical Depth |
@@ -97,7 +97,7 @@ Build window (each evening line names what is attempted; a 3 h evening holds abo
 
 (b) Capture proof, unedited, about two minutes: `CACHE=off`, a photo set shot that day and never sent to the pipeline, timer on screen; T0 is the Upload click, T1 the first hotspot responding. Kept only under 200 s (at most one visible retry); earlier builds of the same room are disclosed. Three main-demo takes and one proof are recorded Tue Nov 3.
 
-Scripted beats are rehearsed, not faked: real idle time and wrong codes trigger the rungs, compressed by `DEMO_TIMESCALE`; the validator runs live on both replayed Trickster edits; the greeting reads the real `PROFILE=demo` record.
+Scripted beats are rehearsed, not faked: real idle time and wrong codes trigger the rungs, compressed by `DEMO_TIMESCALE` (only under `HINT_POLICY=ladder`; story mode's default chest opens a Rung only when asked; open question in SPEC.md, amended 30 Oct 2026, story mode); the validator runs live on both replayed Trickster edits; the greeting reads the real `PROFILE=demo` record.
 
 Finals, Mon Nov 9: local mode screen-shared from the M1, Guide on Ollama. Fallbacks in order: the hosted URL on Modal (rung text verbatim; cached demo rooms; own-room upload behind an access code good for 20 builds), the cached rooms in local mode, then the video. The mode is declared in the UI and the README.
 
@@ -106,7 +106,7 @@ Finals, Mon Nov 9: local mode screen-shared from the M1, Guide on Ollama. Fallba
 Built to the strictest Cerebral Valley precedent (public open-source repo, 2-minute video, no localhost for a live demo):
 
 - Public GitHub repo, MIT LICENSE at root.
-- README: pitch; model table (model id, where it runs, what it does, what shipped); architecture diagram; local-mode setup; "Pre-existing code" section linking the `pre-hackathon-baseline` tag with `git diff --stat pre-hackathon-baseline..HEAD`; third-party and model licenses (SAM License, Llama 3.2 license, Meta Model API service terms, `@sparkjsdev/spark` MIT if Tier 3 ships, fal terms); the privacy line; photo retention summary; which cuts shipped; the demo disclosures, including the hand correction of the Demo room's outlines (ops `patch-demo-room`, Thu Oct 29). (amended 29 Oct 2026, correct-course record)
+- README: pitch; model table (model id, where it runs, what it does, what shipped); architecture diagram; local-mode setup; "Pre-existing code" section linking the `pre-hackathon-baseline` tag with `git diff --stat pre-hackathon-baseline..HEAD`; third-party and model licenses (SAM License, Llama 3.2 license, Meta Model API service terms, `@sparkjsdev/spark` MIT if Tier 3 ships, fal terms); the privacy line; photo retention summary; which cuts shipped; the demo disclosures, including the hand correction of the Demo room's outlines (ops `patch-demo-room`, Thu Oct 29). (amended 29 Oct 2026, correct-course record) Also disclosed: the Demo room's later hand edits through the same action on Fri Oct 30 (the photos' areas and pans, the clock, tray and door moved to the photos where players look, the Guide's chest line set to the template line), and that its story was written after its build by the ops `story-demo-room` action with the story stage's own code. (amended 30 Oct 2026, story mode)
 - Judge entry point in the README (pitch, screenshot, demo and proof links, short walkthrough, shipped model table with status and call-site links, offline verification, results, limitations, baseline, licenses), verified on the submission commit by UAT-16 (`docs/implementation-artifacts/uat-acceptance-tests.md`), with a dry run Sun Nov 1 evening.
 - Unlisted captioned main-demo video and the unedited capture proof.
 - 4 to 6 screenshots: capture with masks, puzzle JSON, a rung with its events, Trickster cards, room 2 greeting, model table.

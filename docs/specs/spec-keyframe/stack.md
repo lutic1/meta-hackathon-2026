@@ -13,6 +13,7 @@ Companion to `SPEC.md`. Two modes, local and hosted; in both, Chrome on the M1 i
 | Riddler | Meta Model API | `muse-spark-1.3`, Chat Completions, JSON schema, reasoning medium | Muse Spark Open on Baseten by `base_url` swap |
 | Validator | Code | Python, the eight rules in `schema-v1.md` | None |
 | Dry run | Meta Model API | `muse-spark-1.3`; photos, labels, clues, rungs; reasoning low | Cut 4 drops it |
+| Storyteller (story stage, story mode) | Meta Model API | `muse-spark-1.3`, Chat Completions, JSON schema, reasoning low; a brief of the room's name, area labels, counts and scenery labels, never a solution; one retry on refused lines (amended 30 Oct 2026, story mode) | Refused slots, or the whole story when no reply is usable, from the fixed templates |
 | State machine | Code | Python; opens locks; solutions never enter a prompt | None |
 | Guide rung selection | Code | Python over the event log | None |
 | Guide phrasing | Mac only | Llama 3.2 3B Instruct Q4_K_M on Ollama, `OLLAMA_KEEP_ALIVE=-1` | None hosted: rung text verbatim |
@@ -28,7 +29,7 @@ Companion to `SPEC.md`. Two modes, local and hosted; in both, Chrome on the M1 i
 
 ## Protocols
 
-- Council calls (Architect, Riddler, dry run, Trickster) use Chat Completions with `response_format: json_schema` and an explicit `reasoning_effort`. The Meta API rejects `max_output_tokens`, `stop`, `n>1`, and `reasoning_effort: "none"`; `tool_choice` is `auto` only.
+- Council calls (Architect, Riddler, dry run, Trickster, and the storyteller since story mode, amended 30 Oct 2026) use Chat Completions with `response_format: json_schema` and an explicit `reasoning_effort`. The Meta API rejects `max_output_tokens`, `stop`, `n>1`, and `reasoning_effort: "none"`; `tool_choice` is `auto` only.
 - `sam-3.1` is served only on the Responses API. One concept per request; comma lists return nothing.
 - Image input: 1280 px JPEG as a base64 data URL, about 1,300 to 1,500 tokens per image; boxes come back on a 0 to 1000 grid.
 - Baseten fallback for the Riddler is a `base_url` and model swap to Muse Spark Open; one schema-constrained call on Tue Oct 27 proves it, else plain-JSON prompting with validator retry.
@@ -51,4 +52,6 @@ Verbatim for the README and the capture screen: "the player profile stays on you
 | `HOSTED_SPEND_CAP_USD` | dollars | 20 | The hosted allocation the local ledger export adds to the local one for the combined ceiling; must equal `SPEND_CAP_USD` in the hosted Secret; the export records `local_cap_usd`, `hosted_cap_usd` and `hosted_cap_source` (`env` or `default`) (amended 29 Oct 2026, correct-course record) |
 | `DEMO_TIMESCALE` | integer n, 1 or more | 1 | Divides the nudge threshold, rung spacing, and Trickster window by n; never the capture (build) timer, which runs in real time |
 | `DEMO_TRICKSTER` | `live`, `record`, `scripted`, `authored` | `live` | `live` proposes live; `record` proposes live and writes the proposals into the recorded-proposals artifact (local mode only); `scripted` replays them; `authored` serves the pre-authored cut 1 file; the validator runs live in every value (AD-15) |
+| `HINT_POLICY` | `chest`, `ladder` | `chest` | Story mode (amended 30 Oct 2026, story mode): `chest` opens a Rung only when the player asks, `HINT_CAP` per Session, and refuses the Trickster's `loosen` and `decoy`; `ladder` adds the idle and wrong-attempt Rungs of CAP-4. Fixed per Session at its start |
+| `HINT_CAP` | integer, 0 or more | 2 | The chest's hints per Session under `chest`; an ask past it is refused 409 `hint_cap_reached` (amended 30 Oct 2026, story mode) |
 | `MIN_CONTAINERS` | 0, 1 | 0 | Warm hosted container, Thu Nov 5 to Mon Nov 9 only, and only if the Official Rules allow post-deadline changes to the hosted deployment (`delivery-plan.md`, Mon Oct 26 check) |

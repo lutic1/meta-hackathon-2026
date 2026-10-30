@@ -23,7 +23,7 @@ At most one change per 3-minute window, only between puzzles, from the fixed men
 
 ## Demo timescale
 
-`DEMO_TIMESCALE=n` divides the nudge threshold, the rung spacing, and the Trickster window by n; it never changes the capture timer, which runs in real time. The disclosure reads "Hint and Trickster timings run at n× speed; the build timer is real time." At 6x the three rungs take 30 s when the nudge fires on 3 wrong codes, 45 s on idle alone; the video uses wrong codes.
+`DEMO_TIMESCALE=n` divides the nudge threshold, the rung spacing, and the Trickster window by n; it never changes the capture timer, which runs in real time. The disclosure reads "Hint and Trickster timings run at n× speed; the build timer is real time." At 6x the three rungs take 30 s when the nudge fires on 3 wrong codes, 45 s on idle alone; the video uses wrong codes. Under story mode's default `HINT_POLICY=chest` no Rung opens on wrong codes or idle time and a Session holds `HINT_CAP` (2) asked hints, so these timings apply only under `HINT_POLICY=ladder` (`SPEC.md`, CAP-8 and Open Questions). (amended 30 Oct 2026, story mode)
 
 ## Profiles
 

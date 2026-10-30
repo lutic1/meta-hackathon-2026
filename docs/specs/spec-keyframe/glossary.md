@@ -12,6 +12,9 @@ Companion to `SPEC.md`.
 | Interactable | A typed object from the player's photos: label, photo, box, mask hotspot, instances, attributes (`schema-v1.md`). Capped at 12 per room, minimum 5. |
 | Puzzle, lock type | A lock on the chain: `code` (typed), `order` (click sequence), `use_on` (inventory item onto a target), `find` (click the target). 4 to 6 per room, exactly one exit. |
 | Rung | A hint level: nudge, direction, near-answer. Three per puzzle, increasing in length, none holding a solution token except the near-answer allowance in validator rule 5. |
+| Treasure chest | Story mode's hint policy (`HINT_POLICY=chest`, the default): the Guide's 2 hints (`HINT_CAP`) for a whole Session, each asked one opening the next Rung of the riddle in play; no Rung opens by itself. (amended 30 Oct 2026, story mode) |
+| Story | The Room's wizard lines (`Room.story`): the five-beat intro, an opening and a solved line per riddle, the closing lines. Written at build time by the `story` stage (`muse-spark-1.3`, role `storyteller`), each line checked by the story's line rules, a refused line filled from the fixed templates; null on a Room built before story mode, which plays the templates. (amended 30 Oct 2026, story mode) |
+| Area, pan | A photo's place in story mode: the part of the room it shows and its left-to-right order there, which the walk turns through instead of a thumbnail strip. (amended 30 Oct 2026, story mode) |
 | Validator | The nine deterministic rules in `schema-v1.md`: rules 1 to 8 on every room, rules 1 to 9 on a Trickster edit (rule 9 covers Decoys, stored as `Room.decoys[]`). |
 | Dry run | A second Spark call that sees photos, labels, clues, and rungs, never solutions, and must reach every answer; failure regenerates the room. |
 | Regeneration | A repeat of Riddler plus dry run after a failure; at most 2, then re-capture. |

@@ -15,6 +15,16 @@ and the Trickster proposes bounded difficulty changes
 mid-game. Muse Image paints the wizards and clue cards, Muse Voice
 Transcribe lets you talk to them.
 
+Story mode (owner decision Oct 29, the default) changes how a room
+plays and how the Guide helps: the room opens on a five-beat story (the
+Architect's welcome, the Trickster's trap, the Riddler's riddles, the
+Guide's treasure chest, then the first riddle), the riddles come one at
+a time, you walk around the room instead of picking photos from a strip,
+and the Guide's help is a chest of 2 hints for the whole game that opens
+only when you ask (no hint opens by itself; `HINT_POLICY=ladder` brings
+the idle and wrong-attempt hints back). Each room's wizard lines are
+written for that room by Muse Spark when it is built. (amended 30 Oct 2026, story mode)
+
 **Input:** 6 to 10 JPEG photos of one room. On an iPhone, set
 Settings > Camera > Formats to Most Compatible before shooting;
 HEIC and PNG photos are rejected. Each photo is at most 20 MiB (its
@@ -75,9 +85,10 @@ scripts/doctor.py          Mac and cloud environment check, stdlib only
 .github/workflows/deploy.yml  from the Actions tab or a push of a master commit to deploy/main,
                            deploy/main-warm or deploy/dev: check.sh --predeploy, then modal
                            deploy with the Modal token from the Actions secrets
-.github/workflows/ops.yml  the nine ops actions (Hosted mode and ops below), from the Actions
+.github/workflows/ops.yml  the ten ops actions (Hosted mode and ops below), from the Actions
                            tab or a push to ops/** of one .github/ops/request.json commit
-                           on top of master
+                           on top of master (amended 30 Oct 2026, story mode: ten since
+                           story-demo-room)
 docs/MONDAY.md             the Mon Oct 26 kickoff checklist
 docs/planning-artifacts/   BMAD planning documents (product brief, then spec)
 _bmad/                     BMAD Method v6 install (hackathon tooling)
@@ -121,7 +132,11 @@ naming it. Keys beyond the obvious: `MODEL_ARCHITECT`, `MODEL_RIDDLER`,
 default `muse-spark-1.3`, and `muse-image-1.0` for images);
 `DEMO_PROPOSALS_DIR` (the folder of recorded and authored Trickster
 proposals that `DEMO_TRICKSTER=scripted`, `authored` and `record` use;
-unset, `proposals/` at the repo root); `HOSTED_SPEND_CAP_USD` (below). (amended 29 Oct 2026, correct-course record) See
+unset, `proposals/` at the repo root); `HOSTED_SPEND_CAP_USD` (below). (amended 29 Oct 2026, correct-course record)
+`HINT_POLICY` (`chest`, the default: hints open only from the treasure
+chest, `HINT_CAP` of them per Session, default 2; `ladder`: the idle and
+wrong-attempt hints as before story mode) and `PROVIDER_STORYTELLER` with
+`MODEL_STORYTELLER` for the story stage. (amended 30 Oct 2026, story mode) See
 [docs/MONDAY.md](docs/MONDAY.md) for the kickoff checklist (no paid call on Oct 26; the first live
 calls run Tue Oct 27 behind the spend cap through `scripts/sit.py`).
 
@@ -168,7 +183,13 @@ decision Oct 29): Watch the demo, Play the sample room and Build your
 own. The cards deal in with a spin; hover or focus brings one forward,
 and choosing one turns it over to its back panel. Watch plays the demo
 clip with controls (the landing's play-through clip, until a full demo
-video is added as `FULL_DEMO_VIDEO` in `web/src/clip.ts`); Play shows the
+video is added as `FULL_DEMO_VIDEO` in `web/src/clip.ts`); since Oct 29
+its back opens on two tabs, Tutorial first (the owner's own ten-second
+generated video, slowed to 20 s with five burned-in captions, from "Snap
+a room. Your photos become the game." to "Open the last lock and walk
+out.") and Real play-through (that clip, muted, 1:48 at real speed,
+re-recorded Oct 30 on story mode from the judge URL's Demo room; the
+card's front loops riddle 1 of the same recording) (amended 30 Oct 2026, story mode); Play shows the
 Demo room, its hosts, how to play and "Play this room"; Build shows how
 a room is built and the access-code Build. Play leads at rest ("No
 upload needed") and is the first Tab stop; the Build card reads "Access
@@ -179,6 +200,76 @@ sample page and How a room is built follow below the fold. Every hosted
 screen carries one disclosure line, served by `GET /api/meta`: "Hints on
 this site come exactly as the Riddler wrote them; no live model writes
 them."
+
+The first visit to the landing opens on a full-screen intro (owner
+decision Oct 29): the owner's ten-second teaser plays once over the
+page, muted with "Sound on", with "Skip intro" (and Escape); at its end
+it holds the title with "Replay" and "Enter Keyframe" and enters by
+itself after a four-second countdown unless Replay is chosen. Once it
+has ended, been skipped or entered, this browser remembers it
+(`keyframe.introSeen.v1` in local storage) and it never plays by itself
+again; "Watch the intro" in the chooser's key row replays it. A deep
+link (`#/play/...`, `#/build/...`) never shows it, and under reduced
+motion it never plays by itself (shown on request, it has the native
+controls and "Skip intro" sits top right). Every screen has a way back
+to the start: the "Keyframe" wordmark in the top bar ("Keyframe, back to
+the start"; on the Play screen through the Leave room confirmation); the
+accepted access code opens the Capture screen on its own route,
+`#/build-your-own`, with "Back to the three cards" (the browser's Back
+works too); and the Build progress screen has "Back to the start", which
+first asks "Your room keeps building. Leave this page?" while the job
+runs. A new deploy's page replaces a stale one: `index.html` and the
+unhashed files under `web/dist` are served `Cache-Control: no-cache`,
+the hashed `/assets/` bundles `public, max-age=31536000, immutable`.
+(amended 30 Oct 2026, story mode)
+
+Playing a room (story mode, owner decision Oct 29). "Play this room"
+starts a Session and opens the story intro on the Scene: five beats in
+one speech box that holds one place (the Architect's welcome, which
+thanks a player for their own photos and, in a Demo room, welcomes a
+visitor to someone else's; the Trickster's trap, "Oh no, you seem to be
+trapped!", with the lock's seal on the way out; the Riddler's entrance,
+counting the riddles; the Guide lighting the treasure chest with the
+Room's chest line, else "Stuck? I keep 2 hints for the whole house.
+Choose your moment."; and the Riddler again on the first riddle's photo
+with "Start looking"). It waits for the Scene's first photo (at most
+4 s), plays once per Session start, and "Skip intro" ends it. When play
+starts, the Trickster's bubble over the chest says "2 hints, for the
+whole house. Spend them like they're mine." Then the riddles come one
+at a time in the riddle note ("Riddle 1 of 4"), each
+opening on its start photo with a line saying where it waits; you walk
+around the room with Turn left and Turn right, the arrow keys or the
+photo's edges, area by area, instead of a thumbnail strip, and "Show all
+objects" still outlines everything in view. A Puzzle's evidence card
+reaches the play screen only once its lock is open. The chest holds 2
+hints for the whole game (`HINT_CAP`): each one asked opens the next
+hint for the riddle you are on, an empty chest says so, and nothing
+opens by itself (the Trickster's loosen and decoy are refused under the
+chest). Solving the exit opens the door into daylight; "Step outside"
+docks the escape sheet over the exit photo, which stays lit, with the
+stats, the wizards' closing lines and Details (a cold reload of the
+escape page, `#/done/<session>`, still opens on the older path, without
+the lit door: a follow-up). Every line comes from
+the room's own story (`Room.story`, served on the play projection), and
+a room built before story mode, whose story is null, gets the fixed
+template lines filled from its data. (amended 30 Oct 2026, story mode)
+
+The generated story. A Build now runs a `story` stage after the Dry
+run and before `scene` ("Writing the story" on the Build progress
+screen): one `muse-spark-1.3` call (role `storyteller`, reasoning low)
+over a brief of the room's name, area labels, counts and scenery labels,
+never a solution, writes the intro beats, an opening and a solved line
+per riddle and the closing lines. Each line must pass the story's line
+rules (no solution, target, item, evidence or code word, the room's
+name and area labels excepted; at most 160 characters; no exclamation
+mark but the trap's; no filler; the chest line counts the hints, the
+Riddler's entrance the riddles, the exit's solved line opens the way
+out; the visitor's welcome thanks nobody for photos). A reply that fails
+is sent back once with its reasons; then every passing line of the last
+usable reply is kept and only refused slots take the fixed templates, so
+the story never ends a Build. The lines are stored with the Room
+(`story.json`, then `Room.story`), and the call is cached and priced in
+the ledger like any Build call. (amended 30 Oct 2026, story mode)
 
 `.github/workflows/ops.yml` runs one action in the Modal Environment
 chosen (`main` or `dev`, default `main`):
@@ -209,12 +300,41 @@ chosen (`main` or `dev`, default `main`):
   the validator refuses (rules 1 to 8) is refused with nothing written.
   Only `room.json` is rewritten, then read back; `job.json` keeps the
   pipeline's own output.
+  The patch file (amended 30 Oct 2026, story mode) is `{"reason": ...,
+  "interactables": [{"id", "polygons", "photo"?}], "photos": [{"photo",
+  "area", "pan"}], "story": {slot: line}}`: polygons in each photo's
+  stored-JPEG pixels; `photos`, when present, names every photo of the
+  Room exactly once and sets its area and left-to-right pan (one that
+  misses a photo, names one twice or names one the Room lacks is
+  refused); `story` takes any single-line slot of `Room.story`
+  (`architect_welcome`, `architect_welcome_visitor`, `trickster_trap`,
+  `riddler_entrance`, `guide_chest`, `trickster_closing`,
+  `riddler_closing`, `guide_closing_no_hints`, `guide_closing_hints`;
+  never the riddles), and a line the rules refuse, or any story line on a
+  Room with no story, refuses the run with the slot and the reason. The
+  dry run prints each entry's move (`photo 5 -> 2`), old and new bounds
+  and polygon counts, or `unchanged`, each story slot's old and new line,
+  or `unchanged`, and the validator verdict; it does not print the
+  photos' areas and pans. The real run's one-line summary counts every
+  entry of the patch as "re-outlined", unchanged ones included.
   Disclosure: on Thu Oct 29 this action hand-corrected the Demo room
   `room_01M61TZ74F0FP3X9HHTMXGTPB9` (ops run 6 the dry run, ops run 7 the
   write): the floor vent's outline moved onto the grille, and the throw
   pillows gained the pair at the sofa's corner bend that Puzzle 1's riddle
   points at. These two outlines are a hand correction, not a pipeline
   result; the Build view still shows the build as it ran.
+  On Fri Oct 30 (amended 30 Oct 2026, story mode) it hand-edited the same
+  room three more times: its photos' areas ("front hall", "lounge") and
+  pans were hand-seeded and the left pillow pair retraced (ops run 8 the
+  dry run, run 9 the write); the wall clock and the decorative tray moved
+  to photo 2, where riddle 1 opens and both show, and the double front
+  door to photo 0, where it shows head-on, each traced by hand on its new
+  photo (run 12 the dry run, run 15 the write; the riddles now start on
+  photos 2, 0, 5 and 0); and the Guide's chest line was set to the
+  template line "Stuck? I keep two hints for the whole house. Choose your
+  moment." because the model's line read as if the Guide were stuck (run
+  19 the dry run, run 20 the write). These are hand corrections, not
+  pipeline results.
 - `story-demo-room` (needs `room_id`): `scripts/story_demo_room.py`
   writes the wizard story onto a Demo room built before story mode, a
   dry run unless `confirm` is the word `story`. It runs on Modal with the
@@ -225,6 +345,19 @@ chosen (`main` or `dev`, default `main`):
   path wrote it and the spend; a real run sets `Room.story` in
   `room.json` only, then reads it back. An id that is not a Demo room is
   refused; `job.json`, the photos, Sessions and the quota are untouched.
+  Since Oct 30 (amended 30 Oct 2026, story mode) the story keeps every
+  line that passes and fills only the refused slots from the templates,
+  and both runs print each refused attempt's reasons by slot with the
+  refused line. A story write must wait until the deployed server knows
+  every `Story` field it writes: the schema forbids extra fields, so a
+  `room.json` carrying a field the running server's `Story` lacks (for
+  example `architect_welcome_visitor` before `f478fe5` is deployed) fails
+  to parse there and the room stops loading. Deploy first, then write.
+  The Demo room's story was written this way on Fri Oct 30 (ops run 18,
+  after deploy run 19 put `a2625b6` on the judge URL): 17 lines from
+  model attempt 0 of `muse-spark-1.3`, the call served from the Cache
+  that the dry run (run 17) filled. The lines are the model's, except the
+  Guide's chest line, set by hand later (above).
 - `quota-probe`: `scripts/quota_probe.py` races separate processes for
   the 20 slot keys on an ephemeral Dict, never `keyframe-jobs`: 30
   claimers must win exactly 20 slots, then 8 must win exactly the last.
@@ -234,6 +367,19 @@ By push, the request is one commit on top of master that adds only
 `action`, `environment`, `room_id`, `room_name` and `confirm`
 (`environment` defaults to `main`, the rest to empty), on a new
 `ops/<action>-<n>` branch. The file never lands on master. (amended 29 Oct 2026, correct-course record)
+The request job refuses, before any Modal token is used, a commit whose
+parent master does not carry or that changes any other file, an unknown
+key, a value that is not a one-line string, an unknown action or
+Environment, and, for `patch-demo-room` and `story-demo-room`, a
+`room_id` that is not a room id. Every write runs as a dry run first,
+then as the same request with the confirm word; anything else in
+`confirm` is the dry run. For example, on `ops/patch-demo-<n>`:
+`{"action": "patch-demo-room", "room_id": "room_01M61TZ74F0FP3X9HHTMXGTPB9"}`,
+then on a new branch the same with `"confirm": "patch"`; on
+`ops/story-demo-<n>`:
+`{"action": "story-demo-room", "room_id": "room_01M61TZ74F0FP3X9HHTMXGTPB9"}`,
+then the same with `"confirm": "story"`. One ops run per Environment
+runs at a time. (amended 30 Oct 2026, story mode)
 
 ## Key dates
 
