@@ -269,6 +269,11 @@ def _line_reason(slot: str, text: str, room: Room, brief: StoryBrief, exit_slot:
     return None
 
 
+def line_reason(slot: str, text: str, room: Room) -> str | None:
+    """The fixed reason `text` breaks a line rule in `slot` of `room`'s story, or None when it passes (`scripts/patch_demo_room.py`)."""
+    return _line_reason(slot, text, room, story_brief(room), _exit_slot(room))
+
+
 def _refusals(response: StoryResponse, room: Room) -> list[tuple[str, str | None]]:
     """Each fixed reason the reply breaks a line rule, naming its slot, beside the line it refuses (None for the riddle count)."""
     brief = story_brief(room)

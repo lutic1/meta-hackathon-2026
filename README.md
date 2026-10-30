@@ -201,7 +201,9 @@ chosen (`main` or `dev`, default `main`):
   applies `ops/patches/<room_id>.json` (on master) to that Demo room's
   outlines, a dry run unless `confirm` is the word `patch`. Each entry
   replaces one Interactable's polygons, its `instances` and its `box`,
-  and an entry naming a `photo` moves the Interactable to that photo;
+  and an entry naming a `photo` moves the Interactable to that photo; a
+  `story` object sets single lines of the stored story, each checked by
+  the story stage's own line rules;
   an id that is not a Demo room, an unknown Interactable id or photo, a
   polygon with fewer than 3 points, a point outside its photo's frame or a Room
   the validator refuses (rules 1 to 8) is refused with nothing written.

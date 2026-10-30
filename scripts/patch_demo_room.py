@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hand-correct a Demo room's outlines on the hosted `keyframe-data` Volume (AD-7, AD-11, AD-12).
+"""Hand-correct a Demo room's outlines and story lines on the hosted `keyframe-data` Volume (AD-7, AD-11, AD-12).
 
     uv run scripts/patch_demo_room.py --room <room_id> --patch <file> --dry-run
     uv run scripts/patch_demo_room.py --env main --room <room_id> --patch ops/patches/<room_id>.json
@@ -22,11 +22,19 @@ photo's pixels; a photo the Room lacks refuses the run, and a riddle's
 start photo follows its target there by itself. A patch may also carry `photos` (amended 29 Oct
 2026, story mode): `{photo, area, pan}` for every photo of the Room exactly
 once, setting each photo's area and left-to-right pan; one that misses a
-photo or names one twice or one the Room lacks refuses the run. Nothing else
-in the Room changes.
+photo or names one twice or one the Room lacks refuses the run. A patch may
+also carry `story` (amended 30 Oct 2026): `{slot: line}` for any single line
+of the stored `Room.story` (every slot but the riddles), each replacing that
+slot alone and checked by the story stage's own line rules
+(`src/pipeline/story.py`: the slot's rule, the leak check with the room's
+name and areas shown, the counts, no exclamation mark but the trap's, no
+filler, no thanks to a visitor); a line they refuse, or any line on a Room
+with no story, refuses the run with the slot and the reason. Nothing else in
+the Room changes, so re-applying a patch the Room already has changes nothing.
 
 `--dry-run` prints, per entry, any move (`photo 5 -> 2`), the old and new bounds and polygon counts
-and the validator verdict, and writes nothing. A real run overwrites
+(or `unchanged`), each story slot's old and new line (or `unchanged`) and the
+validator verdict, and writes nothing. A real run overwrites
 `room.json` alone in one `batch_upload(force=True)`, reads it back and
 checks it equals what was written: `job.json` keeps the pipeline's own
 receipts and Mask preview as built, and no photo, Session or Cache entry
@@ -43,7 +51,7 @@ import sys
 from collections.abc import Iterable, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import Field, TypeAdapter, ValidationError
 
@@ -56,6 +64,7 @@ from src.domain.schema import Area, Box, InteractableId, Model, Polygon, Room, R
 from src.domain.validator import BUILD_RULES, validate
 from src.pipeline.ports import room_key
 from src.pipeline.segment import frame_size
+from src.pipeline.story import line_reason
 
 
 class PatchRefused(Exception):
@@ -86,12 +95,20 @@ class PhotoAreaPatch(Model):
     pan: int = Field(ge=0)
 
 
+type StorySlot = Literal[
+    "architect_welcome", "architect_welcome_visitor", "trickster_trap", "riddler_entrance", "guide_chest",
+    "trickster_closing", "riddler_closing", "guide_closing_no_hints", "guide_closing_hints",
+]
+"""A single line of the Room's `Story`: every slot but the riddles."""
+
+
 class RoomPatch(Model):
-    """A patch file: why the outlines were corrected, the corrected Interactables and, optionally, every photo's area."""
+    """A patch file: why the Room was corrected, the corrected Interactables and, optionally, every photo's area and some story lines."""
 
     reason: str
     interactables: list[OutlinePatch]
     photos: list[PhotoAreaPatch] = Field(default_factory=list)
+    story: dict[StorySlot, str] = Field(default_factory=dict)
 
 
 def load_patch(path: Path) -> RoomPatch:
@@ -121,7 +138,7 @@ def bounding_box(polygons: list[Polygon]) -> Box:
 
 
 def patched(room: Room, patch: RoomPatch, sizes: dict[int, tuple[int, int]]) -> Room:
-    """The Room with each entry's outlines in place, on its new photo if it names one; an unknown id or photo, a short polygon, a point off its frame or a validator refusal raises `PatchRefused`."""
+    """The Room with each entry's outlines in place, on its new photo if it names one, and each story line set; an unknown id or photo, a short polygon, a point off its frame, a story line on a Room with no story or one the story's line rules refuse, or a validator refusal raises `PatchRefused`."""
     by_id = {ix.id: ix for ix in room.interactables}
     replaced = dict(by_id)
     for entry in patch.interactables:
@@ -145,11 +162,18 @@ def patched(room: Room, patch: RoomPatch, sizes: dict[int, tuple[int, int]]) -> 
             raise PatchRefused(f"{room.id}: a patch with photos names every photo once, 0 to {len(room.photos) - 1}")
         seeded = {entry.photo: entry for entry in patch.photos}
         photos = [photo.model_copy(update={"area": seeded[i].area, "pan": seeded[i].pan}) for i, photo in enumerate(room.photos)]
+    if patch.story and room.story is None:
+        raise PatchRefused(f"{room.id}: the patch sets story lines, but this Room has no story")
+    story = room.story.model_copy(update=dict(patch.story)) if room.story else None
     result = Room.model_validate({
         **room.model_dump(),
         "photos": [photo.model_dump() for photo in photos],
         "interactables": [replaced[ix.id].model_dump() for ix in room.interactables],
+        "story": story.model_dump() if story else None,
     })
+    for slot, line in patch.story.items():
+        if reason := line_reason(slot, line, result):
+            raise PatchRefused(f"{room.id}: story {slot}: {reason}")
     reasons = [reason for reason in validate(result).reasons if reason.rule in BUILD_RULES]
     if reasons:
         listed = "; ".join(f"rule {r.rule} ({r.puzzle_id or 'room'}: {r.field})" for r in reasons)
@@ -186,7 +210,7 @@ def write(volume: Volume, room: Room) -> None:
 
 
 def changes(before: Room, after: Room, patch: RoomPatch) -> list[str]:
-    """One line per entry: the Interactable, its photo (and any move), its old and new bounds and its old and new polygon counts."""
+    """One line per entry: the Interactable, its photo (and any move), its old and new bounds and polygon counts, or `unchanged`; then each story slot's old and new line, or `unchanged`."""
     old = {ix.id: ix for ix in before.interactables}
     new = {ix.id: ix for ix in after.interactables}
 
@@ -196,17 +220,25 @@ def changes(before: Room, after: Room, patch: RoomPatch) -> list[str]:
     def photo(ix_id: str) -> str:
         return f"{old[ix_id].photo}" if old[ix_id].photo == new[ix_id].photo else f"{old[ix_id].photo} -> {new[ix_id].photo}"
 
+    def outline(ix_id: str) -> str:
+        if old[ix_id] == new[ix_id]:
+            return "unchanged"
+        return f"box {box(old[ix_id].box)} -> {box(new[ix_id].box)}, polygons {len(old[ix_id].polygons or [])} -> {len(new[ix_id].polygons or [])}"
+
+    def line(slot: str) -> str:
+        was, now = getattr(before.story, slot), getattr(after.story, slot)
+        return "unchanged" if was == now else f"{was!r} -> {now!r}"
+
     return [
-        f"{entry.id} {old[entry.id].label!r} on photo {photo(entry.id)}: box {box(old[entry.id].box)} -> {box(new[entry.id].box)}, "
-        f"polygons {len(old[entry.id].polygons or [])} -> {len(new[entry.id].polygons or [])}"
-        for entry in patch.interactables
+        *(f"{entry.id} {old[entry.id].label!r} on photo {photo(entry.id)}: {outline(entry.id)}" for entry in patch.interactables),
+        *(f"story {slot}: {line(slot)}" for slot in patch.story),
     ]
 
 
 def main(argv: Sequence[str]) -> int:
-    parser = argparse.ArgumentParser(description="Hand-correct a Demo room's outlines on the keyframe-data Volume.")
+    parser = argparse.ArgumentParser(description="Hand-correct a Demo room's outlines and story lines on the keyframe-data Volume.")
     parser.add_argument("--room", required=True, metavar="ROOM_ID", help="the Demo room to patch")
-    parser.add_argument("--patch", required=True, type=Path, help="the patch file: a reason and the corrected Interactables")
+    parser.add_argument("--patch", required=True, type=Path, help="the patch file: a reason, the corrected Interactables and any story lines")
     parser.add_argument("--env", default=ENVIRONMENT, help=f"the Modal Environment (default {ENVIRONMENT})")
     parser.add_argument("--dry-run", action="store_true", help="print what would change and the validator verdict; write nothing")
     args = parser.parse_args(argv)
@@ -228,8 +260,9 @@ def main(argv: Sequence[str]) -> int:
         print(f"refused: {refusal}", file=sys.stderr)
         return 1
     ids = ", ".join(entry.id for entry in patch.interactables)
+    slots = f"set story {', '.join(patch.story)}; " if patch.story else ""
     print(
-        f"patched {after.id} in {args.env}: re-outlined {len(patch.interactables)} Interactables ({ids}); "
+        f"patched {after.id} in {args.env}: re-outlined {len(patch.interactables)} Interactables ({ids}); {slots}"
         f"{DEMO_PREFIX}/{room_key(after.id)} read back equal; job.json and the photos untouched"
     )
     return 0

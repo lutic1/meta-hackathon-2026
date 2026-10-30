@@ -10,12 +10,13 @@ import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 
-from src.domain.schema import Room
+from src.domain.schema import Room, Story
 from src.pipeline.ports import room_key
+from src.pipeline.story import template_story
 from tests.scripts.test_promote_room import JudgeVolume
 from tests.scripts.test_seed_rooms import demo_copy, full_job, snapshot
 
@@ -319,3 +320,120 @@ def test_a_patch_that_does_not_name_every_photo_once_is_refused(monkeypatch, tmp
 
 def test_each_photos_frame_is_read_from_its_stored_bytes(volume, demo):
     assert patcher.frame_sizes(volume, demo, {1, 2}) == {1: (1280, 960), 2: (960, 1280)}
+
+
+# --- A story line ------------------------------------------------------------------
+
+CHEST_LINE = "Stuck? I keep two hints for the whole house. Choose your moment."
+
+
+@pytest.fixture
+def storied(mount: Path, demo: Room) -> Room:
+    """The Demo room with its stored story, the Guide's chest line the one the live replay heard."""
+    story = template_story(demo).model_copy(update={"guide_chest": "Stuck, I keep two hints for the whole house, so choose your moment."})
+    room = demo.model_copy(update={"story": story})
+    (mount / "rooms/demo" / room_key(room.id)).write_bytes(room.model_dump_json().encode())
+    return room
+
+
+def write_story(tmp_path: Path, story: dict[str, Any], interactables: list[dict[str, Any]] | None = None) -> Path:
+    path = tmp_path / "story.json"
+    path.write_text(json.dumps({"reason": "Story line set in a test.", "interactables": interactables or [], "story": story}))
+    return path
+
+
+def test_the_story_slots_a_patch_may_set_are_the_storys_single_lines():
+    assert set(get_args(patcher.StorySlot.__value__)) == set(Story.model_fields) - {"riddles"}
+
+
+def test_a_story_line_replaces_its_slot_alone_and_the_rest_of_the_story_survives(monkeypatch, tmp_path, volume, mount, storied, capsys):
+    assert run(monkeypatch, volume, storied.id, write_story(tmp_path, {"guide_chest": CHEST_LINE})) == 0
+    room = stored(mount, storied)
+    assert room.story == storied.story.model_copy(update={"guide_chest": CHEST_LINE})
+    assert room == storied.model_copy(update={"story": room.story})
+    assert "guide_chest" in capsys.readouterr().out
+
+
+def test_the_dry_run_prints_each_story_slots_old_and_new_line_and_writes_nothing(monkeypatch, tmp_path, volume, mount, storied, capsys):
+    before = snapshot(mount / "rooms/demo")
+    assert run(monkeypatch, volume, storied.id, write_story(tmp_path, {"guide_chest": CHEST_LINE}), "--dry-run") == 0
+    out = capsys.readouterr().out
+    assert f"story guide_chest: {storied.story.guide_chest!r} -> {CHEST_LINE!r}" in out
+    assert volume.forces == [] and snapshot(mount / "rooms/demo") == before
+
+
+@pytest.mark.parametrize(
+    ("slot", "line", "reason"),
+    [
+        ("guide_chest", "Stuck? I keep hints for the whole house. Choose your moment.", "does not say there are two hints"),
+        ("riddler_entrance", "To escape, you must answer my riddles, one at a time.", "does not say there are four riddles"),
+        ("guide_chest", "Stuck? Two hints for the whole house. Choose well!", "exclamation mark"),
+        ("trickster_closing", "Fine. The lantern stays. Out you go.", "gives part of an answer away"),
+        ("trickster_closing", "Fine. Out you go, and the clock code was 415.", "gives part of an answer away"),
+        ("riddler_closing", "Clever mind. Let the answers linger a while.", "filler"),
+        ("riddler_closing", "Clever mind. Even the AI could not stop you.", "AI, models or the API"),
+        ("architect_welcome_visitor", "Welcome. Thank you for visiting this house.", "without thanking them"),
+        ("guide_closing_hints", "x" * 161, "longer than 160 characters"),
+        ("guide_closing_no_hints", "   ", "the line is empty"),
+    ],
+    ids=["hint count", "riddle count", "exclamation", "label", "code", "filler", "off story", "visitor thanks", "long", "empty"],
+)
+@pytest.mark.parametrize("flags", [(), ("--dry-run",)])
+def test_a_story_line_the_storys_line_rules_refuse_is_refused_with_its_slot_and_reason(monkeypatch, tmp_path, volume, mount, storied, capsys, slot, line, reason, flags):
+    before = snapshot(mount / "rooms/demo")
+    assert run(monkeypatch, volume, storied.id, write_story(tmp_path, {slot: line}), *flags) == 1
+    err = capsys.readouterr().err
+    assert "refused, nothing written" in err and f"story {slot}: " in err and reason in err
+    assert volume.forces == [] and snapshot(mount / "rooms/demo") == before
+
+
+def test_the_trickster_trap_keeps_its_exclamation_mark(monkeypatch, tmp_path, volume, mount, storied):
+    assert run(monkeypatch, volume, storied.id, write_story(tmp_path, {"trickster_trap": "Trapped! The way out is locked."})) == 0
+    assert stored(mount, storied).story.trickster_trap == "Trapped! The way out is locked."
+
+
+def test_a_word_of_the_rooms_name_is_shown_and_no_leak(monkeypatch, tmp_path, volume, mount, storied):
+    named = storied.model_copy(update={"name": "The lantern room"})
+    (mount / "rooms/demo" / room_key(named.id)).write_bytes(named.model_dump_json().encode())
+    line = "Welcome to the lantern room. I built it from someone's photos."
+    assert run(monkeypatch, volume, named.id, write_story(tmp_path, {"architect_welcome_visitor": line})) == 0
+    assert stored(mount, named).story.architect_welcome_visitor == line
+
+
+def test_a_story_line_on_a_room_with_no_story_is_refused(monkeypatch, tmp_path, volume, mount, demo, capsys):
+    assert demo.story is None
+    before = snapshot(mount / "rooms/demo")
+    assert run(monkeypatch, volume, demo.id, write_story(tmp_path, {"guide_chest": CHEST_LINE})) == 1
+    err = capsys.readouterr().err
+    assert "refused, nothing written" in err and "no story" in err
+    assert volume.forces == [] and snapshot(mount / "rooms/demo") == before
+
+
+@pytest.mark.parametrize("slot", ["riddles", "guide_hint", "riddle 1, opening"])
+def test_a_slot_that_is_not_a_single_story_line_does_not_load(monkeypatch, tmp_path, volume, mount, storied, capsys, slot):
+    assert run(monkeypatch, volume, storied.id, write_story(tmp_path, {slot: CHEST_LINE})) == 1
+    assert "does not load" in capsys.readouterr().err and stored(mount, storied) == storied
+
+
+def test_reapplying_a_patch_the_room_already_has_changes_nothing_and_prints_no_change(monkeypatch, tmp_path, volume, mount, storied, capsys):
+    photos = [{"photo": i, "area": "hall" if i < 2 else "study", "pan": i % 2} for i in range(len(storied.photos))]
+    path = tmp_path / "full.json"
+    path.write_text(json.dumps({
+        "reason": "Everything at once in a test.",
+        "interactables": [{"id": KEY, "photo": 2, "polygons": PORTRAIT}],
+        "photos": photos,
+        "story": {"guide_chest": CHEST_LINE},
+    }))
+    assert run(monkeypatch, volume, storied.id, path) == 0
+    once = (mount / "rooms/demo" / room_key(storied.id)).read_bytes()
+    capsys.readouterr()
+    assert run(monkeypatch, volume, storied.id, path, "--dry-run") == 0
+    out = capsys.readouterr().out
+    assert f"{KEY} 'wooden chest' on photo 2: unchanged" in out and "story guide_chest: unchanged" in out and "->" not in out
+    assert run(monkeypatch, volume, storied.id, path) == 0
+    assert (mount / "rooms/demo" / room_key(storied.id)).read_bytes() == once
+
+
+def test_the_committed_patch_sets_the_guides_chest_line_to_the_template_line():
+    patch = patcher.load_patch(REPO / "ops/patches" / f"{DEMO_ROOM}.json")
+    assert patch.story == {"guide_chest": CHEST_LINE} and "guide_chest" in patch.reason
