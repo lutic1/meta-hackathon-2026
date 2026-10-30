@@ -62,6 +62,15 @@
    shadow around the whole reveal, in 150 ms; the shadow sits on the reveal so it fades out with it. Strokes keep
    their pixel width at any rendered size. The glow fill is its own path, so a collected find target's glow alone
    fades out (200 ms) while its outline still answers hover and focus. */
+/* Each Hotspot is its own SVG layer in the stack, so the stacking (smaller over larger, a packed item under all)
+   decides which one the pointer meets while the Tab order stays the reading order (owner report, 30 Oct 2026). The
+   stack keeps their z-index to itself, under the doorway signs and the label chip. */
+.scene-hotspot-stack {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  pointer-events: none;
+}
 .scene-hotspots {
   position: absolute;
   inset: 0;
@@ -160,6 +169,11 @@
 /* Collected: no longer a target, so its glow fades out and stays out under hover and focus. */
 .hotspot.is-collected .hotspot-glow {
   opacity: 0;
+}
+/* An item in hand (selected in the pack, or dragged from it): every packed item lets the pointer through to the
+   Hotspot it is drawn on, so the pillows in hand reach the sofa under them, and its own outline is not lit. */
+:root:has(.inventory-item[aria-pressed='true'], .inventory-item.is-dragging) .hotspot.is-packed .hotspot-hit {
+  pointer-events: none;
 }
 /* The unlock moment: the solved target's bloom path, the polygon filled solid lamp under the lamp drop shadow, fades
    in and out by motion-hover around a 150 ms hold (300 ms in all; held 2 s, with no fade, under reduced motion).

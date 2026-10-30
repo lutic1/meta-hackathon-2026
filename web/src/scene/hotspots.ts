@@ -2,7 +2,7 @@ import '../components/chip.css'
 import type { PlayInteractable } from '../../types'
 import { glowOnce } from '../fade.ts'
 import { fill, strings } from '../strings.ts'
-import { hotspotPath, readingOrder, type Size, topLeft } from './geometry.ts'
+import { hotspotPath, readingOrder, type Size, stacking, topLeft } from './geometry.ts'
 
 const SVG = 'http://www.w3.org/2000/svg'
 
@@ -31,8 +31,8 @@ export interface HotspotHandlers {
 }
 
 export interface HotspotLayer {
-  /** The overlay over the photo: the Hotspots' SVG and the label chip. */
-  elements: [SVGSVGElement, HTMLElement]
+  /** The overlay over the photo: the stack of the Hotspots' SVG layers and the label chip. */
+  elements: [HTMLElement, HTMLElement]
   /**
    * Shows the Interactable's label on the chip after a click: until 2 s pass or the pointer leaves its Hotspot, or
    * for as long as its Hotspot keeps keyboard focus. "{label} · in hand" for an Interactable the Inventory holds,
@@ -41,7 +41,8 @@ export interface HotspotLayer {
   showLabel: (interactable: PlayInteractable) => void
   /**
    * Marks the Hotspots of the Interactables `inventory` holds and of the `foundIds` targets (solved `find` targets no
-   * `use_on` needs): the glow of either fades out and stays out.
+   * `use_on` needs): the glow of either fades out and stays out. The ones `inventory` holds sink under every other
+   * Hotspot and, while an item is in hand, take no pointer at all.
    */
   setCollected: (inventory: readonly string[], foundIds: readonly string[]) => void
   /**
@@ -86,7 +87,10 @@ export function hotspotReveal(d: string): SVGGElement {
  * `polygons` in the photo's own pixel space (the SVG `viewBox`), so the browser scales them to the rendered size.
  * Each is a focusable button named by the Interactable label whose id is the Interactable id, in Tab order by
  * polygon centroid from top to bottom, then left to right (UX-DR23); only its hit path takes the pointer, so a click
- * outside every polygon reaches no Hotspot. Invisible at rest; the reveal (outline, halo, glow fill and lamp shadow)
+ * outside every polygon reaches no Hotspot. Each lies in its own SVG layer, stacked apart from the Tab order
+ * (`stacking`, owner report 30 Oct 2026): where two overlap the smaller takes the pointer, and an item in the pack lies
+ * under every other and, while an item is in hand, lets the pointer through to the Hotspot it is drawn on, its own
+ * outline unlit. Invisible at rest; the reveal (outline, halo, glow fill and lamp shadow)
  * shows on hover, with the label chip once the pointer has dwelt 400 ms and until it leaves, and keyboard focus
  * traces the focus ring along it with the label chip shown at once, for as long as it keeps focus (UX-DR69). A
  * collected `find` target stays in the Scene, still a Hotspot, but its glow fill fades out over 200 ms and no longer
@@ -96,10 +100,8 @@ export function hotspotReveal(d: string): SVGGElement {
  * hover, focus, "Show all objects" or the collected state show on the Hotspot.
  */
 export function hotspotLayer(photo: Size, interactables: readonly PlayInteractable[], handlers: HotspotHandlers): HotspotLayer {
-  const svg = document.createElementNS(SVG, 'svg')
-  svg.setAttribute('class', 'scene-hotspots')
-  svg.setAttribute('viewBox', `0 0 ${photo.width} ${photo.height}`)
-  svg.setAttribute('preserveAspectRatio', 'none')
+  const stack = document.createElement('div')
+  stack.className = 'scene-hotspot-stack'
   const chip = document.createElement('div')
   chip.className = 'hotspot-label-chip label'
   chip.setAttribute('aria-hidden', 'true') // the label is already the Hotspot's accessible name
@@ -110,6 +112,10 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     .filter(({ d }) => d !== '')
     .sort((a, b) => readingOrder(a.interactable.polygons ?? [], b.interactable.polygons ?? []))
   for (const { interactable, d } of shown) {
+    const svg = document.createElementNS(SVG, 'svg')
+    svg.setAttribute('class', 'scene-hotspots')
+    svg.setAttribute('viewBox', `0 0 ${photo.width} ${photo.height}`)
+    svg.setAttribute('preserveAspectRatio', 'none')
     const hotspot = document.createElementNS(SVG, 'g')
     hotspot.setAttribute('class', 'hotspot')
     hotspot.id = interactable.id
@@ -143,6 +149,7 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     })
     hotspots.set(interactable.id, hotspot)
     svg.append(hotspot)
+    stack.append(svg)
   }
 
   /** Hides the chip shown on focus or after a click. */
@@ -162,9 +169,9 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     if (hotspot === undefined || (release !== undefined && hold !== 'pending')) return () => undefined
     hide?.()
     release?.()
-    const drawn = svg.getBoundingClientRect()
+    const drawn = stack.getBoundingClientRect()
     // Its laid-out size, not the drawn one: the walk's slow push-in at rest scales the photo, the chip with it.
-    const rendered = { width: svg.clientWidth || drawn.width, height: svg.clientHeight || drawn.height }
+    const rendered = { width: stack.clientWidth || drawn.width, height: stack.clientHeight || drawn.height }
     const scale = rendered.width / photo.width
     const [left, top] = topLeft(interactable.polygons ?? [])
     if (typeof text === 'string') chip.textContent = text
@@ -199,7 +206,12 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     foundIds = found
     for (const [id, hotspot] of hotspots) {
       hotspot.classList.toggle('is-collected', inventory.includes(id) || foundIds.includes(id))
+      hotspot.classList.toggle('is-packed', inventory.includes(id))
     }
+    stacking(shown.map(({ interactable }) => interactable), inventory).forEach(({ id }, z) => {
+      const svg = hotspots.get(id)?.ownerSVGElement
+      if (svg) svg.style.zIndex = String(z)
+    })
   }
 
   function showLabel(interactable: PlayInteractable, hold: ChipHold = 'click'): void {
@@ -226,5 +238,6 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     hotspots.get(interactableId)?.classList.add('is-daylight')
   }
 
-  return { elements: [svg, chip], showLabel, setCollected, showPending, bloom, daylight }
+  setCollected(collected, foundIds)
+  return { elements: [stack, chip], showLabel, setCollected, showPending, bloom, daylight }
 }

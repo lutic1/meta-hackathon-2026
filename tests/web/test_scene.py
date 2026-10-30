@@ -7,7 +7,10 @@ four-lock fixture room the way the Play screen reads it.
 """
 
 import io
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -17,7 +20,7 @@ from PIL import Image
 from src.domain.schema import Room
 from tests.api.test_app import make_app
 from tests.fixtures.rooms import IX
-from tests.web.design import WEB_SRC, css_rules, design_text, source_ts
+from tests.web.design import REPO, WEB_SRC, css_rules, design_text, source_ts
 from tests.web.test_strings import _strings
 
 
@@ -293,3 +296,59 @@ def test_a_browser_without_webgl_gets_an_actionable_error_in_the_frame_never_a_b
     assert strings["sceneUnavailable"] == "Keyframe can't draw this room in this browser."
     assert strings["sceneUnavailableBody"] == "Turn on hardware acceleration in the browser's settings, then reload."
     assert strings["reload"] == "Reload"
+
+
+# --- Overlapping Hotspots and an item in hand (owner report, 30 Oct 2026) -----------------------------------------
+
+STACK_RUNNER = """
+import { readFileSync } from 'node:fs'
+const geometry = await import(process.argv[1])
+const [hotspots, packed] = JSON.parse(readFileSync(0, 'utf8'))
+process.stdout.write(JSON.stringify(geometry.stacking(hotspots, packed).map((hotspot) => hotspot.id)))
+"""
+
+# The Demo room's lounge view as riddle 3 meets it: the throw pillows drawn on the sectional sofa, the tray in front.
+SOFA = {"id": "sofa", "polygons": [[[266, 712], [322, 652], [960, 697], [960, 1120], [276, 795]]]}
+PILLOWS = {"id": "pillows", "polygons": [[[648, 725], [715, 675], [757, 720], [744, 747]], [[299, 669], [408, 700], [320, 717]]]}
+TRAY = {"id": "tray", "polygons": [[[420, 800], [470, 756], [496, 800], [470, 827]]]}
+CLOCK = {"id": "clock", "polygons": [[[509, 464], [567, 464], [567, 522], [509, 522]]]}
+
+
+def _stacking(hotspots: list[dict], packed: list[str]) -> list[str]:
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", STACK_RUNNER, (WEB_SRC / "scene/geometry.ts").as_uri()],
+        cwd=REPO, input=json.dumps([hotspots, packed]), capture_output=True, text=True, check=True,
+    )
+    return json.loads(result.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 runs the client's geometry")
+def test_where_hotspots_overlap_the_smaller_takes_the_pointer_and_a_packed_item_lies_under_every_other():
+    shown = [CLOCK, PILLOWS, SOFA, TRAY]  # reading order
+    # Bottom to top: the sofa under the pillows drawn on it, so riddle 1's click on the pillows reaches them.
+    assert _stacking(shown, []) == ["sofa", "pillows", "clock", "tray"]
+    # Once the pillows are in the pack they lie under the sofa: a click where they are drawn reaches the sofa.
+    assert _stacking(shown, ["pillows"]) == ["pillows", "sofa", "clock", "tray"]
+    # Equal sizes keep the reading order, the later on top, as the single layer drew them before.
+    twins = [{"id": "a", "polygons": CLOCK["polygons"]}, {"id": "b", "polygons": CLOCK["polygons"]}]
+    assert _stacking(twins, []) == ["a", "b"] and _stacking(twins, ["b"]) == ["b", "a"]
+
+
+def test_each_hotspot_is_its_own_layer_stacked_apart_from_the_tab_order():
+    layer = _ts("scene/hotspots.ts")
+    # Tab order stays the reading order of the DOM; the stacking order alone decides which Hotspot the pointer meets.
+    assert ".sort((a, b) => readingOrder(a.interactable.polygons ?? [], b.interactable.polygons ?? []))" in layer
+    assert "stack.className = 'scene-hotspot-stack'" in layer and "svg.setAttribute('class', 'scene-hotspots')" in layer
+    collected = layer.split("function setCollected(", 1)[1].split("\n  }\n", 1)[0]
+    assert "hotspot.classList.toggle('is-packed', inventory.includes(id))" in collected
+    assert "stacking(shown.map(({ interactable }) => interactable), inventory).forEach(" in collected
+    rules = _rules("scene/scene.css")
+    assert rules[".scene-hotspot-stack"] == {"position": "absolute", "inset": "0", "isolation": "isolate", "pointer-events": "none"}
+
+
+def test_an_item_in_hand_takes_no_pointer_on_the_photo_so_the_click_reaches_what_it_is_drawn_on():
+    rules = _rules("scene/scene.css")
+    held = ":root:has(.inventory-item[aria-pressed='true'], .inventory-item.is-dragging) .hotspot.is-packed .hotspot-hit"
+    assert rules[held] == {"pointer-events": "none"}
+    # With the hand empty a packed item still answers where nothing lies over it: "{Label}. Already in your pack."
+    assert rules[".hotspot-hit"]["pointer-events"] == "fill"

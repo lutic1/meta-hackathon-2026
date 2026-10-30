@@ -530,8 +530,8 @@ export function mountScene(
     const on = (shown: PlayView): string =>
       JSON.stringify(shown.interactables.filter((interactable) => interactable.photo === current))
     if (on(before) === on(next)) return
-    const [svg] = layer.elements
-    const focused = svg.contains(document.activeElement) ? document.activeElement?.id : undefined
+    const [stack] = layer.elements
+    const focused = stack.contains(document.activeElement) ? document.activeElement?.id : undefined
     layHotspots(next, size, current)
     laySigns(next, size, current)
     if (focused !== undefined) layer.elements[0].querySelector<SVGElement>(`[id="${focused}"]`)?.focus()

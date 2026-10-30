@@ -95,7 +95,7 @@ def test_the_scene_keeps_its_photo_and_lays_changed_hotspots_again_with_focus_on
     assert "if (before === undefined || size === undefined || view.hidden || layer === undefined) return" in reshape
     # The shown photo's Hotspots are laid again only when its Interactables changed, so focus stays put otherwise.
     assert "if (on(before) === on(next)) return" in reshape
-    assert "const focused = svg.contains(document.activeElement) ? document.activeElement?.id : undefined" in reshape
+    assert "const focused = stack.contains(document.activeElement) ? document.activeElement?.id : undefined" in reshape
     assert "layHotspots(next, size, current)" in reshape and "laySigns(next, size, current)" in reshape
     assert "layer.elements[0].querySelector<SVGElement>(`[id=\"${focused}\"]`)?.focus()" in reshape
     # The photo, the walk and the selection stay: nothing walks, nothing is posed again (story mode).

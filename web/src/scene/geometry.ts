@@ -59,6 +59,18 @@ export function readingOrder(a: readonly Polygon[], b: readonly Polygon[]): numb
   return ay - by || ax - bx
 }
 
+/**
+ * The Hotspots of one photo from bottom to top, the order the pointer meets them in (owner report, 30 Oct 2026):
+ * where two overlap the smaller takes the pointer, so an object drawn on a larger one stays clickable, and an
+ * Interactable in the pack (`packed`) lies under every other, so a click on it reaches what it is drawn on. Equal
+ * sizes keep their order, the later on top. The Tab order is the reading order whatever the stacking.
+ */
+export function stacking<T extends { id: string; polygons: Polygon[] | null }>(hotspots: readonly T[], packed: readonly string[]): T[] {
+  const size = (hotspot: T): number => (hotspot.polygons ?? []).reduce((sum, polygon) => sum + Math.abs(signedArea(polygon)), 0)
+  const rank = (hotspot: T): number => (packed.includes(hotspot.id) ? 0 : 1)
+  return [...hotspots].sort((a, b) => rank(a) - rank(b) || size(b) - size(a))
+}
+
 /** The top-left corner of the box around every polygon, in photo pixels: where the label chip is anchored. */
 export function topLeft(polygons: readonly Polygon[]): [number, number] {
   const points = polygons.flat()
