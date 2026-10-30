@@ -28,6 +28,7 @@ PILLOWS = "ix_01M61V1ACGTGK2QA16BZP494AC"
 CLOCK = "ix_01M61V1ACGDJP2ARZ8E0ZGYEN5"
 TRAY = "ix_01M61V1ACGP7FT9JZY9Y22P8JR"
 DOOR = "ix_01M61V1ACGVQQTEZ4D9S1PYPJM"
+SOFA = "ix_01M61V1ACF29XPMYCG0C04ZR7E"
 
 
 def _load():
@@ -265,7 +266,7 @@ def test_the_committed_patch_reoutlines_the_vent_and_both_pillow_pairs_in_the_96
     patch = patcher.load_patch(REPO / "ops/patches" / f"{DEMO_ROOM}.json")
     assert patch.reason.startswith("Hand-corrected 29 Oct 2026:") and "job.json keeps the pipeline's original output" in patch.reason
     entries = {entry.id: entry.polygons for entry in patch.interactables}
-    assert list(entries) == [VENT, PILLOWS, CLOCK, TRAY, DOOR]
+    assert list(entries) == [VENT, PILLOWS, CLOCK, TRAY, DOOR, SOFA]
     assert entries[VENT] == [[(200, 1084), (253, 1071), (233, 1176), (168, 1190)]]
     corner, left = entries[PILLOWS]  # the corner-bend pair the riddle points at first: the Evidence card crops it
     assert corner[0] == (648, 725) and left[0] == (299, 669)
@@ -290,10 +291,36 @@ def test_the_committed_patch_moves_the_clock_and_the_tray_to_photo_2_and_the_doo
     patch = patcher.load_patch(REPO / "ops/patches" / f"{DEMO_ROOM}.json")
     assert "moved" in patch.reason
     moves = {entry.id: entry.photo for entry in patch.interactables}
-    assert moves == {VENT: None, PILLOWS: None, CLOCK: 2, TRAY: 2, DOOR: 0}
+    assert moves == {VENT: None, PILLOWS: None, CLOCK: 2, TRAY: 2, DOOR: 0, SOFA: 2}
     entries = {entry.id: entry.polygons for entry in patch.interactables}
     assert entries[DOOR] == [[(333, 479), (682, 479), (682, 899), (343, 948)]]
     assert entries[CLOCK][0][0] == (567, 493) and entries[TRAY][0][0] == (420, 800)
+
+
+def _inside(point: tuple[float, float], polygon: list[tuple[float, float]]) -> bool:
+    """Even-odd ray casting: whether `point` lies inside `polygon`."""
+    x, y = point
+    inside = False
+    for (x0, y0), (x1, y1) in zip(polygon, polygon[1:] + polygon[:1], strict=True):
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            inside = not inside
+    return inside
+
+
+def test_the_committed_patch_moves_the_sofa_to_photo_2_traced_around_both_pillow_pairs():
+    """Owner report, 30 Oct: riddle 3 is solved where the player looks, the pillows in hand on the lounge view's sofa."""
+    patch = patcher.load_patch(REPO / "ops/patches" / f"{DEMO_ROOM}.json")
+    assert "30 Oct 2026: the sectional sofa moved to photo 2" in patch.reason
+    sofa = next(entry for entry in patch.interactables if entry.id == SOFA)
+    assert sofa.photo == 2 and len(sofa.polygons) == 1
+    [outline] = sofa.polygons
+    assert len(outline) >= 12 and all(0 <= x <= 960 and 0 <= y <= 1280 for x, y in outline)
+    # The whole sectional across the middle of the frame, both arms: the right one runs off the photo's edge.
+    xs, ys = [x for x, _ in outline], [y for _, y in outline]
+    assert min(xs) < 280 and max(xs) == 960 and min(ys) < 660 and max(ys) > 1050
+    # A click where either pillow pair is drawn lands inside the sofa, so with the pillows in hand it reaches it.
+    pillows = next(entry for entry in patch.interactables if entry.id == PILLOWS)
+    assert all(_inside(point, outline) for polygon in pillows.polygons for point in polygon)
 
 
 def write_areas(tmp_path: Path, photos: list[dict[str, Any]]) -> Path:

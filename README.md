@@ -334,7 +334,11 @@ chosen (`main` or `dev`, default `main`):
   template line "Stuck? I keep two hints for the whole house. Choose your
   moment." because the model's line read as if the Guide were stuck (run
   19 the dry run, run 20 the write). These are hand corrections, not
-  pipeline results.
+  pipeline results. The patch file also moves the sectional sofa to
+  photo 2 (amended 30 Oct 2026, owner report), traced by hand around the
+  whole sectional with both pillow pairs on it, so riddle 3 is solved on
+  the lounge view where the pillows are picked up; once applied the
+  riddles start on photos 2, 0, 2 and 0.
 - `story-demo-room` (needs `room_id`): `scripts/story_demo_room.py`
   writes the wizard story onto a Demo room built before story mode, a
   dry run unless `confirm` is the word `story`. It runs on Modal with the
