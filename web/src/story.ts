@@ -108,6 +108,7 @@ export async function playIntro({ view, state, beats, scene, chest }: Intro): Pr
     },
   ]
 
+  beats.hold(intro.map(({ beat }) => beat))
   for (const [at, { beat, move }] of intro.entries()) {
     if (beat.speaker === 'guide') beat.line = lines().guide // a Greeting phrased since the intro began
     chest.element.classList.toggle('is-beckoning', beat.spot !== undefined)

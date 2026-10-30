@@ -56,6 +56,8 @@ export interface StoryStage {
   element: HTMLElement
   /** Shows `beat` and resolves once Next or "Skip intro" is pressed. Focus moves to the button. */
   play: (beat: StoryBeat) => Promise<BeatEnd>
+  /** Keeps the box as tall as the tallest of `beats` and the button as wide as the widest, until `close`. */
+  hold: (beats: StoryBeat[]) => void
   /** Takes the stage away. */
   close: () => void
 }
@@ -81,10 +83,11 @@ function portrait(side: Side): { figure: HTMLElement; painting: HTMLImageElement
  * optional "Riddle {n} solved" row with its wax seal, the line (whole, at once: no typing effect), the optional first
  * riddle inset and pack row, and the footer with an intro beat's page dots and the button with its Enter key cap. An
  * intro beat also shows "Skip intro" at the top right; a beat with a `spot` lights that part through the scrim, and a
- * beat with a `clear` keeps the box off that part, in one place from beat to beat. Each beat's spoken line goes to the
- * live region once, as "{name}: {line}" (the first riddle's Clue after it); focus moves to the button, and Enter on the
- * page or the stage presses it. The portraits' slide, the box's swap and the seal's stamp belong to DESIGN.md Motion's
- * walk and story exception and are off under reduced motion.
+ * beat with a `clear` keeps the box off that part, in one place from beat to beat; beats held together (the intro)
+ * keep the tallest one's box and the widest one's button, so neither the box's top nor Next moves. Each beat's spoken
+ * line goes to the live region once, as "{name}: {line}" (the first riddle's Clue after it); focus moves to the button,
+ * and Enter on the page or the stage presses it. The portraits' slide, the box's swap and the seal's stamp belong to
+ * DESIGN.md Motion's walk and story exception and are off under reduced motion.
  */
 export function storyStage(): StoryStage {
   const element = document.createElement('section')
@@ -134,10 +137,15 @@ export function storyStage(): StoryStage {
   /** The part of the play screen the beats keep the speech box clear of, and the box's place beside it (see `fit`). */
   let clearing: HTMLElement | undefined
   let fitted: { marginLeft: string; width: string } | null = null
+  /** The beats held together, the one on the stage, and whether the box and its button fit them (see `reserve`). */
+  let held: StoryBeat[] = []
+  let shown: StoryBeat | undefined
+  let reserved = false
   // The chest's box spans from the chest to the frame's edge, so it resizes when the chest moves (its photo loading).
   const refit = new ResizeObserver(() => {
     fitted = null
     fit(clearing)
+    reserve()
   })
   next.addEventListener('click', () => settle('next'))
   skip.addEventListener('click', () => settle('skip'))
@@ -202,16 +210,36 @@ export function storyStage(): StoryStage {
       fitted = covers
         ? { marginLeft: `${said.left - stage.left}px`, width: `${lit.left - 12 - said.left}px` }
         : { marginLeft: '', width: '' }
+      reserved = false
     }
     box.style.marginLeft = fitted?.marginLeft ?? ''
     box.style.width = fitted?.width ?? ''
   }
 
-  function play(beat: StoryBeat): Promise<BeatEnd> {
-    element.classList.toggle('is-light', beat.solved !== undefined)
-    element.classList.toggle('is-spotlit', beat.spot !== undefined)
-    element.setAttribute('aria-label', NAMES[beat.speaker])
-    takeStage(beat)
+  /**
+   * Sizes the box and its button for the held beats: each is laid out once, at the box's width as it stands, and the box
+   * keeps the tallest one's height and the button the widest one's width (the footer sits on the box's bottom edge, so
+   * Next keeps its place too). Done at the first beat and again when the box refits; the beat on the stage goes back.
+   */
+  function reserve(): void {
+    if (reserved || held.length === 0) return
+    reserved = true
+    box.style.minHeight = ''
+    next.style.minWidth = ''
+    let tall = 0
+    let wide = 0
+    for (const beat of held) {
+      show(beat)
+      tall = Math.max(tall, box.getBoundingClientRect().height)
+      wide = Math.max(wide, next.getBoundingClientRect().width)
+    }
+    box.style.minHeight = `${tall}px`
+    next.style.minWidth = `${wide}px`
+    if (shown !== undefined) show(shown)
+  }
+
+  /** Fills the speech box with `beat`: the name plate, the rows, the line, the riddle inset, the dots and the button. */
+  function show(beat: StoryBeat): void {
     name.textContent = NAMES[beat.speaker]
     role.textContent = beat.role
     solved.hidden = beat.solved === undefined
@@ -233,7 +261,6 @@ export function storyStage(): StoryStage {
       item.replaceChildren(crop(beat.item.roomId, beat.item.interactable, 44, 34), words)
     }
     pips.hidden = beat.page === undefined
-    skip.hidden = beat.page === undefined
     const page = beat.page
     if (page !== undefined) {
       pips.replaceChildren(...Array.from({ length: page.of }, (_, k) => {
@@ -247,11 +274,27 @@ export function storyStage(): StoryStage {
     key.textContent = strings.keyEnter
     next.replaceChildren(beat.button, key)
     next.classList.toggle('is-go', beat.button !== strings.next)
+  }
+
+  function hold(beats: StoryBeat[]): void {
+    held = beats
+    reserved = false
+  }
+
+  function play(beat: StoryBeat): Promise<BeatEnd> {
+    element.classList.toggle('is-light', beat.solved !== undefined)
+    element.classList.toggle('is-spotlit', beat.spot !== undefined)
+    element.setAttribute('aria-label', NAMES[beat.speaker])
+    takeStage(beat)
+    shown = beat
+    show(beat)
+    skip.hidden = beat.page === undefined
     box.classList.remove('is-swapping')
     void box.offsetWidth
     box.classList.add('is-swapping')
     element.hidden = false
     fit(beat.clear)
+    reserve()
     if (beat.spot !== undefined) light(beat.spot)
     window.addEventListener('keydown', onKey)
     announce(`${NAMES[beat.speaker]}: ${beat.line}${beat.riddle === undefined ? '' : ` ${beat.riddle.heading}: ${beat.riddle.clue}`}`)
@@ -271,6 +314,9 @@ export function storyStage(): StoryStage {
     refit.disconnect()
     clearing = undefined
     fitted = null
+    held = []
+    shown = undefined
+    box.style.minHeight = next.style.minWidth = ''
     element.hidden = true
     for (const slot of Object.values(slots)) {
       slot.figure.classList.remove('is-in', 'is-quiet')
@@ -279,5 +325,5 @@ export function storyStage(): StoryStage {
     window.removeEventListener('keydown', onKey)
   }
 
-  return { element, play, close }
+  return { element, play, hold, close }
 }

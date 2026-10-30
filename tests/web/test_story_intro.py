@@ -130,9 +130,9 @@ def test_the_stage_casts_two_tall_portraits_the_speaker_lit_and_the_other_dimmed
 
 def test_the_intro_beats_carry_page_dots_the_first_riddle_inset_and_skip_intro():
     stage = _ts("components/story-stage.ts")
-    play = _function(stage, "play")
-    assert "pips.hidden = beat.page === undefined" in play
-    assert "riddle.hidden = beat.riddle === undefined" in play
+    play, show = _function(stage, "play"), _function(stage, "show")
+    assert "pips.hidden = beat.page === undefined" in show
+    assert "riddle.hidden = beat.riddle === undefined" in show
     assert "skip.hidden = beat.page === undefined" in play
     assert "skip.textContent = strings.introSkip" in stage
     assert "skip.addEventListener('click', () => settle('skip'))" in stage
@@ -168,13 +168,39 @@ def test_the_speech_box_keeps_one_place_on_all_five_intro_beats_so_next_never_mo
     assert "if (clear !== clearing) {" in fit and "if (clear !== undefined) refit.observe(clear)" in fit
     assert "if (clear !== undefined && fitted === null) {" in fit
     assert "box.style.width = fitted?.width ?? ''" in fit
-    assert "const refit = new ResizeObserver(() => {\n    fitted = null\n    fit(clearing)\n  })" in stage
+    assert "const refit = new ResizeObserver(() => {\n    fitted = null\n    fit(clearing)\n    reserve()\n  })" in stage
     play = _function(stage, "play")
     assert "fit(beat.clear)" in play and "unlight()" not in stage
     close = _function(stage, "close")
     assert "refit.disconnect()" in close and "fitted = null" in close
     # The chest's box runs from the chest to the frame's edge, so its width changes when the chest moves.
     assert css_rules(_ts("components/treasure-chest.css"))[".treasure-chest"]["right"] == "16px"
+
+def test_the_intro_holds_the_box_at_its_tallest_beat_and_next_at_its_widest_label_so_neither_moves():
+    # Live replay, Oct 30: on the last beat Next grew 61 px left for "Start looking" and the box rose 134 px for the
+    # riddle inset. The intro hands the stage all five beats up front; the stage lays each out once at the box's held
+    # width and keeps the tallest box and the widest button until it closes, laying them out again when the box refits.
+    intro = _ts("story.ts").split("export async function playIntro(", 1)[1]
+    assert intro.index("beats.hold(intro.map(({ beat }) => beat))") < intro.index("for (const [at, { beat, move }]")
+    stage = _ts("components/story-stage.ts")
+    assert "hold: (beats: StoryBeat[]) => void" in stage
+    reserve = _function(stage, "reserve")
+    assert "box.style.minHeight = ''" in reserve and "next.style.minWidth = ''" in reserve
+    assert "for (const beat of held) {" in reserve and "show(beat)" in reserve
+    assert "box.style.minHeight = `${tall}px`" in reserve and "next.style.minWidth = `${wide}px`" in reserve
+    assert reserve.rstrip().endswith("if (shown !== undefined) show(shown)")
+    play = _function(stage, "play")
+    assert play.index("show(beat)") < play.index("element.hidden = false") < play.index("fit(beat.clear)")
+    assert play.index("fit(beat.clear)") < play.index("reserve()")
+    assert "reserved = false" in _function(stage, "fit")
+    close = _function(stage, "close")
+    assert "held = []" in close and "box.style.minHeight = next.style.minWidth = ''" in close
+    # The held height goes above the line: the footer, and Next in it, stays on the box's bottom edge.
+    rules = css_rules(_ts("components/story-stage.css"))
+    assert rules[".story-box"]["display"] == "flex" and rules[".story-box"]["flex-direction"] == "column"
+    assert rules[".story-foot"]["margin-top"] == "auto" and rules[".story-foot"]["padding-top"] == "14px"
+    assert rules[".story-next"]["justify-content"] == "center"
+
 
 # --- The intro on the Play screen ------------------------------------------------------------------------------------
 
