@@ -242,8 +242,8 @@ def test_only_the_photo_you_face_is_drawn_and_interactive_and_its_neighbours_are
     assert scene.count("new Mesh(") == 1 and "walls.get(index)?.rest.append(view)" in scene
     assert "renderer.domElement.setAttribute('aria-label', fill(strings.photoView, name))" in scene
     # A move hides the Hotspots first and lays them again on arrival, the next views fetched ahead.
-    walk = _block(scene, "async function walk(to: number, via?: HTMLElement): Promise<void> {")
-    assert walk.index("view.hidden = true") < walk.index("current = to") < walk.index("await arrive(to, true)")
+    walk = _block(scene, "async function walk(to: number, via?: HTMLElement, quiet = false): Promise<void> {")
+    assert walk.index("view.hidden = true") < walk.index("current = to") < walk.index("await arrive(to, !quiet)")
     assert "if (room === undefined || moving || to === current || areaOf(areas, to) < 0) return" in walk
     arrive = _block(scene, "async function arrive(index: number, moved: boolean): Promise<boolean> {")
     assert "void texture(next).catch(() => undefined)" in arrive
@@ -267,7 +267,7 @@ def test_turns_push_ins_and_rest_follow_the_spec_timings_and_are_cuts_under_redu
     assert rules[".scene-wall.is-centre .scene-wall-rest.is-resting"]["animation"] == (
         "walk-rest 26s cubic-bezier(0.3, 0, 0.4, 1) forwards")
     assert rules[".scene-wall-drift"]["transition"] == "transform 500ms ease"
-    walk = _block(scene, "async function walk(to: number, via?: HTMLElement): Promise<void> {")
+    walk = _block(scene, "async function walk(to: number, via?: HTMLElement, quiet = false): Promise<void> {")
     assert "const instant = reduced()" in walk and "else if (instant) pose()" in walk
     push = _block(scene, "async function pushIn(to: number, via: HTMLElement | undefined, instant: boolean): Promise<void> {")
     assert push.startswith("\n    if (instant) return layArea(to)")
@@ -296,7 +296,7 @@ def test_the_arrow_keys_walk_only_from_the_scene_a_button_or_the_page_and_never_
     assert "sign.setAttribute('aria-label', fill(strings.toAreaThroughDoorway, { area: area.label }))" in scene
     assert "label.textContent = fill(strings.toArea, { area: area.label })" in scene
     # A move that took focus from the Scene gives it back to the new view.
-    assert "refocus(focused)" in _block(scene, "async function walk(to: number, via?: HTMLElement): Promise<void> {")
+    assert "refocus(focused)" in _block(scene, "async function walk(to: number, via?: HTMLElement, quiet = false): Promise<void> {")
 
 
 def test_a_reload_opens_on_the_active_riddles_start_photo():

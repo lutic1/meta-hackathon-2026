@@ -34,3 +34,18 @@ export function waxSeal(n: number): SVGSVGElement {
   svg.append(part('circle', { cx: '21', cy: '21', r: '17', class: 'wax-seal-slot' }), wax)
   return svg
 }
+
+/**
+ * The Trickster's lock seal on the way out (story intro, spec 5.5): a broad red wax seal stamped with a keyhole, its
+ * colours set by the stylesheet that places it. Decorative: the Trickster's line says it.
+ */
+export function lockSeal(): SVGSVGElement {
+  const svg = part('svg', { viewBox: '0 0 180 180', 'aria-hidden': 'true', class: 'lock-seal' }) as SVGSVGElement
+  svg.append(
+    part('path', { d: blob(90, 90, 76, 90, 3), class: 'lock-seal-wax' }),
+    part('circle', { cx: '90', cy: '90', r: '64', class: 'lock-seal-rim' }),
+    part('circle', { cx: '90', cy: '90', r: '56', class: 'lock-seal-ring' }),
+    part('path', { d: 'M90 64a13 13 0 1 1-.01 0M84 84h12l5 32h-22z', class: 'lock-seal-keyhole' }),
+  )
+  return svg
+}

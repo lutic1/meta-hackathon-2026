@@ -40,7 +40,7 @@ def client(tmp_path: Path, four_lock_room: Room) -> TestClient:
 
 def test_the_play_route_mounts_the_scene_for_its_session_and_reads_the_effective_room():
     shell, play, scene, api = _ts("shell.ts"), _ts("play.ts"), _ts("scene/index.ts"), _ts("api/index.ts")
-    assert "if (state !== null) content = { name, session: state, guide: meta.guide, mode: meta.mode, profile: place.profile }" in shell
+    assert "if (state !== null) content = { name, session: state, mode: meta.mode, profile: place.profile }" in shell
     assert "mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame)" in shell
     # Story 1.20: the Play screen reads the Room once and shares it with the Scene, the Inventory and the notes;
     # Story 4.6: it is the session's Effective room, never GET /rooms/<room_id>.

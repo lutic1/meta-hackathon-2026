@@ -1,6 +1,7 @@
-// One riddle at a time (story mode, owner decision Oct 29): which riddle the note shows and its number, the seals,
-// the place tag, the Riddler's solved line with the where-line for the next riddle, the chest's counts and the
-// closing lines, all from served data (`PlayView`, `SessionState`) and never from a solution. Pure, so Node runs it.
+// One riddle at a time (story mode, owner decision Oct 29): the intro's lines, which riddle the note shows and its
+// number, the seals, the place tag, the Riddler's solved line with the where-line for the next riddle, the chest's
+// counts and the closing lines, all from served data (`PlayView`, `SessionState`) and never from a solution. Pure, so
+// Node runs it.
 import type { PlayPuzzle, PlayView } from '../types'
 import { fill, strings } from './strings.ts'
 import { areaOf, walkGraph } from './walk.ts'
@@ -61,6 +62,48 @@ export function placeTag(room: Room, id: string): string {
 /** The first riddle's where-line in the intro: "Start in the {area}." */
 export function firstWhereLine(room: Room, id: string): string {
   return fill(strings.startIn, { area: startArea(room, id) })
+}
+
+/** The Room's area labels in the order of each one's first photo, joined "a, b and c"; "room" when none is named. */
+export function joinedAreas(room: Pick<PlayView, 'photos'>): string {
+  const labels = walkGraph(room.photos).map((area) => area.label)
+  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} and ${labels.at(-1)}` : (labels[0] ?? 'room')
+}
+
+/** The five lines of the story intro (spec 3.1), one per beat. */
+export interface IntroLines {
+  welcome: string
+  trap: string
+  entrance: string
+  guide: string
+  /** The Riddler's last beat: where the first riddle waits, then its opening. */
+  first: string
+}
+
+/**
+ * The intro's lines for a Room whose first riddle is `first`: the Room's story when it has one, else the templates
+ * filled from served data (a Demo room, the one with a name, is "someone's"); the first riddle's opening is the one
+ * the story wrote for it. A returning player's Greeting (`greeting`, Local mode) takes the Guide's line.
+ */
+export function introLines(
+  room: Room & Pick<PlayView, 'interactables'>,
+  first: string,
+  greeting: string | null,
+): IntroLines {
+  const story = room.story
+  const counts = {
+    areas: joinedAreas(room),
+    photos: room.photos.length,
+    things: room.interactables.filter((interactable) => (interactable.polygons ?? []).length > 0).length,
+  }
+  const opening = story?.riddles.find((riddle) => riddle.puzzle_id === first)?.opening ?? strings.riddleOpening
+  return {
+    welcome: story?.architect_welcome ?? fill(room.name ? strings.introArchitectDemo : strings.introArchitect, counts),
+    trap: story?.trickster_trap ?? strings.introTrap,
+    entrance: story?.riddler_entrance ?? fill(strings.introRiddler, { riddles: room.puzzles.length }),
+    guide: greeting ?? story?.guide_chest ?? fill(strings.introGuide, { hints: CHEST_HINTS }),
+    first: `${firstWhereLine(room, first)} ${opening}`,
+  }
 }
 
 /**

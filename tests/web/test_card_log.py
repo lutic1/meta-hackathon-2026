@@ -203,12 +203,10 @@ def test_it_never_opens_over_another_modal_and_no_modal_opens_over_it():
     assert "if (close !== undefined || room === undefined) return" in log
     play = _code(_ts("play.ts"))
     # The Leave room confirmation (its button or the browser Back button) asks first.
-    assert "modalOpen: () => welcoming || cardLog.isOpen()" in play
+    assert "modalOpen: () => introducing || cardLog.isOpen()" in play
     assert "isOpen: () => close !== undefined" in log
-    # Under the First-room welcome and the Leave room confirmation, the top bar and the link's column are inert.
-    welcome = _code(_ts("welcome.ts"))
-    assert "for (const element of held) element.inert = true" in welcome
-    assert "[frame.topBar, sceneColumn, sideColumn]" in play.split("mountWelcome(", 1)[1].split("\n", 1)[0]
+    # Under the story intro and the Leave room confirmation, the top bar and the link's column are inert.
+    assert "frame.topBar.inert = on" in play
     assert "held: [frame.topBar, sceneColumn, sideColumn]" in play
     # The Completion screen keeps the button in place under its inert top bar.
     behind = play.split("export function mountPlayBehind(", 1)[1]

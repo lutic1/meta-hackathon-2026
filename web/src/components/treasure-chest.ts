@@ -35,6 +35,8 @@ export interface HintLanding {
 export interface TreasureChest {
   /** The chest on the floor right of the photo, the Trickster's bubble above it and its dialog. */
   element: HTMLElement
+  /** The chest itself, the button that opens it: what the intro's Guide beat lights. */
+  button: HTMLButtonElement
   /** Draws `state`: the gems from `hints_left`, and each new Trickster Card in the bubble. */
   render: (state: SessionState) => void
   /** The Trickster's bubble above the chest, held 7 s; `text` is announced once as the Trickster's. */
@@ -267,6 +269,7 @@ export function treasureChest(
   draw(latest)
   return {
     element,
+    button: chest,
     render,
     bubble: (text) => bubble(text),
     shut: () => {

@@ -22,10 +22,10 @@ def _strings() -> dict[str, str]:
 COMPONENT_PATTERNS_ONLY = {"noRooms", "speakerArchitect", "speakerRiddler", "speakerGuide", "speakerTrickster",
                            "back", "regenerations", "attemptSentBack", "validatorDid", "museImage", "museImageModel",
                            "museImageDid", "guideWritten", "trickster", "submit", "graphNode", "requiresNone",
-                           "exit", "guideIntroduction", "showBuildJson"}
+                           "exit", "showBuildJson"}
 """Lines EXPERIENCE.md words only in a Component Patterns row (the Stored Room row's empty list, the Wizard
-portrait's speaker prefixes, the Build view rows and its JSON toggle, the Code field's Submit, the puzzle graph node's name, the
-First-room welcome's live-region text)."""
+portrait's speaker prefixes, the Build view rows and its JSON toggle, the Code field's Submit, the puzzle graph node's
+name)."""
 
 STATE_PATTERNS_ONLY = {"buildNotReady", "buildLoadFailed", "resultLoadFailed"}
 """Lines EXPERIENCE.md words only in State Patterns (the Build view's not-ready and error states, the Completion
@@ -268,13 +268,12 @@ def test_the_wizard_introductions_and_the_architect_lines_are_the_experience_lin
 
 def test_the_welcome_strings_are_the_experience_lines():
     strings = _strings()
-    assert strings["guide"] == "The Guide" and strings["begin"] == "Begin"
+    assert strings["guide"] == "The Guide" and "begin" not in strings  # the welcome card is retired (story mode)
     assert strings["guideRoleLocal"] == (
         "Reads how you play; offers one hint at a time, never the answer, worded by Llama 3.2 3B on this Mac."
     )
     assert strings["guideRoleWritten"] == "Reads how you play; offers one hint at a time, never the answer, shown as written."
     assert strings["guideVoice"] == "Ask as often as you like. I'll help, a little at a time."
-    assert strings["guideIntroduction"] == "The Guide. {role line} {opening line} {voice line}"
     # The First-room welcome's three-step how-to-play: what a riddle points at, how to answer one, how the room ends.
     assert [strings[f"howToPlay{n}"] for n in (1, 2, 3)] == [
         "Each riddle on the right points at one thing in these photos.",

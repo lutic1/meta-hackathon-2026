@@ -123,18 +123,18 @@ def test_the_banner_is_the_footer_under_the_body_and_every_scrim_is_inside_the_b
     placement = EXPERIENCE.read_text().split("- **Placement.**", 1)[1].split("\n", 1)[0]
     assert "footer strip" in placement and "sits at the top edge" not in placement
     # Each overlay is appended to the body (the `main.shell-body` the route owns), never to the page or the footer.
-    mounts = {"completion.ts": "body.append(scrim)", "welcome.ts": "body.append(overlay.element)",
+    mounts = {"completion.ts": "body.append(scrim)", "play.ts": "frame.body.append(beats.element)",
               "leave-room.ts": "frame.body.append(confirmation.element)"}
     for name, mount in mounts.items():
         assert mount in _code((WEB_SRC / name).read_text()), name
-    for name in ("greeting-overlay.css", "leave-room-confirmation.css"):
+    for name in ("story-stage.css", "leave-room-confirmation.css"):
         rules.update(css_rules((COMPONENTS / name).read_text()))
-    for scrim in (".completion-scrim", ".greeting-scrim", ".leave-room-scrim"):
+    for scrim in (".completion-scrim", ".story-stage", ".leave-room-scrim"):
         assert rules[scrim]["position"] == "absolute" and rules[scrim]["inset"] == "0", scrim
     for layout in (".play-layout", ".completion-layout"):
         assert rules[layout]["position"] == "relative", f"{layout} must hold its scrim inside the body"
     # Neither the banner nor the top bar is ever made inert or dimmed by an overlay's held elements.
-    for name in ("leave-room.ts", "welcome.ts", "play.ts"):
+    for name in ("leave-room.ts", "story.ts", "play.ts"):
         assert "banner" not in _code((WEB_SRC / name).read_text()).lower(), name
 
 

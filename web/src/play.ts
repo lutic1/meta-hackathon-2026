@@ -18,10 +18,10 @@ import { riddleNumber, solveLine } from './riddles.ts'
 import { currentPlace, placeHref } from './router.ts'
 import { type RoomGone, roomGone, showRoomGone } from './room-gone.ts'
 import { foundTargets, lastShownPhoto, type MountedScene, mountScene, solvedTargets } from './scene/index.ts'
+import { introDue, introPhoto, playIntro } from './story.ts'
 import { strings } from './strings.ts'
 import { tricksterRequest } from './trickster-request.ts'
 import { type UseOnSelection, useOnSelection } from './use-on.ts'
-import { mountWelcome, playHasBegun } from './welcome.ts'
 
 /** The Play screen reads `GET /sessions/<id>` this often while it is open, hidden tab included (AD-4, UX-DR65). */
 export const POLL_MS = 2000
@@ -58,9 +58,8 @@ export interface PlaySession {
 }
 
 /**
- * What the Play screen takes from the shell: the page body and the top bar, which the First-room welcome covers and
- * holds inert, the top bar's controls slot, the `guide` setting, and the `mode` that decides which Derived block
- * "Start again" sends; the welcome card's role line follows both.
+ * What the Play screen takes from the shell: the page body and the top bar, which the story intro holds inert, the top
+ * bar's controls slot, and the `mode` that decides which Derived block "Start again" sends.
  */
 export interface PlayFrame {
   body: HTMLElement
@@ -68,7 +67,6 @@ export interface PlayFrame {
   /** The top bar's wordmark, whose link to the start asks the Leave room confirmation first. */
   wordmark: HTMLAnchorElement
   controls: HTMLElement
-  guide: Meta['guide']
   mode: Meta['mode']
 }
 
@@ -114,14 +112,15 @@ const pause = (ms: number): Promise<void> => new Promise((done) => setTimeout(do
  * The client polls `GET /sessions/<id>` every 2000 ms, from a worker so the cadence holds while the tab is hidden, and
  * every part draws open locks, the pack, the hints left and Wrong attempts from the latest state the server sent: a
  * poll or the reply to a posted event, never its own clicks. A poll sent before a reply that arrived first is stale and
- * dropped. A session opened with a Greeting or a First-room welcome shows its card over the first Scene until "Begin",
- * unless play has already begun; a Greeting still being phrased (`opening_line.text` null) shows the Guide thinking
- * until a polled state brings its line. Play starts once the card has closed (or at once): focus goes to the note's
- * heading, and on the first riddle (no lock open yet) the coach pill shows for 15 s, until the first Hotspot click or
- * the chest opens, while the Trickster's bubble by the chest says the chest line once. The top bar's "Show all
- * objects" toggle outlines every Hotspot while pressed, across walks. Each reply to a posted input reads one feedback
- * line (`feedbackFor`, against the state it was sent against), shown at the photo's bottom and written once to the live
- * region as the Guide's.
+ * dropped. A Session that starts plays the story intro first (`playIntro`, once per Session: a reload of a Session in
+ * progress skips it), from the first view of the first area, on the Story stage with the Scene and the top bar inert
+ * and the note, the pack, the walk map, the turn discs and the doorway signs out of sight; a returning player's
+ * Greeting (Local mode) is the Guide's line there, as far as the poll has brought it. Play starts once the intro has
+ * ended (or at once), on the first riddle's start photo: focus goes to the note's heading, and on the first riddle (no
+ * lock open yet) the coach pill shows for 15 s, until the first Hotspot click or the chest opens, while the
+ * Trickster's bubble by the chest says the chest line once. The top bar's "Show all objects" toggle outlines every
+ * Hotspot while pressed, across walks. Each reply to a posted input reads one feedback line (`feedbackFor`, against the
+ * state it was sent against), shown at the photo's bottom and written once to the live region as the Guide's.
  *
  * A state that shows a lock newly open plays the unlock moment (`lockOpened`): the solved Hotspot blooms and the Scene
  * frame glows once, the note stamps the riddle "Solved", and 1100 ms later the solve beat opens over the Scene (the
@@ -135,7 +134,7 @@ const pause = (ms: number): Promise<void> => new Promise((done) => setTimeout(do
  * open and shows the active riddle.
  *
  * "Leave room" in the top bar, the top bar's wordmark (a link to the start elsewhere), or the browser Back button, asks
- * the Leave room confirmation (see `mountLeaveRoom`), never over the Greeting card; confirming goes to `#/` in place of
+ * the Leave room confirmation (see `mountLeaveRoom`), never during the intro; confirming goes to `#/` in place of
  * the Play route (`LeaveRoom.exit`, so Back never resumes the play-through) and records no Room result. A state that
  * shows a Trickster window open asks for its proposal once (`tricksterRequest`), and the Card arrives in the
  * Trickster's bubble by the chest through the poll. The top bar's "Card log" button, between "Show all objects" and
@@ -145,7 +144,7 @@ const pause = (ms: number): Promise<void> => new Promise((done) => setTimeout(do
  * /sessions/<id>/room`, one request at a time, and redraws the note, the chest's numbers and the Hotspots from it
  * without a reload: the walk, the pack and keyboard focus stay (FR-19, AD-12).
  *
- * A reload mounts the same way from `GET /sessions/<id>` and the Effective room, with no welcome once play has begun and
+ * A reload mounts the same way from `GET /sessions/<id>` and the Effective room, with no intro once play has begun and
  * nothing announced. A poll that fails, or is still unanswered at the next tick, is missed; after two in a row comes
  * the reconnecting state: the status strip at the top of the Scene column, the Scene frame shrunk by its height, the
  * photo dimmed and every input inert, the line written to the live region once. An input posted meanwhile never reached
@@ -179,7 +178,8 @@ export function mountPlay(
   let ended = false
   /** A beat holds the stage: the Scene, the note, the pack and the chest take no input under it. */
   let beating = false
-  let unmountWelcome: (() => void) | undefined
+  /** The story intro plays once per Session start; a reload of a Session in progress opens straight into play. */
+  let introducing = introDue(session)
 
   /** Every input inert, and the photo dimmed, while reconnecting or once the play-through has ended; inert under a beat. */
   function holdInputs(): void {
@@ -283,7 +283,6 @@ export function mountPlay(
   function roomMissing(gone: RoomGone): void {
     ended = true
     ticker.terminate()
-    unmountWelcome?.()
     beats.close()
     cardLog.unmount()
     leaveRoom.unmount()
@@ -298,7 +297,6 @@ export function mountPlay(
     leaving = setTimeout(() => leaveRoom.exit(done), after)
   }
 
-  let welcoming = false
   let unfocus: (() => void) | undefined
   const showAll = showAllToggle(sceneColumn)
   const room: Promise<PlayView> = getEffectiveRoom(session.id)
@@ -307,7 +305,7 @@ export function mountPlay(
     body: frame.body,
     held: [frame.topBar, sceneColumn, sideColumn],
     wordmark: frame.wordmark,
-    modalOpen: () => welcoming || cardLog.isOpen(),
+    modalOpen: () => introducing || cardLog.isOpen(),
     focusScene: () => {
       unfocus?.()
       // An inert Scene (reconnecting, or the play-through ended) takes no focus, so it stays in the top bar.
@@ -323,15 +321,18 @@ export function mountPlay(
   let refetching = false
   sceneColumn.append(stage)
   frame.body.append(beats.element)
-  // A reload opens on the active riddle's start photo (story mode); the first photo when none is active.
+  // The intro opens on the first view of the first area; a reload, on the active riddle's start photo (story mode).
   const start = (view: PlayView): number =>
-    view.puzzles.find((puzzle) => puzzle.id === latest.active_puzzle_id)?.start_photo ?? 0
+    introducing ? introPhoto(view) : (view.puzzles.find((puzzle) => puzzle.id === latest.active_puzzle_id)?.start_photo ?? 0)
   const scene: MountedScene = mountScene(stage, play, room, start)
-  /** Play starts once the welcome card has closed, or at once without one. */
-  let begin: () => void = () => undefined
-  const begun = new Promise<void>((resolve) => {
-    begin = resolve
-  })
+  /** The intro holds the Scene and the top bar inert and keeps the play parts out of sight until play starts. */
+  function holdForIntro(on: boolean): void {
+    introducing = on
+    beating = on
+    frame.topBar.inert = on
+    stage.classList.toggle('is-intro', on)
+    holdInputs()
+  }
   room
     .then((view) => {
       if (!mounted) return
@@ -422,13 +423,21 @@ export function mountPlay(
       const exit = view.puzzles.find((puzzle) => puzzle.is_exit)
       // An Exit already open when the screen mounted ended in an earlier page load: its Completion screen is reopened.
       if (exit !== undefined && latest.locks_open.includes(exit.id)) return leaveForDone(0)
-      void begun.then(() => {
+      /** Play starts once the intro has ended, or at once without one. */
+      async function begin(): Promise<void> {
+        if (introducing) {
+          holdForIntro(true)
+          await playIntro({ view, state: () => latest, beats, scene, chest })
+          beats.close()
+          holdForIntro(false)
+        }
         if (!mounted || ended) return
         note.focus()
         if (latest.locks_open.length > 0) return
         scene.coach(true)
         chest.bubble(strings.chestBubble)
-      })
+      }
+      void begin()
     })
     .catch((error: unknown) => {
       // Any other failure keeps the Scene's loading line.
@@ -436,24 +445,9 @@ export function mountPlay(
       if (mounted && gone !== null) roomMissing(gone)
     })
 
-  const opening = session.opening_line
-  if (opening !== null && !(opening.text !== null && playHasBegun(session))) {
-    welcoming = true
-    const welcome = mountWelcome(session.id, frame.mode, frame.guide, opening, frame.body, [frame.topBar, sceneColumn, sideColumn], () => {
-      welcoming = false
-      begin()
-    })
-    unmountWelcome = welcome.close
-    // A Greeting still being phrased: its line arrives with a later state the poll reads, phrased or the template.
-    if (opening.text === null) parts.push((state) => {
-      const line = state.opening_line?.text ?? null
-      if (line !== null) welcome.arrive(line)
-    })
-  } else begin()
-
   return () => {
     mounted = false
-    unmountWelcome?.()
+    frame.topBar.inert = false
     cardLog.unmount()
     leaveRoom.unmount()
     unfocus?.()

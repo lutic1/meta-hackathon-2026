@@ -66,7 +66,7 @@ def test_the_strip_sits_directly_below_the_sheet_off_the_paper_as_plain_text():
 
 
 def test_the_strip_is_the_deletion_line_token_on_chrome_raised_never_parchment():
-    token = _token("deletion-line", "greeting-overlay")
+    token = _token("deletion-line", "leave-room-confirmation")
     assert "background: '{colors.chrome-raised}'" in token and "foreground: '{colors.text}'" in token
     assert "typography: '{typography.body-sm}'" in token and "radius: '{rounded.md}'" in token
     rule = _rules("components/deletion-line.css")[".deletion-line"]

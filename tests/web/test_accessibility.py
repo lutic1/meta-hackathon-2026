@@ -39,7 +39,7 @@ def client(tmp_path: Path, four_lock_room: Room) -> TestClient:
 def test_the_floor_strings_are_the_experience_lines():
     strings = _strings()
     assert strings["showAllObjects"] == "Show all objects"
-    assert strings["showAllTip"] == "Tip: 'Show all objects' in the top bar outlines everything you can click."
+    assert "showAllTip" not in strings  # the welcome card and its tip are retired (story mode)
     assert strings["lockNotThis"].format(n=2, count=1) == "Puzzle 2: not this, 1."
     assert strings["riddleSolvedLine"].format(n=3) == "Riddle 3 solved."
     assert "lockSolved" not in strings and "puzzleAvailable" not in strings  # one riddle at a time (story mode)
@@ -125,29 +125,16 @@ def test_show_all_draws_a_2px_dashed_outline_with_halo_no_fill_and_no_label_acro
     assert "showLabel" not in _code(play) and "showChip" not in _code(play)
 
 
-def test_the_first_room_welcome_shows_its_plain_tip_on_the_scrim_under_the_card():
-    welcome = _ts("welcome.ts")
-    assert "tip.className = 'greeting-tip body-sm'" in welcome and "tip.textContent = strings.showAllTip" in welcome
-    assert "overlay.element.append(tip)" in welcome  # the scrim, outside the dialog card
-    rules = _rules("components/greeting-overlay.css")
-    assert rules[".greeting-tip"] == {"margin": "0", "color": "var(--text-muted)"}
-    scrim = rules[".greeting-scrim"]
-    assert scrim["flex-direction"] == "column" and scrim["gap"] == "var(--spacing-4)"
-    overlay = design_text().split("  greeting-overlay:\n", 1)[1].split("\n  leave-room-confirmation:", 1)[0]
-    assert "tip: '{typography.body-sm}'" in overlay and "tipColor: '{colors.text-muted}'" in overlay
-
-
 def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_feedback_line_reconnecting_hints_and_beats_write_to_it():
     sources = {path: _code(text) for path, text in source_ts().items() if "/types/" not in path}
     assert sum(text.count("aria-live") for text in sources.values()) == 1
     writers = {path for path, text in sources.items() if "announce(" in text and not path.endswith("live-region.ts")}
     assert writers == {
-        "web/src/welcome.ts",
         "web/src/completion.ts",
         "web/src/build-progress.ts",  # the reconnecting line
         "web/src/play.ts",  # the reconnecting line and the feedback line
         "web/src/components/treasure-chest.ts",  # a bought hint, the Trickster's chest line and each new Card
-        "web/src/components/story-stage.ts",  # each beat's spoken line (story mode)
+        "web/src/components/story-stage.ts",  # each beat's spoken line, the intro's and the solve beat's (story mode)
         "web/src/components/narrow-screen-message.ts",  # the copied-link confirmation
         "web/src/chooser.ts",  # the Hosted landing's card announcement, once the pointer settles on a card
         "web/src/components/walk-map.ts",  # the view description after every move (story mode)
@@ -227,7 +214,7 @@ def test_every_fade_is_instant_under_reduced_motion():
     for token in ("--motion-hover: 0ms;", "--motion-state: 0ms;", "--motion-overlay: 0ms;",
                   "transition-duration: 0ms !important;"):
         assert token in reduced
-    for name in ("scene/scene.css", "components/greeting-overlay.css", "components/inventory.css",
+    for name in ("scene/scene.css", "components/inventory.css",
                  "components/feedback-line.css", "components/button.css"):
         for selector, declarations in _rules(name).items():
             for value in (v for k, v in declarations.items() if k.startswith("transition")):

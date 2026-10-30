@@ -160,7 +160,7 @@ export function startShell(root: HTMLElement): void {
       if (answer === undefined) return
       const state = answer === 'room_deleted' ? null : answer
       if (state !== null) disclosure = state.disclosure
-      if (state !== null) content = { name, session: state, guide: meta.guide, mode: meta.mode, profile: place.profile }
+      if (state !== null) content = { name, session: state, mode: meta.mode, profile: place.profile }
       else if (answer === 'room_deleted' && name !== 'triggers') content = { name: 'roomDeleted', mode: meta.mode, profile: place.profile }
       else if (name !== 'triggers') content = { name: 'gone', profile: place.profile }
     } else if (place.route.name === 'build') {
@@ -224,7 +224,7 @@ interface Surface {
  */
 type Content =
   | ({ name: 'view'; state: BuildViewState } & BuildViewOptions)
-  | { name: 'play' | 'done' | 'triggers'; session: SessionState; guide: Meta['guide']; mode: Meta['mode']; profile: string }
+  | { name: 'play' | 'done' | 'triggers'; session: SessionState; mode: Meta['mode']; profile: string }
   | { name: 'rooms'; rooms: RoomSummary[]; profile: string; mode: Meta['mode']; retention: string }
   | {
       name: 'landing'
@@ -346,7 +346,6 @@ function surface(content: Content, bar: TopBar): Surface {
       topBar: bar.element,
       wordmark: bar.wordmark,
       controls: bar.controls,
-      guide: content.guide,
       mode: content.mode,
     }
     return { element, mount: () => mountPlay(sceneColumn, sideColumn, content.session, frame) }

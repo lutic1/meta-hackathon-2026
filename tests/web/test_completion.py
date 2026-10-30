@@ -106,7 +106,7 @@ def test_the_play_screen_routes_to_done_after_step_outside_and_the_daylight():
 def test_the_done_route_draws_the_completion_screen_from_the_session_state():
     shell = _code("shell.ts")
     assert "if (place.route.name === 'play' || place.route.name === 'done' || place.route.name === 'triggers')" in shell
-    assert "if (state !== null) content = { name, session: state, guide: meta.guide, mode: meta.mode, profile: place.profile }" in shell
+    assert "if (state !== null) content = { name, session: state, mode: meta.mode, profile: place.profile }" in shell
     assert "mount: () => mountCompletion(element, sceneColumn, sideColumn, session, profile, mode, bar.controls)" in shell
     assert "return getJson<RoomResult>(`/sessions/${encodeURIComponent(sessionId)}/result`)" in _code("api/index.ts")
 

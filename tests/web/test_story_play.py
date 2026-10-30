@@ -133,7 +133,7 @@ def test_the_tricksters_bubble_says_the_chest_line_once_and_each_new_card():
     assert "cardAnnouncement(cardText(room, card), first && k === 0)" in render
     assert "let cardsHeard = latest.cards.length" in chest  # a reload shows no Card again
     play = _ts("play.ts")
-    start = play.split("void begun.then(() => {", 1)[1].split("\n      })", 1)[0]
+    start = play.split("async function begin(): Promise<void> {", 1)[1].split("\n      }\n", 1)[0]
     assert "note.focus()" in start and "if (latest.locks_open.length > 0) return" in start
     assert "scene.coach(true)" in start and "chest.bubble(strings.chestBubble)" in start
 
@@ -231,9 +231,9 @@ def test_the_solve_beat_is_the_riddler_on_the_light_stage_with_take_me_there():
     stage = _ts("components/story-stage.ts")
     play = _function(stage, "play")
     assert "element.classList.toggle('is-light', beat.solved !== undefined)" in play
-    assert "announce(`${NAMES[beat.speaker]}: ${beat.line}`)" in play and "next.focus({ preventScroll: true })" in play
+    assert "announce(`${NAMES[beat.speaker]}: ${beat.line}" in play and "next.focus({ preventScroll: true })" in play
     keys = _function(stage, "onKey")
-    assert "if (event.key !== 'Enter' || advance === null || event.target === next) return" in keys
+    assert "if (event.key !== 'Enter' || !waiting || event.target === next || event.target === skip) return" in keys
     assert "typing" not in _code(stage)  # lines appear whole
 
 
@@ -292,7 +292,8 @@ def test_the_retired_strings_are_gone_and_the_new_lines_are_the_experience_lines
                                          "the riddle you're on. Nothing opens on its own.")
     assert strings["coachPill"] == "Click things in the photo · Turn with ← → or the edges"
     assert strings["chestBubble"] == "2 hints, for the whole house. Spend them like they're mine."
-    assert "!" not in "".join(strings.values())  # no exclamation marks (EXPERIENCE.md)
+    # No exclamation marks (EXPERIENCE.md), bar the Trickster's trap line in the intro (owner call).
+    assert "!" not in "".join(value for key, value in strings.items() if key != "introTrap")
 
 
 def test_the_contract_records_the_note_the_chest_the_beat_and_the_sheet():

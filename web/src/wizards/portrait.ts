@@ -4,8 +4,8 @@ import { strings } from '../strings.ts'
 export type Wizard = 'architect' | 'riddler' | 'guide' | 'trickster'
 
 /** UX-DR29: 24 (Card log, Demo room card, Model table), 32 (signature, In play block, the Completion sheet's
- * "Built by" row), 48 (Hint area, Cards, introductions, Completion sign-off) or 96 px (Greeting and First-room
- * welcome, the landing's cast, the Narrow-screen message); story mode adds 26 (a hint on the Riddle note), 30 (the
+ * "Built by" row), 48 (Hint area, Cards, introductions, Completion sign-off) or 96 px (the landing's cast, the
+ * Narrow-screen message); story mode adds 26 (a hint on the Riddle note), 30 (the
  * feedback line), 36 (the empty chest) and 40 (the Riddle note's Riddler and the closing sheet's lines). */
 export type PortraitSize = 24 | 26 | 30 | 32 | 36 | 40 | 48 | 96
 

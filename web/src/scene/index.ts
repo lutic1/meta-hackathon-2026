@@ -16,6 +16,7 @@ import { photoUrl } from '../api/index.ts'
 import { bannerSlot, showBanner } from '../components/error-banner.ts'
 import { feedbackLine } from '../components/feedback-line.ts'
 import { GLOW_MS, GLOW_REDUCED_MS } from '../components/inventory.ts'
+import { lockSeal as lockSealSvg } from '../components/wax-seal.ts'
 import { areaName, viewDescription, type WalkMap, walkMap } from '../components/walk-map.ts'
 import { glowOnce } from '../fade.ts'
 import { foundBy } from '../feedback.ts'
@@ -35,6 +36,11 @@ export const PUSH_IN_MS = 640
 /** The way out (spec 5.6): the daylight fades in over 1200 ms while the area grows 12% over 1400 ms. */
 export const DAYLIGHT_MS = 1200
 export const EXIT_PUSH_MS = 1400
+/** The Trickster's trap (spec 5.5): the lights flicker over 700 ms, stepping between these brightnesses. */
+export const FLICKER_MS = 700
+const FLICKER = [
+  [0, 0.25], [0.12, 1], [0.22, 0.15], [0.4, 0.9], [0.55, 0.3], [0.7, 1], [1, 1],
+].map(([offset, brightness]) => ({ offset, filter: `brightness(${brightness})`, easing: 'step-end' }))
 /** The room either side of the photo you face, kept free so its walls show (spec 1.6). */
 const WALL_GUTTER_PX = 32
 
@@ -153,8 +159,11 @@ export interface MountedScene {
   slots: { note: HTMLElement; floor: HTMLElement }
   /** The photo you face; -1 before the first is shown. */
   current: () => number
-  /** Walks to photo `index` as a move does (a turn, or a push-in across areas); resolves once you stand there. */
-  walkTo: (index: number) => Promise<void>
+  /**
+   * Walks to photo `index` as a move does (a turn, or a push-in across areas); resolves once you stand there. With
+   * `quiet` the view is not announced (a story beat speaks over the walk).
+   */
+  walkTo: (index: number, quiet?: boolean) => Promise<void>
   /**
    * The way out: once the photo is live, the Hotspot of `target` fills with daylight and the area grows toward it
    * (instant with `still`).
@@ -162,6 +171,8 @@ export interface MountedScene {
   daylight: (target: string | null, still?: boolean) => Promise<void>
   /** The coach pill in the feedback line's slot: shown for at most 15 s, or taken away. */
   coach: (on: boolean) => void
+  /** The story intro's trap: the lights flicker and the Trickster's lock seal slams onto the photo you face; or lifts. */
+  lockSeal: (on: boolean) => void
   /** The Effective room after an accepted edit (AD-12): the shown photo's Hotspots from `view`; the photo stays. */
   reshape: (view: PlayView) => void
   /** The Interactable the latest `click` or `use_on` named, null before the first: the unlock moment's target. */
@@ -192,6 +203,7 @@ function sceneUnavailable(frame: HTMLElement, ground: HTMLElement, say: (line: s
     walkTo: async () => {},
     daylight: async () => {},
     coach: () => {},
+    lockSeal: () => {},
     reshape: () => {},
     lastTarget: () => null,
     bloom: () => {},
@@ -242,8 +254,8 @@ function firstPointerResponse(sessionId: string): void {
  * Story mode (owner decision Oct 29): the frame's `slots` take the Riddle note (before the photo) and the pack and the
  * chest (after the turn discs), so the Tab order runs note, Hotspots, doorway, turns, floor, map; the frame sets the
  * width of the photo you face (`--wall-width`) for them to stand by. `walkTo` walks to a riddle's start photo ("Take me
- * there"), `daylight` lights the way out, and `coach` shows the coach pill in the feedback line's slot. Returns the
- * teardown and these.
+ * there"), `daylight` lights the way out, `coach` shows the coach pill in the feedback line's slot, and `lockSeal`
+ * plays the story intro's trap on the photo you face. Returns the teardown and these.
  *
  * A browser that cannot start WebGL (hardware acceleration off, or a blocked GPU) has no Scene to draw and no DOM one
  * to fall back to: the frame holds the error banner "Keyframe can't draw this room in this browser." with how to fix
@@ -310,6 +322,7 @@ export function mountScene(
   let mapView: WalkMap | undefined
   let signs: HTMLButtonElement[] = []
   let lastTarget: string | null = null
+  let seal: HTMLElement | undefined
   /** Resolves once the first photo and its Hotspots are live. */
   let markLive: () => void = () => undefined
   const live = new Promise<void>((resolve) => {
@@ -590,7 +603,7 @@ export function mountScene(
    * into another; a cut under reduced motion. Ignored while a move runs. Focus that the move took from the Scene comes
    * back to the new view's first Hotspot, its doorway sign or a turn disc.
    */
-  async function walk(to: number, via?: HTMLElement): Promise<void> {
+  async function walk(to: number, via?: HTMLElement, quiet = false): Promise<void> {
     if (room === undefined || moving || to === current || areaOf(areas, to) < 0) return
     if (current < 0) return show(to)
     const focused = frame.contains(document.activeElement) ? document.activeElement : null
@@ -612,7 +625,7 @@ export function mountScene(
       world.classList.remove('is-turning')
     }
     await ready
-    await arrive(to, true)
+    await arrive(to, !quiet)
     moving = false
     refocus(focused)
   }
@@ -721,6 +734,23 @@ export function mountScene(
     }).finished.catch(() => undefined)
   }
 
+  /**
+   * The Trickster's trap (spec 5.5): the lights flicker for 700 ms and 260 ms in the lock seal slams onto the middle of
+   * the photo you face (the client never knows which object the way out is), where it stays until `lockSeal(false)`
+   * lifts it. Under reduced motion there is no flicker and the seal simply appears.
+   */
+  function lockSeal(on: boolean): void {
+    seal?.remove()
+    seal = undefined
+    if (!on) return
+    seal = document.createElement('div')
+    seal.className = 'scene-seal is-slamming'
+    seal.append(lockSealSvg())
+    view.append(seal)
+    if (reduced()) return
+    world.animate(FLICKER, { duration: FLICKER_MS })
+  }
+
   function bloom(target: string | null): void {
     const hold = matchMedia('(prefers-reduced-motion: reduce)').matches ? GLOW_REDUCED_MS : GLOW_MS
     glowOnce(frame, 'is-glowing', hold)
@@ -761,12 +791,13 @@ export function mountScene(
     unmount,
     slots,
     current: () => current,
-    walkTo: async (index) => {
+    walkTo: async (index, quiet) => {
       while (moving && mounted) await pause(50) // a move under way finishes first
-      return walk(index)
+      return walk(index, undefined, quiet)
     },
     daylight,
     coach: feedback.coach,
+    lockSeal,
     reshape,
     lastTarget: () => lastTarget,
     bloom,
