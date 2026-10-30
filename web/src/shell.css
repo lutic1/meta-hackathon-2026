@@ -17,32 +17,20 @@
   min-height: 0;
 }
 
-/* The Play layout: 24 px margins, the Scene column, and the side column at 400, 360 or 340 px. It positions the
-   First-room welcome's scrim, which covers the body only. */
+/* The Play layout (story mode, owner decision Oct 29): 24 px margins and the Scene column across the whole width; the
+   note, the pack and the chest hang in the Scene itself, so the side column stays empty and is not drawn. It positions
+   the First-room welcome's scrim and the Story stage, which cover the body only. */
 .play-layout {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--spacing-side-column);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  column-gap: var(--spacing-column-gap);
   padding: var(--spacing-frame-margin);
 }
-@media (max-width: 1439px) {
-  .play-layout {
-    grid-template-columns: minmax(0, 1fr) 360px;
-  }
-}
-@media (max-width: 1279px) {
-  .play-layout {
-    grid-template-columns: minmax(0, 1fr) 340px;
-  }
-}
-/* The Scene column: the Scene frame filling the height over the 88 px row of the Inventory (about 288 px, right,
-   beside the Scene it drags onto). */
+/* The Scene column: the Scene frame filling the height. */
 .scene-column {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) var(--spacing-thumbnail-strip);
-  row-gap: var(--spacing-5);
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
 }
@@ -68,23 +56,8 @@
 .scene-stage.is-dimmed .scene-world {
   opacity: 0.6;
 }
-.scene-strip-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 288px;
-  column-gap: var(--spacing-5);
-  min-width: 0;
-  min-height: 0;
-}
-.scene-strip-row > .inventory {
-  grid-column: 2;
-}
-/* The side column: the Wizard notes on top, filling it and scrolling inside it. */
 .side-column {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-5);
-  min-width: 0;
-  min-height: 0;
+  display: none;
 }
 
 /* The Capture layout (Local `#/`): the left area beside the right column at 400, 360 or 340 px; the body scrolls,

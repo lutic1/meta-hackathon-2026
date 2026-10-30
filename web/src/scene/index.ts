@@ -15,7 +15,7 @@ import type { PlayInteractable, PlayView, PostedEvent } from '../../types'
 import { photoUrl } from '../api/index.ts'
 import { bannerSlot, showBanner } from '../components/error-banner.ts'
 import { feedbackLine } from '../components/feedback-line.ts'
-import { GLOW_MS, GLOW_REDUCED_MS } from '../components/hint-area.ts'
+import { GLOW_MS, GLOW_REDUCED_MS } from '../components/inventory.ts'
 import { areaName, viewDescription, type WalkMap, walkMap } from '../components/walk-map.ts'
 import { glowOnce } from '../fade.ts'
 import { foundBy } from '../feedback.ts'
@@ -23,7 +23,7 @@ import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
 import { useOnChip } from '../use-on.ts'
 import { areaOf, doorways, neighbours, signCentre, type WalkArea, walkGraph, walkKey, wallPose } from '../walk.ts'
-import { bounds, contain, type Size } from './geometry.ts'
+import { bounds, centroid, contain, type Size } from './geometry.ts'
 import { type HotspotLayer, hotspotLayer } from './hotspots.ts'
 
 /** A turn's swing (DESIGN.md Motion, the walk and story exception). */
@@ -32,6 +32,9 @@ export const TURN_MS = 780
 export const PUSH_OUT_MS = 720
 export const PUSH_IN_DELAY_MS = 260
 export const PUSH_IN_MS = 640
+/** The way out (spec 5.6): the daylight fades in over 1200 ms while the area grows 12% over 1400 ms. */
+export const DAYLIGHT_MS = 1200
+export const EXIT_PUSH_MS = 1400
 /** The room either side of the photo you face, kept free so its walls show (spec 1.6). */
 const WALL_GUTTER_PX = 32
 
@@ -56,10 +59,14 @@ interface Wall {
   rest: HTMLElement
 }
 
-/** Whether a key pressed on `target` may walk: on the page, in the Scene, or on a button; never in a field or tray. */
+/**
+ * Whether a key pressed on `target` may walk: on the page, in the Scene, or on a button; never in a field or tray, and
+ * never inside a dialog (the chest's).
+ */
 function walksFrom(target: EventTarget | null, frame: HTMLElement): boolean {
   if (target === document.body) return true
-  return target instanceof Element && (frame.contains(target) || target.closest('button, a') !== null)
+  if (!(target instanceof Element) || target.closest('[role="dialog"]') !== null) return false
+  return frame.contains(target) || target.closest('button, a') !== null
 }
 
 /**
@@ -139,6 +146,22 @@ export function foundTargets(sessionId: string): string[] {
 /** The mounted Scene: its teardown, and the redraw for the refetched Effective room. */
 export interface MountedScene {
   unmount: () => void
+  /**
+   * Where the Play screen hangs its parts in the frame, in the Tab order (spec 6.3): the Riddle note before the photo,
+   * the pack and the chest after the turn discs and before the walk map.
+   */
+  slots: { note: HTMLElement; floor: HTMLElement }
+  /** The photo you face; -1 before the first is shown. */
+  current: () => number
+  /** Walks to photo `index` as a move does (a turn, or a push-in across areas); resolves once you stand there. */
+  walkTo: (index: number) => Promise<void>
+  /**
+   * The way out: once the photo is live, the Hotspot of `target` fills with daylight and the area grows toward it
+   * (instant with `still`).
+   */
+  daylight: (target: string | null, still?: boolean) => Promise<void>
+  /** The coach pill in the feedback line's slot: shown for at most 15 s, or taken away. */
+  coach: (on: boolean) => void
   /** The Effective room after an accepted edit (AD-12): the shown photo's Hotspots from `view`; the photo stays. */
   reshape: (view: PlayView) => void
   /** The Interactable the latest `click` or `use_on` named, null before the first: the unlock moment's target. */
@@ -161,7 +184,19 @@ function sceneUnavailable(frame: HTMLElement, ground: HTMLElement, say: (line: s
     sentence: strings.sceneUnavailableBody,
     actions: [{ label: strings.reload, onActivate: () => location.reload() }],
   })
-  return { unmount: () => frame.remove(), reshape: () => {}, lastTarget: () => null, bloom: () => {}, say }
+  const slots = { note: document.createElement('div'), floor: document.createElement('div') }
+  return {
+    unmount: () => frame.remove(),
+    slots,
+    current: () => -1,
+    walkTo: async () => {},
+    daylight: async () => {},
+    coach: () => {},
+    reshape: () => {},
+    lastTarget: () => null,
+    bloom: () => {},
+    say,
+  }
 }
 
 function firstPointerResponse(sessionId: string): void {
@@ -202,8 +237,13 @@ function firstPointerResponse(sessionId: string): void {
  * over the bottom edge of the frame.
  *
  * `reshape` lays the shown photo's Hotspots again from a refetched `PlayView` when its Interactables changed, keeping
- * the photo, the walk and the selection; keyboard focus on a Hotspot that is still there stays on it. Returns the
- * teardown and `reshape`.
+ * the photo, the walk and the selection; keyboard focus on a Hotspot that is still there stays on it.
+ *
+ * Story mode (owner decision Oct 29): the frame's `slots` take the Riddle note (before the photo) and the pack and the
+ * chest (after the turn discs), so the Tab order runs note, Hotspots, doorway, turns, floor, map; the frame sets the
+ * width of the photo you face (`--wall-width`) for them to stand by. `walkTo` walks to a riddle's start photo ("Take me
+ * there"), `daylight` lights the way out, and `coach` shows the coach pill in the feedback line's slot. Returns the
+ * teardown and these.
  *
  * A browser that cannot start WebGL (hardware acceleration off, or a blocked GPU) has no Scene to draw and no DOM one
  * to fall back to: the frame holds the error banner "Keyframe can't draw this room in this browser." with how to fix
@@ -235,7 +275,9 @@ export function mountScene(
   view.append(zones.left, zones.right, photo)
   const turns = { left: turnDisc('is-left', strings.turnLeft, TURN_ICON.left), right: turnDisc('is-right', strings.turnRight, TURN_ICON.right) }
   const feedback = feedbackLine()
-  frame.append(ground, feedback.element, turns.left, turns.right)
+  const slots = { note: document.createElement('div'), floor: document.createElement('div') }
+  slots.note.className = slots.floor.className = 'scene-slot'
+  frame.append(slots.note, ground, feedback.element, feedback.coachPill, turns.left, turns.right, slots.floor)
   root.append(frame)
 
   let renderer: WebGLRenderer
@@ -268,6 +310,11 @@ export function mountScene(
   let mapView: WalkMap | undefined
   let signs: HTMLButtonElement[] = []
   let lastTarget: string | null = null
+  /** Resolves once the first photo and its Hotspots are live. */
+  let markLive: () => void = () => undefined
+  const live = new Promise<void>((resolve) => {
+    markLive = resolve
+  })
 
   function texture(index: number): Promise<Texture<HTMLImageElement>> {
     let loaded = textures.get(index)
@@ -362,8 +409,9 @@ export function mountScene(
     if (size === undefined) return
     const box = ground.getBoundingClientRect()
     const fitted = contain(size, { width: box.width - WALL_GUTTER_PX, height: box.height })
-    ground.style.setProperty('--wall-width', `${fitted.width}px`)
-    ground.style.setProperty('--wall-height', `${fitted.height}px`)
+    // On the frame, so the note, the pack and the chest place themselves by the photo too.
+    frame.style.setProperty('--wall-width', `${fitted.width}px`)
+    frame.style.setProperty('--wall-height', `${fitted.height}px`)
     if (fitted.width !== width) {
       width = fitted.width
       pose()
@@ -513,6 +561,7 @@ export function mountScene(
     view.hidden = false
     render()
     restAgain()
+    markLive()
     mapView?.setCurrent(index, moved ? viewDescription(areas, room, index) : undefined)
     // The views a next move can reach are fetched ahead, so the swing ends on a photo that is ready.
     for (const next of [side.left, side.right, ...doorways(areas, index).map((area) => area.entry)]) {
@@ -645,6 +694,33 @@ export function mountScene(
     if (mounted) layer?.setCollected(state.inventory, foundTargets(play.id))
   })
 
+  /**
+   * The way out (spec 5.6): the Hotspot of `target` fills with daylight, a warm light gathers round it over 1200 ms and
+   * the area grows 12% toward it over 1400 ms; all of it at once under reduced motion or when `still`.
+   */
+  async function daylight(target: string | null, still = false): Promise<void> {
+    await live
+    const shown = room?.interactables.find((interactable) => interactable.id === target)
+    if (target === null || shown === undefined || size === undefined) return
+    layer?.daylight(target)
+    const [x, y] = centroid(shown.polygons ?? [])
+    const at = `${(x / size.width) * 100}% ${(y / size.height) * 100}%`
+    const warmth = document.createElement('div')
+    warmth.className = 'scene-warmth'
+    warmth.style.background = `radial-gradient(ellipse 34% 46% at ${at}, #FFF8EAE6 0%, #F6DFAF99 40%, #C9964F33 75%, transparent 100%)`
+    walls.get(current)?.rest.append(warmth)
+    if (still || reduced()) return
+    const box = ground.getBoundingClientRect()
+    const photoBox = photo.getBoundingClientRect()
+    world.style.transformOrigin = `${photoBox.left - box.left + (x / size.width) * photoBox.width}px ${photoBox.top - box.top + (y / size.height) * photoBox.height}px`
+    warmth.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DAYLIGHT_MS, easing: 'ease-out', fill: 'backwards' })
+    await world.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }], {
+      duration: EXIT_PUSH_MS,
+      easing: 'cubic-bezier(.4,0,.2,1)',
+      fill: 'forwards',
+    }).finished.catch(() => undefined)
+  }
+
   function bloom(target: string | null): void {
     const hold = matchMedia('(prefers-reduced-motion: reduce)').matches ? GLOW_REDUCED_MS : GLOW_MS
     glowOnce(frame, 'is-glowing', hold)
@@ -681,5 +757,19 @@ export function mountScene(
     frame.remove()
   }
 
-  return { unmount, reshape, lastTarget: () => lastTarget, bloom, say: feedback.say }
+  return {
+    unmount,
+    slots,
+    current: () => current,
+    walkTo: async (index) => {
+      while (moving && mounted) await pause(50) // a move under way finishes first
+      return walk(index)
+    },
+    daylight,
+    coach: feedback.coach,
+    reshape,
+    lastTarget: () => lastTarget,
+    bloom,
+    say: feedback.say,
+  }
 }

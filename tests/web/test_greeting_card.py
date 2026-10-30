@@ -9,7 +9,6 @@ same strings and the same seconds rule as `triggersHeader`.
 
 import re
 from pathlib import Path
-from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,7 +17,6 @@ from src.config import Settings
 from src.domain.schema import Derived, Room
 from src.providers.base import PhraserResponse
 from src.providers.verbatim import greeting_template
-from tests.api.hosted import hosted_handles, make_hosted_app
 from tests.api.test_app import make_app
 from tests.api.test_greeting_path import PHRASED, RETURNING, Later, SpyPhraser, begin
 from tests.web.design import WEB_SRC, css_rules, design_text
@@ -47,8 +45,7 @@ def test_a_greeting_still_being_phrased_opens_the_card_in_the_thinking_state():
     play = _code(_ts("play.ts"))
     # Any served opening line opens the card, a pending Greeting (text null) included; only a reload once play has
     # begun skips it, and a line still being phrased has no play to have begun.
-    assert "if (opening !== null) {" in play
-    assert "if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text" in play
+    assert "if (opening !== null && !(opening.text !== null && playHasBegun(session))) {" in play
     overlay = _ts(OVERLAY)
     assert "export function greetingOverlay(role: string, howToPlay: boolean): GreetingOverlay {" in overlay
     assert "portrait.classList.add('is-thinking')" in overlay
@@ -136,15 +133,15 @@ def test_a_served_line_never_shows_the_thinking_state_and_only_a_welcome_has_the
 # --- Dismissal ----------------------------------------------------------------------------------------------------
 
 
-def test_only_begin_dismisses_and_the_line_moves_to_the_hint_area_unannounced():
+def test_only_begin_dismisses_and_the_line_is_kept_unannounced():
     welcome, play = _code(_ts("welcome.ts")), _code(_ts("play.ts"))
     assert "Escape" not in welcome and "Escape" not in _code(_ts(OVERLAY))
     assert welcome.count("    close()\n") == 1
     click = welcome.split("begin.addEventListener('click', () => {", 1)[1].split("\n  })", 1)[0]
     assert "markBegun(sessionId)" in click and "onBegin(line)" in click
-    begin = play.split("[frame.topBar, sceneColumn, sideColumn], (line) => {", 1)[1].split("\n      })", 1)[0]
-    assert "play.openingLine = line" in begin and "hints?.opening(line)" in begin
-    # The Play screen writes only the reconnecting line and a reply's feedback line, never the opening line again.
+    begin = play.split("[frame.topBar, sceneColumn, sideColumn], () => {", 1)[1].split("\n    })", 1)[0]
+    assert "welcoming = false" in begin and "begin()" in begin
+    # The Play screen writes only the reconnecting line and its Guide lines, never the opening line again.
     assert re.findall(r"announce\(([^)]*)\)", play) == ["strings.reconnectingPlay", "`${strings.speakerGuide} ${line}`"]
 
 
@@ -175,61 +172,35 @@ def test_the_play_screen_reads_a_pending_greeting_then_its_line_with_the_same_sh
     assert landed["opening_line"]["text"] == expected
 
 
-def hints_intro(thresholds: dict[str, Any] | None) -> list[str]:
-    """`hintsIntro` in triggers-panel.ts, over the same strings: the opening lines of "How hints work"."""
-    strings = _strings()
-    if thresholds is None or thresholds["source"] == "fresh":
-        return [strings["hintsExplained"]]
-    return [strings["hintsExplained"], strings["thresholdDerived"]]
-
-
-def test_the_mirror_follows_the_panel_code():
-    panel = _ts("components/triggers-panel.ts")
-    assert ("return thresholds === null || thresholds.source === 'fresh' ? [strings.hintsExplained] : "
-            "[strings.hintsExplained, strings.thresholdDerived]") in panel
-
-
-DERIVED_SOURCE = "Set by how you played last time (kept in this browser)"
-EXPLAINED = "The Guide offers a hint when you have been quiet for a while or tried three wrong answers, and whenever you ask."
+def test_how_hints_work_reads_no_threshold():
+    """Story mode: under the chest no idle wait opens a hint, so "How hints work" says the chest line alone and never
+    reads the thresholds session state still reports."""
+    panel = _code(_ts("components/triggers-panel.ts"))
+    assert "header.textContent = strings.hintsExplained" in panel and "thresholds" not in panel
+    assert "thresholdDerived" not in _strings()
 
 
 @pytest.mark.parametrize(("persistence", "nudge"), [(0, 90), (1, 135), (-1, 60)])
-def test_how_hints_work_says_a_returning_players_wait_was_set_by_how_they_played_last_time(
+def test_the_servers_wait_still_follows_a_returning_players_profile(
     tmp_path: Path, code_and_find_room: Room, persistence: float, nudge: int
 ):
     client = TestClient(make_app(tmp_path, code_and_find_room, phraser=SpyPhraser(), spawn=Later()))
     session_id = begin(client, code_and_find_room, RETURNING.model_copy(update={"sessions": 1, "persistence": persistence}))["id"]
     state = client.get(f"/api/sessions/{session_id}").json()
     assert state["thresholds"]["nudge_threshold_ms"] == nudge * 1000  # the server's wait follows the profile
-    assert hints_intro(state["thresholds"]) == [EXPLAINED, DERIVED_SOURCE]
 
 
-def test_a_fresh_profile_shows_the_explanation_alone(tmp_path: Path, code_and_find_room: Room):
-    client = TestClient(make_app(tmp_path, code_and_find_room, phraser=SpyPhraser(), spawn=Later()))
-    state = client.get(f"/api/sessions/{begin(client, code_and_find_room, Derived.fresh())['id']}").json()
-    assert hints_intro(state["thresholds"]) == [EXPLAINED]
-
-
-def test_every_hosted_session_shows_the_explanation_alone(tmp_path: Path, code_and_find_room: Room):
-    app = make_hosted_app(tmp_path, hosted_handles(tmp_path), code_and_find_room, phraser=SpyPhraser(), spawn=Later())
-    client = TestClient(app)
-    returning = RETURNING.model_copy(update={"sessions": 1, "persistence": 1})
-    state = client.get(f"/api/sessions/{begin(client, code_and_find_room, returning)['id']}").json()
-    assert hints_intro(state["thresholds"]) == [EXPLAINED]
-
-
-def test_at_demo_timescale_6_the_panel_shows_no_number_and_the_server_keeps_the_scaled_wait(tmp_path: Path, code_and_find_room: Room):
+def test_at_demo_timescale_6_the_server_keeps_the_scaled_wait(tmp_path: Path, code_and_find_room: Room):
     settings = Settings(demo_timescale=6, guide="verbatim")
     client = TestClient(make_app(tmp_path, code_and_find_room, settings=settings, phraser=SpyPhraser(), spawn=Later()))
     returning = RETURNING.model_copy(update={"sessions": 1, "persistence": 0})
     state = client.get(f"/api/sessions/{begin(client, code_and_find_room, returning)['id']}").json()
     assert (state["thresholds"]["nudge_threshold_ms"], state["thresholds"]["nudge_threshold_base_ms"]) == (15_000, 90_000)
-    assert hints_intro(state["thresholds"]) == [EXPLAINED, DERIVED_SOURCE]
 
 
 def test_the_panel_shows_only_what_session_state_reports():
     panel = _code(_ts("components/triggers-panel.ts"))
-    assert "hintsIntro(state.thresholds ?? null)" in panel
+    assert "thresholds" not in panel
     for path in WEB_SRC.rglob("*.ts"):
         code = _code(path.read_text())
         assert "persistence" not in code or path.relative_to(WEB_SRC).parts[0] == "profile", path

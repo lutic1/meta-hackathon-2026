@@ -11,16 +11,19 @@ const DRAG_MARGIN_PX = 16
 /** The item a drag from the Inventory carries; one drag at a time in the page. */
 let dragged: string | null = null
 
+/** What changed the selection: a click on a pack item, Escape, or anything else (a `use_on` posted, Cancel). */
+export type SelectionCause = 'pack' | 'escape' | 'other'
+
 /**
  * The Inventory item a `use_on` is being given with (UX-DR36, UX-DR37): the one selected for select-then-click, and
  * the one being dragged. Client state only; the lock state stays the server's.
  */
 export interface UseOnSelection {
   selected: () => string | null
-  /** Selects an item, or clears the selection with null; every listener hears the change. */
-  select: (item: string | null) => void
+  /** Selects an item, or clears the selection with null; every listener hears the change and its cause. */
+  select: (item: string | null, cause?: SelectionCause) => void
   dragging: () => string | null
-  onChange: (listener: (item: string | null) => void) => void
+  onChange: (listener: (item: string | null, cause: SelectionCause) => void) => void
   /** Removes the Escape listener. */
   dispose: () => void
 }
@@ -28,14 +31,14 @@ export interface UseOnSelection {
 /** A selection with nothing selected; Escape anywhere on the page clears it once something is. */
 export function useOnSelection(): UseOnSelection {
   let selected: string | null = null
-  const listeners: ((item: string | null) => void)[] = []
-  function select(item: string | null): void {
+  const listeners: ((item: string | null, cause: SelectionCause) => void)[] = []
+  function select(item: string | null, cause: SelectionCause = 'other'): void {
     if (item === selected) return
     selected = item
-    for (const listener of listeners) listener(item)
+    for (const listener of listeners) listener(item, cause)
   }
   function escape(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && selected !== null) select(null)
+    if (event.key === 'Escape' && selected !== null) select(null, 'escape')
   }
   document.addEventListener('keydown', escape)
   return {
@@ -76,7 +79,7 @@ export function useOnItem(button: HTMLButtonElement, interactable: PlayInteracta
   button.dataset.item = interactable.id
   button.draggable = true
   button.addEventListener('click', () => {
-    selection.select(selection.selected() === interactable.id ? null : interactable.id)
+    selection.select(selection.selected() === interactable.id ? null : interactable.id, 'pack')
   })
   button.addEventListener('dragstart', (event) => {
     dragged = interactable.id

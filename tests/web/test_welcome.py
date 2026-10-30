@@ -37,9 +37,9 @@ def client(tmp_path: Path, four_lock_room: Room) -> TestClient:
 
 def test_the_play_screen_shows_the_card_for_a_served_welcome_until_play_has_begun():
     play = _ts("play.ts")
-    assert "if (opening !== null) {" in play
-    assert "if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text" in play
-    assert "mountWelcome(session.id, frame.mode, frame.guide, opening, frame.body, [frame.topBar, sceneColumn, sideColumn], (line) => {" in play
+    assert "if (opening !== null && !(opening.text !== null && playHasBegun(session))) {" in play
+    assert "} else begin()" in play  # no card: play starts at once
+    assert "mountWelcome(session.id, frame.mode, frame.guide, opening, frame.body, [frame.topBar, sceneColumn, sideColumn], () => {" in play
     assert "unmountWelcome = welcome.close" in play and "unmountWelcome?.()" in play
     # The shell hands the Play screen its body, the whole top bar, its controls slot (Story 1.25) and the `guide`
     # setting of `GET /meta`.
@@ -167,14 +167,15 @@ def test_the_introduction_is_written_to_the_one_live_region_once():
     assert r"/\{(\w+(?: \w+)*)\}/g" in _ts("strings.ts")
 
 
-def test_begin_keeps_the_line_for_the_hint_area_and_focuses_the_first_hotspot():
+def test_begin_keeps_the_line_and_starts_play_on_the_riddle_notes_heading():
     play = _ts("play.ts")
-    begin = play.split("[frame.topBar, sceneColumn, sideColumn], (line) => {", 1)[1].split("\n      })", 1)[0]
-    assert "play.openingLine = line" in begin and "unfocus = focusFirstHotspot(sceneColumn)" in begin
-    assert "openingLine: null," in play and "openingLine: string | null" in play
-    focus = play.split("function focusFirstHotspot(", 1)[1].split("\n}\n", 1)[0]
-    assert "sceneColumn.querySelector<SVGElement>('.hotspot')" in focus and "live.focus()" in focus
-    # Nothing announces the line again: the Play screen writes only the reconnecting line (1.24) and a reply's feedback line.
+    begin = play.split("[frame.topBar, sceneColumn, sideColumn], () => {", 1)[1].split("\n    })", 1)[0]
+    assert "begin()" in begin
+    assert "openingLine" not in play  # the line went to the Hint area, which story mode retired
+    # Play starts once the card has closed, or at once: focus goes to the note's heading (story mode, spec 6.2).
+    start = play.split("void begun.then(() => {", 1)[1].split("\n      })", 1)[0]
+    assert "note.focus()" in start
+    # Nothing announces the line again: the Play screen writes only the reconnecting line (1.24) and its Guide lines.
     assert re.findall(r"announce\(([^)]*)\)", _code(play)) == ["strings.reconnectingPlay", "`${strings.speakerGuide} ${line}`"]
 
 

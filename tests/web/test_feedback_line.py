@@ -29,12 +29,12 @@ needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node 24 ru
 # pillows on the sofa), lock 4 the Exit, a find on the front door; plus a code and an order lock for the other inputs.
 # Only the pillows are carried (owner decision Oct 29): the vent and the door are found, and nothing enters the hand.
 PUZZLES = [
-    {"id": "p1", "lock_type": "find", "is_exit": False},
-    {"id": "p2", "lock_type": "find", "is_exit": False},
-    {"id": "p3", "lock_type": "use_on", "is_exit": False},
-    {"id": "p4", "lock_type": "code", "is_exit": False},
-    {"id": "p5", "lock_type": "order", "is_exit": False},
-    {"id": "p6", "lock_type": "find", "is_exit": True},
+    {"id": "p1", "lock_type": "find", "is_exit": False, "requires": []},
+    {"id": "p2", "lock_type": "find", "is_exit": False, "requires": []},
+    {"id": "p3", "lock_type": "use_on", "is_exit": False, "requires": ["p1"]},
+    {"id": "p4", "lock_type": "code", "is_exit": False, "requires": []},
+    {"id": "p5", "lock_type": "order", "is_exit": False, "requires": []},
+    {"id": "p6", "lock_type": "find", "is_exit": True, "requires": ["p1", "p2", "p3"]},
 ]
 LABELS = {"rug": "entryway rug", "pillows": "throw pillows", "vent": "floor vent", "sofa": "sectional sofa",
           "door": "double front door", "tree": "potted artificial tree"}
@@ -57,27 +57,27 @@ def _use_on(item: str, target: str) -> dict[str, Any]:
 
 HELD = _state(("p1", "p2"), ("pillows",))
 CASES: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any], str | None]] = [
-    ("a click that opens nothing", _click("rug"), _state(), _state(), "entryway rug. Not this one."),
+    ("a click that opens nothing", _click("rug"), _state(), _state(), "Entryway rug. Not this one."),
     ("a pickup that solves a find lock", _click("pillows"), _state(), _state(("p1",), ("pillows",)),
-     "You pick up the throw pillows. Puzzle 1 solved."),
+     "You pick up the throw pillows. Riddle 1 solved."),
     ("a find no use_on needs: found, with no pickup clause", _click("vent"), _state(("p1",), ("pillows",)), HELD,
-     "Puzzle 2 solved."),
+     "Riddle 2 solved."),
     ("a use_on that opens its lock", _use_on("pillows", "sofa"), HELD, _state(("p1", "p2", "p3"), ("pillows",)),
-     "Puzzle 3 solved."),
+     "Riddle 3 solved."),
     ("the Exit, found and never carried", _click("door"), _state(("p1", "p2", "p3"), ("pillows",)),
      _state(("p1", "p2", "p3", "p6"), ("pillows",)), "The way out is open."),
     ("a wrong use_on", _use_on("pillows", "tree"), HELD, _state(("p1", "p2"), ("pillows",), {"p3": 1}),
-     "Puzzle 3: not this, 1."),
+     "That doesn't go there."),
     ("a wrong code", {"type": "lock_input", "input": {"type": "code", "puzzle_id": "p4", "code": "111"}},
      _state(wrong={"p4": 1}), _state(wrong={"p4": 2}), "Puzzle 4: not this, 2."),
     ("a right code", {"type": "lock_input", "input": {"type": "code", "puzzle_id": "p4", "code": "415"}},
-     _state(), _state(("p4",)), "Puzzle 4 solved."),
+     _state(), _state(("p4",)), "Riddle 3 solved."),
     ("a wrong order", _click("tree"), _state(order={"puzzle_id": "p5", "clicks": ["rug"]}),
      _state(wrong={"p5": 1}, order={"puzzle_id": "p5", "clicks": []}), "Puzzle 5: not this, 1."),
     ("an order click mid-sequence: the Order click progress answers", _click("tree"),
      _state(order={"puzzle_id": "p5", "clicks": []}), _state(order={"puzzle_id": "p5", "clicks": ["tree"]}), None),
-    ("a use_on that resolves to no Puzzle", _use_on("pillows", "rug"), HELD, HELD, "entryway rug. Not this one."),
-    ("a click on an item in hand", _click("pillows"), HELD, HELD, "throw pillows · in hand"),
+    ("a use_on that resolves to no Puzzle", _use_on("pillows", "rug"), HELD, HELD, "That doesn't go there."),
+    ("a click on an item in hand", _click("pillows"), HELD, HELD, "Throw pillows. Already in your pack."),
     ("a click on a found target", _click("vent"), HELD, HELD, "floor vent · found"),
     ("arming an order sequence", {"type": "lock_input", "input": {"type": "order_start", "puzzle_id": "p5"}},
      _state(), _state(order={"puzzle_id": "p5", "clicks": []}), None),
@@ -127,22 +127,29 @@ def test_a_find_that_carries_nothing_is_found_and_every_other_reply_finds_nothin
         assert found == FOUND_BY.get(name), name
 
 
-def test_the_lines_are_the_experience_lines_and_the_chip_reads_solved():
+def test_the_lines_are_the_experience_lines_and_the_note_stamps_solved():
     strings = _strings()
-    assert strings["notThisOne"].format(label="entryway rug") == "entryway rug. Not this one."
+    assert strings["notThisOne"].format(Label="Entryway rug") == "Entryway rug. Not this one."
     assert strings["pickUp"].format(label="throw pillows") == "You pick up the throw pillows."
-    assert strings["lockSolved"].format(n=1) == "Puzzle 1 solved."
+    assert strings["riddleSolvedLine"].format(n=1) == "Riddle 1 solved."
     assert strings["wayOut"] == "The way out is open."
     assert strings["lockNotThis"].format(n=2, count=1) == "Puzzle 2: not this, 1."
     assert strings["found"].format(label="floor vent") == "floor vent · found"
+    assert strings["doesntGoThere"] == "That doesn't go there."
+    assert strings["alreadyInPack"].format(Label="Throw pillows") == "Throw pillows. Already in your pack."
+    assert strings["inHandWhere"].format(Label="Throw pillows") == "Throw pillows in hand. Click where they belong."
+    assert strings["putAway"].format(label="throw pillows") == "You put the throw pillows away."
+    assert strings["handsEmpty"] == "Hands empty."
     assert strings["solved"] == "Solved" and "open" not in strings and "lockOpen" not in strings
     play = _section("Voice and Tone").split("**Play screen**", 1)[1]
     row = next(line for line in play.splitlines() if line.startswith("| Feedback line"))
-    for key in ("notThisOne", "pickUp", "lockSolved", "wayOut", "lockNotThis", "inHand", "found"):
-        assert f'"{strings[key]}"' in row, key
+    for key in ("notThisOne", "pickUp", "riddleSolvedLine", "wayOut", "lockNotThis", "found", "doesntGoThere",
+                "alreadyInPack", "inHandWhere", "putAway", "handsEmpty"):
+        value = strings[key]
+        assert f'"{value}"' in row, key
     assert '| Solved chip | plain | "Solved" |' in play and "| Open chip |" not in play
-    # The side panel's chip says what the player did: "Solved", never "Open", wherever a Puzzle shows solved.
-    assert "opened.textContent = strings.solved" in _ts("components/wizard-notes.ts")
+    # A solved riddle says what the player did: "Solved", never "Open", wherever it shows solved.
+    assert "stamp.replaceChildren(seal, strings.solved)" in _ts("components/riddle-note.ts")
     for path, text in ((p, p.read_text()) for p in WEB_SRC.rglob("*.ts")):
         assert "strings.open\n" not in text and "strings.open)" not in text and "strings.lockOpen" not in text, path
 
@@ -155,8 +162,10 @@ def test_the_line_is_chosen_once_per_reply_and_written_once_to_the_live_region()
     assert post.index("receive(reply)") < post.index("feedback?.(body, before, reply)")
     said = play.split("feedback = (body, before, reply) => {", 1)[1].split("\n      }\n", 1)[0]
     assert "const line = feedbackFor(shown, body, before, reply, foundTargets(session.id))" in said
-    assert "scene.say(line)" in said and "announce(`${strings.speakerGuide} ${line}`)" in said
-    assert "if (!mounted || ended || line === null) return" in said
+    assert "if (line !== null) speak(line)" in said
+    speak = play.split("const speak = (line: string): void => {", 1)[1].split("\n      }\n", 1)[0]
+    assert "scene.say(line)" in speak and "announce(`${strings.speakerGuide} ${line}`)" in speak
+    assert "if (!mounted || ended) return" in speak
     # The line replaces the state-read lock outcomes, so nothing is heard twice; the Completion screen says nothing.
     assert not (WEB_SRC / "lock-outcomes.ts").exists() and "lockOutcomes" not in play
     assert "feedback" not in play.split("export function mountPlayBehind(", 1)[1]
@@ -169,17 +178,18 @@ def test_the_line_sits_over_the_bottom_of_the_scene_frame_with_the_guide_and_fad
     line = _ts("components/feedback-line.ts")
     assert "import './feedback-line.css'" in line
     assert "export const FEEDBACK_HOLD_MS = 2500" in line
-    assert "wizardPortrait('guide', 32)" in line
+    assert "wizardPortrait('guide', 30)" in line
     assert "words.className = 'wizard-line'" in line
     assert "element.setAttribute('aria-hidden', 'true')" in line  # heard once, from the live region
     say = _function(line, "feedbackLine").split("function say(", 1)[1]
     assert "fadeIn(element)" in say and "setTimeout(() => element.classList.remove('is-shown'), FEEDBACK_HOLD_MS)" in say
     scene = _ts("scene/index.ts")
-    assert "const feedback = feedbackLine()" in scene and "frame.append(ground, feedback.element, turns.left, turns.right)" in scene
+    assert "const feedback = feedbackLine()" in scene
+    assert "frame.append(slots.note, ground, feedback.element, feedback.coachPill, turns.left, turns.right, slots.floor)" in scene
     assert "say: feedback.say" in scene
     rules = css_rules(_ts("components/feedback-line.css"))
     strip = rules[".feedback-line"]
-    assert strip["position"] == "absolute" and strip["bottom"] == "var(--spacing-3)"
+    assert strip["position"] == "absolute" and strip["bottom"] == "22px"
     assert strip["background"] == "var(--parchment)" and strip["color"] == "var(--ink)"
     assert strip["pointer-events"] == "none" and strip["opacity"] == "0"
     assert strip["transition"] == "opacity var(--motion-state) var(--motion-ease)"
@@ -187,21 +197,19 @@ def test_the_line_sits_over_the_bottom_of_the_scene_frame_with_the_guide_and_fad
     assert "transform" not in _code(_ts("components/feedback-line.css"))
 
 
-def test_a_new_inventory_item_glows_once():
+def test_a_new_item_in_the_pack_glows_once():
     inventory = _ts("components/inventory.ts")
     assert "glowOnce(item, 'is-glowing', hold)" in inventory
     assert "matchMedia('(prefers-reduced-motion: reduce)').matches ? GLOW_REDUCED_MS : GLOW_MS" in inventory
     rules = css_rules(_ts("components/inventory.css"))
-    assert rules[".inventory-slot.is-glowing .inventory-well"] == {"box-shadow": "var(--elevation-lamp-glow)"}
-    assert rules[".inventory-well"]["transition"] == "box-shadow var(--motion-hover) var(--motion-ease)"
+    assert rules[".inventory-slot.is-glowing"] == {"box-shadow": "var(--elevation-lamp-glow)"}
+    assert "box-shadow var(--motion-hover) var(--motion-ease)" in rules[".inventory-slot"]["transition"]
 
 
-def test_the_asides_left_are_the_ones_the_line_does_not_repeat():
+def test_the_asides_are_gone_and_the_solve_beat_says_the_rest():
     opened = _ts("lock-opened.ts")
-    # The Exit's aside and the Wrong attempt aside said what the feedback line now says, so neither is spoken.
-    assert "if (puzzle.is_exit) return null" in _function(opened, "asideFor")
-    assert "notThat" not in opened and "notThat" not in _ts("components/hint-area.ts")
-    assert "notThatOne" not in _strings() and "asideExit" not in _strings()
+    assert "asideFor" not in opened and "notThat" not in opened
+    assert "notThatOne" not in _strings() and "asideExit" not in _strings() and "asideFind" not in _strings()
 
 
 def test_the_contract_records_the_feedback_line():

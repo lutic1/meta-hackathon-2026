@@ -1,10 +1,8 @@
 import './triggers-panel.css'
-import type { PlayView, RungChangeEvent, SessionState, Thresholds } from '../../types'
+import type { PlayView, RungChangeEvent, SessionState } from '../../types'
 import { CUT_5, placeHref } from '../router.ts'
 import { fill, strings } from '../strings.ts'
-import { secondaryButton, toggleButton } from './button.ts'
-
-const LIST_ID = 'triggers-list'
+import { secondaryButton } from './button.ts'
 
 /** `text` with every number in a `mono-sm` span, the rest plain (DESIGN.md: `body-sm` rows, `mono-sm` numbers). */
 function withNumbers(text: string): Node[] {
@@ -17,14 +15,6 @@ function withNumbers(text: string): Node[] {
   })
 }
 
-/**
- * The panel's opening lines in player words: when the Guide offers a hint, then, for a returning player (the
- * threshold came from the Derived block), that the wait was set by how they played last time. Nothing here computes
- * a threshold or a spacing.
- */
-export function hintsIntro(thresholds: Thresholds | null): string[] {
-  return thresholds === null || thresholds.source === 'fresh' ? [strings.hintsExplained] : [strings.hintsExplained, strings.thresholdDerived]
-}
 
 /**
  * Why a Rung arrived, from the logged events its `triggered_by` names (`trigger_events`, their type and `t_ms`), read
@@ -61,42 +51,31 @@ export interface TriggersList {
 }
 
 /**
- * The content of "How hints work" (`{components.triggers-panel}`, FR-16, UX-DR33; player words, owner decision Oct 29),
- * the same in place and, under cut 5, in the second window: the plain `body-sm` opening lines, then the hint history,
- * one `body-sm` row per Rung change with `mono-sm` numbers, the newest last in `text`, older rows `text-muted`, or
- * "No hints yet." with none. The rows are never written to the live region; the Rung line already announced each one.
+ * The content of "How hints work" (`{components.triggers-panel}`, FR-16, UX-DR33; story mode, owner decision Oct 29),
+ * in the Card log and, under cut 5, in the second window: the one plain `body-sm` line, "The chest holds 2 hints for
+ * the whole game. Each one opens the next hint for the riddle you're on. Nothing opens on its own.", then the hint
+ * history, one `body-sm` row per Rung change with `mono-sm` numbers, the newest last in `text`, older rows
+ * `text-muted`. The rows are never written to the live region; the chest already announced each hint.
  */
 export function triggersList(room: PlayView): TriggersList {
   const element = document.createElement('div')
-  element.id = LIST_ID
   element.className = 'triggers-panel'
   const header = document.createElement('p')
   header.className = 'triggers-header body-sm'
+  header.textContent = strings.hintsExplained
   const rows = document.createElement('ol')
   rows.className = 'triggers-rows'
-  const empty = document.createElement('p')
-  empty.className = 'triggers-empty body-sm'
-  empty.textContent = strings.noHintsYet
-  element.append(header, empty, rows)
+  element.append(header, rows)
   let drawn = -1
 
-  /** Scrolls the rows only: the panel itself stays at its opening lines, which a short Hint area would clip. */
+  /** Scrolls the rows only, so the plain line above them stays in view. */
   function reveal(): void {
     rows.scrollTop = rows.scrollHeight
   }
 
   function render(state: SessionState): void {
-    header.replaceChildren(
-      ...hintsIntro(state.thresholds ?? null).map((line) => {
-        const span = document.createElement('span')
-        span.className = 'triggers-line'
-        span.textContent = line
-        return span
-      }),
-    )
     if (state.rung_changes.length === drawn) return
     drawn = state.rung_changes.length
-    empty.hidden = drawn > 0
     rows.hidden = drawn === 0
     rows.replaceChildren(
       ...state.rung_changes.map((change) => {
@@ -112,46 +91,17 @@ export function triggersList(room: PlayView): TriggersList {
   return { element, render, reveal }
 }
 
-export interface TriggersPanel {
-  element: HTMLElement
-  render: (state: SessionState) => void
-  /** Scrolls the newest row into view; called once the panel is in the document, since a detached list cannot scroll. */
-  reveal: () => void
-}
-
 /**
- * "How hints work" under the hint button: a quiet text button with an expanded state, collapsed until the player
- * opens it (owner decision Oct 29: it replaced the "Triggers ({n})" toggle, and it no longer opens by itself under a
- * Disclosure). `onOpen` tells the Hint area, which may grow past its cap while the panel is open.
- * Under cut 5 the same button opens `#/triggers/<session_id>` in a second window instead, and nothing opens in place;
- * the window is 1024 px wide, since below that the Narrow-screen message replaces every route.
+ * "How hints work" in the Card log (story mode): the list in place, or under cut 5 a button that opens it in the second
+ * window, `#/triggers/<session_id>`, 1024 px wide, since below that the Narrow-screen message replaces every route.
  */
-export function triggersPanel(
-  room: PlayView,
-  session: SessionState,
-  profile: string,
-  onOpen: (open: boolean) => void,
-): TriggersPanel {
-  const element = document.createElement('div')
-  element.className = 'triggers'
+export function howHintsWork(room: PlayView, sessionId: string, profile: string): TriggersList {
   const list = triggersList(room)
-  const href = placeHref({ route: { name: 'triggers', sessionId: session.id }, profile })
-  const label = strings.howHintsWork
-  const toggle = CUT_5
-    ? secondaryButton({ label, onActivate: () => window.open(href, `triggers-${session.id}`, 'popup,width=1024,height=480') })
-    : toggleButton({ label, state: 'expanded', controls: LIST_ID, onToggle: show })
-  toggle.className = 'triggers-toggle body-sm' // a quiet text button, not the secondary one
-  list.element.hidden = true
-  element.append(toggle, ...(CUT_5 ? [] : [list.element]))
-
-  function show(on: boolean): void {
-    toggle.setAttribute('aria-expanded', String(on))
-    list.element.hidden = !on
-    onOpen(on)
-    if (on) list.reveal()
-  }
-
-  onOpen(false)
-  list.render(session)
-  return { element, render: list.render, reveal: list.reveal }
+  if (!CUT_5) return list
+  const href = placeHref({ route: { name: 'triggers', sessionId }, profile })
+  const element = secondaryButton({
+    label: strings.howHintsWork,
+    onActivate: () => window.open(href, `triggers-${sessionId}`, 'popup,width=1024,height=480'),
+  })
+  return { element, render: () => undefined, reveal: () => undefined }
 }

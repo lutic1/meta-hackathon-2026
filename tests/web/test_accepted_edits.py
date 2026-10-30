@@ -1,8 +1,8 @@
 """FR-19, FR-11, UX-DR27, UX-DR39, UX-DR65: an accepted Trickster edit reshapes the room in play.
 
-A changed `room_revision` refetches the session's Effective room and redraws the Wizard notes and the Hotspots in
-place; a Decoy adds an Evidence card drawn like the real ones, a Merge leaves its placeholder, a Shortcut reveals an
-entry only once nothing else gates it, and a Loosen's Rung shows on the Rung line and in its entry. The client has no
+A changed `room_revision` refetches the session's Effective room and redraws the Riddle note, the chest's numbers and
+the Hotspots in place (story mode: one riddle at a time; a Merge or a Shortcut moves `active_puzzle_id`, which the note
+follows; under the chest a Decoy and a Loosen are refused by the Validator, tests/api/test_chest_hints.py). The client has no
 test runner, so the checks read the TypeScript and the stylesheets (`npm run build` and `tsc --noEmit` prove they
 compile; the criteria are checked in Chrome against the fixture rooms), and the API checks read what the client reads.
 """
@@ -23,8 +23,7 @@ from tests.api.test_trickster_route import (
     trickster,
 )
 from tests.fixtures.rooms import IX, PZ
-from tests.web.design import WEB_SRC, css_rules, source_ts
-from tests.web.test_strings import _strings
+from tests.web.design import WEB_SRC, source_ts
 from tests.web.test_types import _interfaces, _keys
 
 
@@ -72,18 +71,18 @@ def test_the_play_screen_draws_from_the_effective_room_and_records_the_revision_
     assert "let fetchedRevision = session.room_revision" in play
 
 
-def test_a_changed_room_revision_refetches_the_room_once_and_redraws_the_notes_and_the_hotspots():
+def test_a_changed_room_revision_refetches_the_room_once_and_redraws_the_note_and_the_hotspots():
     play = _ts("play.ts")
     refetch = play.split("const refetchRoom = async (state: SessionState): Promise<void> => {", 1)[1].split("\n      }\n", 1)[0]
     # A rejected or skipped Card leaves room_revision as it was, so nothing is fetched; one request at a time.
     assert "if (refetching || state.room_revision === fetchedRevision) return" in refetch
     assert "const next = await getEffectiveRoom(session.id)" in refetch
     assert "fetchedRevision = state.room_revision" in refetch
-    assert refetch.index("scene.reshape(next)") < refetch.index("notes.reshape(next)")
+    assert refetch.index("scene.reshape(next)") < refetch.index("note.reshape(next)") < refetch.index("chest.reshape(next)")
     assert "void refetchRoom(latest)" in refetch  # a revision that arrived meanwhile is fetched next
     assert "parts.push((state) => void refetchRoom(state))" in play
-    # No page reload, and the Inventory, the Hint area and the Scene are never rebuilt for it.
-    assert "location.reload" not in play and play.count("inventory(view, play.useOn)") == 2
+    # No page reload, and the pack, the chest and the Scene are never rebuilt for it.
+    assert "location.reload" not in play and play.count("inventory(view, play.useOn, speak)") == 1
     assert play.count("mountScene(") == 2 and "announce(" not in refetch
 
 
@@ -99,7 +98,7 @@ def test_the_scene_keeps_its_photo_and_lays_changed_hotspots_again_with_focus_on
     assert "layer.elements[0].querySelector<SVGElement>(`[id=\"${focused}\"]`)?.focus()" in reshape
     # The photo, the walk and the selection stay: nothing walks, nothing is posed again (story mode).
     assert "show(" not in reshape and "walk(" not in reshape and "pose(" not in reshape and "useOn" not in reshape
-    assert "return { unmount, reshape, lastTarget: () => lastTarget, bloom, say: feedback.say }" in scene
+    assert "reshape,\n    lastTarget: () => lastTarget," in scene
 
 
 def test_rehung_hotspots_stay_focusable_buttons_that_show_all_objects_still_outlines():
@@ -110,121 +109,28 @@ def test_rehung_hotspots_stay_focusable_buttons_that_show_all_objects_still_outl
     assert "onToggle: (on) => sceneColumn.classList.toggle('is-showing-all', on)" in play
 
 
-# --- The Wizard notes ----------------------------------------------------------------------------------------------
+# --- The Riddle note -----------------------------------------------------------------------------------------------
 
 
-def test_the_notes_keep_their_entries_and_redraw_the_evidence_cards_and_count_in_place():
-    notes = _ts("components/wizard-notes.ts")
-    reshape = _nested(notes, "function reshape(view: PlayView): void {")
-    assert "for (const puzzle of view.puzzles) entries.get(puzzle.id)?.evidence(view, puzzle)" in reshape
-    assert "entry(" not in reshape  # no entry is rebuilt, so the Code field and focus stay
-    evidence = _nested(notes, "function drawEvidence(view: PlayView, shown: PlayPuzzle): HTMLLIElement[] {")
-    assert "if (key === drawnEvidence) return []" in evidence
-    assert "shown.evidence_cards.flatMap((card) => {" in evidence  # in the order PlayView gives
-    assert "[evidenceCard(view.id, interactable, card, solved)]" in evidence
-    assert "count.textContent = cards.length === 1 ? strings.evidenceCard : fill(strings.evidenceCards, { k: cards.length })" in evidence
-    assert "evidence.replaceChildren(...cards)" in evidence
-    # No highlight, badge, animation or announcement marks the new card or the count.
-    for banned in ("fadeIn", "classList", "announce", "animate", "setAttribute"):
-        assert banned not in evidence, banned
+def test_the_note_redraws_from_the_refetched_room_keeping_nothing_stale():
+    note = _ts("components/riddle-note.ts")
+    reshape = note.split("reshape: (view) => {", 1)[1].split("\n    },", 1)[0]
+    assert "room = view" in reshape and "inputs.clear()" in reshape and "draw(latest)" in reshape
+    # The riddle shown follows `active_puzzle_id`, which a Merge or a Shortcut moves on the server (AD-4).
+    assert "const id = held ? shown : (state.active_puzzle_id ?? shown)" in note
+    assert "announce" not in note  # nothing the reshape draws reaches the live region
 
 
-def test_a_decoy_card_is_drawn_like_any_other_and_nothing_in_the_client_tells_it_apart():
+def test_a_decoy_card_is_never_drawn_in_play_and_nothing_in_the_client_tells_it_apart():
     card = _ts("components/evidence-card.ts")
-    # The note and the whole card are the only two drawings, chosen by `solved` alone.
+    # The note and the whole card are the only two drawings, chosen by `solved` alone (the landing's sample page).
     assert "element.className = 'evidence-card'" in card and card.count("className =") == 5
     assert "if (!solved) {" in card
     assert set(_keys(_interfaces()["Evidence"])) == {"interactable", "visible_attribute"}
-    for path in ("components/evidence-card.ts", "components/wizard-notes.ts", "scene/index.ts", "play.ts"):
+    for path in ("components/evidence-card.ts", "components/riddle-note.ts", "scene/index.ts", "play.ts"):
         assert "decoy" not in _ts(path).lower(), path
     assert not any(re.search(r"\b(?:interface|type) (?:PlayView|PlayPuzzle|Evidence)\b", text) for text in source_ts().values())
-    assert "import type { PlayPuzzle, PlayView, RungChangeEvent, SessionState } from '../../types'" in _ts("components/wizard-notes.ts")
-
-
-def test_an_entry_a_merge_gates_fades_out_and_its_placeholder_holds_its_place_with_focus():
-    assert _strings()["puzzleWaits"] == "Puzzle {n} now waits on another puzzle."
-    notes = _ts("components/wizard-notes.ts")
-    reshape = _nested(notes, "function reshape(view: PlayView): void {")
-    # Gated: a drawn, unopened entry whose Puzzle now waits on an unopened one.
-    assert "return shown && now !== undefined && !now.requires.every((id) => open.includes(id))" in reshape
-    assert "waiting.set(puzzle.id, { puzzle, line: waitingLine(place(puzzle.id)) })" in reshape
-    assert "made.element.classList.add('is-leaving')" in reshape and "setTimeout(redraw, stateFadeMs())" in reshape
-    # Focus inside the gated entry moves to its line when the line takes its place, whichever draw does that.
-    focus = _nested(notes, "function keepFocus(focused: Element | null): void {")
-    assert "const line = [...waiting].find(([id]) => entries.get(id)?.element.contains(focused))?.[1].line" in focus
-    assert "line.focus()" in focus
-    line = notes.split("function waitingLine(n: number): HTMLParagraphElement {", 1)[1].split("\n}\n", 1)[0]
-    assert "paragraph('notes-entry notes-waiting label', fill(strings.puzzleWaits, { n }))" in line
-    assert "element.tabIndex = -1" in line
-    # The placeholder keeps the place the entry was drawn in until the Puzzle is available again.
-    draw = _nested(notes, "function draw(state: SessionState, afterOpening: boolean): void {")
-    assert "puzzle.requires.every((id) => state.locks_open.includes(id))) waiting.delete(puzzle.id)" in draw
-    assert "const rows = listed.map((puzzle) => waiting.get(puzzle.id)?.line ?? built(puzzle).element)" in draw
-    rules = css_rules((WEB_SRC / "components/wizard-notes.css").read_text())
-    assert rules[".notes-entry.is-leaving"] == {"opacity": "0"}
-    assert rules[".notes-waiting"] == {"margin": "0", "color": "var(--text-muted)"}
-
-
-def test_a_merge_that_lands_in_the_open_hold_keeps_its_entry_faded_until_the_holds_draw_puts_the_line_in():
-    notes = _ts("components/wizard-notes.ts")
-    reshape = _nested(notes, "function reshape(view: PlayView): void {")
-    # Gated against the latest state: a lock the hold shows open gates nothing.
-    assert "const open = latest?.locks_open ?? []" in reshape and "drawnOpen" not in reshape
-    # The fade-out is never undone while the hold runs; the hold's draw swaps the line in.
-    assert "classList.remove('is-leaving')" not in reshape
-    redraw = reshape.split("const redraw = (): void => {", 1)[1].split("\n    }\n", 1)[0]
-    assert "if (!holding && latest !== undefined && element.isConnected) draw(latest, false)" in redraw
-    draw = _nested(notes, "function draw(state: SessionState, afterOpening: boolean): void {")
-    # Only an entry drawn again loses the class, and a line that took focus keeps it: no draw moves focus on its own.
-    shown = draw.split("const shown = listed.flatMap((puzzle) => {", 1)[1].split("\n    })\n", 1)[0]
-    assert "if (waiting.has(puzzle.id)) return []" in shown
-    assert shown.index("return []") < shown.index("made.element.classList.remove('is-leaving')")
-    assert "keepFocus(focused)" in draw and "heading.focus()" not in draw
-
-
-def test_a_row_swap_keeps_focus_on_an_entry_that_stays():
-    notes = _ts("components/wizard-notes.ts")
-    draw = _nested(notes, "function draw(state: SessionState, afterOpening: boolean): void {")
-    # replaceChildren detaches every kept entry for a moment, so focus is read before and put back after.
-    assert draw.index("const focused = document.activeElement") < draw.index("element.replaceChildren(...rows)")
-    assert draw.index("element.replaceChildren(...rows)") < draw.index("keepFocus(focused)")
-    # Focusing forces a style pass, so the arriving entries take their transparent start first or skip their fade.
-    assert draw.index("for (const made of arrived) fadeIn(made.element)") < draw.index("keepFocus(focused)")
-    focus = _nested(notes, "function keepFocus(focused: Element | null): void {")
-    assert "if (!(focused instanceof HTMLElement) || document.activeElement === focused) return" in focus
-    assert "if (focused.isConnected) {\n      focused.focus({ preventScroll: true })" in focus
-
-
-def test_a_shortcut_entry_fades_in_only_once_no_prerequisite_is_unmet():
-    notes = _ts("components/wizard-notes.ts")
-    order_ = notes.split("export function availableInRoomOrder(", 1)[1].split("\n}\n", 1)[0]
-    assert "puzzles.filter((puzzle) => puzzle.requires.every((id) => locksOpen.includes(id)))" in order_
-    draw = _nested(notes, "function draw(state: SessionState, afterOpening: boolean): void {")
-    assert "if (before.size > 0) for (const made of arrived) fadeIn(made.element)" in draw
-    reshape = _nested(notes, "function reshape(view: PlayView): void {")
-    assert "if (!holding && latest !== undefined && element.isConnected) draw(latest, false)" in reshape
-
-
-def test_a_loosen_rung_shows_on_the_rung_line_and_in_its_puzzles_entry():
-    hint = _ts("components/hint-area.ts")
-    loosen = hint.split("function byLoosen(", 1)[1].split("\n}\n", 1)[0]
-    assert "return only !== undefined && rest.length === 0 && events?.[only]?.type === 'trickster_card'" in loosen
-    opened = hint.split("export function openedRungs(", 1)[1].split("\n}\n", 1)[0]
-    assert "change.rung !== shown.rung || byLoosen(change, events)" in opened
-    assert "onOpened(openedRungs(latest.rung_changes, line.shown, latest.trigger_events))" in hint
-
-
-def test_nothing_the_reshape_draws_reaches_the_live_region_and_every_fade_is_instant_under_reduced_motion():
-    notes = _ts("components/wizard-notes.ts")
-    # The notes announce only the entries a lock opening made available (owner decision 68), never a reshape's draw.
-    assert "announce" not in _nested(notes, "function reshape(view: PlayView): void {")
-    assert notes.count("announce(") == 1 and "if (afterOpening && arrived.length > 0) {\n      announce(" in notes
-    fade = _ts("fade.ts")
-    assert "export function stateFadeMs(): number {" in fade and "return motionMs('--motion-state')" in fade
-    tokens = (WEB_SRC / "tokens.css").read_text()
-    assert "--motion-state: 0ms;" in tokens and "prefers-reduced-motion: reduce" in tokens
-    rules = css_rules((WEB_SRC / "components/wizard-notes.css").read_text())
-    assert rules[".notes-entry"]["transition"] == "opacity var(--motion-state) var(--motion-ease)"
+    assert "evidence" not in _ts("components/riddle-note.ts")
 
 
 # --- What the client reads from the API ----------------------------------------------------------------------------

@@ -3,8 +3,8 @@
 .completion-layout {
   position: relative;
 }
-/* The sheet is centered on the soft scrim, so the exit photo shows brighter around it than under the other overlays;
-   when the body is shorter than the sheet the scrim scrolls, never the page. */
+/* The closing sheet docks low on the soft scrim (story mode, spec 1.10), so the exit photo's open door stays in view
+   above it; when the body is shorter than the sheet the scrim scrolls, never the page. */
 .completion-scrim {
   box-sizing: border-box;
   position: absolute;
@@ -13,66 +13,109 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: var(--spacing-frame-margin);
+  padding: var(--spacing-frame-margin) 20px 22px;
   background: var(--scrim-soft);
 }
 
-/* {components.completion-sheet}: 720 px parchment, 48 px padding, rounded lg, the overlay elevation. */
+/* {components.completion-sheet}: parchment up to 860 px, two columns (the story, then the stats and "Play again"),
+   rounded lg, a gilt hairline and the overlay elevation. */
 .completion-sheet {
   box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--spacing-2) 28px;
   flex: none;
-  width: 720px;
-  max-width: 100%;
-  margin: auto;
-  padding: var(--spacing-7);
+  width: min(860px, 100%);
+  margin: auto auto 0;
+  padding: 22px 26px 20px;
   background: var(--parchment);
   color: var(--ink);
   border-radius: var(--rounded-lg);
-  box-shadow: var(--elevation-overlay);
+  box-shadow: 0 0 0 1px var(--gilt), var(--elevation-overlay);
 }
-/* A Judge room's deletion line sits directly below the sheet: the two are centered together on the scrim. */
+/* A Judge room's deletion line sits directly below the sheet: the two are docked together on the scrim. */
 .completion-sheet:has(+ .deletion-line) {
   margin-bottom: 0;
 }
+.completion-sheet > .completion-error,
+.completion-sheet > .completion-kept,
+.completion-sheet > .completion-details {
+  grid-column: 1 / -1;
+}
 .completion-heading {
-  margin: 0;
+  margin: 0 0 2px;
   color: var(--ink);
+  font: 500 36px/1.05 var(--font-serif);
 }
-
-/* The Guide's sign-off: the 48 px portrait beside one wizard-line line. */
-.completion-signoff {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  column-gap: var(--spacing-3);
-  align-items: center;
-  margin-top: var(--spacing-5);
+.completion-subline {
+  margin: 0 0 var(--spacing-3);
+  color: var(--ink-muted);
 }
-.completion-signoff[hidden] {
+/* Each wizard's closing line: the 40 px portrait beside the name over the line. */
+.completion-says {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.completion-says[hidden] {
   display: none;
 }
-.completion-signoff p {
+.completion-say {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+}
+.completion-say p {
   margin: 0;
+}
+.completion-say-name {
+  margin: 2px 0 3px;
+  color: var(--ink-muted);
+}
+.completion-say-line {
   color: var(--ink);
+  font-size: 18px;
+  line-height: 1.35;
 }
 
-/* Time, Hints used and Wrong attempts three across in mono-timer, under the parchment rule. */
+/* Riddles, Time, Chest hints and Wrong tries two across in mono-timer over their ink-muted labels, then "Play again",
+   right of the parchment rule. */
+.completion-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding-left: var(--spacing-5);
+  border-left: 1px solid var(--parchment-rule);
+}
+.completion-side > .button-primary {
+  align-self: flex-start;
+}
 .completion-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: var(--spacing-5);
-  margin-top: var(--spacing-6);
-  padding-top: var(--spacing-5);
-  border-top: 1px solid var(--parchment-rule);
+  grid-template-columns: repeat(2, auto);
+  gap: var(--spacing-3) 26px;
 }
 .completion-stat-label {
-  margin-bottom: var(--spacing-2);
   color: var(--ink-muted);
 }
 .completion-stat-value {
+  margin-bottom: var(--spacing-1);
   color: var(--ink);
 }
 .completion-stat-value.is-pending {
   color: var(--pending-ink);
+}
+/* "Details": the filmstrip, the times, "Built by" and the other actions, folded away under the columns. */
+.completion-details {
+  margin-top: var(--spacing-2);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--parchment-rule);
+}
+.completion-details-toggle {
+  color: var(--ink-muted);
+  cursor: pointer;
 }
 
 /* Time per puzzle: "Puzzle {n}" in body-sm and its time in mono-sm, right-aligned; no header row. */
@@ -111,15 +154,16 @@
   color: var(--ink);
 }
 
-/* The actions, left-aligned under the content; "Copy your result" stays out until the result and the title are in. */
+/* The other actions, left-aligned in Details; "Copy your result" stays out until the result and the title are in. */
 .completion-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-3);
   align-items: center;
-  margin-top: var(--spacing-6);
+  margin-top: var(--spacing-5);
 }
 
-/* The filmstrip of the Room's photos, between the stats and the time table. */
+/* The filmstrip of the Room's photos, over the time table. */
 .completion-filmstrip {
   margin-top: var(--spacing-5);
 }

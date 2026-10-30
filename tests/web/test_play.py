@@ -1,5 +1,6 @@
-"""FR-11, UX-DR26, UX-DR27, UX-DR29, UX-DR39, UX-DR65, AR-7: the Inventory, the Wizard notes with Evidence cards, the
-Wizard portrait component, and the poll that feeds them.
+"""FR-11, UX-DR26, UX-DR27, UX-DR29, UX-DR39, UX-DR65, AR-7: the pack, the Riddle note (story mode; the Wizard notes
+before it, tests/web/test_story_play.py), the Evidence card the landing's sample page draws, the Wizard portrait
+component, and the poll that feeds them.
 
 The client has no test runner (a runner is added only through bmad-correct-course), so most checks read the
 TypeScript and the stylesheets; `npm run build` and `tsc --noEmit` prove they compile. The API checks serve the
@@ -48,160 +49,45 @@ def test_the_play_screen_polls_the_session_every_2000_ms_from_a_worker_so_a_hidd
     assert "setInterval(() => postMessage(null), event.data)" in ticker
     assert "const state = await getSession(session.id)" in play
     # Nothing pauses it: no visibility listener anywhere in the Play screen.
-    for name in ("play.ts", "poll-ticker.ts", "scene/index.ts", "components/inventory.ts", "components/wizard-notes.ts"):
+    for name in ("play.ts", "poll-ticker.ts", "scene/index.ts", "components/inventory.ts", "components/riddle-note.ts"):
         assert "visibilitychange" not in _ts(name) and "document.hidden" not in _ts(name), name
     # One poll in flight at a time; a poll sent before a reply that arrived first is stale and dropped.
     assert "if (polling) return" in play and "if (before === replies) receive(state)" in play
     assert "ticker.terminate()" in play
 
 
-def test_open_locks_the_inventory_and_wrong_attempts_render_only_from_server_state():
+def test_open_locks_the_pack_and_wrong_attempts_render_only_from_server_state():
     play = _ts("play.ts")
     receive = play.split("function receive(", 1)[1].split("\n  }\n", 1)[0]
     assert "for (const render of parts) render(state)" in receive
     # Every state the parts draw is a poll or the server's reply to a posted event.
     assert play.count("receive(") == 3  # the definition, the reply and the poll, nothing else
-    assert "parts.push(held.render, notes.render)" in play
-    inventory, notes = _ts("components/inventory.ts"), _ts("components/wizard-notes.ts")
+    assert "parts.push(held.render, note.render, chest.render)" in play
+    inventory, note = _ts("components/inventory.ts"), _ts("components/riddle-note.ts")
     assert "state.inventory.flatMap(" in inventory
-    assert "state.locks_open.includes(puzzle.id)" in notes and "state.wrong_attempts[puzzle.id] ?? 0" in notes
-    assert "state.active_puzzle_id === puzzle.id" in notes
-    for text in (inventory, notes, _ts("components/evidence-card.ts"), _ts("wizards/portrait.ts")):
-        assert "addEventListener" not in text and "postEvent" not in text and ".post(" not in text
+    assert "state.locks_open.includes(puzzle.id)" in note and "state.active_puzzle_id" in note
+    for text in (inventory, note, _ts("components/evidence-card.ts"), _ts("wizards/portrait.ts")):
+        assert "postEvent" not in text and ".post(" not in text
 
 
-def test_the_inventory_is_a_chrome_raised_tray_of_64px_slots_three_across_with_56px_crops_and_captions():
-    inventory, shell = _ts("components/inventory.ts"), _rules("shell.css")
-    assert "const ACROSS = 3" in inventory and "const ITEM_PX = 56" in inventory
-    assert "crop(room.id, interactable, ITEM_PX)" in inventory
-    assert "caption.className = 'inventory-caption caption'" in inventory and "caption.textContent = interactable.label" in inventory
-    assert "(ACROSS - (held.length % ACROSS)) % ACROSS" in inventory  # dashed slots to the end of the row
-    rules = _rules("components/inventory.css")
-    tray = rules[".inventory"]
-    assert tray["background"] == "var(--chrome-raised)" and tray["border-radius"] == "var(--rounded-md)"
-    assert tray["border"] == "1px solid var(--hairline)" and "box-shadow" not in tray  # flat, a hairline edge
-    assert tray["grid-template-columns"] == "repeat(3, 64px)" and tray["color"] == "var(--text)"
-    well = rules[".inventory-well"]
-    assert (well["width"], well["height"]) == ("64px", "64px")
-    assert rules[".inventory-slot.is-empty .inventory-well"] == {"border": "1px dashed var(--hairline)"}
-    # The tray sits right of the Thumbnail strip, about 288 px wide, in the Scene column's 88 px row.
-    assert shell[".scene-strip-row"]["grid-template-columns"] == "minmax(0, 1fr) 288px"
-    assert shell[".scene-strip-row > .inventory"] == {"grid-column": "2"}
-
-
-def test_an_empty_inventory_shows_one_dashed_slot_and_nothing_in_hand_yet():
+def test_the_pack_is_a_row_of_76_by_60_crops_in_gilt_edged_wells_with_a_dashed_free_well():
     inventory = _ts("components/inventory.ts")
-    empty = inventory.split("if (held.length === 0) {", 1)[1].split("return\n", 1)[0]
-    assert "empty.classList.add('is-empty')" in empty and "line.textContent = strings.nothingInHand" in empty
-    assert "element.replaceChildren(empty, line)" in empty
-    assert "line.className = 'inventory-nothing body-sm'" in empty
-    assert _rules("components/inventory.css")[".inventory-nothing"]["color"] == "var(--text-muted)"
+    assert "const ITEM_WIDTH = 76" in inventory and "const ITEM_HEIGHT = 60" in inventory
+    assert "button.setAttribute('aria-label', capitalized(interactable.label))" in inventory
+    assert "slots.setAttribute('role', 'group')" in inventory and "slots.setAttribute('aria-labelledby', name.id)" in inventory
+    rules = _rules("components/inventory.css")
+    slot = rules[".inventory-slot"]
+    assert (slot["width"], slot["height"], slot["border-radius"]) == ("76px", "60px", "var(--rounded-md)")
+    assert rules[".inventory-slot.is-empty"]["border"] == "1px dashed var(--hairline)"
+    assert rules[".inventory-item"]["border"] == "1px solid var(--gilt)"
+    assert rules[".inventory-item[aria-pressed='true']"] == {"border": "2px solid var(--lamp)"}
 
 
-def test_the_wizard_notes_draw_one_entry_per_available_puzzle_in_room_order():
-    notes = _ts("components/wizard-notes.ts")
-    order = notes.split("export function availableInRoomOrder(", 1)[1].split("\n}\n", 1)[0]
-    # Owner decision 68: available when every prerequisite is open, in Room.puzzles[] order, the order the Active-puzzle
-    # fallback follows (AD-4), so the earliest unsolved entry is the one "Current" falls back to; never re-sorted.
-    assert "return puzzles.filter((puzzle) => puzzle.requires.every((id) => locksOpen.includes(id)))" in order
-    assert ".sort(" not in order and "availableInOrder" not in notes
-    # A Puzzle a Merge hid keeps its place, as its placeholder, until it is available again (Story 4.6).
-    assert "availableInRoomOrder(room.puzzles.map((puzzle) => waiting.get(puzzle.id)?.puzzle ?? puzzle), state.locks_open)" in notes
-    # n is the Puzzle's fixed place in the Room, never its place in the list.
-    assert "const place = (id: string): number => room.puzzles.findIndex((puzzle) => puzzle.id === id) + 1" in notes
-    assert "entry(room, puzzle, place(puzzle.id), play)" in notes
-    assert "heading.textContent = fill(strings.puzzleHeading, { n })" in notes
-
-
-def test_each_entry_is_heading_and_count_then_portrait_and_clue_evidence_lore_rungs_and_lock():
-    notes = _ts("components/wizard-notes.ts")
-    assert "cards.length === 1 ? strings.evidenceCard : fill(strings.evidenceCards, { k: cards.length })" in notes
-    assert "head.append(title, count, opened)" in notes
-    assert "clue.append(wizardPortrait('riddler', 32), paragraph('wizard-line', speakerPrefix('riddler'), puzzle.clue))" in notes
-    assert "paragraph('notes-lore lore', speakerPrefix('riddler'), puzzle.lore)" in notes
-    assert "body.append(clue, evidence, lore, rungs, lock)" in notes
-    assert "shown.evidence_cards.flatMap(" in notes and "drawEvidence(room, puzzle)" in notes  # in PlayView order
-    rules = _rules("components/wizard-notes.css")
-    sheet = rules[".wizard-notes"]
-    # A flat chrome-raised tray with a hairline edge since Oct 29 (reviewer feedback 4): no paper, no shadow.
-    assert sheet["background"] == "var(--chrome-raised)" and sheet["color"] == "var(--text)"
-    assert sheet["border"] == "1px solid var(--hairline)" and "box-shadow" not in sheet
-    assert sheet["padding"] == "var(--spacing-4)" and sheet["min-height"] == "var(--spacing-notes-min)"
-    assert sheet["overflow-y"] == "auto" and sheet["border-radius"] == "var(--rounded-lg)"
-    assert rules[".notes-entry + .notes-entry"] == {"border-top": "1px solid var(--hairline)"}
-    assert rules[".notes-count"]["color"] == "var(--text-muted)" and rules[".notes-lore"]["color"] == "var(--text-muted)"
-    assert rules[".notes-waiting"]["color"] == "var(--text-muted)"
-    assert rules[".notes-clue"]["grid-template-columns"] == "32px minmax(0, 1fr)"
-    assert rules[".notes-clue"]["column-gap"] == "var(--spacing-2)"
-    assert css_rules((WEB_SRC / "shell.css").read_text())[".side-column"]["flex-direction"] == "column"
-
-
-def test_the_active_puzzle_marker_follows_active_puzzle_id_with_a_lamp_rule_and_the_word_current():
-    notes = _ts("components/wizard-notes.ts")
-    update = notes.split("function update(", 1)[1].split("\n  }\n", 1)[0]
-    assert "const isCurrent = state.active_puzzle_id === puzzle.id" in update
-    assert "element.classList.toggle('is-current', isCurrent)" in update and "current.hidden = !isCurrent" in update
-    assert "current.textContent = strings.current" in notes and "current.className = 'notes-current label'" in notes
-    rules = _rules("components/wizard-notes.css")
-    assert rules[".notes-entry.is-current"]["border-left"] == "3px solid var(--lamp)"
-    assert rules[".notes-current"] == {"color": "var(--lamp)"}
-    marker = design_text().split("  active-puzzle-marker:\n", 1)[1].split("\n  clue-card-slot:", 1)[0]
-    assert "rule: '3px solid {colors.lamp}'" in marker and "labelColor: '{colors.lamp}'" in marker
-
-
-def test_the_sheet_scrolls_to_the_current_entry_when_active_puzzle_id_moves_without_taking_focus():
-    """Playtest Oct 29: after the pillows opened Puzzle 1 the sheet showed Puzzle 3 while Puzzle 2 was Current. Each
-    draw whose `active_puzzle_id` differs from the one the sheet last followed scrolls the sheet (only the sheet) so
-    the Current entry stands at its top; nothing is focused, so keyboard focus stays in the Scene."""
-    notes = _ts("components/wizard-notes.ts")
-    draw = notes.split("function draw(state: SessionState, afterOpening: boolean): void {", 1)[1].split("\n  }\n", 1)[0]
-    assert "if (state.active_puzzle_id !== followed) {" in draw
-    assert draw.index("element.replaceChildren(...rows)") < draw.index("follow(")  # the rows are in place first
-    # A frame later, so the Hint area mounted after the first draw has taken its share of the side column.
-    assert draw.index("requestAnimationFrame(() => {") < draw.index("follow(current)")
-    follow = notes.split("function follow(", 1)[1].split("\n  }\n", 1)[0]
-    assert "element.scrollTop +=" in follow and "focus(" not in follow and "scrollIntoView" not in follow
-    assert "parseFloat(getComputedStyle(element).paddingTop)" in follow  # the entry's top meets the sheet's padding
-    # The Open hold draws nothing, so the sheet moves only once the solved entry has collapsed.
-    render = notes.split("function render(state: SessionState): void {", 1)[1].split("\n  }\n", 1)[0]
-    assert "follow(" not in render
-    experience = (REPO / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md").read_text()
-    row = experience.split("\n| Wizard notes |", 1)[1].split("\n", 1)[0]
-    assert "scrolls the sheet so the Current entry stands at its top" in row
-
-
-def test_the_sheet_follows_the_current_entry_again_whenever_its_size_changes():
-    """Playtest Oct 29 (second replay): a Trickster card stacking in the Hint area shrank the sheet from 546 px to
-    299 px while it stayed scrolled to the solved Puzzle, so the Current entry and the card just added to it were out
-    of view. One ResizeObserver on the sheet re-follows the entry "Current" last moved to whenever the sheet's size
-    changes (a Card stacking or leaving, the Hint area growing or shrinking), as `follow` does: instantly, never
-    focused."""
-    notes = _code(_ts("components/wizard-notes.ts"))
-    assert notes.count("new ResizeObserver(") == 1
-    observer = notes.split("new ResizeObserver(", 1)[1].split(".observe(element)", 1)[0]
-    assert "followed" in observer and "follow(" in observer and "isConnected" in observer
-    assert "focus(" not in observer and "scrollIntoView" not in observer and "smooth" not in notes
-    # Nothing threads a callback from the Hint area into the notes for it.
-    assert "notes.follow" not in _code(_ts("play.ts")) and "follow:" not in notes
-    experience = (REPO / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/EXPERIENCE.md").read_text()
-    row = experience.split("\n| Wizard notes |", 1)[1].split("\n", 1)[0]
-    assert "and again whenever the sheet's height changes" in row
-
-
-def test_open_locks_collapse_their_entry_and_wrong_attempts_show_the_servers_count():
-    notes = _ts("components/wizard-notes.ts")
-    update = notes.split("function update(", 1)[1].split("\n  }\n", 1)[0]
-    assert "const open = state.locks_open.includes(puzzle.id)" in update
-    assert "for (const part of [clue, lore, rungs, lock]) part.hidden = open" in update  # the Evidence cards stay
-    assert "opened.hidden = !open" in update and "count.hidden = open" in update
-    assert _rules("components/wizard-notes.css")[".notes-entry-body > [hidden]"] == {"display": "none"}
-    assert "opened.textContent = strings.solved" in notes
-    assert "wrong.textContent = fill(strings.notThis, { n: attempts })" in update
-    rules = _rules("components/wizard-notes.css")
-    # The chips sit on the dark notes tray, so they take each state's light form.
-    assert rules[".chip-open"] == {"border": "1px solid var(--success)", "color": "var(--success)"}
-    assert rules[".chip-not-this"] == {"border": "1px solid var(--wrong)", "color": "var(--wrong)"}
-    assert rules[".chip"]["border-radius"] == "var(--rounded-sm)"
+def test_an_empty_pack_shows_one_dashed_slot_and_its_caption():
+    inventory = _ts("components/inventory.ts")
+    empty = inventory.split("if (held.length === 0) {", 1)[1].split("return describe()", 1)[0]
+    assert "empty.className = 'inventory-slot is-empty'" in empty and "slots.replaceChildren(empty)" in empty
+    assert _rules("components/inventory.css")[".inventory-caption"]["color"] == "var(--text-muted)"
 
 
 def test_evidence_cards_are_inset_rows_a_note_until_solved_then_a_64px_crop_cut_from_the_first_polygons_bounds():
@@ -210,10 +96,11 @@ def test_evidence_cards_are_inset_rows_a_note_until_solved_then_a_64px_crop_cut_
     assert "label.className = 'evidence-card-label label'" in card and "label.textContent = interactable.label" in card
     assert "attribute.className = 'evidence-card-attribute body-sm'" in card
     assert "attribute.textContent = evidence.visible_attribute" in card
-    # The crop is the first polygon's bounds (one instance, so far-apart instances never shrink it to a slice of the
-    # room) squared inside the photo; `box` is never read.
-    assert "const polygon = interactable.polygons?.[0] ?? []" in crop and "if (polygon.length === 0) return canvas" in crop
-    assert "squareAround(bounds([polygon]), { width: image.naturalWidth, height: image.naturalHeight })" in crop
+    # The crop is the largest polygon's bounds (one instance, so far-apart instances never shrink it to a slice of the
+    # room; story mode: the largest, so the two-polygon pillows read whole) at the crop's aspect inside the photo;
+    # `box` is never read.
+    assert "const polygon = largest(interactable.polygons ?? []) ?? []" in crop and "if (polygon.length === 0) return canvas" in crop
+    assert "cropAround(bounds([polygon]), { width: image.naturalWidth, height: image.naturalHeight }, width / height)" in crop
     assert ".box" not in crop
     assert "export function bounds(polygons: readonly Polygon[]): Rect" in geometry
     rules = _rules("components/evidence-card.css")
@@ -224,18 +111,14 @@ def test_evidence_cards_are_inset_rows_a_note_until_solved_then_a_64px_crop_cut_
     assert "note.className = 'evidence-card-note-text wizard-line'" in card
     assert rules[".evidence-card .crop"] == {"border-radius": "var(--rounded-sm)"}
     assert rules[".evidence-card-attribute"] == {"color": "var(--ink-muted)"}
-    # In the Wizard notes the inset is the canvas, its text on dark (the landing's sample page keeps the paper form).
-    assert rules[".wizard-notes .evidence-card"] == {"background": "var(--canvas)", "color": "var(--text)"}
-    assert rules[".wizard-notes .evidence-card-attribute"] == {"color": "var(--text-muted)"}
+    # Story mode: only the landing's sample page draws it, on paper; the Play screen draws none.
+    assert ".wizard-notes .evidence-card" not in rules and "evidenceCard" not in _ts("play.ts")
     # The whole card's reward fade is the only motion: no hover, focus, animation, highlight or announcement.
     assert row["transition"] == "opacity var(--motion-state) var(--motion-ease)"
     assert rules[".evidence-card.is-arriving"] == {"opacity": "0"}
     css = (WEB_SRC / "components/evidence-card.css").read_text()
     assert not re.search(r":hover|:focus|animation|\.is-(?!arriving)", css)
     assert "aria-live" not in card and "classList" not in card
-    notes = _ts("components/wizard-notes.ts")
-    opening = notes.split("function opening(): void {", 1)[1].split("\n  }\n", 1)[0]
-    assert "solved = true" in opening and "for (const card of drawEvidence(...source)) fadeIn(card)" in opening
 
 
 # Builds the shipped `evidenceCard` with a stand-in `document` (stylesheet imports load as empty modules) and prints
@@ -288,9 +171,9 @@ def test_an_unsolved_puzzle_s_evidence_card_is_the_riddler_s_note_alone_and_the_
     assert {node["text"] for node in whole} >= {"throw pillows", "on sofa"}
 
 
-def test_the_wizard_portrait_is_a_gilt_ringed_circle_at_four_sizes_reading_web_public_portraits():
+def test_the_wizard_portrait_is_a_gilt_ringed_circle_at_its_sizes_reading_web_public_portraits():
     portrait = _ts("wizards/portrait.ts")
-    assert "export type PortraitSize = 24 | 32 | 48 | 96" in portrait
+    assert "export type PortraitSize = 24 | 26 | 30 | 32 | 36 | 40 | 48 | 96" in portrait
     assert "return `/portraits/${wizard}.webp`" in portrait  # web/public/portraits/<wizard>.webp (scripts/portraits.py)
     assert "image.alt = ''" in portrait
     assert "element.style.setProperty('--portrait-size', `${size}px`)" in portrait
@@ -299,8 +182,8 @@ def test_the_wizard_portrait_is_a_gilt_ringed_circle_at_four_sizes_reading_web_p
     assert circle["border"] == "2px solid var(--gilt)" and circle["border-radius"] == "var(--rounded-full)"
     assert circle["width"] == circle["height"] == "var(--portrait-size)" and circle["box-sizing"] == "border-box"
     assert rules[".wizard-portrait img"]["object-fit"] == "cover"
-    # In the Play screen's side column the ring is the hairline: gilt frames the Scene alone there.
-    assert rules[".side-column .wizard-portrait"] == {"border-color": "var(--hairline)"}
+    # The side column is gone (story mode), and with it the hairline ring it gave the portraits.
+    assert ".side-column .wizard-portrait" not in rules
     # No play path generates one (FR-23).
     assert "generate" not in _code(portrait).lower()
 
@@ -328,13 +211,6 @@ def test_every_in_character_line_carries_a_visually_hidden_speaker_prefix():
     assert hidden["clip-path"] == "inset(50%)" and hidden["overflow"] == "hidden"
 
 
-def test_the_notes_tray_takes_the_shared_two_tone_focus_ring():
-    rules = _rules("components/wizard-notes.css")
-    # No shadow of its own to keep, so the global ring (outline over the inner ring) applies unchanged.
-    assert ".wizard-notes:focus-visible" not in rules and "box-shadow" not in rules[".wizard-notes"]
-    assert _ts("components/wizard-notes.ts").count("element.tabIndex = 0") == 1
-
-
 def test_every_new_color_pair_is_in_the_contrast_table():
     table = design_text().split("### Contrast (load-bearing pairs)", 1)[1].split("\n## ", 1)[0]
     rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]
@@ -346,7 +222,7 @@ def test_every_new_color_pair_is_in_the_contrast_table():
         assert any(fg in f and bg in b for f, b in rows), f"{fg} on {bg} is not in the DESIGN.md contrast table"
 
 
-def test_the_four_lock_room_serves_what_the_notes_and_the_inventory_draw(client: TestClient, four_lock_room: Room):
+def test_the_four_lock_room_serves_what_the_note_and_the_pack_draw(client: TestClient, four_lock_room: Room):
     view = client.get(f"/api/rooms/{four_lock_room.id}").json()
     ids = {interactable["id"] for interactable in view["interactables"]}
     for puzzle in view["puzzles"]:
@@ -360,7 +236,7 @@ def test_the_four_lock_room_serves_what_the_notes_and_the_inventory_draw(client:
     client.post(events, json={"type": "lock_input", "input": {"type": "code", "puzzle_id": clock, "code": "415"}})
     state = client.get(f"/api/sessions/{session['id']}").json()
     assert state["inventory"] == [IX["key"]]
-    # locks_open keeps the order locks opened in, which is the order the notes read availability from.
+    # locks_open keeps the order locks opened in; the note reads availability from it.
     assert state["locks_open"] == [view["puzzles"][0]["id"], clock]
     assert state["wrong_attempts"][clock] == 1
     shown = client.get(f"/api/sessions/{session['id']}/room").json()["puzzles"]
@@ -371,12 +247,12 @@ def test_the_four_lock_room_serves_what_the_notes_and_the_inventory_draw(client:
 def test_a_reload_rebuilds_the_play_screen_from_the_session_and_its_room_announcing_nothing():
     shell, play = _ts("shell.ts"), _ts("play.ts")
     assert "getSession(sessionId).catch(refused)" in shell and "const room: Promise<PlayView> = getEffectiveRoom(session.id)" in play
-    # The first draw shows open locks collapsed and held items in place: no Open hold, no fade, no focus move.
-    notes, held = _ts("components/wizard-notes.ts"), _ts("components/inventory.ts")
-    assert "previous === undefined\n        ? []" in notes and "if (before.size > 0) for (const made of arrived) fadeIn(made.element)" in notes
-    assert "if (before !== undefined && !before.has(interactable.id)) arrived.push(item)" in held
-    assert "if (opening.text !== null && playHasBegun(session)) play.openingLine = opening.text" in play
-    # Only a reply to a posted input speaks its feedback line; a reload posts nothing.
+    # The first draw shows the active riddle and held items in place: no beat, no stamp, no fade.
+    note, held = _ts("components/riddle-note.ts"), _ts("components/inventory.ts")
+    assert "let latest = play.state()" in note and "render(latest)" in note
+    assert "if (before !== undefined && !before.has(interactable.id)) arrived.push(button)" in held
+    assert "lockOpened(() => shown, latest, scene," in play  # the mounting state is only read
+    # Only a reply to a posted input speaks; a reload posts nothing.
     assert re.findall(r"announce\(([^)]*)\)", _code(play)) == ["strings.reconnectingPlay", "`${strings.speakerGuide} ${line}`"]
 
 
@@ -391,8 +267,8 @@ def test_two_consecutive_missed_polls_show_the_reconnecting_strip_once_and_hold_
     poll = play.split("async function poll(): Promise<void> {", 1)[1].split("\n  }\n", 1)[0]
     assert "if (polling) return missed()" in poll and "else missed()" in poll
     hold = play.split("function holdInputs(): void {", 1)[1].split("\n  }\n", 1)[0]
-    assert "const held = reconnecting || ended" in hold and "element.inert = held" in hold
-    assert "[sceneFrame, stripRow, ...sideColumn.children]" in hold and "stage.classList.toggle('is-dimmed', held)" in hold
+    assert "const held = reconnecting || ended" in hold and "sceneFrame.inert = held || beating" in hold
+    assert "stage.classList.toggle('is-dimmed', held)" in hold  # everything that takes input hangs in the frame
     # The strip is plain and takes no focus.
     strip = _ts("components/status-strip.ts")
     assert "tabIndex" not in strip and "focus" not in _code(strip)
@@ -406,7 +282,7 @@ def test_the_strip_sits_above_the_scene_frame_which_shrinks_by_its_height_and_th
     assert rules[".scene-stage > .status-strip"] == {"flex": "none"}
     assert rules[".scene-stage > .scene-frame"] == {"flex": "1 1 0"}
     assert rules[".scene-stage.is-dimmed .scene-world"] == {"opacity": "0.6"}  # the photo and its walls
-    assert "sceneColumn.append(stage, stripRow)" in _ts("play.ts")
+    assert "sceneColumn.append(stage)" in _ts("play.ts")
     assert "status-strip: 32px" in design_text()
 
 
@@ -473,25 +349,18 @@ def test_an_unknown_session_and_an_unknown_room_answer_404_with_their_codes(clie
     assert room.status_code == 404 and room.json()["error"]["code"] == "room_not_found"
 
 
-def test_the_play_screen_keeps_one_ornate_frame_around_the_scene_and_the_current_riddle_reads_largest():
-    """Reviewer feedback 4 (Oct 29): the gilt rule and the vignette frame the Scene alone; the walk map, the
-    Inventory, the Wizard notes and the Hint area are flat, quiet grounds with a hairline edge, and the Current
-    puzzle's Clue is a type step larger (wizard-line-lg) than every other line in the side column."""
+def test_the_play_screen_keeps_one_ornate_frame_around_the_scene_and_the_note_is_paper_on_the_wall():
+    """Reviewer feedback 4 (Oct 29): the gilt rule and the vignette frame the Scene alone. Story mode (owner decision
+    Oct 29): the Riddle note is a parchment note pinned on the wall inside it, the pack and the chest stand on its floor
+    and the walk map is a quiet dark card, so nothing else is framed."""
     frame = _rules("scene/scene.css")[".scene-frame"]
     assert frame["border"] == "1px solid var(--gilt)" and frame["box-shadow"] == "var(--elevation-vignette)"
-    trays = {"components/inventory.css": ".inventory", "components/wizard-notes.css": ".wizard-notes",
-             "components/hint-area.css": ".hint-area"}
-    for name, selector in trays.items():
-        tray = _rules(name)[selector]
-        assert tray["background"] == "var(--chrome-raised)" and tray["border"] == "1px solid var(--hairline)", name
-        assert "box-shadow" not in tray, name
-    for name in ("components/walk-map.css", "components/order-progress.css", *trays):
+    for name in ("components/walk-map.css", "components/order-progress.css", "components/inventory.css"):
         css = _code((WEB_SRC / name).read_text())
-        assert "--gilt" not in css and "--elevation-vignette" not in css and "--parchment" not in css, name
-    # The Current puzzle's Clue in wizard-line-lg, every other entry's in wizard-line.
-    current = _rules("components/wizard-notes.css")[".notes-entry.is-current .notes-clue p"]
-    lg = css_rules(_ts("tokens.css"))[".wizard-line-lg"]
-    assert current == {"font-size": lg["font-size"], "line-height": lg["line-height"]} == {
-        "font-size": "24px", "line-height": "1.4"}
-    marker = design_text().split("  wizard-notes:\n", 1)[1].split("\n  wizard-portrait:", 1)[0]
-    assert "currentClue: '{typography.wizard-line-lg}'" in marker and "edge: '1px solid {colors.hairline}'" in marker
+        assert "--elevation-vignette" not in css and "--parchment" not in css, name
+    note = _rules("components/riddle-note.css")[".riddle-note"]
+    assert note["background"] == "var(--parchment)" and "--elevation-vignette" not in note["box-shadow"]
+    marker = design_text().split("  riddle-note:\n", 1)[1].split("\n  wizard-portrait:", 1)[0]
+    assert "background: '{colors.parchment}'" in marker and "clue: '{typography.wizard-line}'" in marker
+
+

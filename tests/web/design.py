@@ -7,8 +7,10 @@ REPO = Path(__file__).resolve().parents[2]
 WEB_SRC = REPO / "web/src"
 DESIGN = REPO / "docs/planning-artifacts/ux-designs/ux-Keyframe-2026-10-21/DESIGN.md"
 GROUPS = ("colors", "typography", "rounded", "spacing", "elevation")
-WALK_CSS = ("web/src/scene/walk.css", "web/src/components/walk-map.css")
-"""The walk's stylesheets: DESIGN.md Motion's walk and story exception (owner decision Oct 29), tests/web/test_walk.py."""
+WALK_CSS = ("web/src/scene/walk.css", "web/src/components/walk-map.css", "web/src/components/riddle-note.css",
+            "web/src/components/treasure-chest.css", "web/src/components/story-stage.css")
+"""The walk and story stylesheets: DESIGN.md Motion's walk and story exception (owner decision Oct 29),
+tests/web/test_walk.py and tests/web/test_story_play.py."""
 
 
 def design_text() -> str:

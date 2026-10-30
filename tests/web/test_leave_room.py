@@ -150,7 +150,7 @@ def test_routing_to_completion_takes_the_guard_off_the_history_so_back_leaves_th
     # The Play screen routes to Completion only through it.
     play = _code(_ts("play.ts"))
     assert "location.replace(" not in play
-    on_exit = play.split("function leaveOnExit(", 1)[1].split("\n  }\n", 1)[0]
+    on_exit = play.split("function leaveForDone(", 1)[1].split("\n  }\n", 1)[0]
     assert "leaveRoom.exit(done)" in on_exit
 
 

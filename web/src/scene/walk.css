@@ -232,6 +232,23 @@
   opacity: 1;
 }
 
+/* The way out (story mode, spec 5.6): the door the last riddle opened fills with daylight and stays lit, and a warm
+   light gathers round it on the photo (faded in by the Scene over 1200 ms, at once under reduced motion). */
+.hotspot.is-daylight .hotspot-bloom {
+  fill: #FFF4DC;
+  fill-opacity: 0.62;
+  stroke: #FFF8EA;
+  stroke-width: 4px;
+  vector-effect: non-scaling-stroke;
+  opacity: 1;
+  filter: drop-shadow(0 0 18px #FFF4DC);
+}
+.scene-warmth {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scene-world.is-turning .scene-wall,
   .scene-wall.is-centre .scene-wall-rest.is-resting {

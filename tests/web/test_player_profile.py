@@ -319,11 +319,13 @@ def test_a_hosted_session_start_always_sends_derived_fresh(fresh_json: dict[str,
 
 def test_every_session_start_posts_the_profiles_session_start_body():
     starts = {path: text for path, text in source_ts().items() if "startSession(" in re.sub(r"//[^\n]*", "", text)}
-    assert sorted(starts) == ["web/src/api/index.ts", "web/src/build-progress.ts", "web/src/play.ts", "web/src/stored-rooms.ts"]
+    assert sorted(starts) == ["web/src/api/index.ts", "web/src/build-progress.ts", "web/src/completion.ts", "web/src/play.ts",
+                              "web/src/stored-rooms.ts"]
     calls = {path: re.findall(r"startSession\((.*)\)\n", _code(path.removeprefix("web/src/"))) for path in starts}
     assert calls["web/src/stored-rooms.ts"] == ["await sessionStart(room.room_id, profile, mode)"]
     assert calls["web/src/build-progress.ts"] == ["await sessionStart(roomId, profile, mode)"]
     assert calls["web/src/play.ts"] == ["await sessionStart(session.room_id, currentPlace().profile, frame.mode)"]
+    assert calls["web/src/completion.ts"] == ["await sessionStart(session.room_id, profile, mode)"]  # "Play again"
     # The mode each start follows is GET /meta's, passed down from the shell.
     shell = _code("shell.ts")
     assert shell.count("mode: meta.mode") == 6 and "mode: content.mode" in shell
@@ -375,7 +377,7 @@ def test_web_profile_is_the_only_writer_and_others_read_through_its_exports():
     assert users == {
         "web/src/build-progress.ts": ["sessionStart"],
         "web/src/capture.ts": ["CUT_2", "FileNotSaved", "openProfileFile", "saveProfileFile"],
-        "web/src/completion.ts": ["CUT_2", "profileFile", "profileTemporary", "putResult", "saveProfileFile"],
+        "web/src/completion.ts": ["CUT_2", "profileFile", "profileTemporary", "putResult", "saveProfileFile", "sessionStart"],
         "web/src/play.ts": ["sessionStart"],
         "web/src/shell.ts": ["getResults", "watchResults"],
         "web/src/stored-rooms.ts": ["sessionStart"],

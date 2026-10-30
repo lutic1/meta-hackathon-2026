@@ -4,6 +4,9 @@
    150 ms between, 300 ms in all; under reduced motion the lit rule is held 2 s, with no fade. */
 .scene-frame {
   position: relative;
+  /* Its own stacking context: what hangs in the frame (the walk's discs and map, the note, the pack and the chest)
+     stays under every overlay on the body (the welcome, the Card log, the Leave room confirmation, the closing sheet). */
+  isolation: isolate;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -200,4 +203,10 @@
 /* A Scene that cannot be drawn (no WebGL): its error banner centered in the frame at a readable width. */
 .scene-unavailable {
   width: min(560px, calc(100% - 2 * var(--spacing-5)));
+}
+
+/* The Play screen's parts hung in the frame (the Riddle note; the pack and the chest): the slots only keep their
+   place in the Tab order, and each part places itself against the frame. */
+.scene-slot {
+  display: contents;
 }

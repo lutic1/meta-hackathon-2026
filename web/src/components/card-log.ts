@@ -1,10 +1,11 @@
 import './card-log.css'
-import type { PlayView, TricksterCard } from '../../types'
+import type { PlayView, SessionState, TricksterCard } from '../../types'
 import { fadeIn } from '../fade.ts'
 import { strings } from '../strings.ts'
 import { speakerPrefix, wizardPortrait } from '../wizards/portrait.ts'
 import { formatElapsed } from './timer.ts'
 import { cardText } from './trickster-card.ts'
+import type { TriggersList } from './triggers-panel.ts'
 
 export interface CardLogDialog {
   /** The scrim, holding the dialog; it covers whatever positioned box it is appended to. */
@@ -15,6 +16,8 @@ export interface CardLogDialog {
   close: HTMLButtonElement
   /** Adds one row per Card, in the order given, after the rows already listed. */
   add: (cards: readonly TricksterCard[]) => void
+  /** Draws "How hints work" from `state`: its plain line and one row per hint. */
+  hints: (state: SessionState) => void
   /** Fades the dialog in over 300 ms (instant under reduced motion); call once the element is in the page. */
   show: () => void
 }
@@ -55,9 +58,10 @@ function row(room: PlayView, card: TricksterCard): HTMLLIElement {
 /**
  * `{components.card-log}` (UX-DR43): the scrim and on it the 360 px `chrome` modal dialog, at most 480 px high and
  * scrolling, named "Card log": the close control, then one row per Card, oldest first, or with no Cards the one
- * `text-muted` line "No cards yet in this play-through.".
+ * `text-muted` line "No cards yet in this play-through."; then "How hints work" (story mode: it left the play screen
+ * with the hint button), `hints`: its one plain line and the hint history.
  */
-export function cardLogDialog(room: PlayView): CardLogDialog {
+export function cardLogDialog(room: PlayView, hints: TriggersList): CardLogDialog {
   const element = document.createElement('div')
   element.className = 'card-log-scrim'
   const dialog = document.createElement('section')
@@ -78,7 +82,10 @@ export function cardLogDialog(room: PlayView): CardLogDialog {
   list.className = 'card-log-list'
   list.hidden = true
   const empty = paragraph('card-log-empty body-sm', strings.cardLogEmpty)
-  dialog.append(head, list, empty)
+  const hintsHeading = document.createElement('h3')
+  hintsHeading.className = 'card-log-hints label'
+  hintsHeading.textContent = strings.howHintsWork
+  dialog.append(head, list, empty, hintsHeading, hints.element)
   element.append(dialog)
 
   function add(cards: readonly TricksterCard[]): void {
@@ -87,5 +94,5 @@ export function cardLogDialog(room: PlayView): CardLogDialog {
     empty.hidden = !list.hidden
   }
 
-  return { element, dialog, close, add, show: () => fadeIn(dialog) }
+  return { element, dialog, close, add, hints: hints.render, show: () => fadeIn(dialog) }
 }

@@ -52,7 +52,7 @@ def test_the_strings_are_the_experience_lines():
     assert strings["cardLog"] == "Card log"
     assert strings["cardLogEmpty"] == "No cards yet in this play-through."
     assert strings["closeCardLog"] == "Close"
-    assert strings["moreInCardLog"].format(n=3) == "3 more in the Card log"
+    assert "moreInCardLog" not in strings  # no Card stack in play any more (story mode)
 
 
 def test_the_top_bar_button_sits_between_show_all_objects_and_leave_room_and_opens_the_log():
@@ -65,19 +65,6 @@ def test_the_top_bar_button_sits_between_show_all_objects_and_leave_room_and_ope
     # Gone with the Play screen, and with a missing Room, whose card replaces the body.
     assert play.count("cardLog.unmount()") == 2
     assert "cardLog.unmount()" in play.split("function roomMissing(gone: RoomGone): void {", 1)[1].split("\n  }\n", 1)[0]
-
-
-def test_the_hint_area_link_opens_the_log_and_takes_focus_back():
-    hint = _code(_ts("components/hint-area.ts"))
-    assert "openCardLog: (opener: HTMLElement) => void," in hint
-    assert "const more = document.createElement('button')" in hint and "more.type = 'button'" in hint
-    assert "more.setAttribute('aria-haspopup', 'dialog')" in hint
-    assert "more.addEventListener('click', () => openCardLog(more))" in hint
-    assert "hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open, () => triggers.reveal())" in _code(_ts("play.ts"))
-    # A link on dark: lamp, underlined, no button chrome, hidden with the count when no Card is behind it.
-    more = _rules("components/hint-area.css")[".hint-more"]
-    assert more["color"] == "var(--lamp)" and more["text-decoration"] == "underline"
-    assert more["background"] == "transparent" and more["border"] == "0" and "display" not in more
 
 
 def test_the_dialog_is_360px_chrome_at_most_480px_scrolling_under_the_card_log_button_over_the_scrim():
@@ -178,7 +165,7 @@ def test_it_is_exposed_as_a_modal_dialog_named_card_log_with_a_close_control():
     assert "dialog.setAttribute('role', 'dialog')" in dialog and "dialog.setAttribute('aria-modal', 'true')" in dialog
     assert "dialog.setAttribute('aria-label', strings.cardLog)" in dialog
     assert "close.type = 'button'" in dialog and "close.setAttribute('aria-label', strings.closeCardLog)" in dialog
-    assert "dialog.append(head, list, empty)" in dialog and "head.append(close)" in dialog
+    assert "dialog.append(head, list, empty, hintsHeading, hints.element)" in dialog and "head.append(close)" in dialog
     close = _rules("components/card-log.css")[".card-log-close"]
     assert close["width"] == "32px" and close["height"] == "32px" and "outline" not in close  # the shared focus ring
     head = _rules("components/card-log.css")[".card-log-head"]
@@ -237,9 +224,9 @@ def test_opening_or_closing_it_writes_nothing_to_the_live_region():
 
 
 def test_after_a_reload_the_cards_are_only_in_the_log():
-    # The Hint area stacks only cards[] entries after its first state; the log reads the whole list.
-    hint = _code(_ts("components/hint-area.ts"))
-    assert "let cardsHeard = latest.cards.length" in hint
+    # The Trickster's bubble shows only cards[] entries after its first state; the log reads the whole list.
+    chest = _code(_ts("components/treasure-chest.ts"))
+    assert "let cardsHeard = latest.cards.length" in chest
     assert "const cards = frame.play.state().cards" in _opened()
 
 

@@ -29,12 +29,3 @@
 .evidence-card-attribute {
   color: var(--ink-muted);
 }
-/* In the Wizard notes (a dark tray since Oct 29) the inset is the canvas and its text the light form; the landing's
-   sample page keeps the paper inset above. */
-.wizard-notes .evidence-card {
-  background: var(--canvas);
-  color: var(--text);
-}
-.wizard-notes .evidence-card-attribute {
-  color: var(--text-muted);
-}

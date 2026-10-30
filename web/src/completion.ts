@@ -1,6 +1,6 @@
 import './completion.css'
 import type { Meta, PlayView, RoomResult, SessionState } from '../types'
-import { getResult, listRooms } from './api/index.ts'
+import { getResult, listRooms, startSession } from './api/index.ts'
 import { buildViewLink } from './build-view.ts'
 import { sessionJob } from './capture-timer.ts'
 import { countedAt, shareLine } from './completion-line.ts'
@@ -13,7 +13,8 @@ import { formatElapsed } from './components/timer.ts'
 import { motionMs } from './fade.ts'
 import { announce } from './live-region.ts'
 import { endedOnPlay, mountPlayBehind } from './play.ts'
-import { CUT_2, profileFile, profileTemporary, putResult, saveProfileFile } from './profile/index.ts'
+import { CUT_2, profileFile, profileTemporary, putResult, saveProfileFile, sessionStart } from './profile/index.ts'
+import { CHEST_HINTS, closingLines, escapedSubline } from './riddles.ts'
 import { placeHref } from './router.ts'
 import { type RoomGone, roomGone, showRoomGone } from './room-gone.ts'
 import { solvedTargets } from './scene/index.ts'
@@ -26,10 +27,9 @@ export const RESULT_RETRY_MS = 2000
 /** What a stat shows until the result returns: the static ellipsis of every pending state. */
 const PENDING = '…'
 
-/** The Guide's sign-off, chosen from the Rungs used alone, never from objects (UX-DR44). */
-export function signOff(rungsUsed: number): string {
-  if (rungsUsed === 0) return strings.signOffNoHints
-  return rungsUsed <= 3 ? strings.signOffSomeHints : strings.signOffManyHints
+/** The chest's hints spent in a Session: the cap less the `hints_left` the server counted, never below 0. */
+export function hintsSpent(session: Pick<SessionState, 'hints_left'>): number {
+  return Math.max(0, CHEST_HINTS - session.hints_left)
 }
 
 interface Stat {
@@ -92,7 +92,7 @@ function builtBy(): HTMLElement {
   return element
 }
 
-/** One of the three stats: its `label` in `ink-muted` over the value in `mono-timer`, pending until shown. */
+/** One of the four stats: the value in `mono-timer` over its `label` in `ink-muted`, pending until shown. */
 function stat(label: string): Stat {
   const element = document.createElement('div')
   element.className = 'completion-stat'
@@ -102,7 +102,7 @@ function stat(label: string): Stat {
   const value = document.createElement('div')
   value.className = 'completion-stat-value mono-timer is-pending'
   value.textContent = PENDING
-  element.append(name, value)
+  element.append(value, name)
   return {
     element,
     show: (text) => {
@@ -110,6 +110,21 @@ function stat(label: string): Stat {
       value.textContent = text
     },
   }
+}
+
+/** One wizard's closing line: the 40 px portrait beside the name over the line. */
+function closing(wizard: Wizard): { element: HTMLElement; say: (line: string) => void } {
+  const element = document.createElement('div')
+  element.className = 'completion-say'
+  const words = document.createElement('div')
+  const name = document.createElement('p')
+  name.className = 'completion-say-name label'
+  name.textContent = WIZARD_NAMES[wizard]
+  const line = document.createElement('p')
+  line.className = 'completion-say-line wizard-line'
+  words.append(name, line)
+  element.append(wizardPortrait(wizard, 40), words)
+  return { element, say: (text) => line.replaceChildren(speakerPrefix(wizard), text) }
 }
 
 /** The per-Puzzle times: one "Puzzle {n}" row per Puzzle in Room order, no header row and no mark on the Exit. */
@@ -143,31 +158,30 @@ async function roomJob(session: SessionState): Promise<string | null> {
 }
 
 /**
- * The Completion screen (FR-13, UX-DR44, UX-DR66; the celebration, owner decision Oct 29): the Play screen under the
- * soft scrim, which covers the page body only and leaves the exit photo brighter than the other overlays do, and the
- * centered 720 px parchment sheet (`{components.completion-sheet}`) over it. The sheet reads
- * `GET /sessions/<id>/result`: the heading "The room is open.", the Guide's sign-off beside its 48 px portrait, "Time",
- * "Hints used" (the Rungs used) and "Wrong attempts" three across in `mono-timer`, counting up once from 0 when the
- * result arrives (instant under reduced motion), the filmstrip of the Room's photos with each solved object's outline
- * lit, the "Time per puzzle" table with its plain caption (each Puzzle is timed from when it appeared, so the times
- * overlap) and "Built by" over the four wizards' 32 px portraits and names.
- * Until the result returns the stats show as pending; while the request fails a plain line says so and it is asked
- * again every 2000 ms, nothing recorded. The returned `RoomResult` is put into the `profile` once per Session (web/profile
- * keys it by `room_id` and remembers the Session, so mounting this route again records nothing new, and reopening an
- * older Session's Completion screen never replaces a newer result). A Completion screen that did not follow the Exit
- * on the Play screen in this page load (a reload, a bookmark, history) is a reopened one: its result fills a Room the
- * profile lacks but never replaces a stored or opened one. "Build another room", the one primary action, goes to `#/`
- * and is there from the start;
- * "Copy your result" (secondary) follows it once the result and the Room's title are known, copying one line of the
- * stats and the site's address with no route ("Keyframe - {room} - 4 locks - 3:28 - 2 hints - 0 wrong - {url}", no
- * solution text) and confirming under the actions and in the live region; "How this room was built" (secondary)
- * joins them once the Room's job is known, opening its Build view, and is absent under cut 0. Under cut 2 in Local
- * mode, once the result is recorded, "Save profile file" (secondary) follows them,
- * downloading the profile with that result, its plain line below the actions. Under the actions a plain line says
- * when the result is not safely kept: a profile file the player opened that failed to save ("Progress is still here,
- * but the profile file wasn't saved. Try again.", with "Try again", which writes it again and clears the line once it
- * succeeds), or a browser that refused its storage, so the profile lasts only as long as the page.
- * The heading takes focus, and the sign-off is written to the live region once, as "The Guide: {line}".
+ * The Completion screen (FR-13, UX-DR44, UX-DR66; story mode, owner decision Oct 29, build spec 1.10): the Play screen
+ * as it stands, on the exit photo with the open door still in daylight, under the soft scrim, which covers the page
+ * body only, and the closing sheet docked low over it (22 px from the bottom, up to 860 px wide) so the door stays in
+ * view. Left: the heading "You escaped.", the subline "{Room.name or 'Your room'} · every riddle answered, the door
+ * open", and each wizard's closing line beside its 40 px portrait (the Trickster, the Riddler, then the Guide's
+ * sign-off for no hint spent or some), from the Room's story or the fixed lines. Right: "Riddles" ("{solved} of {N}"),
+ * "Time", "Chest hints" ("{spent} of 2", from the server's `hints_left`) and "Wrong tries" in `mono-timer`, counting up
+ * once from 0 when `GET /sessions/<id>/result` arrives (instant under reduced motion), over "Play again", the one
+ * primary action, which starts a new Session on the same Room. Under them, behind "Details", the filmstrip of the
+ * Room's photos with each solved object's outline lit, the "Time per puzzle" table with its plain caption, "Built by"
+ * over the four wizards, and the secondary actions: "Build another room" (to `#/`), "Copy your result" once the result
+ * and the Room's title are known (one line of the stats and the site's address with no route, "Keyframe - {room} - 4
+ * locks - 3:28 - 2 hints - 0 wrong - {url}", no solution text, confirmed under the actions and in the live region),
+ * "How this room was built" once the Room's job is known (absent under cut 0) and, under cut 2 in Local mode once the
+ * result is recorded, "Save profile file". Until the result returns the stats show as pending; while the request fails
+ * a plain line says so and it is asked again every 2000 ms, nothing recorded. The returned `RoomResult` is put into the
+ * `profile` once per Session (web/profile keys it by `room_id` and remembers the Session, so mounting this route again
+ * records nothing new, and reopening an older Session's Completion screen never replaces a newer result). A Completion
+ * screen that did not follow the Exit on the Play screen in this page load (a reload, a bookmark, history) is a
+ * reopened one: its result fills a Room the profile lacks but never replaces a stored or opened one. Under the sheet's
+ * columns a plain line says when the result is not safely kept: a profile file the player opened that failed to save
+ * ("Progress is still here, but the profile file wasn't saved. Try again.", with "Try again", which writes it again and
+ * clears the line once it succeeds), or a browser that refused its storage, so the profile lasts only as long as the
+ * page. The heading takes focus, and the Guide's sign-off is written to the live region once, as "The Guide: {line}".
  * A session state whose `judge_room` the server set (a Hosted Judge room, never a Demo or Local room) adds the
  * "Deleted Tue Nov 10" deletion line directly below the sheet, on the scrim, off the paper; the client never infers it.
  * The top bar's `controls` keep "Show all objects" in place, inert. A Room answered 410 `room_deleted` or 404
@@ -207,24 +221,50 @@ export function mountCompletion(
 
   const heading = document.createElement('h1')
   heading.id = 'completion-heading'
-  heading.className = 'completion-heading display-lg'
+  heading.className = 'completion-heading'
   heading.tabIndex = -1
-  heading.textContent = strings.roomOpen
+  heading.textContent = strings.youEscaped
+  const subline = document.createElement('p')
+  subline.className = 'completion-subline body-sm'
+  const lines = [closing('trickster'), closing('riddler'), closing('guide')]
+  const says = document.createElement('div')
+  says.className = 'completion-says'
+  says.hidden = true
+  says.append(...lines.map((line) => line.element))
+  const story = document.createElement('div')
+  story.className = 'completion-story'
+  story.append(heading, subline, says)
 
-  const signature = document.createElement('div')
-  signature.className = 'completion-signoff'
-  signature.hidden = true
-  const line = document.createElement('p')
-  line.className = 'wizard-line'
-  signature.append(wizardPortrait('guide', 48), line)
-
+  const riddles = stat(strings.statRiddles)
   const time = stat(strings.statTime)
-  const hints = stat(strings.statHints)
-  const wrong = stat(strings.statWrong)
+  const hints = stat(strings.statChestHints)
+  const wrong = stat(strings.statWrongTries)
   const stats = document.createElement('div')
   stats.className = 'completion-stats'
   stats.setAttribute('aria-busy', 'true')
-  stats.append(time.element, hints.element, wrong.element)
+  stats.append(riddles.element, time.element, hints.element, wrong.element)
+  let starting = false
+  const again = primaryButton({
+    label: strings.playAgain,
+    pendingLabel: strings.playAgain,
+    onActivate: async () => {
+      if (starting) return
+      starting = true
+      try {
+        const next = await startSession(await sessionStart(session.room_id, profile, mode))
+        location.hash = placeHref({ route: { name: 'play', sessionId: next.id }, profile })
+      } catch (error) {
+        // Nothing started; "Play again" stays for another try, unless the Room itself is gone.
+        const missing = roomGone(error)
+        if (mounted && missing !== null) gone(missing)
+      } finally {
+        starting = false
+      }
+    },
+  })
+  const side = document.createElement('div')
+  side.className = 'completion-side'
+  side.append(stats, again)
 
   const filmstrip = document.createElement('div')
   filmstrip.className = 'completion-filmstrip'
@@ -253,10 +293,10 @@ export function mountCompletion(
 
   const actions = document.createElement('div')
   actions.className = 'completion-actions'
-  const buildAnother = primaryButton({
+  const buildAnother = secondaryButton({
     label: strings.buildAnotherRoom,
-    pendingLabel: strings.buildAnotherRoom,
-    onActivate: async () => {
+    onParchment: true,
+    onActivate: () => {
       location.hash = placeHref({ route: { name: 'home' }, profile })
     },
   })
@@ -270,7 +310,14 @@ export function mountCompletion(
   kept.hidden = true
   const wizards = builtBy()
 
-  sheet.append(heading, signature, stats, filmstrip, times, wizards, failed, actions, copied, kept)
+  const details = document.createElement('details')
+  details.className = 'completion-details'
+  const summary = document.createElement('summary')
+  summary.className = 'completion-details-toggle label'
+  summary.textContent = strings.details
+  details.append(summary, filmstrip, times, wizards, actions, copied)
+
+  sheet.append(story, side, failed, kept, details)
   scrim.append(sheet)
   if (session.judge_room === true) scrim.append(deletionLine())
   body.append(scrim)
@@ -307,13 +354,13 @@ export function mountCompletion(
   }
 
   function show(result: RoomResult): void {
-    const said = signOff(result.rungs_used)
-    line.replaceChildren(speakerPrefix('guide'), said)
-    signature.hidden = false
+    const total = result.puzzles.length
+    const spent = hintsSpent(session)
     countUp(
       [
+        { stat: riddles, final: result.puzzles.filter((puzzle) => puzzle.solved).length, format: (n) => fill(strings.statOf, { n, total }) },
         { stat: time, final: Math.floor(result.elapsed_ms / 1000), format: (s) => formatElapsed(s * 1000) },
-        { stat: hints, final: result.rungs_used, format: String },
+        { stat: hints, final: spent, format: (n) => fill(strings.statOf, { n, total: CHEST_HINTS }) },
         { stat: wrong, final: result.wrong_attempts, format: String },
       ],
       () => stats.removeAttribute('aria-busy'),
@@ -321,7 +368,6 @@ export function mountCompletion(
     rows.replaceChildren(...timeRows(result))
     times.hidden = false
     failed.hidden = true
-    announce(`${strings.speakerGuide} ${said}`)
   }
 
   async function load(): Promise<void> {
@@ -353,7 +399,7 @@ export function mountCompletion(
     )
   }
 
-  /** The plain line under the actions about where the result is kept, with its one action, if any. */
+  /** The plain line under the columns about where the result is kept, with its one action, if any. */
   function note(text: string, action?: { label: string; onActivate: () => void }): void {
     if (!mounted) return
     const line = document.createElement('p')
@@ -386,6 +432,11 @@ export function mountCompletion(
     (room) => {
       if (!mounted) return
       view = room
+      subline.textContent = escapedSubline(room)
+      const { trickster, riddler, guide } = closingLines(room, hintsSpent(session))
+      lines.forEach((line, k) => line.say([trickster, riddler, guide][k]))
+      says.hidden = false
+      announce(`${strings.speakerGuide} ${guide}`)
       // The objects solved: every find target in the final Inventory, plus each unlock moment's target seen in this page.
       filmstrip.append(roomFilmstrip(room, new Set([...session.inventory, ...solvedTargets(session.id)])))
       filmstrip.hidden = false

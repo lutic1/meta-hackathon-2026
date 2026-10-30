@@ -1,0 +1,31 @@
+/* Feedback chips: label type, rounded sm, a word and a 1 px edge in the state's light form; on the Riddle note's
+   parchment, in the state's ink form. */
+.chip {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--spacing-2);
+  border-radius: var(--rounded-sm);
+  white-space: nowrap;
+}
+.chip[hidden] {
+  display: none;
+}
+.chip-not-this {
+  border: 1px solid var(--wrong);
+  color: var(--wrong);
+}
+/* "Checking": a dashed pending edge and a static ellipsis; nothing moves while the server judges. */
+.chip-pending {
+  border: 1px dashed var(--pending);
+  color: var(--pending);
+}
+.riddle-note .chip-not-this {
+  border-color: var(--wrong-ink);
+  color: var(--wrong-ink);
+}
+.riddle-note .chip-pending {
+  border-color: var(--pending-ink);
+  color: var(--pending-ink);
+}

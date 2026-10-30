@@ -1,4 +1,5 @@
 import './code-field.css'
+import './chip.css'
 import type { PlayPuzzle, SessionState } from '../../types'
 import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
@@ -93,7 +94,7 @@ export function codeField(puzzle: PlayPuzzle, n: number, play: PlaySession): Cod
     }
   }
 
-  const button = secondaryButton({ label: strings.submit, onActivate: () => void submit() })
+  const button = secondaryButton({ label: strings.submit, onParchment: true, onActivate: () => void submit() }) // on the Riddle note
   button.disabled = true
   field.addEventListener('input', () => {
     button.disabled = field.value.length < CODE_MIN

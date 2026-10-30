@@ -1,32 +1,10 @@
-/* {components.triggers-panel}: "How hints work", a quiet text button (text-muted, underlined, text on hover), then,
-   open, a panel on chrome, rounded md, its foreground text-muted: the plain body-sm opening lines, then the hint
-   history, capped at triggers-panel-max and scrolling, the newest row last and in text. The button and the panel are
-   bands of the Hint area's tray (the slot is display: contents), 8 px apart. */
-.triggers {
-  display: contents;
-}
-.triggers-toggle {
-  flex: none;
-  align-self: flex-start;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  text-align: left;
-  text-decoration: underline;
-  cursor: pointer;
-  transition: color var(--motion-hover) var(--motion-ease);
-}
-.triggers-toggle:hover,
-.triggers-toggle[aria-expanded='true'] {
-  color: var(--text);
-}
+/* {components.triggers-panel}: "How hints work" in the Card log (story mode), a panel on chrome, rounded md, its
+   foreground text-muted: the one plain body-sm line, then the hint history, capped at triggers-panel-max and
+   scrolling, the newest row last and in text. */
 .triggers-panel {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  overflow-y: auto; /* only when the Hint area has no room for the header and the rows; it scrolls to the newest */
   padding: var(--spacing-3);
   border-radius: var(--rounded-md);
   background: var(--chrome);
@@ -35,16 +13,12 @@
 .triggers-panel[hidden] {
   display: none;
 }
-.triggers-header,
-.triggers-empty {
+.triggers-header {
   flex: none;
   margin: 0;
 }
-.triggers-line {
-  display: block;
-}
 .triggers-rows {
-  flex: none; /* never squeezed below its rows, so a short Hint area cannot clip the newest one, wrapped or not */
+  flex: none;
   max-height: var(--spacing-triggers-panel-max);
   margin: 0;
   padding: 0;

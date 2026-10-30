@@ -91,19 +91,19 @@ def test_the_play_view_gives_an_order_puzzle_its_length_and_nothing_of_its_seque
 # --- Order click progress ---------------------------------------------------------------------------------------
 
 
-def test_an_order_entry_holds_order_click_progress_in_its_lock_slot_and_redraws_on_the_buffer():
-    notes = _ts("components/wizard-notes.ts")
-    assert "puzzle.lock_type === 'order' ? orderProgress(puzzle, play) : undefined" in notes
-    assert "if (order !== undefined) lock.append(order.element)" in notes
-    assert "order.update(state)" in _body(notes, "function update(")
-    # The notes redraw when only the order buffer moved (an armed click), so every acknowledged click fills a pip.
-    assert "state.order_buffer])" in notes.split("function drawKey(", 1)[1].split("\n}\n", 1)[0]
+def test_an_order_riddle_holds_order_click_progress_on_its_note_and_redraws_on_the_buffer():
+    note = _ts("components/riddle-note.ts")
+    assert "puzzle.lock_type === 'code' ? codeField(puzzle, place, play) : orderProgress(puzzle, play)" in note
+    # Every state updates the lock input before the note decides whether to redraw, so every acknowledged click
+    # fills a pip even when only the order buffer moved (an armed click).
+    draw = _body(note, "function draw(")
+    assert draw.index("inputs.get(puzzle.id)?.update(state)") < draw.index("if (key === drawn) return")
 
 
 def test_the_start_control_posts_order_start_or_stop_and_keeps_focus_through_its_label_change():
     order = _ts("components/order-progress.ts")
     assert "import './order-progress.css'" in order
-    assert "secondaryButton({ label: strings.startSequence, onActivate: () => void toggle() })" in order
+    assert "secondaryButton({ label: strings.startSequence, onParchment: true, onActivate: () => void toggle() })" in order
     toggle = _body(order, "async function toggle(")
     assert "type: armed ? ('order_stop' as const) : ('order_start' as const), puzzle_id: puzzle.id" in toggle
     assert "await play.post({ type: 'lock_input', input })" in toggle
@@ -225,13 +225,13 @@ def test_starting_another_order_puzzle_stops_the_armed_one_first(tmp_path: Path,
 
 def test_an_inventory_item_is_a_named_button_selected_by_click_or_enter_and_a_drag_source():
     inventory, use_on = _ts("components/inventory.ts"), _ts("use-on.ts")
-    assert "button.setAttribute('aria-label', interactable.label)" in inventory
+    assert "button.setAttribute('aria-label', capitalized(interactable.label))" in inventory
     assert "useOnItem(button, interactable, selection)" in inventory
     assert "button.setAttribute('aria-pressed', String(button.dataset.item === item))" in inventory
-    assert "selection.onChange(markSelected)" in inventory and "markSelected(selection.selected())" in inventory
+    assert "markSelected(item)" in inventory and "markSelected(selection.selected())" in inventory
     # A native button: Enter acts as its click, and a second activation clears the selection.
     item = use_on.split("export function useOnItem(", 1)[1].split("\n}\n", 1)[0]
-    assert "selection.select(selection.selected() === interactable.id ? null : interactable.id)" in item
+    assert "selection.select(selection.selected() === interactable.id ? null : interactable.id, 'pack')" in item
     assert "button.draggable = true" in item and "button.classList.add('is-dragging')" in item
     assert "button.classList.remove('is-dragging')" in item
     assert "event.dataTransfer.setDragImage(image, " in item and "const DRAG_PX = 64" in use_on
@@ -241,8 +241,8 @@ def test_an_inventory_item_is_a_named_button_selected_by_click_or_enter_and_a_dr
 
 def test_the_selected_item_rings_in_lamp_and_the_dragged_one_shows_at_60_percent():
     rules = _rules("components/inventory.css")
-    assert rules[".inventory-item"]["border"] == "2px solid transparent"
-    assert rules[".inventory-item[aria-pressed='true']"] == {"border-color": "var(--lamp)"}
+    assert rules[".inventory-item"]["border"] == "1px solid var(--gilt)"  # story mode: a gilt-edged well
+    assert rules[".inventory-item[aria-pressed='true']"] == {"border": "2px solid var(--lamp)"}
     assert rules[".inventory-item.is-dragging"] == {"opacity": "0.6"}
     drag = _rules("use-on.css")[".use-on-drag-image canvas"]
     assert drag["box-shadow"] == "var(--elevation-paper)"
@@ -270,7 +270,7 @@ def test_the_using_chip_is_parchment_pinned_top_left_with_cancel_and_fades_out_w
 
 def test_escape_clears_the_selection_and_the_selection_outlives_photo_switches():
     use_on, play = _ts("use-on.ts"), _ts("play.ts")
-    assert "if (event.key === 'Escape' && selected !== null) select(null)" in use_on
+    assert "if (event.key === 'Escape' && selected !== null) select(null, 'escape')" in use_on
     assert "document.addEventListener('keydown', escape)" in use_on
     assert "dispose: () => document.removeEventListener('keydown', escape)" in use_on
     assert play.count("useOn: useOnSelection()") == 2 and play.count("play.useOn.dispose()") == 2

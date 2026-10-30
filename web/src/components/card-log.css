@@ -86,3 +86,8 @@
 .card-log-empty[hidden] {
   display: none;
 }
+/* "How hints work" under the Cards (story mode): a plain label heading over the Triggers panel. */
+.card-log-hints {
+  margin: var(--spacing-4) 0 var(--spacing-2);
+  color: var(--text-muted);
+}

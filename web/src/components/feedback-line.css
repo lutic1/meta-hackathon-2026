@@ -1,12 +1,12 @@
-/* {components.feedback-line}: a parchment strip centred over the bottom edge of the Scene frame, on the mat's inner
-   edge, the Guide's 32 px portrait left of one wizard-line in ink. It fades in (200 ms), is held 2.5 s and fades out;
+/* {components.feedback-line}: a parchment strip centred at the photo's bottom, 22 px up, the Guide's 30 px portrait
+   left of one wizard-line in ink. It fades in (200 ms), is held 2.5 s and fades out;
    a new line fades in over the shown one. It never takes the pointer, so the Hotspots under it still answer. */
 .feedback-line {
   position: absolute;
   right: 0;
-  bottom: var(--spacing-3);
+  bottom: 22px;
   left: 0;
-  z-index: 1;
+  z-index: 5;
   display: flex;
   gap: var(--spacing-3);
   align-items: center;
@@ -31,4 +31,45 @@
 }
 .feedback-line .wizard-line {
   margin: 0;
+}
+/* The coach pill (story mode, spec 3.2): plain words on a dark pill in the same slot, gone while a line shows. */
+.coach-pill {
+  position: absolute;
+  right: 0;
+  bottom: 22px;
+  left: 0;
+  z-index: 5;
+  box-sizing: border-box;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 10px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-md);
+  background: color-mix(in srgb, var(--chrome) 94%, transparent);
+  color: var(--text);
+  pointer-events: none;
+  white-space: nowrap;
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+.coach-pill[hidden] {
+  display: none;
+}
+.coach-pill::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 10px;
+  border-radius: var(--rounded-full);
+  background: var(--lamp);
+  vertical-align: middle;
+}
+.coach-pill kbd {
+  padding: 3px 5px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-sm);
+  font: 500 12px/1 var(--font-mono);
+}
+.feedback-line.is-shown ~ .coach-pill {
+  opacity: 0;
 }

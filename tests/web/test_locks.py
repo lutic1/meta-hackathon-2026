@@ -50,12 +50,12 @@ def test_the_lock_strings_are_the_experience_lines():
     assert strings["found"].format(label="floor vent") == "floor vent · found"
 
 
-def test_a_code_puzzle_entry_holds_the_code_field_in_its_lock_slot():
-    notes = _ts("components/wizard-notes.ts")
-    assert "puzzle.lock_type === 'code' ? codeField(puzzle, n, play) : undefined" in notes
-    assert "if (code !== undefined) lock.append(code.element)" in notes
-    assert "code.update(state)" in _body(notes, "function update(")
-    assert "wizardNotes(view, play)" in _ts("play.ts")
+def test_a_code_riddle_holds_the_code_field_on_its_note():
+    note = _ts("components/riddle-note.ts")
+    assert "puzzle.lock_type === 'code' ? codeField(puzzle, place, play) : orderProgress(puzzle, play)" in note
+    assert "lock.replaceChildren(...(lockInput === null ? [] : [lockInput.element]))" in note
+    assert "inputs.get(puzzle.id)?.update(state)" in note  # kept across redraws, so a typed code survives
+    assert "riddleNote(view, play)" in _ts("play.ts")
 
 
 def test_the_code_field_is_a_168_by_44_parchment_shade_inset_in_mono_code_with_no_visible_label():
@@ -75,9 +75,9 @@ def test_the_code_field_is_a_168_by_44_parchment_shade_inset_in_mono_code_with_n
     assert mono["font-family"] == "var(--font-mono)" and mono["font-size"] == "20px" and mono["letter-spacing"] == "0.2em"
 
 
-def test_submit_is_secondary_on_the_dark_notes_and_disabled_below_3_characters():
+def test_submit_is_secondary_on_the_riddle_notes_parchment_and_disabled_below_3_characters():
     field = _ts("components/code-field.ts")
-    assert "secondaryButton({ label: strings.submit, onActivate: () => void submit() })" in field
+    assert "secondaryButton({ label: strings.submit, onParchment: true, onActivate: () => void submit() })" in field
     assert "export const CODE_MIN = 3" in field and "button.disabled = true" in field
     assert "button.disabled = field.value.length < CODE_MIN" in field
     assert "if (pending || code.length < CODE_MIN) return" in _body(field, "async function submit(")
@@ -104,10 +104,12 @@ def test_while_pending_the_field_is_read_only_and_the_checking_chip_shows_unanno
     assert submit.index("field.readOnly = true") < submit.index("await play.post(")
     assert "field.readOnly = false" in submit.split("finally {", 1)[1]
     assert "if (!pending) verdict(state)" in field  # a poll never clears Checking before the verdict
-    for name in ("components/code-field.ts", "components/wizard-notes.ts"):
+    for name in ("components/code-field.ts", "components/riddle-note.ts"):
         assert "aria-live" not in _ts(name) and "role', 'status'" not in _ts(name)
-    rules = _rules("components/wizard-notes.css")
+    rules = _rules("components/chip.css")
     assert rules[".chip-pending"] == {"border": "1px dashed var(--pending)", "color": "var(--pending)"}
+    # On the Riddle note's parchment the chips take their ink forms.
+    assert rules[".riddle-note .chip-pending"] == {"border-color": "var(--pending-ink)", "color": "var(--pending-ink)"}
     # The ellipsis is a character, never an animation: nothing loops.
     assert "setInterval" not in field and "requestAnimationFrame" not in field
 
@@ -139,28 +141,13 @@ def test_an_input_that_changes_nothing_only_clears_the_checking_chip():
     assert "if (!chip.hidden && field.isConnected) {" in _body(field, "async function submit(")
 
 
-def test_open_is_held_1200_ms_then_the_entry_collapses_and_the_next_entry_fades_in_and_is_announced_keeping_focus():
-    notes = _ts("components/wizard-notes.ts")
-    assert "export const OPEN_HOLD_MS = 1200" in notes
-    render = notes.split("function render(state: SessionState): void {", 1)[1].split("\n  return { element, render }", 1)[0]
-    assert "if (holding) return" in render and "for (const made of opened) made.opening()" in render
-    assert "draw(latest, true)" in render and "}, OPEN_HOLD_MS)" in render
-    assert "previous === undefined" in render  # a reload draws open locks collapsed at once
-    opening = _body(notes, "function opening(")
-    assert "lock.replaceChildren(chip)" in opening  # the Open chip takes the Code field's place
-    draw = _body(notes, "function draw(")
-    assert "if (before.size > 0) for (const made of arrived) fadeIn(made.element)" in draw
-    # Owner decision 68: newly available entries are announced, never focused; focus stays where the player left it,
-    # and focus inside an entry whose lock input gives way to the Solved chip moves to that entry's heading, which
-    # stays drawn.
-    assert "heading.focus()" not in draw and "heading.tabIndex = -1" in notes
-    assert "announce(arrived.map((made) => fill(strings.puzzleAvailable, { n: made.n })).join(' '))" in draw
-    assert "if (afterOpening && arrived.length > 0)" in draw
-    assert "const held = opened.find((made) => made.element.contains(document.activeElement))" in render
-    assert render.index("for (const made of opened) made.opening()") < render.index("held?.heading.focus()")
-    rules = _rules("components/wizard-notes.css")
-    assert rules[".notes-entry"]["transition"] == "opacity var(--motion-state) var(--motion-ease)"
-    assert rules[".notes-entry.is-arriving"] == {"opacity": "0"}
+def test_an_open_lock_is_stamped_on_the_note_which_holds_it_until_the_player_sets_off():
+    # Story mode: the Wizard notes' 1200 ms hold and collapse are gone; the note holds the solved riddle with its
+    # stamp until "Take me there" (tests/web/test_story_play.py), and focus then moves to its heading.
+    note = _ts("components/riddle-note.ts")
+    assert "if (opened) held = true" in note and "stamp.hidden = !open" in note
+    assert "heading.tabIndex = -1" in note
+    assert "OPEN_HOLD_MS" not in _code(_ts("play.ts")) and not (WEB_SRC / "components/wizard-notes.ts").exists()
     fade = _ts("fade.ts")
     assert "element.classList.add('is-arriving')" in fade and "element.classList.remove('is-arriving')" in fade
 
@@ -180,10 +167,10 @@ def test_a_find_click_posts_only_the_click_and_the_collected_target_fades_into_t
     css = (WEB_SRC / "scene/scene.css").read_text()
     assert css.index(".hotspot:hover .hotspot-glow") < css.index(".hotspot.is-collected .hotspot-glow")
     inventory = _ts("components/inventory.ts")
-    assert "if (before !== undefined && !before.has(interactable.id)) arrived.push(item)" in inventory
+    assert "if (before !== undefined && !before.has(interactable.id)) arrived.push(button)" in inventory
     assert "for (const item of arrived) {\n      fadeIn(item)" in inventory
     slots = _rules("components/inventory.css")
-    assert slots[".inventory-slot"]["transition"] == "opacity var(--motion-state) var(--motion-ease)"
+    assert slots[".inventory-slot"]["transition"].startswith("opacity var(--motion-state) var(--motion-ease)")
     assert slots[".inventory-slot.is-arriving"] == {"opacity": "0"}
     assert "--motion-state: 200ms;" in (WEB_SRC / "tokens.css").read_text()
 

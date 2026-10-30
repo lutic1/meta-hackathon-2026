@@ -302,5 +302,5 @@ def test_the_arrow_keys_walk_only_from_the_scene_a_button_or_the_page_and_never_
 def test_a_reload_opens_on_the_active_riddles_start_photo():
     play = _ts("play.ts")
     assert ("view.puzzles.find((puzzle) => puzzle.id === latest.active_puzzle_id)?.start_photo ?? 0") in play
-    assert "const scene = mountScene(stage, play, room, start)" in play
+    assert "const scene: MountedScene = mountScene(stage, play, room, start)" in play
     assert "return show(areaOf(areas, start) < 0 ? areas[0].ring[0] : start)" in _ts("scene/index.ts")

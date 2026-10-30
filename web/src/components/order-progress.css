@@ -28,3 +28,15 @@
   border-color: var(--wrong);
   background: var(--wrong);
 }
+/* On the Riddle note's parchment (story mode) the pips take the ink forms. */
+.riddle-note .order-pip {
+  border-color: var(--ink-muted);
+}
+.riddle-note .order-pip.is-filled {
+  border-color: var(--lamp-ink);
+  background: var(--lamp-ink);
+}
+.riddle-note .order-pips.is-wrong .order-pip {
+  border-color: var(--wrong-ink);
+  background: var(--wrong-ink);
+}

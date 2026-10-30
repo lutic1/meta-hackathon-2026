@@ -1,4 +1,5 @@
 import './order-progress.css'
+import './chip.css'
 import type { PlayPuzzle, SessionState } from '../../types'
 import type { PlaySession } from '../play.ts'
 import { fill, strings } from '../strings.ts'
@@ -52,7 +53,7 @@ export function orderProgress(puzzle: PlayPuzzle, play: PlaySession): OrderProgr
       pending = false
     }
   }
-  const control = secondaryButton({ label: strings.startSequence, onActivate: () => void toggle() })
+  const control = secondaryButton({ label: strings.startSequence, onParchment: true, onActivate: () => void toggle() }) // on the Riddle note
   control.setAttribute('aria-describedby', description.id)
 
   const pips = document.createElement('span')

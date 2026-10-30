@@ -1,7 +1,5 @@
-import './trickster-card.css'
 import type { PlayView, TricksterCard } from '../../types'
 import { fill, strings } from '../strings.ts'
-import { speakerPrefix, wizardPortrait } from '../wizards/portrait.ts'
 
 type EditType = NonNullable<TricksterCard['edit_type']>
 
@@ -80,54 +78,4 @@ export function cardAnnouncement(text: CardText, first: boolean): string {
     'outcome label': text.label,
   })
   return text.refusal === null ? line : `${line} ${text.refusal.proposed}. ${text.refusal.reason}`
-}
-
-function paragraph(className: string, ...content: (Node | string)[]): HTMLParagraphElement {
-  const element = document.createElement('p')
-  element.className = className
-  element.append(...content)
-  return element
-}
-
-/**
- * A Trickster card (`{components.trickster-card-accepted}`, `-rejected` or `-skipped`; UX-DR40 to UX-DR42): the
- * Trickster portrait (48 px) beside the sentence in `wizard-line`, then the outcome label, a rejected Card's two plain
- * `body-sm` lines, and the dismiss control "Dismiss card" (32 px hit area). Accepted and rejected Cards are parchment
- * with a 4 px `success-ink` or `wrong-ink` left edge; a skipped one drops off the paper onto `chrome-raised` with a
- * dashed `hairline` edge and its portrait at 60% opacity. The outcome is always named in words, never by the edge
- * alone. `first` (the Session's first Card, whatever its outcome) puts the Trickster's introduction above the
- * sentence: "The Trickster", its role line and its voice line. The Card is focusable from script only, so dismissing
- * the one above it can move focus here.
- */
-export function tricksterCard(text: CardText, first: boolean, onDismiss: () => void): HTMLElement {
-  const element = document.createElement('article')
-  element.className = `trickster-card is-${text.outcome}`
-  element.tabIndex = -1
-  const words = document.createElement('div')
-  words.className = 'trickster-card-words'
-  if (first) {
-    words.append(
-      paragraph('trickster-card-name label', strings.trickster),
-      paragraph('trickster-card-role body-sm', strings.tricksterRole),
-      paragraph('trickster-card-voice wizard-line', speakerPrefix('trickster'), strings.tricksterVoice),
-      paragraph('trickster-card-sentence wizard-line', text.sentence),
-    )
-  } else {
-    words.append(paragraph('trickster-card-sentence wizard-line', speakerPrefix('trickster'), text.sentence))
-  }
-  words.append(paragraph('trickster-card-outcome label', text.label))
-  if (text.refusal !== null) {
-    words.append(
-      paragraph('trickster-card-refusal body-sm', text.refusal.proposed),
-      paragraph('trickster-card-refusal body-sm', text.refusal.reason),
-    )
-  }
-  const dismiss = document.createElement('button')
-  dismiss.type = 'button'
-  dismiss.className = 'trickster-card-dismiss'
-  dismiss.setAttribute('aria-label', strings.dismissCard)
-  dismiss.textContent = '×'
-  dismiss.addEventListener('click', onDismiss)
-  element.append(wizardPortrait('trickster', 48), words, dismiss)
-  return element
 }

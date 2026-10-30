@@ -95,8 +95,8 @@ def test_the_scene_frame_is_the_gilt_rule_the_chrome_mat_and_the_canvas_ground()
     assert rules[".scene-loading"]["color"] == "var(--text-muted)"
     assert rules[".scene-photo canvas"] == {"display": "block", "border-radius": "var(--rounded-sm)"}
     column = css_rules((WEB_SRC / "shell.css").read_text())[".scene-column"]
-    assert column["grid-template-rows"] == "minmax(0, 1fr) var(--spacing-thumbnail-strip)"
-    assert column["row-gap"] == "var(--spacing-5)"
+    # Story mode: the frame alone fills the column; the pack stands on its floor (tests/web/test_story_play.py).
+    assert column["grid-template-rows"] == "minmax(0, 1fr)"
 
 
 def test_a_hotspot_is_the_union_of_its_polygons_in_photo_pixels_with_the_interactable_id():

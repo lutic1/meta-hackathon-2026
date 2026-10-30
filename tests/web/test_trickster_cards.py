@@ -1,5 +1,6 @@
-"""FR-19, UX-DR30, UX-DR40 to UX-DR42, UX-DR70, UX-DR74, UX-DR76: Trickster cards in the Hint area, the Trickster
-request that asks for them once per window, and the `TricksterCard` projection they are read from.
+"""FR-19, UX-DR30, UX-DR40 to UX-DR42, UX-DR70, UX-DR74, UX-DR76: Trickster cards (in play, the Trickster's bubble by
+the Treasure chest, story mode; whole in the Card log), the Trickster request that asks for them once per window, and
+the `TricksterCard` projection they are read from.
 
 The client has no test runner, so the checks read the TypeScript and the stylesheets; `npm run build` and
 `tsc --noEmit` prove they compile, and the criteria are checked in Chrome against the fixture rooms. The API checks
@@ -45,7 +46,7 @@ def _rules(name: str) -> dict[str, dict[str, str]]:
 
 
 def _function(text: str, name: str) -> str:
-    """The body of a function nested one level, as the Hint area's are."""
+    """The body of a function nested one level, as the chest's are."""
     return text.split(f"function {name}(", 1)[1].split("\n  }\n", 1)[0]
 
 
@@ -76,8 +77,8 @@ def test_the_card_sentences_labels_and_summaries_are_the_experience_lines():
     assert strings["proposed"].format(summary="Puzzle 4 waits on Puzzle 2") == "Proposed: Puzzle 4 waits on Puzzle 2"
     assert strings["changeRefused"].format(message="Two locks would wait on each other forever.") == (
         "That change was refused. Two locks would wait on each other forever.")
-    assert strings["moreInCardLog"].format(n=2) == "2 more in the Card log"
-    assert strings["dismissCard"] == "Dismiss card"
+    # No stack in play any more (story mode): the bubble shows the newest Card and the Card log keeps them all.
+    assert "moreInCardLog" not in strings and "dismissCard" not in strings
 
 
 def test_the_introduction_and_the_announcements_are_the_experience_lines():
@@ -185,131 +186,21 @@ def test_an_open_window_is_asked_once_with_no_pending_state_and_the_reply_is_not
     assert "postJson<SessionState>(`/sessions/${encodeURIComponent(sessionId)}/trickster`, {})" in api
 
 
-# --- The Hint area stack ---------------------------------------------------------------------------
+# --- In play: the Trickster's bubble by the chest (story mode) ---------------------------------------------------
 
 
-def test_at_most_two_cards_stack_newest_on_top_above_the_rung_line_the_rest_behind_the_card_log_line():
-    hint = _code(_ts("components/hint-area.ts"))
-    assert "export const CARDS_STACKED = 2" in hint
-    assert "upper.append(stack, more, rungLine)" in hint and "stack.className = 'hint-cards'" in hint
-    restack = _function(hint, "restack")
-    # Newest on top: the last held Cards, reversed; only one while "How hints work" is open.
-    assert "const shown = held.slice(-(triggersShown ? 1 : CARDS_STACKED)).reverse()" in restack
-    assert "more.textContent = fill(strings.moreInCardLog, { n: rest })" in restack and "more.hidden = rest === 0" in restack
-    assert "more.className = 'hint-more body-sm'" in hint
-    toggled = _function(hint, "triggersOpen")
-    assert "element.classList.toggle('is-triggers-open', open)" in toggled and "restack()" in toggled
-    # The hint controls stay in the pinned lower part, outside the scrolling upper part.
-    assert "lower.append(ask, triggers)" in hint and "element.append(upper, lower)" in hint
-    rules = _rules("components/hint-area.css")
-    assert rules[".hint-cards"]["flex-direction"] == "column" and rules[".hint-cards[hidden]"]["display"] == "none"
-    assert rules[".hint-more"]["color"] == "var(--lamp)"  # a link on dark (tests/web/test_card_log.py)
-
-
-def test_while_a_card_is_stacked_the_tray_grows_past_its_cap_until_the_wizard_notes_reach_notes_min():
-    # The open item "Hint area cap and the first Card" (EXPERIENCE.md): the tray grows the way it does while the
-    # Triggers panel is open, so the Card and the Rung line get the side column's spare height before scrolling.
-    rules = _rules("components/hint-area.css")
-    grown = "calc(100% - var(--spacing-notes-min) - var(--spacing-5))"
-    assert rules[".hint-area.is-triggers-open,\n.hint-area:has(> .hint-upper > .hint-cards:not([hidden]))"] == {"max-height": grown}
-    assert rules[".hint-area"]["max-height"] == f"min(var(--spacing-hint-area-max), {grown})"
-
-
-def test_short_of_room_the_triggers_panel_gives_way_to_its_newest_row_before_the_card_and_the_rung_line_scroll():
-    # The tray's bands are its flex items (the lower part and the Triggers slot are display: contents), so the panel
-    # shrinks first, to one body-sm row inside its padding (the newest, scrolled to), then the upper part scrolls; the
-    # hint button and "How hints work" never shrink.
-    rules = _rules("components/hint-area.css")
-    assert rules[".hint-lower,\n.hint-triggers"] == {"display": "contents"}
-    assert rules[".hint-upper"]["flex"] == "1 1 auto" and rules[".hint-upper"]["min-height"] == "0"
-    assert rules[".hint-area .triggers-panel"] == {
-        "flex-shrink": "1000",
-        "min-height": "calc(1.45 * 14px)",
-    }
-    assert rules[".hint-ask"]["flex"] == "none"
-    panel = _rules("components/triggers-panel.css")
-    assert panel[".triggers"] == {"display": "contents"}
-    assert panel[".triggers-toggle"]["flex"] == "none" and panel[".triggers-panel"]["overflow-y"] == "auto"
-    assert "flex-shrink: 1000" not in (WEB_SRC / "components/hint-area.css").read_text().split(".triggers-panel")[0]
-    assert ".hint-upper:has(" not in (WEB_SRC / "components/hint-area.css").read_text()  # no floor fights the controls
-    # The upper part scrolls to its end for a line that arrives and for a Card that enters, so the Card's sentence,
-    # its outcome and the Rung line share the frame and the introduction is a scroll above.
-    hint = _code(_ts("components/hint-area.ts"))
-    assert "upper.scrollTop = upper.scrollHeight" in _function(hint, "draw")
-    assert "upper.scrollTop = upper.scrollHeight" in _function(hint, "enter")
-    assert "upper.scrollTop = 0" not in hint
-
-
-def test_a_card_that_enters_or_leaves_restacks_the_bands_and_the_triggers_panel_reveals_its_newest_row():
-    # The panel shrinks to its newest row when a Card enters and grows back when one is dismissed, each with a stale
-    # scrollTop, so the Hint area tells the panel to scroll that row back into view after each restack; on a toggle
-    # the panel reveals the row itself (components/triggers-panel.ts), so the Hint area says nothing then.
-    hint = _code(_ts("components/hint-area.ts"))
-    assert "onStacked: () => void," in hint
-    enter = _function(hint, "enter")
-    assert enter.index("restack()") < enter.index("upper.scrollTop = upper.scrollHeight") < enter.index("onStacked()")
-    dismiss = _function(hint, "dismiss")
-    assert dismiss.index("restack()") < dismiss.index("onStacked()") < dismiss.index("next.focus()")
-    assert "onStacked()" not in _function(hint, "triggersOpen")
-    play = _code(_ts("play.ts"))
-    assert "hints = hintArea(view, play, frame.guide, notes.openedRungs, cardLog.open, () => triggers.reveal())" in play
-    assert "const triggers = triggersPanel(view, latest, currentPlace().profile, (open) => area.triggersOpen(open))" in play
-
-
-def test_a_new_card_enters_after_the_lock_open_state_and_is_announced_once():
-    hint = _code(_ts("components/hint-area.ts"))
-    received = _function(hint, "receiveCards")
-    assert "if (state.locks_open.length > locksSeen) hold()" in received
-    assert "state.cards.slice(cardsHeard).forEach((card, index) => waiting.push({ card, first: cardsHeard + index === 0 }))" in received
-    # The Open chip's 1200 ms, then the entry collapse and the next Puzzle's 200 ms fade-in.
-    hold = _function(hint, "hold")
-    assert "OPEN_HOLD_MS + stateFadeMs()" in hold and "import { OPEN_HOLD_MS } from './wizard-notes.ts'" in hint
-    enter = _function(hint, "enter")
-    assert "if (holding !== undefined || waiting.length === 0) return" in enter
-    assert "fadeIn(made)" in enter and "announce(arrived.map(({ line }) => line).join(' '))" in enter
-    assert enter.count("announce(") == 1
-    assert "receiveCards(state)" in _function(hint, "render")
-
-
-def test_after_a_reload_no_card_is_restacked_and_the_introduction_is_not_shown_again():
-    hint = _code(_ts("components/hint-area.ts"))
-    # Only cards[] entries after those in the first state arrive; the introduction goes on cards[0] alone.
-    assert "let cardsHeard = latest.cards.length" in hint
-    assert "first: cardsHeard + index === 0" in hint
-
-
-def test_a_card_stays_until_dismissed_and_focus_moves_to_the_next_card_else_the_hint_button():
-    hint = _code(_ts("components/hint-area.ts"))
-    dismiss = _function(hint, "dismiss")
-    assert "held.splice(held.indexOf(card), 1)" in dismiss and "card.remove()" in dismiss
-    assert "const next = stack.children[at] ?? stack.lastElementChild" in dismiss
-    assert "if (next instanceof HTMLElement) next.focus()\n    else button.focus()" in dismiss
-    card = _code(_ts("components/trickster-card.ts"))
-    assert "element.tabIndex = -1" in card  # focusable from script, so focus can land on the next Card
-    assert "dismiss.setAttribute('aria-label', strings.dismissCard)" in card and "dismiss.type = 'button'" in card
-    assert "dismiss.addEventListener('click', onDismiss)" in card
-    # Nothing but the dismiss control removes a Card from the Hint area.
-    assert hint.count("held.splice(") == 1
-
-
-# --- The Card itself ---------------------------------------------------------------------------------
-
-
-def test_the_card_anatomy_with_the_introduction_on_the_first_card_only():
-    card = _code(_ts("components/trickster-card.ts"))
-    built = _exported(card, "tricksterCard")
-    assert "element.className = `trickster-card is-${text.outcome}`" in built
-    intro = built.split("if (first) {", 1)[1].split("} else {", 1)[0]
-    assert intro.index("strings.trickster)") < intro.index("strings.tricksterRole") < intro.index("strings.tricksterVoice")
-    assert intro.index("strings.tricksterVoice") < intro.index("text.sentence")
-    assert "paragraph('trickster-card-role body-sm', strings.tricksterRole)" in intro
-    assert "paragraph('trickster-card-sentence wizard-line', text.sentence)" in built
-    assert "paragraph('trickster-card-outcome label', text.label)" in built
-    assert "paragraph('trickster-card-refusal body-sm', text.refusal.proposed)" in built
-    assert "paragraph('trickster-card-refusal body-sm', text.refusal.reason)" in built
-    assert "element.append(wizardPortrait('trickster', 48), words, dismiss)" in built
-    # Every in-character line carries the visually hidden "The Trickster:" prefix once.
-    assert built.count("speakerPrefix('trickster')") == 2
+def test_a_new_card_shows_in_the_tricksters_bubble_for_7_s_and_is_announced_once_and_the_card_log_keeps_it():
+    chest = _code(_ts("components/treasure-chest.ts"))
+    render = _function(chest, "render")
+    assert "const arrived = state.cards.slice(cardsHeard)" in render and "cardsHeard = state.cards.length" in render
+    assert "bubble(text.sentence, false)" in render  # announced once below, with its label, not again as a line
+    assert render.count("announce(") == 1
+    assert "export const BUBBLE_MS = 7000" in chest
+    # The first state is only read: after a reload no Card shows again and the introduction is not repeated.
+    assert "let cardsHeard = latest.cards.length" in chest and "const first = cardsHeard === 0" in render
+    # The Card log lists every Card, its label and a rejected Card's lines (tests/web/test_card_log.py).
+    assert "cardText(room, card)" in _ts("components/card-log.ts")
+    assert not (WEB_SRC / "components/trickster-card.css").exists() and "tricksterCard(" not in _ts("components/trickster-card.ts")
 
 
 def test_the_announcements_read_the_card_and_on_the_first_card_the_introduction():
@@ -319,29 +210,6 @@ def test_the_announcements_read_the_card_and_on_the_first_card_the_introduction(
     assert "sentence: text.sentence" in announce and "'outcome label': text.label" in announce
     # A rejected Card appends its "Proposed:" line and its reason.
     assert "`${line} ${text.refusal.proposed}. ${text.refusal.reason}`" in announce
-
-
-def test_the_card_styles_follow_the_design_components():
-    rules = _rules("components/trickster-card.css")
-    card = rules[".trickster-card"]
-    assert card["background"] == "var(--card-accepted-surface)" and card["color"] == "var(--ink)"
-    assert card["border-left"] == "4px solid var(--card-accepted-edge)" and card["border-radius"] == "var(--rounded-md)"
-    assert card["grid-template-columns"] == "48px minmax(0, 1fr)" and card["box-shadow"] == "var(--elevation-paper)"
-    # A 200 ms fade, instant under reduced motion (tokens.css sets --motion-state to 0ms).
-    assert card["transition"] == "opacity var(--motion-state) var(--motion-ease)"
-    assert rules[".trickster-card.is-arriving"]["opacity"] == "0"
-    rejected = rules[".trickster-card.is-rejected"]
-    assert rejected == {"border-left-color": "var(--card-rejected-edge)", "background": "var(--card-rejected-surface)"}
-    skipped = rules[".trickster-card.is-skipped"]
-    assert skipped["border"] == "1px dashed var(--card-skipped-edge)" and skipped["background"] == "var(--card-skipped-surface)"
-    assert skipped["color"] == "var(--card-skipped-text)" and skipped["box-shadow"] == "none"
-    assert rules[".trickster-card.is-skipped .wizard-portrait"]["opacity"] == "0.6"
-    assert rules[".trickster-card-words > .trickster-card-role"]["color"] == "var(--ink-muted)"
-    assert rules[".trickster-card.is-skipped .trickster-card-role"]["color"] == "var(--card-skipped-text)"
-    dismiss = rules[".trickster-card-dismiss"]
-    assert dismiss["width"] == "32px" and dismiss["height"] == "32px"
-    assert "outline" not in dismiss  # the shared :focus-visible ring
-    assert "--motion-state: 0ms;" in _ts("tokens.css")
 
 
 def test_the_card_text_pairs_are_in_the_design_contrast_table():

@@ -1,3 +1,4 @@
+import '../components/chip.css'
 import type { PlayInteractable } from '../../types'
 import { glowOnce } from '../fade.ts'
 import { fill, strings } from '../strings.ts'
@@ -50,6 +51,8 @@ export interface HotspotLayer {
   showPending: (interactable: PlayInteractable) => () => void
   /** The unlock moment: the Interactable's Hotspot blooms once, its class held `hold` ms between the two fades. */
   bloom: (interactableId: string, hold: number) => void
+  /** The way out: the Interactable's Hotspot fills with daylight and stays lit (story mode, spec 5.6). */
+  daylight: (interactableId: string) => void
 }
 
 /** A drag over the Hotspot: while it carries an Inventory item, the drop is allowed and the hover reveal shows. */
@@ -219,5 +222,9 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     if (hotspot !== undefined) glowOnce(hotspot, 'is-blooming', hold)
   }
 
-  return { elements: [svg, chip], showLabel, setCollected, showPending, bloom }
+  function daylight(interactableId: string): void {
+    hotspots.get(interactableId)?.classList.add('is-daylight')
+  }
+
+  return { elements: [svg, chip], showLabel, setCollected, showPending, bloom, daylight }
 }

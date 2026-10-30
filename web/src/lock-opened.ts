@@ -1,5 +1,4 @@
 import type { PlayPuzzle, PlayView, SessionState } from '../types'
-import { strings } from './strings.ts'
 
 /** What the unlock moment lights in the Scene: the frame, and the Hotspot of the target the last input named. */
 export interface UnlockStage {
@@ -9,26 +8,8 @@ export interface UnlockStage {
   bloom: (target: string | null) => void
 }
 
-/** Where the Guide speaks: the Hint area's aside. */
-export interface UnlockVoice {
-  aside: (line: string) => void
-}
-
-const ASIDES: Record<PlayPuzzle['lock_type'], string> = {
-  find: strings.asideFind,
-  code: strings.asideCode,
-  order: strings.asideOrder,
-  use_on: strings.asideUseOn,
-}
-
-/**
- * The Guide's aside for an opened Puzzle: its lock type's line; none for the Exit puzzle, whose "The way out is open."
- * the feedback line already says.
- */
-export function asideFor(puzzle: PlayPuzzle): string | null {
-  if (puzzle.is_exit) return null
-  return ASIDES[puzzle.lock_type]
-}
+/** The solve beat opens this long after the lock (spec 5.4): the bloom has played and the stamp is seen. */
+export const SOLVE_BEAT_DELAY_MS = 1100
 
 /**
  * The Hotspot that blooms for an opened Puzzle: the target the last click or `use_on` named for `find`, `use_on` and
@@ -39,28 +20,27 @@ export function bloomTarget(puzzle: PlayPuzzle, lastTarget: string | null): stri
 }
 
 /**
- * The unlock moment (DESIGN.md Motion, EXPERIENCE.md Hotspot and Hint area rows), read from the session states the
- * server sends and never from a click: when a state shows a Puzzle newly open, its solved Hotspot blooms and the
- * Scene frame glows once (`stage`) and the Guide speaks one aside for its lock type (`voice`), none for the Exit
- * puzzle; the Wizard notes lift the Solved chip in on their own draw. A Wrong attempt has no aside: the feedback line
- * says it. The asides are client-side presentation: not Rungs, not counted, not logged, not announced (the feedback
- * line already is) and never naming a solution, so a Rung the same state carries wins the Hint area and no aside is
- * spoken; the Scene still blooms. `first` only sets what has been seen, so a reload blooms and says nothing for locks
- * already open. Returns the renderer the Play screen registers for every later state.
+ * The unlock moment (DESIGN.md Motion, EXPERIENCE.md Hotspot row), read from the session states the server sends and
+ * never from a click: when a state shows a Puzzle newly open, its solved Hotspot blooms and the Scene frame glows once
+ * (`stage`), and the moment hands over to the solve beat (story mode, spec 1.9): `onOpened` hears the opened Puzzle
+ * with the states before and after it. A Wrong attempt opens nothing: the feedback line says it. `first` only sets what
+ * has been seen, so a reload blooms nothing and plays no beat for locks already open. Returns the renderer the Play
+ * screen registers for every later state.
  */
-export function lockOpened(room: PlayView, first: SessionState, stage: UnlockStage, voice: UnlockVoice): (state: SessionState) => void {
+export function lockOpened(
+  room: () => PlayView,
+  first: SessionState,
+  stage: UnlockStage,
+  onOpened: (puzzle: PlayPuzzle, before: SessionState, after: SessionState) => void,
+): (state: SessionState) => void {
   let seen = first
   return (state) => {
-    const opened = room.puzzles.filter(
-      (puzzle) => state.locks_open.includes(puzzle.id) && !seen.locks_open.includes(puzzle.id),
-    )
-    const rung = state.rung_changes.length > seen.rung_changes.length
+    const before = seen
+    const opened = room().puzzles.filter((puzzle) => state.locks_open.includes(puzzle.id) && !before.locks_open.includes(puzzle.id))
     seen = state
     const last = opened.at(-1)
     if (last === undefined) return
     stage.bloom(bloomTarget(last, stage.lastTarget()))
-    const aside = asideFor(last)
-    if (rung || aside === null) return
-    voice.aside(aside)
+    onOpened(last, before, state)
   }
 }

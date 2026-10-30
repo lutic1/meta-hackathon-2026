@@ -1,0 +1,230 @@
+/* The Riddle note (story mode, owner decision Oct 29; DESIGN.md Riddle note): a parchment note pinned to the wall at
+   the Scene's top left, 18 px down and 20 px in, as wide as the wall left of the photo allows (300 to 400 px, so it
+   sits wholly on the wall at 1440 x 900 and just over the photo's top-left corner at 1024 x 768), scrolling inside
+   itself below 58% of the height. Its seal stamp and a bought hint's arrival ring belong to DESIGN.md Motion's walk
+   and story exception: both are off under reduced motion (the ring is held 2 s, lit, with no animation). */
+.riddle-note {
+  position: absolute;
+  z-index: 4;
+  top: 18px;
+  left: 20px;
+  box-sizing: border-box;
+  width: clamp(300px, calc((100% - var(--wall-width, 0px)) / 2 - 40px), 400px);
+  max-height: calc(58vh - 44px);
+  padding: var(--spacing-4) 18px;
+  overflow-y: auto;
+  border-radius: var(--rounded-lg);
+  background: var(--parchment);
+  color: var(--ink);
+  box-shadow: var(--elevation-paper), 0 14px 30px #0A080680;
+  scrollbar-width: thin;
+}
+.riddle-note-pin {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: var(--rounded-full);
+  background: #8A2F1C;
+  box-shadow: inset -2px -2px 0 #5E1E10, 0 2px 4px #0A080699;
+}
+.riddle-note-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 10px;
+}
+.riddle-note-heading {
+  margin: 0;
+  color: var(--ink);
+  font: 500 21px/1 var(--font-serif);
+}
+.riddle-seals {
+  display: flex;
+  gap: 5px;
+  margin-left: auto;
+}
+.riddle-seal {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+.wax-seal {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.wax-seal-slot {
+  fill: none;
+  stroke: #5A463080;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2.4;
+}
+.riddle-seal.is-current .wax-seal-slot {
+  stroke: var(--lamp-ink);
+  stroke-dasharray: none;
+}
+.wax-seal-wax {
+  opacity: 0;
+  transform: rotate(-8deg);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.wax-seal-blob {
+  fill: #9E3324;
+}
+.wax-seal-ring {
+  fill: none;
+  stroke: #621A11;
+  stroke-width: 1.6;
+}
+.wax-seal-number {
+  fill: #F3D3B8;
+  font: 500 15px var(--font-serif);
+}
+.riddle-seal.is-solved .wax-seal-slot {
+  opacity: 0;
+}
+.riddle-seal.is-solved .wax-seal-wax {
+  opacity: 1;
+}
+.riddle-seal.is-stamping .wax-seal-wax {
+  animation: riddle-stamp 550ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+@keyframes riddle-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.9) rotate(-30deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(-8deg);
+  }
+}
+/* "Waits in the {area}": a lamp-ink tag on the paper. */
+.riddle-place {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 10px;
+  padding: 5px 10px 5px 7px;
+  border-radius: var(--rounded-full);
+  background: #6E400C14;
+  color: var(--lamp-ink);
+}
+.riddle-body {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: var(--spacing-3);
+  align-items: start;
+}
+.riddle-body > .wizard-portrait {
+  margin-top: 2px;
+}
+.riddle-clue {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.36;
+}
+.riddle-lore-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: var(--spacing-2);
+  padding: 4px 6px 4px 0;
+  border: 0;
+  border-radius: var(--rounded-sm);
+  background: none;
+  color: var(--ink-muted);
+  font: 600 13px/1 var(--font-sans);
+  cursor: pointer;
+}
+.riddle-lore-toggle:hover {
+  color: var(--ink);
+}
+.riddle-lore-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.riddle-lore-text {
+  margin: 6px 0 0;
+  color: var(--ink-muted);
+}
+.riddle-lore-text[hidden] {
+  display: none;
+}
+.riddle-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.riddle-hints:empty {
+  display: none;
+}
+/* A bought hint, pinned to the note and signed by the Guide. */
+.riddle-hint {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  column-gap: 9px;
+  align-items: start;
+  padding: var(--spacing-2) 10px;
+  border-radius: var(--rounded-md);
+  background: var(--parchment-shade);
+}
+.riddle-hint p {
+  margin: 0;
+}
+.riddle-hint-label {
+  color: var(--lamp-ink);
+}
+.riddle-hint-text {
+  font-size: 17px;
+  line-height: 1.35;
+}
+.riddle-hint.is-arriving-hint {
+  animation: riddle-hint-arrive 900ms ease-out 1;
+}
+@keyframes riddle-hint-arrive {
+  from {
+    box-shadow: 0 0 0 2px var(--lamp), 0 0 22px #E9A94BCC;
+  }
+  to {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.riddle-lock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-top: 10px;
+}
+.riddle-lock:empty {
+  display: none;
+}
+.riddle-stamp {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 10px 0 0;
+  color: var(--success-ink);
+}
+.riddle-stamp[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .riddle-seal.is-stamping .wax-seal-wax {
+    animation: none;
+  }
+  .riddle-hint.is-arriving-hint {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--lamp);
+  }
+}

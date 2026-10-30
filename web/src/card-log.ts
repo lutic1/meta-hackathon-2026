@@ -1,7 +1,9 @@
 import type { PlayView } from '../types'
 import { secondaryButton } from './components/button.ts'
 import { type CardLogDialog, cardLogDialog } from './components/card-log.ts'
+import { howHintsWork } from './components/triggers-panel.ts'
 import type { PlaySession } from './play.ts'
+import { currentPlace } from './router.ts'
 import { strings } from './strings.ts'
 
 /** The top bar's "Card log" button, which opens a dialog. */
@@ -34,10 +36,10 @@ export interface CardLog {
 }
 
 /**
- * The Card log on the Play screen (FR-19, UX-DR43, UX-DR8, UX-DR71): the top bar's "Card log" button, or the Hint
- * area's "{n} more in the Card log" link, opens `{components.card-log}` over the scrim, its right edge under the
- * button's. It lists every entry of the session state's `cards[]`, oldest first, the dismissed ones and those a
- * reload rebuilt included, and takes each Card a later state brings while it shows. Focus starts on the close control
+ * The Card log on the Play screen (FR-19, UX-DR43, UX-DR8, UX-DR71): the top bar's "Card log" button opens
+ * `{components.card-log}` over the scrim, its right edge under the button's. It lists every entry of the session
+ * state's `cards[]`, oldest first, those a reload rebuilt included, and takes each Card a later state brings while it
+ * shows; under them, "How hints work" and the hint history. Focus starts on the close control
  * and is trapped in the dialog, with every element in `held` inert; Escape or the close control closes it and returns
  * focus to the control that opened it. Under the First-room welcome, the Leave room confirmation and the Completion
  * screen the top bar and the side column are already inert, so it never opens over another modal. Opening or closing
@@ -58,9 +60,10 @@ export function mountCardLog(frame: CardLogFrame): CardLog {
 
   function open(opener: HTMLElement): void {
     if (close !== undefined || room === undefined) return
-    const dialog = cardLogDialog(room)
+    const dialog = cardLogDialog(room, howHintsWork(room, frame.play.id, currentPlace().profile))
     const cards = frame.play.state().cards
     dialog.add(cards)
+    dialog.hints(frame.play.state())
     shown = { dialog, listed: cards.length }
     /** No pointer press outside the dialog moves focus out of it; inside, rows stay selectable and scrollable. */
     const keepFocus = (event: MouseEvent): void => {
@@ -112,6 +115,7 @@ export function mountCardLog(frame: CardLogFrame): CardLog {
     if (shown === undefined) return
     shown.dialog.add(state.cards.slice(shown.listed))
     shown.listed = state.cards.length
+    shown.dialog.hints(state)
   })
 
   return {

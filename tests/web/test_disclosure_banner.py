@@ -168,11 +168,12 @@ def test_demo_settings_are_read_only_by_the_mode_indicator_the_triggers_header_a
 
 
 def test_how_hints_work_never_opens_by_itself_under_a_disclosure():
-    # Owner decision Oct 29: the coupled rule is retired; the panel opens only when the player asks.
+    # Owner decision Oct 29: the coupled rule is retired; story mode puts the panel in the Card log, which opens only
+    # when the player asks.
     panel = _code((COMPONENTS / "triggers-panel.ts").read_text())
-    assert "disclosure" not in panel and "auto" not in panel
-    assert "list.element.hidden = true" in panel and "list.element.hidden = !on" in panel
-    assert "onOpen(false)" in panel
+    assert "disclosure" not in panel and "auto" not in panel and "toggle" not in panel
+    assert "const list = triggersList(room)" in panel
+    assert "howHintsWork(room, frame.play.id, currentPlace().profile)" in _code((WEB_SRC / "card-log.ts").read_text())
 
 def test_the_strip_belongs_to_the_room_in_its_own_palette_at_seven_to_one():
     """Owner decision Oct 29: the strip leaves the cool grey for the study's chrome, text and gilt, and keeps its height."""

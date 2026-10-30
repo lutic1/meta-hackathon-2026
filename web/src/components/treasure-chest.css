@@ -1,0 +1,202 @@
+/* The Treasure chest (story mode, owner decision Oct 29; DESIGN.md Treasure chest): it stands on the floor right of
+   the photo, 22 px from its edge and 26 px up, two gems over the illustrated chest and its name and count beside. Its
+   dialog opens above it on parchment; the Trickster's bubble rises above it. The lid's swing and a gem's flight belong
+   to DESIGN.md Motion's walk and story exception and are off under reduced motion. */
+.treasure-chest {
+  position: absolute;
+  z-index: 4;
+  bottom: 26px;
+  left: calc(50% + var(--wall-width, 0px) / 2 + 22px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.chest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px 4px;
+  border: 0;
+  border-radius: var(--rounded-lg);
+  background: none;
+  cursor: pointer;
+  transition: background-color var(--motion-hover) var(--motion-ease), box-shadow var(--motion-hover) var(--motion-ease);
+}
+.chest:hover {
+  background-color: var(--lamp-hover-fill);
+  box-shadow: var(--elevation-lamp-glow);
+}
+.chest:hover:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring-inner), var(--elevation-lamp-glow);
+}
+.chest svg {
+  width: 96px;
+  height: 72px;
+  overflow: visible;
+}
+.chest-lid {
+  transform-origin: 12px 30px;
+  transition: transform 450ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.chest.is-open .chest-lid,
+.chest.is-empty .chest-lid {
+  transform: rotate(-24deg) translate(-2px, -4px);
+}
+.chest-inner {
+  opacity: 0;
+}
+.chest.is-open .chest-inner,
+.chest.is-empty .chest-inner {
+  opacity: 1;
+}
+.chest.is-empty svg {
+  filter: saturate(0.35) brightness(0.8);
+}
+.chest-gems {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 18px;
+}
+.chest-gem {
+  width: 15px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--lamp-strong);
+  box-shadow: 0 0 10px #F4C470B3, inset -3px -3px 0 #C98A2E;
+  transform: rotate(45deg);
+}
+.chest-gem.is-spent {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--hairline);
+}
+.chest-gem.is-flying {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+}
+.chest-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 10px;
+}
+.chest-name {
+  color: var(--text);
+  font: 600 14px/1 var(--font-sans);
+}
+.chest-count {
+  color: var(--text-muted);
+  font: 400 13px/1.3 var(--font-sans);
+}
+
+/* The chest's dialog: 340 px of parchment above the chest, on the overlay elevation. */
+.chest-dialog {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  box-sizing: border-box;
+  width: 340px;
+  padding: var(--spacing-4) 18px;
+  border-radius: var(--rounded-lg);
+  background: var(--parchment);
+  color: var(--ink);
+  box-shadow: var(--elevation-overlay);
+}
+.chest-dialog[hidden] {
+  display: none;
+}
+.chest-dialog-heading {
+  margin: 0 0 6px;
+  font: 500 22px/1.2 var(--font-serif);
+}
+.chest-dialog-plain {
+  margin: 0 0 14px;
+  font: 400 15px/1.45 var(--font-sans);
+}
+.chest-dialog-line {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  margin: 4px 0 14px;
+}
+.chest-dialog-line p {
+  margin: 0;
+}
+.chest-dialog-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.chest-button {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: var(--rounded-md);
+  font: 600 15px/1 var(--font-sans);
+  cursor: pointer;
+}
+.chest-button.is-ink {
+  border: 0;
+  background: var(--lamp-ink);
+  color: var(--parchment);
+}
+.chest-button.is-quiet {
+  border: 1px solid var(--lamp-ink);
+  background: transparent;
+  color: var(--lamp-ink);
+}
+.chest-button.is-quiet:hover {
+  background: var(--lamp-ink-hover-fill);
+}
+
+/* The Trickster's bubble above the chest: parchment, his 32 px portrait beside his name and line. */
+.chest-bubble {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: -10px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  box-sizing: border-box;
+  width: 250px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--parchment);
+  color: var(--ink);
+  box-shadow: var(--elevation-paper), 0 10px 26px #0A0806A0;
+  pointer-events: none;
+}
+.chest-bubble[hidden] {
+  display: none;
+}
+.chest-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 40px;
+  width: 18px;
+  height: 11px;
+  background: var(--parchment);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.chest-bubble p {
+  margin: 0;
+}
+.chest-bubble-name {
+  margin-bottom: 3px;
+  color: var(--ink-muted);
+}
+.chest-bubble .wizard-line {
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chest-lid {
+    transition: none;
+  }
+}

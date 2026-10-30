@@ -16,7 +16,7 @@ from tests.web.test_strings import _strings
 
 COMPONENTS = WEB_SRC / "components"
 DESIGN_DIR = DESIGN.parent
-PLAY_WIDTHS = {1440: 400, 1280: 360, 1024: 340}
+PLAY_WIDTHS = (1440, 1280, 1024)
 
 
 def _ts(name: str) -> str:
@@ -123,28 +123,14 @@ def test_no_surface_offers_a_cache_clear_control():
         assert not re.search(r"clear\W{0,3}(the\W)?cache|cache\W{0,3}clear", text, flags=re.IGNORECASE), path
 
 
-def _side_column_at(width: int) -> str:
-    text = (WEB_SRC / "shell.css").read_text()
-    base = re.search(r"^\.play-layout \{[^}]*grid-template-columns: minmax\(0, 1fr\) ([^;]+);", text, re.MULTILINE).group(1)
-    bands = re.findall(r"@media \(max-width: (\d+)px\) \{\s*\.play-layout \{\s*grid-template-columns: minmax\(0, 1fr\) "
-                       r"([^;]+);", text)
-    value = base
-    for limit, column in sorted(bands, key=lambda band: -int(band[0])):
-        if width <= int(limit):
-            value = column
-    return value
-
-
-@pytest.mark.parametrize("width,side", PLAY_WIDTHS.items())
-def test_play_layout_side_column_per_width_with_24px_margins_and_no_horizontal_scroll(width, side):
-    tokens = {"var(--spacing-side-column)": "400px"}
-    column = _side_column_at(width)
-    assert tokens.get(column, column) == f"{side}px"
+@pytest.mark.parametrize("width", PLAY_WIDTHS)
+def test_play_layout_is_the_scene_column_alone_with_24px_margins_and_no_horizontal_scroll(width):
+    # Story mode (owner decision Oct 29): the note, the pack and the chest hang in the Scene, so the side column is
+    # gone at every width and the Scene column takes the whole body inside the 24 px margins.
     layout = _css("shell.css")[".play-layout"]
-    assert layout["padding"] == "var(--spacing-frame-margin)" and layout["column-gap"] == "var(--spacing-column-gap)"
-    assert width - 2 * 24 - 24 - side > 0  # the Scene column keeps a positive width, so nothing overflows
-    for selector in (".scene-column", ".side-column"):
-        assert _css("shell.css")[selector]["min-width"] == "0"
+    assert layout["padding"] == "var(--spacing-frame-margin)" and layout["grid-template-columns"] == "minmax(0, 1fr)"
+    assert _css("shell.css")[".side-column"] == {"display": "none"}
+    assert width - 2 * 24 > 0
 
 
 def test_hash_routes_resolve_and_carry_the_profile():
