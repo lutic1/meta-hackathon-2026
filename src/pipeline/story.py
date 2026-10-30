@@ -17,17 +17,22 @@ there are (the number in digits or in words: a count, whose word is
 no spoiler, though a code's digits stay refused), the exit riddle's solved line says the way out is open, and
 the visitor's welcome thanks nobody for photos. A reply
 that fails is sent back once at attempt 1 with its fixed reasons, which
-name slots and never quote a line; a second failure, or a call that raises,
-leaves the fixed templates (`template_story`, EXPERIENCE.md story mode
-copy) filled from the Room, so the story never ends a Build; a call that
-raises logs one JSON line naming its code. Each refused attempt's
-reasons are kept beside the lines they refused (`Refused`), for the ops
-log of `scripts/story_demo_room.py` only. The story is
-stored under `<room_id>/story.json` for scene to put on the Room; each call
-that answered adds its call row, and the done row counts the story's lines
-and names the model only when its lines were kept. `tell_story` is that
-call, its retry and the fallback over a Room; `scripts/story_demo_room.py`
-runs it for a Demo room built before story mode.
+name slots and never quote a line. When neither reply passes whole, the
+story keeps every passing line of the last usable reply (one that parses
+with one riddle per Puzzle: the retry's, else the first) and fills only its
+refused slots from the fixed templates (`template_story`, EXPERIENCE.md
+story mode copy, filled from the Room), a refused riddle line taking that
+riddle's template line; no usable reply, or a call that raises, leaves the
+full templates, so the story never ends a Build; a call that raises logs
+one JSON line naming its code. Each refused attempt's reasons are kept
+beside the lines they refused (`Refused`), for the ops log of
+`scripts/story_demo_room.py` only. The story is stored under
+`<room_id>/story.json` for scene to put on the Room; each call that
+answered adds its call row, and the done row counts the story's lines and
+names the model whenever any kept line is the model's. `tell_story` is
+that call, its retry and the fallback over a Room;
+`scripts/story_demo_room.py` runs it for a Demo room built before story
+mode.
 """
 
 from __future__ import annotations
@@ -90,7 +95,7 @@ LEAK_MESSAGE = "the line gives part of an answer away."
 EXCLAMATION_MESSAGE = "the line has an exclamation mark."
 OFF_STORY_MESSAGE = "the line talks about AI, models or the API."
 FILLER_MESSAGE = f"the line uses filler ({', '.join(FILLER_WORDS)}); say something plain and concrete."
-HINTS_MESSAGE = "the line does not say the chest holds {hints} hints for the whole house."
+HINTS_MESSAGE = "the line does not say there are {hints} hints for the whole house."
 RIDDLES_MESSAGE = "the line does not say there are {riddles} riddles."
 WAY_OUT_MESSAGE = "the line does not say the way out is open."
 THANKS_MESSAGE = "the visitor sent no photos; welcome them without thanking them for any."
@@ -163,7 +168,7 @@ def _joined(areas: tuple[str, ...]) -> str:
 def _solved_line(room: Room, puzzle: Puzzle) -> str:
     """The Riddler's reaction by lock type; a find whose target a later use_on carries keeps it."""
     if puzzle.is_exit:
-        return f"{len(room.puzzles)} riddles, {len(room.puzzles)} answers. The way out is yours."
+        return "Every riddle, every answer. The way out is yours."
     if isinstance(puzzle.solution, FindSolution):
         carried = {p.solution.item for p in room.puzzles if isinstance(p.solution, UseOnSolution)}
         if puzzle.solution.target in carried:
@@ -177,7 +182,11 @@ def _solved_line(room: Room, puzzle: Puzzle) -> str:
 
 
 def template_story(room: Room, brief: StoryBrief | None = None) -> Story:
-    """The fixed story lines filled from the Room: what plays when the storyteller's lines are not kept."""
+    """The fixed story lines filled from the Room: what plays where the storyteller's lines are not kept.
+
+    No line names an object, and the counts the check allows are written in
+    words, so every line passes the story check: a code's digit never shows.
+    """
     brief = brief or story_brief(room)
     return Story(
         architect_welcome=f"Thank you for your photos. I built your {_joined(brief.areas)} from them: "
@@ -186,9 +195,9 @@ def template_story(room: Room, brief: StoryBrief | None = None) -> Story:
         f"{brief.photos} angles, {brief.things} things worth a closer look.",
         trickster_trap="Oh no, you seem to be trapped! I locked the way out and gave the key to the Riddler. "
         "Wicked of me, I know.",
-        riddler_entrance="Don't mind him; he thinks a locked door is a party. To escape, you must answer my riddles: "
-        f"{brief.riddles} of them, one at a time.",
-        guide_chest=f"Stuck? I keep {brief.hints} hints in that chest, for the whole house. Choose your moment.",
+        riddler_entrance="Don't mind him; he thinks a locked room is a party. To escape, you must answer my riddles: "
+        f"{_count_word(brief.riddles)} of them, one at a time.",
+        guide_chest=f"Stuck? I keep {_count_word(brief.hints)} hints for the whole house. Choose your moment.",
         riddles=[
             StoryRiddle(puzzle_id=puzzle.id, opening="You must answer this.", solved=_solved_line(room, puzzle))
             for puzzle in riddle_order(room)
@@ -203,12 +212,12 @@ def template_story(room: Room, brief: StoryBrief | None = None) -> Story:
 # --- The storyteller's reply ------------------------------------------------
 
 
-def _slots(response: StoryResponse) -> list[tuple[str, str]]:
-    """Every line of the reply under its slot's name, the riddles as `riddle n, opening|solved`."""
-    scalars = [(slot, text) for slot, text in response.model_dump().items() if slot != "riddles"]
+def _slots(lines: StoryResponse | Story) -> list[tuple[str, str]]:
+    """Every line of the reply (or story) under its slot's name, the riddles as `riddle n, opening|solved`."""
+    scalars = [(slot, text) for slot, text in lines.model_dump().items() if slot != "riddles"]
     riddles = [
         (f"riddle {n}, {part}", text)
-        for n, riddle in enumerate(response.riddles, start=1)
+        for n, riddle in enumerate(lines.riddles, start=1)
         for part, text in (("opening", riddle.opening), ("solved", riddle.solved))
     ]
     return scalars + riddles
@@ -227,6 +236,10 @@ def _says(text: str, n: int) -> bool:
     """Whether `text` holds the count `n` as a whole word, in digits or in words."""
     words = set(re.findall(r"\w+", text.casefold()))
     return str(n) in words or _count_word(n) in words
+
+
+def _exit_slot(room: Room) -> str:
+    return f"riddle {len(room.puzzles)}, solved"
 
 
 def _line_reason(slot: str, text: str, room: Room, brief: StoryBrief, exit_slot: str) -> str | None:
@@ -259,7 +272,7 @@ def _line_reason(slot: str, text: str, room: Room, brief: StoryBrief, exit_slot:
 def _refusals(response: StoryResponse, room: Room) -> list[tuple[str, str | None]]:
     """Each fixed reason the reply breaks a line rule, naming its slot, beside the line it refuses (None for the riddle count)."""
     brief = story_brief(room)
-    exit_slot = f"riddle {len(room.puzzles)}, solved"
+    exit_slot = _exit_slot(room)
     refusals: list[tuple[str, str | None]] = [
         (f"{slot}: {reason}", text)
         for slot, text in _slots(response)
@@ -284,6 +297,33 @@ def _story(response: StoryResponse, room: Room) -> Story:
     return Story.model_validate({**response.model_dump(exclude={"riddles"}), "riddles": riddles})
 
 
+def _kept(response: StoryResponse, room: Room, brief: StoryBrief) -> tuple[Story, list[str]]:
+    """A usable reply's passing lines, each refused line replaced by its slot's template line, and the slots so filled."""
+    template = template_story(room, brief)
+    exit_slot = _exit_slot(room)
+    filled: list[str] = []
+
+    def line(slot: str, text: str, fallback: str) -> str:
+        if _line_reason(slot, text, room, brief, exit_slot) is None:
+            return text
+        filled.append(slot)
+        return fallback
+
+    scalars = {
+        slot: line(slot, text, getattr(template, slot))
+        for slot, text in response.model_dump(exclude={"riddles"}).items()
+    }
+    riddles = [
+        StoryRiddle(
+            puzzle_id=fixed.puzzle_id,
+            opening=line(f"riddle {n}, opening", lines.opening, fixed.opening),
+            solved=line(f"riddle {n}, solved", lines.solved, fixed.solved),
+        )
+        for n, (lines, fixed) in enumerate(zip(response.riddles, template.riddles, strict=True), start=1)
+    ]
+    return Story.model_validate({**scalars, "riddles": riddles}), filled
+
+
 def _checked(text: str, room: Room) -> tuple[StoryResponse | None, list[tuple[str, str | None]]]:
     """The reply parsed and checked: its refusals, or the shape reason when it does not parse."""
     try:
@@ -303,21 +343,23 @@ class Refused:
 
 @dataclass(frozen=True)
 class Told:
-    """A Room's story and where it came from: the attempt whose lines were kept and their model (both None for the templates), each answered call's row and each refused attempt."""
+    """A Room's story and where it came from: the attempt whose lines were kept and their model (both None for the full templates), the slots filled from the templates (none when every line is the model's), each answered call's row and each refused attempt."""
 
     story: Story
     attempt: int | None
     model: str | None
     calls: list[CallRow]
     refused: list[Refused]
+    filled: list[str]
 
 
 def tell_story(room: Room, provider: ModelProvider, job_id: JobId) -> Told:
-    """The storyteller's lines for `room` when they pass, after at most one retry, else the templates; each call tagged with `job_id` and `story`."""
+    """The storyteller's lines for `room`, after at most one retry, each line still refused filled from the templates; each call tagged with `job_id` and `story`."""
     brief = story_brief(room)
     prompt = build_story_prompt(brief)
     rows: list[CallRow] = []
     refused: list[Refused] = []
+    usable: dict[int, tuple[StoryResponse, str]] = {}  # each refused reply with one riddle per Puzzle, and its model
     try:
         for attempt in range(2):
             reply = provider.chat(
@@ -331,12 +373,23 @@ def tell_story(room: Room, provider: ModelProvider, job_id: JobId) -> Told:
             rows.append(call_row(reply.receipt, provider, "storyteller", reply.model))
             response, refusals = _checked(reply.text, room)
             if response is not None and not refusals:
-                return Told(_story(response, room), attempt, reply.model, rows, refused)
+                return Told(_story(response, room), attempt, reply.model, rows, refused, [])
             refused.append(Refused(attempt, refusals))
+            if response is not None and len(response.riddles) == len(room.puzzles):
+                usable[attempt] = (response, reply.model)
             prompt = build_story_retry_prompt(brief, [reason for reason, _ in refusals])
-    except Exception as exc:  # noqa: BLE001 - the story never ends a Build: a call that raises leaves the templates
+    except Exception as exc:  # noqa: BLE001 - the story never ends a Build: a call that raises leaves the full templates
         logger.info(json.dumps({"job_id": job_id, "stage": "story", "fallback": error_code(exc)}))
-    return Told(template_story(room, brief), None, None, rows, refused)
+        usable.clear()
+    template = template_story(room, brief)
+    every = [slot for slot, _ in _slots(template)]
+    if usable:
+        attempt = max(usable)
+        response, model = usable[attempt]
+        story, filled = _kept(response, room, brief)
+        if filled != every:
+            return Told(story, attempt, model, rows, refused, filled)
+    return Told(template, None, None, rows, refused, every)
 
 
 def run_story(state: JobState, *, provider: ModelProvider, artifacts: ArtifactStore, ledger: LedgerStore) -> StageResult:

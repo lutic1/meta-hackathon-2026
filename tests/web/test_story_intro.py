@@ -45,9 +45,9 @@ def test_the_intro_lines_fill_the_templates_from_the_room_for_an_own_room_and_a_
                      "worth a closer look.",
         "trap": "Oh no, you seem to be trapped! I locked the way out and gave the key to the Riddler. Wicked of "
                      "me, I know.",
-        "entrance": "Don't mind him; he thinks a locked door is a party. To escape, you must answer my riddles: 4 of "
+        "entrance": "Don't mind him; he thinks a locked room is a party. To escape, you must answer my riddles: 4 of "
                    "them, one at a time.",
-        "guide": "Stuck? I keep 2 hints in that chest, for the whole house. Choose your moment.",
+        "guide": "Stuck? I keep 2 hints for the whole house. Choose your moment.",
         "first": "Start in the lounge. You must answer this.",
     }
     assert demo == {**own, "welcome": "Welcome to someone's front hall and lounge. I built it from their photos: "

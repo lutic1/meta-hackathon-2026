@@ -20,13 +20,16 @@ The Room is read from `rooms/demo/<room_id>/room.json`; an id that is not a
 Demo room, a Judge room included, or a Demo room without its `job.json`
 exits 1 with no call made. The story comes from `tell_story`, the story
 stage's path: the brief (`story_brief`), `build_story_prompt`, the line
-rules with one retry over `build_story_retry_prompt`, and the fixed
-templates as the last resort.
+rules with one retry over `build_story_retry_prompt`, then the last usable
+reply's passing lines with each refused slot filled from the fixed
+templates, and the full templates when no reply is usable.
 
 Both runs print, for each refused attempt, its fixed reasons by slot and
 the refused line itself (the retry prompt still never quotes a line).
 `--dry-run` prints the brief, every line by slot, the path that produced it
-(model attempt 0 or 1, or the templates) and the spend, and writes nothing to
+(model attempt 0 or 1 and the slots it took from the templates, as in
+`model attempt 1 (<model>), templates for: riddle 4, opening`, or the
+fixed templates) and the spend, and writes nothing to
 the room; its call is cached, so a real run after it costs nothing and keeps
 the same lines. A real run sets `Room.story` in `room.json` (the Demo layout
 keeps the story nowhere else: `story.json` is a Judge build's stage
@@ -127,7 +130,11 @@ def refused_lines(told: Told) -> list[str]:
 
 
 def path(told: Told) -> str:
-    return "the fixed templates" if told.attempt is None else f"model attempt {told.attempt} ({told.model})"
+    """Where the story's lines came from: the model's attempt and any slots filled from the templates, or the templates alone."""
+    if told.attempt is None:
+        return "the fixed templates"
+    filled = f", templates for: {', '.join(told.filled)}" if told.filled else ""
+    return f"model attempt {told.attempt} ({told.model}){filled}"
 
 
 def spend(told: Told) -> str:

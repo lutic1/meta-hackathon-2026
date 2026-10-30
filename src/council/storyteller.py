@@ -78,10 +78,10 @@ Write one line for each slot. The examples show the voice and the length; write 
 - "trickster_trap": the Trickster traps the player. It starts with "Oh no, you seem to be trapped!" Like "Oh no, you
   seem to be trapped! I locked the way out and gave the key to the Riddler. Wicked of me, I know."
 - "riddler_entrance": the Riddler says the player must answer its riddles, one at a time, to escape, and says how many
-  riddles there are. Like "Don't mind him; he thinks a locked door is a party. To escape, you must answer my riddles:
+  riddles there are. Like "Don't mind him; he thinks a locked room is a party. To escape, you must answer my riddles:
   {{riddles}} of them, one at a time."
-- "guide_chest": the Guide offers the hints in the chest, says how many there are for the whole house, and says to
-  choose the moment. Like "Stuck? I keep {{hints}} hints in that chest, for the whole house. Choose your moment."
+- "guide_chest": the Guide offers its hints, says how many there are for the whole house, and says to choose the
+  moment. Like "Stuck? I keep {{hints}} hints for the whole house. Choose your moment."
 - "riddles": one entry per riddle, in order; the last riddle opens the way out. "opening" is the Riddler's line as
   the riddle starts, "solved" the Riddler's line once it is solved. Both are flavour only: they never say where to
   look, what to do or what the riddle is about. Like "You must answer this." and "Well found. The house noticed you
@@ -102,6 +102,8 @@ Rules for every line:
 - No numbers, in digits or in words, except how many riddles in "riddler_entrance" and how many hints in
   "guide_chest", each written in words ("two", not "2").
 - Name at most one object, and only one of the scenery labels given; never hint at what a riddle is about.
+- The exit is only ever "the way out", never named by what it is (door, gate, window, hatch). Name nothing
+  that might be locked, hidden or carried; only the scenery labels given may be named.
 - Stay inside the story: never mention AI, models, prompts or an API.
 Answer only with the JSON the schema asks for."""
 

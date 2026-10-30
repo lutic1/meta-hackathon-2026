@@ -115,12 +115,23 @@ def test_a_real_run_writes_the_story_onto_room_json_alone_and_reads_it_back(monk
     assert f"storied {demo.id}: " in out and "read back equal" in out and "Modal Environment: main\n" in out
 
 
-def test_a_refused_reply_is_sent_back_once_then_the_templates_are_written(monkeypatch, handles, demo, capsys):
+def test_a_refused_line_is_sent_back_once_then_only_its_slot_takes_the_template_line(monkeypatch, handles, demo, capsys):
     leaky = story_reply(guide_chest="Stuck? Look inside the model for the answer!")
     provider = storyteller(leaky, leaky)
     status, _ = run(monkeypatch, handles, provider, "--room", demo.id)
     assert status == 0
     assert [call.attempt for call in provider.calls] == [0, 1]
+    story = stored(handles, demo).story
+    assert story is not None and story.guide_chest == template_story(demo).guide_chest
+    assert story.architect_welcome == GOOD["architect_welcome"]
+    out = capsys.readouterr().out
+    assert "story from model attempt 1 (mock-chat-1), templates for: guide_chest; spend" in out
+    assert 'attempt 1 refused: guide_chest: the line has an exclamation mark. Line: "Stuck? Look inside' in out
+
+
+def test_no_usable_reply_writes_the_fixed_templates(monkeypatch, handles, demo, capsys):
+    provider = storyteller("Not JSON.", "Still not JSON.")
+    assert run(monkeypatch, handles, provider, "--room", demo.id)[0] == 0
     assert stored(handles, demo).story == template_story(demo)
     assert "story from the fixed templates" in capsys.readouterr().out
 

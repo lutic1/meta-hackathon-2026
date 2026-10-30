@@ -99,7 +99,7 @@ def test_the_solve_line_is_the_reaction_then_the_where_line_and_the_exit_reacts_
         "Well found. Keep hold of that; this house isn't finished with it. The next riddle waits in the front hall.",
         "Well found. The house noticed you noticing. Back to the lounge for the next one. Bring what you're carrying.",
         "The right thing in the right place. The house approves. One riddle left, the way out. It waits in the front hall.",
-        "4 riddles, 4 answers. The way out is yours.",
+        "Every riddle, every answer. The way out is yours.",
     ]
 
 
@@ -127,7 +127,7 @@ def test_every_lock_type_has_its_reaction_and_the_story_line_wins_when_the_room_
              ["reaction", TOLD, "pillows", True], ["solveLine", TOLD, "vent", "sofa", 0, ["pillows", "vent"], False, False]]
     assert _run(*calls) == [
         "The numbers agree with you. They rarely agree with anyone.", "In order at last. Someone here will be thrilled.",
-        "6 riddles, 6 answers. The way out is yours.", "pillows is done.",
+        "Every riddle, every answer. The way out is yours.", "pillows is done.",
         "vent is done. Back to the lounge for the next one.",
     ]
 

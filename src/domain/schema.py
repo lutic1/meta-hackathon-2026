@@ -201,7 +201,7 @@ class StoryRiddle(Model):
 
 
 class Story(Model):
-    """The Room's wizard lines, written by the storyteller at build time or filled from the fixed templates (story mode, 29 Oct 2026).
+    """The Room's wizard lines, written by the storyteller at build time, each line it could not keep filled from the fixed templates (story mode, 29 Oct 2026).
 
     `riddles` holds one entry per Puzzle, the exit last; the client adds the
     where-line to an opening and a solve line itself.

@@ -47,7 +47,7 @@ def canned_story(riddles: int, hints: int) -> str:
         architect_welcome="Thank you for the photos. I measured every corner twice and grumbled only once.",
         architect_welcome_visitor="Welcome to someone's home. I measured every corner of it twice.",
         trickster_trap="Oh no, you seem to be trapped! I locked the way out and gave the key to the Riddler.",
-        riddler_entrance=f"Don't mind him; he thinks a locked door is a party. Answer my {_counted(riddles)} riddles, "
+        riddler_entrance=f"Don't mind him; he thinks a locked room is a party. Answer my {_counted(riddles)} riddles, "
         "one at a time.",
         guide_chest=f"Stuck? I keep {_counted(hints)} hints for the whole game. Choose your moment.",
         riddles=[

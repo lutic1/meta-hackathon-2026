@@ -118,7 +118,7 @@ export function reaction(room: Room, id: string, carried: boolean): string {
   const told = room.story?.riddles.find((riddle) => riddle.puzzle_id === id)?.solved
   if (told !== undefined) return told
   const puzzle = room.puzzles.find((shown) => shown.id === id)
-  if (puzzle === undefined || puzzle.is_exit) return fill(strings.reactExit, { riddles: room.puzzles.length })
+  if (puzzle === undefined || puzzle.is_exit) return strings.reactExit
   if (puzzle.lock_type === 'find') return carried ? strings.reactFindKept : strings.reactFind
   return { use_on: strings.reactUseOn, code: strings.reactCode, order: strings.reactOrder }[puzzle.lock_type]
 }
