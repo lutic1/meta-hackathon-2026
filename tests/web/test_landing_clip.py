@@ -2,7 +2,8 @@
 the chooser (Oct 29) it plays twice: on the Watch card's front as its own derived loop (the Scene photo only, muted,
 under a pause toggle) and on the Watch back larger, with native controls, as the demo video until the full one is set.
 Autoplaying muted and looping unless reduced motion or Pause motion is set. Owner report Oct 29 ("watch the demo is way
-to fast"): it plays at real speed, with time to read each line, and its tags name its real length.
+to fast"): it plays at real speed, with time to read each line, and its tags name its real length. Re-recorded Oct 30 on
+story mode (the intro, one riddle at a time, the chest, the walk), since the play screen it showed no longer exists.
 
 As in test_hosted_landing.py, the client checks read the TypeScript and the stylesheet (the client has no test
 runner); the last check serves the committed files from the hosted app with their media types.
@@ -57,10 +58,11 @@ def test_the_clip_files_are_committed_under_web_public_clip():
         assert webm.read_bytes()[:4] == b"\x1a\x45\xdf\xa3"  # EBML: a WebM file
         assert mp4.read_bytes()[4:8] == b"ftyp"
         assert still.read_bytes()[:3] == b"\xff\xd8\xff"
-    # Raised from 600 KB (the ten-second cut) to fit the real-speed one (Oct 29): its largest file is play.webm, 691 KB.
-    assert all((CLIP / name).stat().st_size < 700_000 for name in FILES)
+    # Raised from 600 KB (the ten-second cut) to 700 KB for the real-speed one (Oct 29), then to 2.2 MB for the story-mode
+    # play-through (Oct 30), three times as long: its largest file is play.mp4, 2.11 MB.
+    assert all((CLIP / name).stat().st_size < 2_200_000 for name in FILES)
     # Both are cut from one 2x recording (2560 x 1440 of a 1280 x 720 page), so neither is ever scaled up (Oct 29).
-    assert _dimensions(CLIP / "play.mp4") == (1280, 604) and _dimensions(CLIP / "card.mp4") == (630, 840)
+    assert _dimensions(CLIP / "play.mp4") == (1280, 606) and _dimensions(CLIP / "card.mp4") == (798, 1064)
 
 
 def test_one_module_names_the_clip_the_card_loop_and_the_demo_video():
@@ -71,22 +73,24 @@ def test_one_module_names_the_clip_the_card_loop_and_the_demo_video():
     # The card's loop is derived from the clip; the lines that make it stay beside it, in its doc comment.
     assert "webm: '/clip/card.webm'" in clip and "mp4: '/clip/card.mp4'" in clip and "poster: '/clip/card-poster.jpg'" in clip
     doc = (WEB_SRC / "clip.ts").read_text()
-    assert "crop=2560:1208:0:96" in doc and "crop=630:840:581:170" in doc
-    assert "between(n\\,300\\,304)+between(n\\,701\\,705)+between(n\\,896\\,904)" in doc
+    assert "crop=2560:1212:0:96" in doc and "crop=798:1064:881:170" in doc
+    assert "trim=start=10.3:end=118.3" in doc and "trim=start=45.4:end=62.4" in doc
+    assert "fix-C2-record.cjs" in doc  # the recorder that made the raw recording
     # The full demo video is unset for now, so the Watch back falls back to the clip; its aspect sizes the panel.
     assert "const FULL_DEMO_VIDEO: VideoSources | null = null" in clip
     assert "export const DEMO_VIDEO: VideoSources = FULL_DEMO_VIDEO ?? CLIP" in clip
-    assert "export const DEMO_VIDEO_ASPECT: number = FULL_DEMO_VIDEO_ASPECT ?? 1280 / 604" in clip
+    assert "export const DEMO_VIDEO_ASPECT: number = FULL_DEMO_VIDEO_ASPECT ?? 1280 / 606" in clip
 
 
 def test_the_clip_plays_at_real_speed_and_its_tags_name_its_length():
     """Owner report Oct 29: "watch the demo is way to fast". Neither video is sped up, so the play runs well past ten
     seconds, and the Watch back's play-through tag reads the clip's own length (the Watch card's tag reads the
-    tutorial's since it came first, test_watch_tutorial.py)."""
+    tutorial's since it came first, test_watch_tutorial.py). Since story mode (Oct 30) the play-through holds the five
+    intro beats and all four riddles, and the card's loop a stretch of walking and one solve."""
     clip, card = _seconds(CLIP / "play.mp4"), _seconds(CLIP / "card.mp4")
-    assert 30 <= clip <= 50 and 25 <= card < clip
+    assert 70 <= clip <= 120 and 15 <= card <= 25
     doc = (WEB_SRC / "clip.ts").read_text()
-    assert "setpts=(PTS-STARTPTS)*" not in doc and "setpts=N/30/TB" in doc  # no speed-up factor on either cut
+    assert "setpts=(PTS-STARTPTS)*" not in doc and doc.count("setpts=PTS-STARTPTS,") == 2  # no speed-up factor on either cut
     strings = _strings()
     length = f"{int(round(clip)) // 60}:{int(round(clip)) % 60:02d}"
     assert strings["watchBackTag"] == f"muted · {length}"
@@ -96,7 +100,7 @@ def test_the_clip_plays_at_real_speed_and_its_tags_name_its_length():
 def test_the_clip_strings_are_the_experience_lines():
     strings = _strings()
     assert strings["clipCaption"] == "A play-through of this room."
-    assert strings["clipLabel"] == "A play-through of this room: a wrong click, a pickup, a lock opening, the way out."
+    assert strings["clipLabel"] == "A play-through of this room: the wizards' welcome, four riddles, one hint from the chest, the way out."
     voice = _section("Voice and Tone")
     assert strings["clipCaption"] in voice and strings["clipLabel"] in voice
     assert "clipPause" not in strings  # the card's toggle is an icon, named by its accessible name alone

@@ -40,7 +40,7 @@ def test_the_chooser_strings_are_the_experience_lines():
     # Since the tutorial (Oct 29) the card promises both videos and its tag reads the tutorial's length.
     assert (strings["watchCardEyebrow"], strings["watchCardTitle"], strings["watchCardTag"]) == ("Two videos", "Watch the demo", "0:20")
     assert strings["watchCardLine"] == "A twenty-second tutorial, then a real room played start to finish."
-    assert (strings["watchCardPrompt"], strings["watchBackTag"]) == ("Watch it bigger", "muted · 0:37")
+    assert (strings["watchCardPrompt"], strings["watchBackTag"]) == ("Watch it bigger", "muted · 1:48")
     assert (strings["playCardEyebrow"], strings["playCardPrompt"]) == ("The sample room", "Step inside")
     assert (strings["buildCardEyebrow"], strings["buildCardTitle"], strings["buildCardTag"]) == ("Your photos", "Build your own", "~3 min")
     assert strings["buildCardLine"] == (
