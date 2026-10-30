@@ -41,7 +41,7 @@ FR-8: Every Room passes the eight Validator rules of Schema v1 before it is stor
 FR-9: A Dry run (`muse-spark-1.3`, reasoning effort low) that sees only photos, labels, Clues and Rungs, never solutions, must reach every answer: a sentinel-solution test finds no solution in its prompt; any mismatched answer fails the Room; a passing Dry run proves the Clues and three Rungs suffice, so the near-answer is always enough to solve; under cut 4 the Dry run is skipped and the Validator alone gates the Room.
 FR-10: A failed Room is regenerated (Riddler plus Dry run) with its failure reason list only, never the previous draft, at most 2 times (1 under cut 7); Riddler output that fails the response schema or exact-id parsing, and Dry run output missing or unparseable for any Puzzle, count as a failed attempt with a fixed reason (A-24); after the last failed Regeneration the Build ends `needs_recapture` and the Capture screen keeps the photos visible and asks for brighter, closer shots where labels and printed text are readable, with Start over; provenance records the Regeneration count.
 FR-11: The player plays the Room as photo Scenes with mask Hotspots in the stored 1280 px photo's pixel space (a click inside a polygon at any rendered size posts a click for that Interactable; hover reveals it), a Thumbnail strip reaching every photo in upload order (A-12), an Inventory that persists across Scene changes for the whole Session, and Wizard notes showing, for each available Puzzle, its Clue, Lore, Evidence cards (Interactable label, thumbnail crop, read attribute), opened Rungs and lock input, with Puzzles behind unmet prerequisites hidden; after an accepted Decoy, real and Decoy Evidence cards are indistinguishable and keep a stable order (one test); reloading resumes the Session from its Event log (Scenes, Inventory, open locks, current Rungs), and an unreachable server disables inputs with a reconnecting state and counts nothing.
-FR-12: A lock opens only on its correct input, judged by the server, with each available Puzzle's lock input in its Wizard-notes entry: `code` is a 3 to 6 character field with Submit, compared trimmed and case-folded (A-20); `order` is armed only by "Start the sequence" in the order Puzzle's entry, only Hotspot clicks made while armed count (in any Scene), a full-length mismatch counts one Wrong attempt and clears the buffer, which stays armed, "Stop the sequence" disarms with no Wrong attempt, the buffer is armed only while its Puzzle is the Active puzzle and is disarmed with no Wrong attempt when the Active puzzle changes, and exploring clicks made while unarmed never count (spine AD-4 and Schema v1; the PRD was aligned to them Oct 21); `find` is a click on the target Hotspot made while no order sequence is armed; `use_on` drags an Inventory item onto a Hotspot, or selects it and then clicks the Hotspot with the Thumbnail strip usable meanwhile; a submitted input shows a pending state and a lock shows open only after the server confirms; every reply reads one feedback line; a Wrong attempt shows "Not this" with the per-lock count, a click alone never counts, and a click on a non-target Hotspot shows the Interactable's label and "{label}. Not this one."; solving a `find` Puzzle moves its Interactable into the Inventory only when a `use_on` Puzzle of the Effective room names it as its item, and any other target is found, not carried (a later click reads "{label} · found"), and an empty Inventory has its own empty state; an opened lock blooms its target and shows "Solved" with "Puzzle {n} solved.", then the next available Puzzle appears; input for a Puzzle whose prerequisites are not open never opens it and is not a Wrong attempt, and a `use_on` with an item not in the Inventory is refused.
+FR-12: A lock opens only on its correct input, judged by the server, with each available Puzzle's lock input in its Wizard-notes entry: `code` is a 3 to 6 character field with Submit, compared trimmed and case-folded (A-20); `order` is armed only by "Start the sequence" in the order Puzzle's entry, only Hotspot clicks made while armed count (in any Scene), a full-length mismatch counts one Wrong attempt and clears the buffer, which stays armed, "Stop the sequence" disarms with no Wrong attempt, the buffer is armed only while its Puzzle is the Active puzzle and is disarmed with no Wrong attempt when the Active puzzle changes, and exploring clicks made while unarmed never count (spine AD-4 and Schema v1; the PRD was aligned to them Oct 21); `find` is a click on the target Hotspot made while no order sequence is armed; `use_on` drags an Inventory item onto a Hotspot, or selects it and then clicks the Hotspot with the Thumbnail strip usable meanwhile; a submitted input shows a pending state and a lock shows open only after the server confirms; every reply reads one feedback line; a Wrong attempt shows "Not this" with the per-lock count, a click alone never counts, and a click on a non-target Hotspot shows the Interactable's label and "{label}. Not this one."; solving a `find` Puzzle moves its Interactable into the Inventory only when a `use_on` Puzzle of the Effective room names it as its item, and any other target is found, not carried (a later click reads "{label} · found"), and an empty Inventory has its own empty state; an opened lock blooms its target and shows "Solved" with "Puzzle {n} solved.", then the next available Puzzle appears; input for a Puzzle whose prerequisites are not open never opens it and is not a Wrong attempt, and a `use_on` with an item not in the Inventory is refused. Story mode: the lock input sits in the Riddle note, not a Wizard-notes entry. (amended 30 Oct 2026, story mode)
 FR-13: Opening the Exit puzzle shows the Completion screen with elapsed time, Rungs used, Wrong attempts and per-Puzzle time, with active Disclosures still visible; its one action is "Build another room" (the Capture screen in Local mode, the Hosted landing in Hosted mode), and it links the Build view (FR-38); the Room result is recorded into the Player profile.
 FR-14: One hint button, "Get a hint for Puzzle {n}", sends a Hint request for the Active puzzle (the most recently targeted available unsolved Puzzle, set by a lock input or by a Hint request naming an available unsolved Puzzle, else the earliest available unsolved Puzzle; a click never sets it; spine AD-4); there is no hint field (owner decision Oct 29), so no typed text exists to leave the browser, and a Hint request carrying any field beyond `puzzle_id` is refused; the Scripted attack suite, led by "just tell me the answer", opens nothing and returns no Rung above the one FR-15's ask rule allows; the No-hint line, an in-world Guide line that acknowledges the ask, says help is coming and points back to the Scene, never reads as a refusal and never names an object or solution, answers only once no Puzzle is active; an ask with no Rung showing is logged as an Early ask that lowers persistence (§13 Q9 resolved: log only); a fixture test finds no solution in any play response; free conversation with any wizard is out of scope.
 FR-15: The Guide selects the Rung in code from the Event log, with Rungs, Wrong attempts and Idle seconds tracked per Puzzle: Idle counts from the player's last click, lock input or Hint request and server idle ticks never reset it; the Active puzzle's nudge fires after the nudge threshold of Idle, 90 s × (1 + 0.5 × persistence) clamped to 60 to 135 s (90 s on a fresh Player profile), or after 3 Wrong attempts at that lock, whichever comes first; direction and near-answer each need a further stall (Idle equal to the nudge threshold) or 3 further Wrong attempts and arrive at least 90 s after the previous Rung, a spacing that never scales with persistence; a Hint request opens the Active puzzle's next Rung at once when none is showing, and when one is showing opens the next once the Rung spacing has passed since that Puzzle's last Rung change, else repeats the current Rung with the wait until the next (owner decision Oct 29); an accepted Trickster Loosen opens its named Rung at once and is not counted against the spacing; replaying an Event log yields the same Rung changes as live play; after the near-answer there is no reveal or skip and a further Hint request repeats the near-answer (A-21).
@@ -132,7 +132,7 @@ _UX-DR1, UX-DR5 to UX-DR7, UX-DR10, UX-DR14, UX-DR17, UX-DR20, UX-DR22 to UX-DR2
 UX-DR1: Color tokens: implement every `DESIGN.md` `colors` token as a CSS custom property with the exact hex (study: `canvas` #14100C, `chrome` #1E1812, `chrome-raised` #2A2119, `hairline` #4A3C2C, `gilt` #B08A4E, `scrim` #0A0806CC; paper: `parchment` #E8DBBE, `parchment-shade` #D8C7A2, `parchment-rule` #5A463040, `ink` #2A1D11, `ink-muted` #5A4630; text `text` #F0E6D2, `text-muted` #B8A98E; lamplight `lamp` #E9A94B, `lamp-strong` #F4C470, `lamp-ink` #6E400C, `on-lamp` #1A1208, `lamp-hover-fill`, `lamp-ink-hover-fill`; focus `focus-ring` #FFD27A, `focus-ring-inner`; hotspots `hotspot-outline`, `hotspot-halo`, `hotspot-glow`, `hotspot-show-all`; states `success`/`success-ink`, `wrong`/`wrong-ink`, `pending`/`pending-ink`; plain messages `warning-*`, `error-*`, `disclosure-*`; role tokens `card-*`, `clue-card-*`, `graph-*`, `mask-overlay-*`), dark theme only; role tokens repeat their base hex and change with it; usage rules: gilt only for frames, lamp never fills a large area or colors a plain message, `lamp`, `success` and `wrong` never on parchment (use the ink forms), no colors drawn from the player's photos, no gradients other than the Scene vignette (and the Hosted landing chooser's lamp light and gilt, the owner's exception of Oct 29).
 UX-DR2: Typography tokens: self-host EB Garamond, Source Sans 3 and IBM Plex Mono as WOFF2 in `web/dist` (no third-party font request) and implement the 13 styles with their sizes, weights and line heights (`display-lg` 40, `display-md` 30, `display-sm` 22, `wizard-line-lg` 24, `wizard-line` 19, `lore` 17 italic, `body-md` 16, `body-sm` 14, `label` 13/600, `caption` 12, `mono-timer` 28, `mono-code` 20 tracked 0.2em, `mono-sm` 13); rules: headings serif everywhere, in-character lines in the serif body styles with a portrait, plain lines in the sans with none, Garamond never below 17 px, italic only for Lore, sentence case, no all-caps, tabular figures for numbers that change in place, `caption` only for thumbnail and Inventory captions, text never directly on a photo.
 UX-DR3: Spacing and layout tokens: the 4 px scale (`spacing.1` to `spacing.8`: 4, 8, 12, 16, 24, 32, 48, 64) and the named layout tokens (`frame-margin` 24, `column-gap` 24, `side-column` 400, `top-bar` 48, `disclosure-min` 32, `thumbnail-strip` 88, `narrow-gutter` 16, `hint-area-max` 320, `triggers-panel-max` 160, `notes-min` 280, `status-strip` 32); spacing rhythm: tight pairs 8, inside a panel 12 to 16, panels 24 apart, screen sections 48.
-UX-DR4: Radii and shapes: `rounded.none` 0 (Disclosure banner), `sm` 4 (photos in frames, thumbnails, code field, chips, label chips), `md` 8 (buttons, fields, Evidence cards, Trickster Cards, banners, graph nodes), `lg` 12 (sheets and trays: Wizard notes, Hint area, Completion sheet, Greeting card, Demo room cards, dropzone), `full` (portraits and order pips only; no pill buttons); Hotspots keep their polygon shape, never rounded, boxed or simplified.
+UX-DR4: Radii and shapes: `rounded.none` 0 (Disclosure banner), `sm` 4 (photos in frames, thumbnails, code field, chips, label chips), `md` 8 (buttons, fields, Evidence cards, Trickster Cards, banners, graph nodes), `lg` 12 (sheets and trays: Wizard notes, Hint area, Completion sheet, Greeting card, Demo room cards, dropzone), `full` (portraits and order pips only; no pill buttons); Hotspots keep their polygon shape, never rounded, boxed or simplified. Story mode: the play screen's sheets are the Riddle note, the Treasure chest and the Story stage; Wizard notes, Hint area and Greeting card are gone from it. (amended 30 Oct 2026, story mode)
 UX-DR5: Elevation: `paper` shadow on parchment surfaces (the Wizard notes left paper on Oct 29: they are a flat `chrome-raised` tray with a 1 px `hairline` edge and no shadow, like the Hint area and Inventory), `overlay` shadow for the Greeting, Completion sheet, Card log and Leave room confirmation over `scrim`, `lamp-glow` as the only light effect (Hotspot hover, primary button and Demo room card hover, the Hosted landing chooser's lamp rim on the card brought forward, the single arrival glow), `vignette` on the Scene mat only; level 0 wall, level 1 desk and trays separated by tone, no shadow; plain surfaces and waiting states never glow.
 UX-DR6: Motion and reduced motion: fades and glows only, `ease-out`, 150 ms for hover, 200 ms for state fades, at most 300 ms for overlays entering and the arrival glow; nothing slides, bounces, shakes, scales more than 2% or loops (the Guide thinking ring, the "Checking" ellipsis and the Timer's lamp dot are static), with one owner exception (Oct 29, DESIGN.md Motion): on the Hosted landing chooser alone the cards deal in with a spin, breathe, lift, tilt and turn over, the dust, the card clip and the sample room's photos loop, and a "Pause motion" toggle holds every loop still; under `prefers-reduced-motion: reduce` every transition is instant, the arrival glow becomes the lit ring held 2 s, and the 300 ms wrong flash on the order pips becomes an instant reset, while a repeated Hint reply is still announced; the chooser then deals, spins and loops nothing, each change a 160 ms crossfade.
 UX-DR7: App shell and top bar: the 1440 x 900 frame from the top: the Disclosure banner (full width, 32 px per line, part of the grid, pushing everything down, never overlaying); the 48 px `chrome` top bar with the Keyframe wordmark (`display-sm`) and the mode indicator on the left, the Timer and its label centered in the same position on the Capture and Play screens, and "Show all objects", "Card log" and "Leave room" on the right on the Play screen only, as quiet buttons (UX-DR10, owner decision Oct 29) (inert under overlays and on the Completion screen; absent on the Capture screen, Build view and Hosted landing); the body inside 24 px margins with the Scene column (about 968 px: Scene frame, then the 88 px row with the Thumbnail strip and the 288 px Inventory) and the 400 px side column (Wizard notes on top, at least 280 px, the Hint area pinned below); every scrim starts below the top bar and the top bar stays undimmed but inert under overlays; responsive bands: 1280 to 1439 px side column 360, 1024 to 1279 px side column 340, below 1024 px the Narrow-screen message; no horizontal page scroll at any width.
@@ -153,7 +153,7 @@ UX-DR21: Error banner (with its warning variant): full width of the left area, a
 UX-DR22: Scene frame: the Play screen's one ornate frame (Oct 29: the gilt rule and the vignette frame the Scene alone, the trays around it quiet): canvas ground, 12 px chrome mat, 1 px gilt rule, inner vignette on the mat, the photo from `GET /rooms/<room_id>/photos/<i>` contained (never cropped, enhanced, tinted or relit) at `rounded.sm`, letterboxing portrait photos; states: loading (mat with a plain line), reconnecting (status strip above, frame shrinks, photo dims to 60%, inputs disabled), play-through ended (photo dimmed under the plain Session-gone line on `chrome-raised` with "Start again").
 UX-DR23: Hotspot: one per Interactable on the photo, the union of its polygons, id equal to the Interactable id; invisible at rest with a pointer cursor; hover shows a 3 px lamp outline over a 5 px dark halo, the 35% glow fill and the lamp drop shadow (150 ms), with the label chip after a 400 ms dwell; while pressed the glow fill is solid lamp; a click shows the label chip with "Checking" beside it until the reply; focus traces the two-tone ring along the polygon and shows the label chip at once; "Show all objects" draws a 2 px dashed `hotspot-show-all` outline with halo, no fill, no labels; a clicked non-target shows its label chip, and the feedback line reads "{label}. Not this one."; a solved target blooms once (solid lamp under the lamp shadow, 300 ms); a solved `find` target's glow fades out over 200 ms, and when a `use_on` needs it its Inventory item fades in and clicking it again shows "{label} · in hand", otherwise it is found, not carried, and shows "{label} · found"; click or Enter posts `click` (or only the `use_on` input while an item is selected); Tab order by polygon centroid, top to bottom then left to right; accessible name is the label with the role of a button.
 UX-DR24: Hotspot label chip: a parchment chip in `label` type anchored 8 px above the polygon's top edge; shown once the pointer has dwelt 400 ms on the Hotspot until it leaves, and at once for as long as the Hotspot has keyboard focus; with the "Checking" chip beside it while a click or `use_on` waits for its reply; after a non-target click it fades after 2 s or on pointer leave.
-UX-DR25: Thumbnail strip: 96 x 72 thumbnails in upload order with 8 px gaps, scrolling horizontally inside its row only; current photo has a 2 px lamp border and is announced as current, hover `lamp-strong`, others at 80% opacity; click or Enter switches the Scene; usable while a `use_on` item is selected; each thumbnail carries an object-count badge described as "{k} objects", "1 object" or "no objects", a photo with none dimmed to 50% unless current, the counts following the Effective room.
+UX-DR25: Thumbnail strip: 96 x 72 thumbnails in upload order with 8 px gaps, scrolling horizontally inside its row only; current photo has a 2 px lamp border and is announced as current, hover `lamp-strong`, others at 80% opacity; click or Enter switches the Scene; usable while a `use_on` item is selected; each thumbnail carries an object-count badge described as "{k} objects", "1 object" or "no objects", a photo with none dimmed to 50% unless current, the counts following the Effective room. Story mode: the Thumbnail strip is gone, replaced by the Walk (Story 1.19). (amended 30 Oct 2026, story mode)
 UX-DR26: Inventory: a flat `chrome-raised` tray with a 1 px `hairline` edge and no shadow (Oct 29), 64 px slots, three across the 288 px tray, each item a 56 px crop (cut around its first polygon since Oct 29) with a `caption` label, dashed empty slots beyond the items; empty state is one dashed slot and "Nothing in hand yet."; a new item fades in over 200 ms paired with its Hotspot's glow fading out; an item is a drag source for `use_on` (60% in place while dragging, a 64 px drag image with `paper` shadow) and click or Enter selects it for select-then-click (2 px lamp ring), a second activation or Escape deselecting it.
 UX-DR27: Wizard notes: a flat `chrome-raised` tray with a 1 px `hairline` edge, no shadow and 16 px padding, in `text` (owner-relayed reviewer feedback Oct 29, K4: until then a parchment sheet with 24 px padding on the paper shadow, which competed with the photo), at least 280 px tall, scrolling inside the side column, one entry per available Puzzle in Room order separated by `hairline` dividers: a heading row "Puzzle {n}" (`display-sm`, n = the Puzzle's fixed order number) with a plain evidence count at its right end ("{k} evidence cards" in `text-muted`, changing in place with no highlight or announcement), the Riddler portrait (32 px, `hairline` ring) beside the Clue (`wizard-line`; the Current entry's Clue a step larger in `wizard-line-lg`, the most prominent line on the right), the Clue card slot when the Room has Clue cards, the Evidence cards directly under the Clue, Lore (`lore`, `text-muted`), opened Rungs and the lock input; the Active puzzle (from `active_puzzle_id`, which the server recomputes after every event and which is never null while a Puzzle is available, AD-4; the client never computes it) carries a 3 px `lamp` left rule plus "Current", and when `active_puzzle_id` moves the notes scroll to the Current entry without moving focus; newly available entries fade in and are announced once ("Puzzle {n} is now in the notes."), never focused; a solved entry shows the Solved chip; hidden Puzzles are not drawn, except an entry an accepted Merge just hid, which leaves "Puzzle {n} now waits on another puzzle." (focus inside moves to it); a Shortcut reveals an entry only when it has no other unmet prerequisite.
 UX-DR28: Clue card slot (Tier 1.5, FR-37): 112 x 84 px, `rounded.sm`, right-aligned beside the Clue with the Clue wrapping to its left, drawn only when the Room has Clue cards; placeholder (`clue-card-placeholder` fill, dashed edge), ready (the image, alt = the Clue, visible Clue hidden from assistive technology), blank on failure (flat, no edge, hidden from assistive technology); same size in every state so the layout never shifts.
@@ -185,7 +185,7 @@ UX-DR53: Build view Model table: first in the right column so it sits above the 
 UX-DR54: Build view In play block: a fixed `chrome` panel under the Model table filled from `GET /meta`, not provenance: the Guide row (32 px portrait, "The Guide", role line, then the Guide model and host: Llama 3.2 3B on "Ollama on the Mac" in Local mode, or in Hosted mode "Hints are shown as written here. In Local mode, Llama 3.2 3B rewords them on the Mac.") and the Trickster row (32 px portrait, "The Trickster", role line, then "Source: live", "Source: scripted" or "Source: written in advance"); static.
 UX-DR55: Build view BuildView JSON: a collapsed pane under the mask overlays behind "Show the build JSON" (secondary toggle, expanded state); open shows the caption "Everything this page receives. It holds no answers; a sentinel test checks every build for them." and the build data exactly as served, pretty-printed in `mono-sm`, at most 360 px high, a focusable scrollable region; nowhere on the Build view is an answer, Clue-to-answer pairing or Dry run answer shown or fetched, and Clues are not repeated.
 UX-DR56: Disclosure banner: a full-width footer under the body on `disclosure-surface` with a 1 px `disclosure-edge` and `disclosure-text` in `body-sm` (owner decision Oct 29, reviewer feedback: the tokens repeat the study's `chrome`, `gilt` and `text`, a chrome band under a gilt rule at 14.19:1, retiring the cool grey strip of Oct 21), `rounded.none`, one line per Disclosure (32 px per line), no icon, no close control, no controls, taking no focus, read as page content; rendered exactly as served: the session state's per-Room list on the Play and Completion screens, `BuildView`'s list on the Build view, `GET /meta` `disclosure` on the Capture screen and Hosted landing; absent when the list is empty; identical on every surface, scrolling bodies stopping above it, never covered or dimmed by a scrim (every scrim sits inside the body above it), never overlaying the Scene, a Hotspot or a control.
-UX-DR57: Hosted landing, a hero-select chooser (owner decision Oct 29, "3 seperate cards where they can pick like a Diablo 3 hero track that animates spins"; until then a title screen with a hero, an attract frame, a ten-second clip under "How to play" and the Access-code build in a 400 px right column, all removed): the top bar without the Timer, the Disclosure banner as its footer, and between them the chooser filling the first screen: the pitch (heading "An escape room built from your own photos.", the wordmark staying in the top bar, over "Pick a card. Any card."), then three tall cards in a shallow arc on a gilt floor ring, one group named "Three ways in", each a real button named by its title and described by its line: Watch the demo ("Ten seconds", "0:10", the card's own muted loop of the Scene with a "Pause the clip" / "Play the clip" toggle), Play the sample room ("The sample room", "{n} puzzles" and the lamp tag "No upload needed", the first Demo room's photos crossfading, "{name}." then "{puzzles} · 15 to 25 min", "Step inside") and Build your own ("Your photos", "~3 min" and "Access code required", the line "Six to ten photos of one room. Four wizards, Meta's Muse Spark and SAM underneath, find the objects, write the riddles and test every lock. About three minutes."); no line on this first screen names AI, an assistant, an agent or a model id, the Build card and its second step naming only "Meta's Muse Spark and SAM"; the cards are dealt in with a spin, and while a Demo room is listed the Play card leads at rest (forward, lit, its prompt shown) with Watch and Build a step back; hover or focus brings a card forward and steps the other two back; choosing one (click, Enter or Space) turns it over into one shared back panel, a modal dialog: the Watch back plays `DEMO_VIDEO` larger with native controls (`web/src/clip.ts`: the ten-second clip at 1280 x 604 while `FULL_DEMO_VIDEO` is unset), the Play back shows the room's photos, its facts, the Riddler's voice line, "Your hosts", "How to play" with the welcome's three steps, "Play this room" (through the one start guard the further cards share) and "How this room was built", and the Build back holds "Build your own room", the three steps, the "How a room is built" link and the Access-code build (UX-DR59); a footer with the key hints and "Pause motion"; the motion is the owner's exception to UX-DR6; card lines and meta at least 16 px and every sentence at 7:1 or better (reviewer feedback, Oct 29); below the fold the cast of four (the one exception to "no separate band of wizards"), the Riddler's sample page and "How a room is built" in three steps naming the models, then any further Demo room cards three across; cards from `GET /rooms` (Demo rooms only); no focus moved on load, the three cards one Tab stop starting on Play (on Watch with no Demo room listed). Lanes H1, K1 and K2.
+UX-DR57: Hosted landing, a hero-select chooser (owner decision Oct 29, "3 seperate cards where they can pick like a Diablo 3 hero track that animates spins"; until then a title screen with a hero, an attract frame, a ten-second clip under "How to play" and the Access-code build in a 400 px right column, all removed): the top bar without the Timer, the Disclosure banner as its footer, and between them the chooser filling the first screen: the pitch (heading "An escape room built from your own photos.", the wordmark staying in the top bar, over "Pick a card. Any card."), then three tall cards in a shallow arc on a gilt floor ring, one group named "Three ways in", each a real button named by its title and described by its line: Watch the demo ("Ten seconds", "0:10", the card's own muted loop of the Scene with a "Pause the clip" / "Play the clip" toggle), Play the sample room ("The sample room", "{n} puzzles" and the lamp tag "No upload needed", the first Demo room's photos crossfading, "{name}." then "{puzzles} · 15 to 25 min", "Step inside") and Build your own ("Your photos", "~3 min" and "Access code required", the line "Six to ten photos of one room. Four wizards, Meta's Muse Spark and SAM underneath, find the objects, write the riddles and test every lock. About three minutes."); no line on this first screen names AI, an assistant, an agent or a model id, the Build card and its second step naming only "Meta's Muse Spark and SAM"; the cards are dealt in with a spin, and while a Demo room is listed the Play card leads at rest (forward, lit, its prompt shown) with Watch and Build a step back; hover or focus brings a card forward and steps the other two back; choosing one (click, Enter or Space) turns it over into one shared back panel, a modal dialog: the Watch back plays `DEMO_VIDEO` larger with native controls (`web/src/clip.ts`: the ten-second clip at 1280 x 604 while `FULL_DEMO_VIDEO` is unset), the Play back shows the room's photos, its facts, the Riddler's voice line, "Your hosts", "How to play" with the welcome's three steps, "Play this room" (through the one start guard the further cards share) and "How this room was built", and the Build back holds "Build your own room", the three steps, the "How a room is built" link and the Access-code build (UX-DR59); a footer with the key hints and "Pause motion"; the motion is the owner's exception to UX-DR6; card lines and meta at least 16 px and every sentence at 7:1 or better (reviewer feedback, Oct 29); below the fold the cast of four (the one exception to "no separate band of wizards"), the Riddler's sample page and "How a room is built" in three steps naming the models, then any further Demo room cards three across; cards from `GET /rooms` (Demo rooms only); no focus moved on load, the three cards one Tab stop starting on Play (on Watch with no Demo room listed). Lanes H1, K1 and K2. Story mode: the Watch card now reads "Two videos", "0:20" (Story 7.25). (amended 30 Oct 2026, story mode)
 UX-DR58: Demo room card: one per `RoomSummary` on `chrome-raised`, `rounded.lg`: a 4:3 cover photo, the Room's name (or build time) in `display-sm`, "{n} locks · 15 to 25 min" ("1 lock" for one), a "Play this room" button, the four Wizard portraits at 24 px (one accessible name, "The Architect, the Riddler, the Guide and the Trickster"), and a footer with a decorative 96 px mask-and-graph thumbnail and "How this room was built" (secondary); hover lamp ring plus glow; two Tab stops, the button and the link, the card itself not one; a click on the card or "Play this room" starts a Session with a fresh Derived block (then the Demo room welcome); a refused start shows the session-start-refused banner above the cards' list. Since Oct 29 the first Demo room is the chooser's Play card and Play back (UX-DR57), so these cards are the further Demo rooms, below the fold, and they share the Play back's start guard.
 UX-DR59: Access-code build: a panel in the chooser's Build back (Oct 29; the right column is gone), under the back's heading "Build your own room" and "Have an access code?" / "Building a room needs the code from the submission.": a 44 px `mono-code` field labelled "Access code" and the primary button "Check code", a `body-sm` status line, and "Judges: the code is in the submission." under the field, which it also describes (reviewer feedback, Oct 29); the Build card's face already says "Access code required"; checked with `POST /access/check {code}` before photo selection; states: empty submit ("Enter the access code from the submission."), checking ("Checking code…"), refused, also for a 403 on Upload (compact error banner "That code doesn't open anything."), check failed, no answer or a 5xx (compact error banner "We couldn't check the code. Try again."), too many tries (compact warning "Too many tries. Wait a moment, then check the code again."), accepted ("{n} of 20 builds left" in `success`, n always the server's `builds_left`, re-asked on re-entry and never counted down by the tab, then the Capture screen with the code held for `X-Access-Code`), quota reached (warning "All 20 judge builds have been used. The demo rooms are still open.", Demo room cards stay active); `POST /builds` re-checks, so a quota reached in between shows the quota warning on the Capture screen; the code is kept for the tab's lifetime only, never stored.
 UX-DR60: Narrow-screen message: below 1024 px the whole app is replaced by the canvas with a centered plain `chrome-raised` card (never parchment), at most 480 px wide with 16 px side gutters, holding the wordmark, the Guide's portrait, the heading "Keyframe needs a bigger screen" (`display-sm`), "Open this page on a laptop or desktop browser to play." (`body-md`) and "Copy link for your laptop", which copies the page address and confirms under itself and in the live region ("Link copied. The room will wait.", or "Keyframe couldn't copy the link. It's in the address bar."), no control leaving the page; single state, no horizontal scroll at any width; above 1024 px the app returns with its state intact.
@@ -199,7 +199,7 @@ UX-DR67: Build view states and layout: the Disclosure banner and top bar (wordma
 UX-DR68: Hosted landing states (the chooser, Oct 29): cold load (`GET /meta` with the Hosted Disclosure, then `GET /rooms`; the chooser renders at once and the first Demo room's `PlayView` then fills the Play card's photos and the sample page below the fold); rest (the Play card leading, or the three level with no Demo room listed) and a card brought forward; choosing, chosen (the back panel a modal dialog with focus in it, Tab trapped, everything outside inert) and returning (focus back on the card); Demo rooms failed to load (the Play card reads "Keyframe couldn't load the demo rooms." and its back holds that line with "Try again"; Watch, Build and the Access-code build still usable); no Demo rooms (the Play card and its back read "The sample room opens soon.", the back with "Build your own"; no tag, no sample page, no "How a room is built" link; Watch, Build, the cast and "How a room is built" stay); Pause motion (every loop and both videos held still); reduced motion (no deal, spin or loop, each change a 160 ms crossfade, the card clip on its poster); session start refused (banner at the top of the Play back's details, or above the further cards' list, focused); the Access-code states of UX-DR59 inside the Build back.
 UX-DR69: Accessibility floor, Hotspots and alternatives (NFR-14 items 1 to 3, AD-11): each Hotspot is a focusable element in the three.js scene's accessible overlay (same ids in the DOM-only fallback) with the focus ring traced along the polygon and the label chip as its visual name; Enter acts as a click; the "Show all objects" top-bar toggle (pressed state announced) outlines every Hotspot, persists across Scene changes within the Session, and draws outlines only; `use_on` works by select-then-click posting the same `UseOnInput` as a drop and no click.
 UX-DR70: Live region: exactly one `aria-live="polite"` region receiving only Rung lines (including the No-hint line), Cards, the Greeting or First-room welcome, the Completion sign-off, the reconnecting line, and, as additions above the floor, each reply's one feedback line announced as "The Guide: {line}" ("Puzzle {n} solved.", after "You pick up the {label}." when an item was added; "The way out is open."; "Puzzle {n}: not this, {count}."; "{label}. Not this one."; "{label} · in hand"; "{label} · found"), "Puzzle {n} is now in the notes." and the copy confirmations (narrow-screen link, Completion result); no "Puzzle {n}: open." line exists; every in-character line prefixed with its speaker; Cards read "The Trickster: {sentence} {outcome label}." plus a rejected Card's "Proposed" line and reason, and the first Card reads "The Trickster. {role line} {voice line} {sentence} {outcome label}."; replies to explicit Hint requests always announced, even when repeated; polled Rungs and Cards announced once each; "Checking" never announced; nothing re-announced on reload.
-UX-DR71: Keyboard order and modal focus: Tab and Shift+Tab follow top bar → Scene Hotspots → Thumbnail strip → Inventory → Wizard notes → Hint area; Enter acts as a click on Hotspots, thumbnails, Inventory items, Demo room cards and graph nodes, and submits the Code, hint and Access code fields; Escape closes the Card log, cancels a `use_on` selection and means "Keep playing", but never dismisses the Greeting; no single-key shortcuts; modals trap focus and make the Scene, Hotspots and top bar inert; Build view Tab order runs header title, "Back", Model table, In play block, verdict table and Dry run rows, graph nodes, mask label chips, JSON toggle; tables are real `<table>` elements with header cells.
+UX-DR71: Keyboard order and modal focus: Tab and Shift+Tab follow top bar → Scene Hotspots → Thumbnail strip → Inventory → Wizard notes → Hint area; Enter acts as a click on Hotspots, thumbnails, Inventory items, Demo room cards and graph nodes, and submits the Code, hint and Access code fields; Escape closes the Card log, cancels a `use_on` selection and means "Keep playing", but never dismisses the Greeting; no single-key shortcuts; modals trap focus and make the Scene, Hotspots and top bar inert; Build view Tab order runs header title, "Back", Model table, In play block, verdict table and Dry run rows, graph nodes, mask label chips, JSON toggle; tables are real `<table>` elements with header cells. Story mode: the play screen's Tab order is Story 1.25's (top bar, the Riddle note's lore disclosure and lock input, the Hotspots, the doorway sign, the turn discs, the pack's items, the Treasure chest, the walk map). (amended 30 Oct 2026, story mode)
 UX-DR72: Contrast and color-not-alone: every text and state pair meets WCAG AA on the dark theme per the `DESIGN.md` contrast table (4.5:1 body text, 3:1 large text and non-text UI), checked by an audit; hairline is decorative only; every state carries a word ("Not this", "Open", "skipped", "Current", "cached", "billed") and never relies on color or an icon alone; the two-tone focus ring and the haloed Hotspot outline hold on dark chrome, parchment and any photo.
 UX-DR73: Copy register and general rules (EXPERIENCE.md Voice and Tone as the string source): in-character lines (Rungs, the No-hint line, the Greeting, the First-room welcome, Card sentences, Clues, Lore, the Architect's stage lines, wizard voice lines, the Completion sign-off) set in the serif body with the speaker's portrait; plain messages (errors, upload failure, `failed`, `needs_more_photos`, `needs_recapture`, `queued`, Spend cap, quota, Access code, session start refused, deletion, Retention summary, Privacy line, helper line, reconnecting, mode indicator, pipeline line, Build view captions, Disclosures) in the sans, no portrait, never on parchment, no jokes; plain labels and chips may sit on paper; sentence case, no exclamation marks, no emoji, no "Oops", no "successfully", digits for numbers, no solution token in any line, wizard lines naming objects only in a Clue, an Evidence card, a Rung pointing where to look or the Architect's found-objects line; verbatim strings are never paraphrased ("6 to 10 JPEG photos", "the player profile stays on your machine.", "Keyframe needs 6 to 10 JPEG photos.", the Spend cap error, "{n} of 20 builds left", "Deleted Tue Nov 10", "Ask the Guide", "Build another room", the Disclosure lines).
 UX-DR74: Wizard introductions: each wizard is introduced in place where it first works, with name, plain role line naming its model and one voice line, never in a separate band (the one exception: the Hosted landing's cast of four 96 px portraits, each with name, four-word role and voice line on hover and focus): the Architect at the top of the Stage list ("Reads your photos with muse-spark-1.3, names the objects, and draws their outlines with sam-3.1." / "I notice everything. Mostly mugs."); the Riddler in the "Writing puzzles" row ("Reads the objects; writes the puzzles with muse-spark-1.3, then a test run that never sees the answers checks each one can be solved." / "I taught your things to talk. Pity they only speak in riddles."); the Guide on the Greeting or First-room welcome card (Local role line ending "worded by Llama 3.2 3B on this Mac.", Hosted and verbatim ending "shown as written." / "Ask as often as you like. I'll help, a little at a time."); the Trickster on its first Card of the Session ("Reads the game state; proposes changes between puzzles with muse-spark-1.3, and the Validator checks each one." / "I like to move things around. The Validator keeps me honest, sadly."). Since Oct 29 (lanes H1 and K2) the Hosted landing also shows the wizards on the chooser: the four portraits on the Build card, whose line and second step name what the wizards stand on, "Meta's Muse Spark and SAM", never a model id (the first screen's one exception to naming no model, EXPERIENCE.md Chooser pitch row), and each wizard with name and role in the Play back's "Your hosts"; the cast below the chooser keeps name, four-word role and voice line, and the model ids stay below the fold (EXPERIENCE.md, the wizard-introduction paragraph). (amended 29 Oct 2026, correct-course record)
@@ -218,7 +218,7 @@ UX-DR86: Main demo legibility (EXPERIENCE.md shot list): each §11.3 beat's surf
 
 ### FR Coverage Map
 
-Generated from the story covers fields (117 stories; every id below has at least one story; dependencies checked to point only backward by id).
+Generated from the story covers fields (122 stories; every id below has at least one story; dependencies checked to point only backward by id).
 
 #### Functional requirements
 
@@ -228,7 +228,7 @@ Generated from the story covers fields (117 stories; every id below has at least
 - FR-4: Epic 2: 2.15, 2.25
 - FR-5: Epic 2: 2.10, 2.11, 2.12, 2.17, 2.18, 2.25; Epic 7: 7.7, 7.17
 - FR-6: Epic 1: 1.14; Epic 2: 2.16; Epic 7: 7.2; Epic 9: 9.2
-- FR-7: Epic 2: 2.19, 2.20
+- FR-7: Epic 2: 2.19, 2.20, 2.32
 - FR-8: Epic 1: 1.6; Epic 2: 2.20
 - FR-9: Epic 1: 1.6; Epic 2: 2.22, 2.23, 2.24
 - FR-10: Epic 2: 2.21, 2.22, 2.24, 2.25
@@ -249,10 +249,10 @@ Generated from the story covers fields (117 stories; every id below has at least
 - FR-25: Epic 4: 4.3, 4.4, 4.8
 - FR-26: Epic 1: 1.14, 1.17; Epic 4: 4.4; Epic 6: 6.2, 6.3; Epic 7: 7.2
 - FR-27: Epic 2: 2.4, 2.5
-- FR-28: Epic 2: 2.2, 2.3, 2.5, 2.10, 2.25; Epic 4: 4.4
+- FR-28: Epic 2: 2.2, 2.3, 2.5, 2.10, 2.25, 2.32; Epic 4: 4.4; Epic 7: 7.26
 - FR-29: Epic 2: 2.6, 2.12; Epic 7: 7.8, 7.9
-- FR-30: Epic 2: 2.10, 2.20, 2.22; Epic 6: 6.7, 6.9
-- FR-31: Epic 7: 7.3, 7.13, 7.14, 7.15, 7.16, 7.22, 7.23
+- FR-30: Epic 2: 2.10, 2.20, 2.22, 2.32; Epic 6: 6.7, 6.9
+- FR-31: Epic 7: 7.3, 7.13, 7.14, 7.15, 7.16, 7.22, 7.23, 7.24, 7.25, 7.26
 - FR-32: Epic 7: 7.7, 7.8, 7.10, 7.11, 7.12, 7.17, 7.22
 - FR-33: Epic 7: 7.14, 7.18, 7.19, 7.20, 7.21, 7.22
 - FR-34: Epic 8: 8.1
@@ -272,11 +272,11 @@ Generated from the story covers fields (117 stories; every id below has at least
 - NFR-7: Epic 2: 2.7, 2.10, 2.12; Epic 7: 7.7, 7.8
 - NFR-8: Epic 1: 1.2, 1.3; Epic 2: 2.1, 2.9
 - NFR-9: Epic 2: 2.7, 2.15
-- NFR-10: Epic 1: 1.4, 1.19, 1.27; Epic 7: 7.3, 7.16, 7.22, 7.23; Epic 8: 8.1
+- NFR-10: Epic 1: 1.4, 1.19, 1.27; Epic 7: 7.3, 7.16, 7.22, 7.23, 7.24, 7.25; Epic 8: 8.1
 - NFR-11: Epic 1: 1.1, 1.5; Epic 3: 3.6; Epic 5: 5.8; Epic 6: 6.1, 6.4, 6.5, 6.6, 6.9; Epic 7: 7.3, 7.22; Epic 8: 8.1
 - NFR-12: Epic 4: 4.3, 4.4; Epic 5: 5.8; Epic 6: 6.1, 6.2, 6.3, 6.4, 6.6, 6.7
 - NFR-13: Epic 1: 1.1; Epic 6: 6.7, 6.8, 6.9
-- NFR-14: Epic 1: 1.25, 1.26
+- NFR-14: Epic 1: 1.25, 1.26; Epic 7: 7.24, 7.25, 7.27
 
 #### UX design requirements
 
@@ -286,8 +286,8 @@ Generated from the story covers fields (117 stories; every id below has at least
 - UX-DR4: Epic 1: 1.16
 - UX-DR5: Epic 1: 1.16
 - UX-DR6: Epic 1: 1.16, 1.25
-- UX-DR7: Epic 1: 1.17, 1.27; Epic 4: 4.7
-- UX-DR8: Epic 1: 1.17, 1.18, 1.23, 1.27; Epic 2: 2.18, 2.29; Epic 4: 4.7
+- UX-DR7: Epic 1: 1.17, 1.27; Epic 4: 4.7; Epic 7: 7.27
+- UX-DR8: Epic 1: 1.17, 1.18, 1.23, 1.27; Epic 2: 2.18, 2.29; Epic 4: 4.7; Epic 7: 7.27
 - UX-DR9: Epic 1: 1.16
 - UX-DR10: Epic 1: 1.16
 - UX-DR11: Epic 1: 1.16, 1.25
@@ -325,7 +325,7 @@ Generated from the story covers fields (117 stories; every id below has at least
 - UX-DR43: Epic 4: 4.7
 - UX-DR44: Epic 1: 1.23; Epic 2: 2.31; Epic 5: 5.1, 5.4; Epic 7: 7.21
 - UX-DR45: Epic 1: 1.22; Epic 5: 5.7; Epic 7: 7.15
-- UX-DR46: Epic 1: 1.27; Epic 7: 7.17
+- UX-DR46: Epic 1: 1.27; Epic 7: 7.17, 7.27
 - UX-DR47: Epic 1: 1.24; Epic 7: 7.21
 - UX-DR48: Epic 2: 2.29
 - UX-DR49: Epic 2: 2.30
@@ -338,7 +338,7 @@ Generated from the story covers fields (117 stories; every id below has at least
 - UX-DR56: Epic 1: 1.17; Epic 6: 6.3
 - UX-DR57: Epic 7: 7.16
 - UX-DR58: Epic 7: 7.16
-- UX-DR59: Epic 7: 7.17
+- UX-DR59: Epic 7: 7.17, 7.27
 - UX-DR60: Epic 1: 1.27
 - UX-DR61: Epic 1: 1.17
 - UX-DR62: Epic 1: 1.17, 1.18; Epic 2: 2.16, 2.18, 2.25
@@ -417,19 +417,19 @@ Generated from the story covers fields (117 stories; every id below has at least
 
 ### Epic 1: Play a room in the browser
 
-A player opens a stored room in Chrome and plays it from start to finish: photo Scenes with mask Hotspots, a Thumbnail strip, an Inventory, Wizard notes with Evidence cards, all four lock types judged by the server, the First-room welcome, reload resume and a Completion screen, all at the accessibility floor. Built on fixture rooms and the mock provider from Mon Oct 26, with no model access needed.
+A player opens a stored room in Chrome and plays it from start to finish: photo Scenes with mask Hotspots, a Thumbnail strip, an Inventory, Wizard notes with Evidence cards, all four lock types judged by the server, the First-room welcome, reload resume and a Completion screen, all at the accessibility floor. Story mode (owner decision Oct 29) replaced the Thumbnail strip with walking between the photos, the Wizard notes and Evidence cards with one Riddle note, the Inventory with Your pack, the First-room welcome card with the story intro and the Completion sheet with the escape sheet; the stories keep their first criteria as history and add what shipped (amended 30 Oct 2026, story mode). Built on fixture rooms and the mock provider from Mon Oct 26, with no model access needed.
 
 **FRs covered:** FR-6, FR-8, FR-9, FR-11, FR-12, FR-13, FR-20, FR-21, FR-24, FR-26, FR-36
 
 ### Epic 2: Turn your photos into a verified room
 
-A player uploads 6 to 10 JPEG photos and, within the capture target, gets a room built from their own objects that passed the Validator and the Dry run. The Capture screen shows every stage, failure and Regeneration as it happens, a Build view (unless cut 0 is taken) shows how the room was built, and every paid call is cached, priced, capped and recorded in a Ledger exported daily.
+A player uploads 6 to 10 JPEG photos and, within the capture target, gets a room built from their own objects that passed the Validator and the Dry run. The Capture screen shows every stage, failure and Regeneration as it happens, a Build view (unless cut 0 is taken) shows how the room was built, and every paid call is cached, priced, capped and recorded in a Ledger exported daily. Since story mode a story stage after the Dry run writes each Room's own wizard lines (2.32) (amended 30 Oct 2026, story mode).
 
 **FRs covered:** FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-8, FR-9, FR-10, FR-23, FR-27, FR-28, FR-29, FR-30, FR-36, FR-38
 
 ### Epic 3: A game master that helps without telling
 
-While playing, the player gets stuck and the Guide escalates nudge, direction, near-answer from how they play, with the triggering events visible in the Triggers panel; asking for the answer yields nothing above the current Rung; Rungs never contain a solution; the four wizard portraits appear in play.
+While playing, the player gets stuck and the Guide escalates nudge, direction, near-answer from how they play, with the triggering events visible in the Triggers panel; since story mode (owner decision Oct 29; `HINT_POLICY=chest`, the default) a Treasure chest holds 2 hints for the whole Session, each ask opening the next Rung at once, nothing opens on idle time or Wrong attempts, and the hint history sits under "How hints work" in the Card log; the escalation is kept as the `ladder` policy for tests and for replaying older Session logs (amended 30 Oct 2026, story mode); asking for the answer yields nothing above the current Rung; Rungs never contain a solution; the four wizard portraits appear in play.
 
 **FRs covered:** FR-14, FR-15, FR-16, FR-17, FR-23, FR-24
 
@@ -455,7 +455,7 @@ Every demo shortcut is disclosed on the surface it affects. The builder records 
 
 A judge opens the hosted URL, plays a Demo room to the Completion screen with verbatim Rungs, and can build their own room behind the Access code within a 20-build quota. Builds survive the host's web timeout, and Judge data is deleted on Tue Nov 10. Only the Tue Oct 27 smoke deployment (7.1 to 7.3) and its Thu Oct 29 browser parity check (7.23) are Tier 1; the rest is Tier 1.5, starting with Clue cards.
 
-**FRs covered:** FR-5, FR-6, FR-17, FR-20, FR-26, FR-29, FR-31, FR-32, FR-33, FR-36, FR-37
+**FRs covered:** FR-5, FR-6, FR-17, FR-20, FR-26, FR-28, FR-29, FR-31, FR-32, FR-33, FR-36, FR-37
 
 ### Epic 8: Walk the room in 3D
 
@@ -471,7 +471,7 @@ A judge opens the hosted URL, plays a Demo room to the Completion screen with ve
 
 ## Epic 1: Play a room in the browser
 
-A player opens a stored room in Chrome and plays it from start to finish: photo Scenes with mask Hotspots, a Thumbnail strip, an Inventory, Wizard notes with Evidence cards, all four lock types judged by the server, the First-room welcome, reload resume and a Completion screen, all at the accessibility floor. The epic is built on fixture rooms and the mock provider from Mon Oct 26 and needs no model access. It also lands the ratified scaffold, CI, the frozen Schema v1, the design tokens and the app shell that every later surface uses.
+A player opens a stored room in Chrome and plays it from start to finish: photo Scenes with mask Hotspots, a Thumbnail strip, an Inventory, Wizard notes with Evidence cards, all four lock types judged by the server, the First-room welcome, reload resume and a Completion screen, all at the accessibility floor. Story mode (owner decision Oct 29) replaced the Thumbnail strip with walking between the photos, the Wizard notes and Evidence cards with one Riddle note, the Inventory with Your pack, the First-room welcome card with the story intro and the Completion sheet with the escape sheet; the stories keep their first criteria as history and add what shipped (amended 30 Oct 2026, story mode). The epic is built on fixture rooms and the mock provider from Mon Oct 26 and needs no model access. It also lands the ratified scaffold, CI, the frozen Schema v1, the design tokens and the app shell that every later surface uses.
 
 ### Story 1.1: Tag the pre-hackathon baseline and photograph both rooms before kickoff
 
@@ -925,6 +925,8 @@ So that the browser can load a stored room's `PlayView` and photos from the same
 
 _Covers FR-11, AR-12, AR-13, AR-17, AD-3, AD-9, AD-13. Owner: api. Depends on: 1.7, 1.10. Tier 1, Tue Oct 27._
 
+_Static client caching (found live Oct 29: a judge's browser kept a days-old landing; lanes W1 3afdb1e and c430958, with cd2e16d): every file served from `web/dist` carries an explicit `Cache-Control`: `no-cache` on `index.html` and every other file whose name stays the same when it changes (the shell, `clip/`, `intro/`, `tutorial/`, `portraits/`, `fonts/`), and `public, max-age=31536000, immutable` on Vite's content-hashed `/assets/`; the ETag is the file's content hash with no Last-Modified, so a new deploy's shell answers 200 and an unchanged one 304, and a resumed video request carrying `Range` with `If-Range` is checked against that ETag alone (the current ETag answers the range, any other the whole file). `/api` responses are unchanged. Tests in `tests/api/test_app.py`._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** `src/api/wiring.py`
@@ -1008,6 +1010,8 @@ I want a welcome line from the Guide the moment my play-through starts,
 So that my first room opens in the game's voice and tells me what to look for.
 
 _Covers FR-21, AR-31, AD-4, AD-5. Owner: api. Depends on: 1.12. Tier 1, Tue Oct 27. The Greeting path stays in Epic 5 (5.6), and the Demo room variant joins in 7.15._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (owner decision Oct 29; lanes WEB1 a87bbf6 and SV5 f478fe5): the server still appends the opening line exactly as above, but the client no longer shows the welcome's text: the story intro opens every Session instead (1.22), its Architect beat welcoming the player from the Room's story or the fixed lines, and only a returning player's Greeting text (5.6, Local mode) is read from `opening_line`, as the Guide's line on the intro. The criterion that the client renders the text it receives now holds for the Greeting alone; the welcome string is still defined once on the server._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -1244,6 +1248,8 @@ So that I can explore the room's real objects and move between photos.
 
 _Covers FR-11, UX-DR22, UX-DR23, UX-DR24, UX-DR25, AR-15, NFR-10, AD-11. Owner: web. Depends on: 1.17, 1.18. Tier 1, Wed Oct 28. Mockup: mockups/play-screen.html. If textured planes cost more than 2 h, the DOM-only fallback is taken and Tier 2 stays no-go._ (amended 29 Oct 2026, correct-course record)
 
+_Story mode (owner decision Oct 29; lane WEB3 ab60931, with b5e0d4f): the Thumbnail strip is gone and the player walks between the photos instead (EXPERIENCE.md Walk). The Thumbnail strip criterion above stands as history; the Hotspot criteria still hold on the photo the player faces, and the criteria added below record the walk._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** a session on the four-lock fixture room
@@ -1272,6 +1278,16 @@ _Covers FR-11, UX-DR22, UX-DR23, UX-DR24, UX-DR25, AR-15, NFR-10, AD-11. Owner: 
 **Then** the Scene emits a first-pointer-response signal, once per session, for the Timer to stop on (T1, 2.17)
 **And** if the DOM-only fallback is taken, every Hotspot is a DOM element with the same id and posts the same `ClickEvent`
 
+**Given** a Room whose served `PhotoView`s carry `area` and `pan` (2.15; a Room stored before story mode serves area "room" and pan null) (amended 30 Oct 2026, story mode)
+**When** the Play screen builds the walk
+**Then** the areas run in the order of their first photo, each a ring of its photos sorted by `pan` (a null pan sorting as the photo's index; a Room with no areas is one ring in upload order), and rings do not wrap; the walk graph is pure code with its own tests
+**And** the photo faced stands in the middle of the Scene with the neighbouring views of its ring as dimmed, inert walls: only the faced photo has Hotspots and takes input
+
+**Given** the walk (amended 30 Oct 2026, story mode)
+**When** the player turns or changes area
+**Then** a click on the outer fifth of the photo either side, the turn discs "Turn left" and "Turn right", or ArrowLeft and ArrowRight turn within the ring (nothing at a ring's end, where that zone and disc are hidden); a doorway sign "To the {area}" or ArrowUp walks to that area's entry view, the middle of its ring; "Where you are" at the Scene's top right shows one box per area, a dot per view, a cone on the view faced and one button per area that walks there
+**And** a turn swings in 780 ms and a doorway pushes through in 900 ms, input is ignored while a move runs, every move is a cut under reduced motion, each move lays the new photo's Hotspots, keeps a `use_on` selection and announces the view description, and the Play screen opens, and reloads, on the Active puzzle's `start_photo` (the first photo when none is active)
+
 **Given** this story's changes
 **When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline against the mock provider
 **Then** all pass (pytest including the type-staleness test and any string, token or contrast checks this story adds), and the criteria above are verified in Chrome against the fixture rooms; a web test runner is added only through bmad-correct-course
@@ -1284,6 +1300,8 @@ I want to see what I am holding and each available puzzle's clue, lore and evide
 So that I know what to look for, and everything shown matches what the server says.
 
 _Covers FR-11, UX-DR26, UX-DR27, UX-DR29, UX-DR39, UX-DR65, AR-7. Owner: web. Depends on: 1.19. Tier 1, Wed Oct 28. Mockup: mockups/play-screen.html. Painted portraits arrive in 3.6._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (owner decision Oct 29; lanes WEB2 9377be9 and b5e0d4f, SV1 ced752a, SF1 a2625b6): the Wizard notes, the unsolved Evidence card rows and the Inventory tray are replaced by one Riddle note and "Your pack" (EXPERIENCE.md Riddle note, Your pack); the criteria above on the notes' list of every available Puzzle, the "{k} evidence cards" count, the unsolved Evidence card rows and the three-across Inventory stand as history. The server-state polling, the Active puzzle rule and the Wizard portrait criteria hold._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -1315,6 +1333,16 @@ _Covers FR-11, UX-DR26, UX-DR27, UX-DR29, UX-DR39, UX-DR65, AR-7. Owner: web. De
 **Then** it is a circle with a 2 px gilt ring (a `hairline` ring in the Play screen's side column since Oct 29, so gilt frames the Scene alone there), with an empty alt and a visually hidden speaker prefix ("The Riddler:") on its line, reading `web/public/portraits/`
 **And** when a portrait file is missing it falls back to the wizard's initial in `display-sm` gilt on `chrome-raised`
 
+**Given** `active_puzzle_id` (amended 30 Oct 2026, story mode)
+**When** the Riddle note renders, pinned to the wall at the Scene's top left
+**Then** it shows one riddle, the active one, as a `section` headed "Riddle {n} of {N}" ("The way out · riddle {n} of {N}" on the Exit), one wax seal per Puzzle in its head row (a dashed slot, the current one ringed, a solved one red wax with its number), the place tag "Waits in the {area}", the Riddler's portrait beside the Clue, "The Riddler's aside" over the Lore (closed by default), each hint bought from the chest pinned under it, and the lock input of a `code` or `order` riddle; later riddles are not drawn
+**And** no evidence shows before a lock opens: the play projections serve a Puzzle's evidence only once its lock is open, its real card alone and never a decoy (`src/domain/redact.py`); the heading takes focus at play start and at every riddle start and, being no control, draws no focus ring (SF1)
+
+**Given** a find target that a later `use_on` names as its item (amended 30 Oct 2026, story mode)
+**When** its lock opens
+**Then** "Your pack", on the floor left of the photo, shows it as a 76 x 60 crop over a caption that says what to do ("Empty for now." before any riddle is solved), fading in over 200 ms with one glow and no flight; a found target no `use_on` needs never enters it
+**And** the pack and the Treasure chest stay inside the Scene frame beside any photo, with no sideways page scroll (b5e0d4f)
+
 **Given** this story's changes
 **When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline against the mock provider
 **Then** all pass (pytest including the type-staleness test and any string, token or contrast checks this story adds), and the criteria above are verified in Chrome against the fixture rooms; a web test runner is added only through bmad-correct-course
@@ -1327,6 +1355,8 @@ I want to type codes and find objects, with plain feedback the moment the server
 So that I can solve `code` and `find` puzzles and always know whether an input worked.
 
 _Covers FR-12, UX-DR34, UX-DR38, UX-DR23, UX-DR65. Owner: web. Depends on: 1.20. Tier 1, Wed Oct 28 (the room is playable from here). Mockup: mockups/play-screen.html._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (owner decision Oct 29; lanes WEB2 9377be9 and WEB1 a87bbf6): the lock inputs sit in the Riddle note, a solve reads "Riddle {n} solved." (after "You pick up the {label}." only when the item went into the pack; the Exit still "The way out is open."), and the next riddle shows only when the player sets off for it from the solve beat added below; the criteria above that fade the next Puzzle into the notes and announce "Puzzle {n} is now in the notes." stand as history. The wrong-code line "Puzzle {n}: not this, {count}." and the server-judged locks hold._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -1356,6 +1386,11 @@ _Covers FR-12, UX-DR34, UX-DR38, UX-DR23, UX-DR65. Owner: web. Depends on: 1.20.
 **When** the state returns unchanged
 **Then** the input is not shown as a Wrong attempt, and only the "Checking" chip clears
 
+**Given** a state showing a lock newly open (amended 30 Oct 2026, story mode)
+**When** the unlock moment has played (the solve beat opens 1100 ms after it)
+**Then** the Riddler's solve beat opens on the Story stage over the light scrim, the room still in view: his portrait sliding in (600 ms; none under reduced motion), "Riddle {n} solved" with its seal stamped in, his line (the Room's story line for that riddle, else the fixed line by lock type), the where-line for the next riddle from its `start_photo` and the areas, the item the solve put in the pack, and "Take me there", which takes focus; Enter presses it and its line goes to the live region once as "The Riddler: {line}"
+**And** "Take me there" shows the next riddle on the note at once, walks to its start photo and moves focus to the note's heading; on the Exit it reads "Step outside", the door fills with daylight and the Completion screen takes over (1.23); two locks opening at once play their beats in turn, and a reload plays none
+
 **Given** this story's changes
 **When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline against the mock provider
 **Then** all pass (pytest including the type-staleness test and any string, token or contrast checks this story adds), and the criteria above are verified in Chrome against the fixture rooms; a web test runner is added only through bmad-correct-course
@@ -1368,6 +1403,8 @@ I want the Guide to welcome me before I start,
 So that I meet the Guide, know what to look for, and know help is coming.
 
 _Covers FR-21, UX-DR45, UX-DR64, UX-DR74, UX-DR70, UX-DR17. Owner: web. Depends on: 1.13, 1.20. Tier 1, Wed Oct 28. The Greeting loading path joins in 5.7. Mockup: mockups/completion-greeting.html._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (owner decision Oct 29; lanes WEB1 a87bbf6 and ae4361a, SV5 f478fe5, SF1 a2625b6, X2 14500c8 and 6fd95df, X5 6cc2666): the First-room welcome card, its three steps, "Begin" and the Show-all tip under it are retired; the story intro on the Story stage opens every Session instead (EXPERIENCE.md Story stage: the intro). The criteria above stand as history; the criteria added below record what shipped. Lighting the exit door on a cold reload of the escape page (X5's second item) was left unchanged: the client cannot know the way out's target without a server change, a follow-up._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -1389,6 +1426,17 @@ _Covers FR-21, UX-DR45, UX-DR64, UX-DR74, UX-DR70, UX-DR17. Owner: web. Depends 
 **Then** focus goes to the first Hotspot of the first Scene, and the client keeps the opening line in its play state, not announced again, for the Hint area that 3.4 renders it in
 **And** a reload of `#/play/<session_id>` once play has events does not show the card again
 
+**Given** a new Session (amended 30 Oct 2026, story mode)
+**When** the Play screen first opens and the Scene's first photo is live (waited for at most 4 s, so a photo that never loads does not hold the intro back)
+**Then** the Story stage plays five beats over the Scene, with the Scene and the top bar inert and the note, the pack, the walk map, the turn discs and the doorway signs out of sight: 1. the Architect's welcome (the visitor's welcome on a Demo room, which thanks nobody for photos); 2. the Trickster's trap ("Oh no, you seem to be trapped!", the one exclamation mark, an owner call) while the Scene turns to the way out's start photo, the lights flicker for 700 ms and his red wax seal lands on the photo above the held speech box; 3. the Riddler's entrance beside the dimmed Trickster; 4. the Guide, while the Treasure chest glows through the scrim; 5. the Riddler again, the seal lifting and the Scene walking to the first riddle's start photo, with "Start in the {area}. You must answer this.", the riddle inset and "Start looking"
+**And** every line comes from the Room's story (2.32) when it has one, else the fixed lines filled from served data (EXPERIENCE.md Voice and Tone, Story intro); a returning player's Greeting (Local mode, 5.6) takes the Guide's line
+
+**Given** the story intro (amended 30 Oct 2026, story mode)
+**When** the player goes through it
+**Then** focus sits on the beat's button ("Next" with its Enter key cap, the last "Start looking"), Enter presses it, a press during a move is held until the move ends, "Skip intro" at the top right ends it at once on any beat, and Escape never dismisses it; each beat's line goes to the live region once as "{name}: {line}", the last with "Riddle 1 of {N}: {clue}"
+**And** the speech box and Next hold one place on all five beats at 1024 x 768, 1440 x 900 and 1920 x 1080: the box is fitted against the chest's real place before beat 1 shows and keeps the tallest height and the widest button until it closes
+**And** it shows once per Session: its end is kept for the tab (`sessionStorage` `kf.story.<session_id>`), a reload of a Session whose state already carries play opens straight into play on the active riddle's start photo, and under reduced motion every walk is a cut, nothing slides or flickers and the seal simply appears
+
 **Given** this story's changes
 **When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline against the mock provider
 **Then** all pass (pytest including the type-staleness test and any string, token or contrast checks this story adds), and the criteria above are verified in Chrome against the fixture rooms; a web test runner is added only through bmad-correct-course
@@ -1401,6 +1449,8 @@ I want a Completion screen that shows how I did once I open the Exit puzzle,
 So that the room ends with a clear result and an obvious next step.
 
 _Covers FR-13, UX-DR44, UX-DR66, UX-DR78, UX-DR8. Owner: web. Depends on: 1.21. Tier 1, Wed Oct 28. Recording into the Player profile joins in 5.1, and the Build view link in 2.31. Mockup: mockups/completion-greeting.html._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (owner decision Oct 29; lanes WEB2 9377be9, SF1 a2625b6, X1 b43eb5a): the Completion sheet became the escape sheet (EXPERIENCE.md Completion screen); the heading "The room is open.", the sign-off chosen by Rungs used, the three stats and the single primary "Build another room" above stand as history, and the criteria added below record what shipped. The result read, its retry and "Copy your result" hold. A cold load of `#/done/<session_id>` mounts its own Scene with the door not lit, a follow-up (X5)._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -1421,6 +1471,12 @@ _Covers FR-13, UX-DR44, UX-DR66, UX-DR78, UX-DR8. Owner: web. Depends on: 1.21. 
 **Then** it shows "Keyframe couldn't load the result. Retrying." and retries every 2000 ms, with "Build another room" still available
 **And** the stats show as pending until the result returns
 
+**Given** "Step outside" on the Exit's solve beat (amended 30 Oct 2026, story mode)
+**When** the Completion route opens
+**Then** the sheet docks low over the exit photo with the door still in daylight: a Session that ended on the Play screen in this page load keeps that Play screen's Scene and Effective room across the route change, so no frame shows a blank scene or "Setting the scene", and the wizard lines are there from the sheet's first frame
+**And** it reads "You escaped." over "{room} · every riddle answered, the door open", each wizard's closing line beside its 40 px portrait (the Room's story, else the fixed lines; the Guide's chosen by the chest's hints spent), and the stats Riddles, Time, Chest hints ("{n} of 2") and Wrong tries, pending until the result arrives and then counting up once, over "Play again", the one primary action, which starts a new Session on the same Room
+**And** "Details" holds the filmstrip, "Time per puzzle", "Built by", "Build another room", "Copy your result" and "How this room was built", and opening it scrolls those actions into view (at once under reduced motion); the heading takes focus without a ring and the Guide's line goes to the live region once
+
 **Given** this story's changes
 **When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline against the mock provider
 **Then** all pass (pytest including the type-staleness test and any string, token or contrast checks this story adds), and the criteria above are verified in Chrome against the fixture rooms; a web test runner is added only through bmad-correct-course
@@ -1433,6 +1489,8 @@ I want a reload or a dropped connection to leave my progress intact,
 So that nothing I did is lost or miscounted when the page or the server stutters.
 
 _Covers FR-11, UX-DR13, UX-DR22, UX-DR47, UX-DR65, AR-13. Owner: web. Depends on: 1.21. Tier 1, Thu Oct 29. The armed order state is rebuilt in 1.26 and Rungs in 3.4; the 410 notice joins in 7.21. Mockup: mockups/play-screen.html._
+
+_Story mode (lanes WEB1 to WEB3): a reload rebuilds the walk on the Active puzzle's `start_photo` (not the first Scene), the Riddle note, the pack and the chest's count from server state, with no story intro once play has events and no solve beat; "no welcome card" above now reads "no story intro". The reconnecting, Session-gone and missing-room criteria hold._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -1469,6 +1527,8 @@ I want to reach every object and lock by keyboard and hear outcomes through a sc
 So that I can play the whole room without a mouse or without seeing every visual cue.
 
 _Covers NFR-14, UX-DR69, UX-DR70, UX-DR71, UX-DR72, UX-DR6, UX-DR11, UX-DR23. Owner: web. Depends on: 1.21, 1.22. Tier 1, Thu Oct 29. `use_on` select-then-click ships with 1.26. Mockup: mockups/play-screen.html._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (lanes WEB1 to WEB3, SF1 a2625b6): the Show-all tip went with the welcome card. Tab now runs top bar, the Riddle note's lore disclosure and lock input, the Hotspots, the doorway sign, the turn discs, the pack's items, the Treasure chest, the walk map; ArrowLeft and ArrowRight turn and ArrowUp goes through the doorway (never from a field, a scrolling tray or the chest's dialog, nor while an overlay or a beat holds the Scene inert), and Enter presses a beat's button. The live region also takes each beat's line, the chest's hints ("The Guide's hint, nudge: {text}"), the Trickster's chest line and the walk's view description, and "Riddle {n} solved." replaced "Puzzle {n} solved.". The Riddle note and Completion headings, focused by the page, show no focus ring while every control keeps its own. The criteria above naming the Thumbnail strip, the Inventory, the Wizard notes, the welcome card's tip and "Puzzle {n} is now in the notes." stand as history._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -1510,6 +1570,8 @@ I want to start and stop an object sequence and to use an item on an object by d
 So that I can solve `order` and `use_on` puzzles with a mouse or a keyboard.
 
 _Covers FR-12, NFR-14, UX-DR35, UX-DR36, UX-DR37, UX-DR26, UX-DR69. Owner: web. Depends on: 1.9, 1.25. Tier 1, Thu Oct 29, right after the accessibility floor, so rooms built from Wed Oct 28 with all four lock types can be finished; cut 6 drops this story (together with 1.9). Mockup: mockups/play-screen.html._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (lanes WEB2 and WEB3): the order controls sit in the Riddle note; items are taken from "Your pack" (click or Enter takes one in hand with "{Label} in hand. Click where they belong."; a second activation or Escape puts it away with "You put the {label} away." or "Hands empty."); the walk, not the Thumbnail strip, stays usable while an item is held and keeps the selection across moves; a `use_on` verdict shows on the Riddle note and the feedback line, and any `use_on` that opens nothing reads "That doesn't go there." in place of "{label}. Not this one." above._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -1583,7 +1645,7 @@ _Covers UX-DR60, UX-DR46, UX-DR7, UX-DR8, UX-DR71, NFR-10, AR-32. Owner: web. De
 
 ## Epic 2: Turn your photos into a verified room
 
-A player uploads 6 to 10 JPEG photos and, within the capture target, gets a room built from their own objects that passed the Validator and the Dry run. The Capture screen shows every stage, failure and Regeneration as it happens, and, unless cut 0 is taken, a Build view shows how the room was built. Every paid call is cached, priced and capped from Mon Oct 26, before the first real call (SM-6 from day one: 2.2, 2.3, 2.4, 2.5 and 2.6 all land that day), and each one is recorded in a Ledger that is exported daily from that day. The lean SIT checks the live seams at the end of each build day.
+A player uploads 6 to 10 JPEG photos and, within the capture target, gets a room built from their own objects that passed the Validator and the Dry run. The Capture screen shows every stage, failure and Regeneration as it happens, and, unless cut 0 is taken, a Build view shows how the room was built. Every paid call is cached, priced and capped from Mon Oct 26, before the first real call (SM-6 from day one: 2.2, 2.3, 2.4, 2.5 and 2.6 all land that day), and each one is recorded in a Ledger that is exported daily from that day. The lean SIT checks the live seams at the end of each build day. Since story mode a story stage after the Dry run writes each Room's own wizard lines, the model's where they pass the line rules and fixed lines elsewhere (2.32) (amended 30 Oct 2026, story mode).
 
 ### Story 2.1: Model ports with a scripted mock
 
@@ -2128,6 +2190,8 @@ So that a Build either has 5 to 12 objects to author from, or stops and asks for
 
 _Covers FR-2, FR-3, FR-4, AR-10, AR-21, NFR-1, NFR-9, AD-18. Owner: pipeline. Depends on: 2.7, 2.10, 2.13, 2.14. Tier 1, Tue Oct 27. One Architect chat call over the 2.14 prompt, attributes stored verbatim; one segment call per label on its clearest photo, at most 12 in flight; a segment call still erroring after its one retry ends the Build failed at segment (A-24); 4 or fewer survivors end `needs_more_photos` (`TooFewInteractables`) with zero Riddler, Dry run or Trickster calls, 5 continues; `ix_` ids minted after selection and the 12 cap; the solution-free mask preview (id, label, photo, polygons) persisted into job state; stage budgets (Architect 15 s, segmentation 10 s) measured, never enforced. Dev skills: keyframe-muse, keyframe-sam31._
 
+_Story mode (owner decision Oct 29; lane SV1 ced752a): the same Architect call also names each photo's area (1 to 3 plain words, the same words for the same room) and its left-to-right `pan` within that area (`ArchitectResponse.photos`, a list); the segment stage copies them onto the Room's photos when every photo is named once with at most `MAX_AREAS` areas, and on any gap every photo gets area "room" and no pan, one ring in upload order. Rooms stored before serve area "room" and pan null; the play view's `PlayPuzzle.start_photo` is the photo of the riddle's target (`find`, `use_on`) or of its evidence (`code`, `order`)._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** a job past ingest
@@ -2250,6 +2314,8 @@ I want to watch each Build stage, any Regeneration and my outlined objects appea
 So that I can see what Keyframe is doing with my photos and land in my room as soon as it is ready.
 
 _Covers FR-5, UX-DR15, UX-DR16, UX-DR18, UX-DR62, UX-DR63, UX-DR74, UX-DR8, AR-31. Owner: web. Depends on: 2.15, 2.16, 2.17. Tier 1, Wed Oct 28. `#/build/<job_id>` polls `GET /builds/<job_id>` every 2000 ms; the photo tray turns compact (96 x 72) during a Build; Stage list with the Architect introduction, the five stage rows (pending, running with the Architect's stage line, done with result, done-row count and model id, failed), the Riddler introduction inside 'Writing puzzles', Regeneration rows 'Rewriting puzzles, attempt n of {max}' with 'Sent back: {fixed messages}' read from job state; Mask preview tiles fade in once segment completes (label chips, not interactive); done goes to Play automatically, and a reload of a done Build shows 'Play this room'; a 260 s Build still arrives by polling._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (lane SV2 8507a20): a "Writing the story" row runs between "Testing the room" and "Setting the scene" for the story stage (2.32), its done row counting the story's lines and naming the model whenever any kept line is the model's._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -2406,6 +2472,8 @@ I want the scene stage to write the Room once and the final job record beside it
 So that only a verified room ever becomes playable, and what happened during its Build is kept for good.
 
 _Covers FR-9, FR-10, FR-30, AR-20, AD-7, AD-16. Owner: pipeline. Depends on: 2.21. Tier 1, Wed Oct 28; survives every cut (capture must). After the loop passes (and the Dry run when on), the scene stage writes the room artifact once, then immutable, and the final job record (timings, call rows, verdicts, build time) and ends the job done; with `DRY_RUN=off` (cut 4) every Puzzle is recorded 'skipped' and the Validator alone gates; a restart after scene never rewrites the Room._
+
+_Story mode (lane SV2 8507a20): the scene stage now follows the story stage (2.32) and puts its stored story on the Room (`Room.story`, optional, so rooms stored before stay valid)._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -2658,6 +2726,8 @@ So that I can see in a minute that the room was really built by the Meta model s
 
 _Covers FR-38, UX-DR48, UX-DR53, UX-DR54, UX-DR67, UX-DR8, UX-DR78. Owner: web. Depends on: 1.17, 2.28. Tier 1; cut 0 drops it; Thu Oct 29 to Sat Oct 31. `#/build/<job_id>/view` with the banner and top bar (wordmark and mode indicator only) pinned while the body scrolls; header with the Room's name or build time, 'Regenerations: n of {max}', one 'Attempt {k} sent back:' line per failed attempt and 'Back'; Model table first in the right column (Role, Model, Where it ran, What it did, Cached or billed with both counts when mixed; fixed Validator, Dry run and Muse Image rows; no Guide or Trickster row) with its caption; In play block from `GET /meta` (Llama 3.2 3B on 'Ollama on the Mac', or the hosted line; Trickster source); not-ready and error states; initial focus on the title._ (amended 29 Oct 2026, correct-course record)
 
+_Story mode (lane SV2 8507a20): the Model table gains a `storyteller` row ("Storyteller") for the story stage's calls, with its own ledger role, spend and cache lines like the Riddler's._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** `#/build/<job_id>/view` for a done Build (mockups/build-view.html)
@@ -2773,9 +2843,42 @@ _Covers FR-38, UX-DR51, UX-DR52, UX-DR55, UX-DR71, UX-DR84, UX-DR19, UX-DR44. Ow
 **When** the web build, the type check and `pytest` run offline against the mock provider
 **Then** all pass with new tests covering this story's criteria
 
+### Story 2.32: Story stage writes each Room's wizard lines at build time
+
+As a player,
+I want the wizards to tell a story written for the room I am in,
+So that every room opens and closes in its own words, never the same script, and never gives an answer away.
+
+_Covers FR-7, FR-28, FR-30, AD-3, AD-7, AD-16. Owner: pipeline (with council and api). Depends on: 2.20, 2.24, 2.22. Shipped Oct 29 to 30 (owner decision Oct 29: "each room's wizard story and lines be generated by the model from that room"; lane SV2 8507a20, then SV4 2d885c3, SV5 f478fe5 and SV6 e817d3e after the Demo room's dry runs: ops runs 40999622298 (run 10) and 41007098793 (run 16) fell back to the fixed lines, and 41002307130 (run 11) kept model attempt 1)._ (amended 30 Oct 2026, story mode)
+
+**Acceptance Criteria:**
+
+**Given** a Build that passed the Dry run (or skipped it under cut 4)
+**When** the runner reaches the `story` stage, between `dryrun` and `scene`
+**Then** it makes one `chat` call on the `storyteller` role's port (`muse-spark-1.3`, reasoning low), cached, priced, capped and recorded like the Riddler's, tagged with the job id and the `story` stage, and writes `<room_id>/story.json` for the scene stage to put on the Room as `Room.story`
+**And** the brief (`story_brief`) holds only the Room's name, its area labels, the counts of photos, things and riddles and the labels of the scenery Interactables, leaving out any scenery label holding a word of a solution, target or item label, evidence attribute or code that is not in the room's name or area labels: no solution, answer or code reaches the storyteller
+
+**Given** the storyteller's reply
+**When** it is checked (`story_reasons`)
+**Then** every slot is present and non-empty: `architect_welcome`, `architect_welcome_visitor`, `trickster_trap`, `riddler_entrance`, `guide_chest`, one `{puzzle_id, opening, solved}` per Puzzle, `trickster_closing`, `riddler_closing`, `guide_closing_no_hints` and `guide_closing_hints`; each line is at most 160 characters, names no solution, target or item label, evidence attribute or code (rule 5's matching, skipping the words of the room's name and area labels, which the player already sees), carries no exclamation mark but the trap line's, no word about AI, models or the API and no filler word ("drift", "linger", "sway", "gently", "softly")
+**And** the Guide's chest line says how many hints the chest holds and the Riddler's entrance how many riddles there are (the digit or the word; a code's digits stay refused), the exit's solved line says the way out is open, and the visitor's welcome thanks nobody for photos
+
+**Given** a reply that breaks a rule
+**When** the stage handles it
+**Then** it is sent back once at attempt 1 with its fixed reasons, which name slots and never quote a line; if neither reply passes whole, the story keeps every passing line of the last usable reply (the retry's when it parses with one riddle per Puzzle, else the first's) and fills only the refused slots from the fixed lines filled from the Room (a refused riddle line takes that riddle's fixed line), and with no usable reply, or a call that raises, all the fixed lines stand; the Build never fails because of the story
+**And** the fixed lines and every style example in the prompt name no object (the Riddler's entrance reads "a locked room is a party"), and a test checks each fixed line passes the line rules on every fixture Room
+
+**Given** the play projections
+**When** `GET /rooms/<room_id>` or `GET /sessions/<id>/room` is read
+**Then** `PlayView.story` carries the Room's story, null on a Room stored before story mode (the client then uses the fixed lines), and a story stored without the visitor's welcome falls back to its fixed line
+
+**Given** this story's changes
+**When** `pytest` runs offline against the mock provider (its canned story for the fixture rooms), with the web build and type check
+**Then** all pass, with tests for a valid story, a leaking line retried then filled per line, a failed call falling back without failing the Build, the receipts and spend, old rooms parsing, the projections carrying the story and the Build view listing the stage
+
 ## Epic 3: A game master that helps without telling
 
-While playing, the player gets stuck and the Guide escalates nudge, direction, near-answer from how they play, with the triggering events visible in the Triggers panel; asking for the answer yields nothing above the current Rung; Rungs are phrased on the Mac by Llama 3.2 3B (verbatim under cut 3 and in hosted mode) and never contain a solution; the four wizard portraits appear in play.
+While playing, the player gets stuck and the Guide escalates nudge, direction, near-answer from how they play, with the triggering events visible in the Triggers panel; since story mode (owner decision Oct 29; `HINT_POLICY=chest`, the default) a Treasure chest holds 2 hints for the whole Session, each ask opening the next Rung at once, nothing opens on idle time or Wrong attempts, and the hint history sits under "How hints work" in the Card log; the escalation is kept as the `ladder` policy for tests and for replaying older Session logs (amended 30 Oct 2026, story mode); asking for the answer yields nothing above the current Rung; Rungs are phrased on the Mac by Llama 3.2 3B (verbatim under cut 3 and in hosted mode) and never contain a solution; the four wizard portraits appear in play.
 
 ### Story 3.1: Rung selection in code from the Event log
 
@@ -2784,6 +2887,8 @@ I want the Rung for each Puzzle selected in pure code from the session's Event l
 So that the Guide escalates from real Idle time and Wrong attempts, the timing is the same at every persistence the spec allows, and a replayed session reaches exactly the Rungs the live one did.
 
 _Covers FR-15, FR-24, AR-7, AR-11, AR-14, AD-4, AD-8, AD-10. Owner: domain. Depends on: 1.8, 1.10. Tier 1, Thu Oct 29. Pure select_rung inside apply with Rungs, Wrong attempts and Idle tracked per Puzzle; Idle counts from the last click, lock input or Hint request and idle ticks never reset it; the Active puzzle's nudge fires after clamp(90000 x (1 + 0.5p), 60000, 135000) ms of Idle (90 s fresh) or 3 Wrong attempts, the Active puzzle being the one 1.8 recomputes after every event (the most recently targeted available unsolved Puzzle, else the earliest available one, so a solved Puzzle never holds it and an idle nudge after a solve goes to the next Puzzle, a find Puzzle included); direction and near-answer each need a further stall or 3 further Wrong attempts and arrive at least 90 s after the previous Rung, a spacing never scaled by persistence; a Loosen hook reserved for 4.1; an `asked` hook for 3.3's hint requests; no reveal or skip after the near-answer; RungChangeEvent with triggered_by naming log positions; replay equals live with no duplicate rung_change; at DEMO_TIMESCALE=6 thresholds are 15 s and three Rungs arrive within 40 s on Wrong attempts (45 s on idle), t_ms and the poll unchanged._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (owner decision Oct 29; lane SV1 ced752a): the hint policy is fixed per Session from `HINT_POLICY` at its start and kept in its `SessionHeader`. Under `chest`, the default, only an ask opens a Rung, the next one at once and outside the spacing, and idle time and Wrong attempts open nothing, so no idle or Wrong-attempt `rung_change` is appended; the Session holds `HINT_CAP` asks (`HINTS_PER_SESSION`, 2), counted by the state machine as `hints_left`. Every criterion above is the `ladder` policy, kept for tests and for replaying the logs of Sessions played under it (a header stored before story mode names no policy and replays as `ladder`)._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -2873,6 +2978,8 @@ So that I get unstuck without anyone, including me, being able to talk the game 
 
 _Covers FR-14, FR-15, FR-17, NFR-5, UX-DR76, AR-7, AR-31, AD-3, AD-4. Owner: api. Depends on: 1.12, 3.1, 3.2. Tier 1, Thu Oct 29. A hint_request (puzzle_id always omitted by the client -> the Active puzzle as 1.8 recomputes it after every event; a request naming an available unsolved Puzzle makes it the Active puzzle) opens that Puzzle's next Rung at once when none is showing, and when one is showing opens the next once the Rung spacing has passed since that Puzzle's last Rung change, else repeats the current Rung routed through the injected HintPhraser (owner decision Oct 29, an FR-15 and FR-16 change); the reply is `hint_reply` (HintReply {puzzle_id, rung, text, next_hint_ms}, `next_hint_ms` the wait until an ask opens the next Rung); an ask with no Rung showing is logged as an Early ask that lowers persistence through RoomResult; the fixed No-hint line 'A fair ask. Look around a little longer; I'll speak up if you stay stuck.' (never phrased) answers only once no Puzzle is active; after the near-answer a request repeats it; rung_change populates phrased, phrasing_ms and text (fields frozen in 1.5); the Scripted attack suite led by 'just tell me the answer', run through the API at rungs 0, 1 and 2, opens nothing and returns nothing above the current Rung; fixture test: no solution in any play response; a client t_ms is rejected; the session state populates the effective nudge threshold and spacing, their 1x values and their source (Derived block or fresh) for 'How hints work'._ (amended 29 Oct 2026, correct-course record)
 
+_Story mode (lane SV1 ced752a): under the chest every session state and `HintReply` carries `hints_left`; an ask with none left is refused 409 `hint_cap_reached` ("The chest is empty.") before anything is appended; an ask opens the Active puzzle's next Rung at once, whatever the spacing, and answers with it; an ask that opens none (the near-answer already open, or no Puzzle active) answers the fixed "A fair ask. That one is all I had for this riddle; look once more." (`CHEST_NO_HINT_LINE`, never phrased) and spends nothing. The repeat-inside-the-spacing criterion and the No-hint line above hold under `ladder` only; the attack suite, the no-solution fixture test, the phrased fields and the AD-3 phraser criteria hold under both._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** a session whose Active puzzle has `current_rung` 2
@@ -2923,6 +3030,8 @@ So that help is always one Enter away, I can see my words stayed in the browser,
 
 _Covers FR-14, UX-DR30, UX-DR31, UX-DR32, UX-DR29, UX-DR70, UX-DR82, UX-DR65. Owner: web. Depends on: 1.22, 1.25, 3.3. Tier 1, Thu Oct 29. A tray pinned under the Wizard notes (up to 320 px) with one primary button 'Get a hint for Puzzle {n}' (n = the Active puzzle; 'Ask the Guide' when none is active) that sends one hint_request with puzzle_id always omitted, the server resolving it to the Active puzzle, whose entry the Wizard notes mark 'Current' from active_puzzle_id; one in flight, the button reading 'The Guide is thinking'; 'Next hint in m:ss' counting down from the reply's `next_hint_ms` while the next hint is not due (owner decision Oct 29: the button replaced the hint field, its placeholder, its helper line and 'Asking'; nothing is typed, so nothing typed can leave the browser); Rung line with the Guide portrait and 'Puzzle {n} · Nudge|Direction|Near-answer' replacing the previous line, which moves into its Puzzle's opened Rungs; every reply visibly arrives and is announced (a repeat fades out and in); a polled rung_change shows the line with one arrival glow; the opening line sits as the first Guide line; after a reload the current and opened Rungs are rebuilt from session state with nothing re-announced; Local thinking state while a request is in flight, none in Hosted; no 'verbatim' badge._ (amended 29 Oct 2026, correct-course record)
 
+_Story mode (owner decision Oct 29; lanes WEB2 9377be9 and b5e0d4f, X2 f42cfd2): the Hint area, its hint button, "Next hint in m:ss", the Rung line and its arrival glow are replaced by the Treasure chest (EXPERIENCE.md Treasure chest); the criteria above stand as history, and the criteria added below record what shipped._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** the Play screen per `mockups/play-screen.html` with the Hint area (DESIGN.md Components: Hint area, Rung line, Hint button, Wizard portrait)
@@ -2955,6 +3064,16 @@ _Covers FR-14, UX-DR30, UX-DR31, UX-DR32, UX-DR29, UX-DR70, UX-DR82, UX-DR65. Ow
 **Then** the current Rung line and each Puzzle's opened Rungs are rebuilt from session state, using the text `rung_changes[]` carries, never Rung text from `PlayView`, and nothing is re-announced and no arrival glow plays
 **And** the surface meets the accessibility floor (NFR-14): the button is reachable by Tab with a visible focus ring and named by its label, dismissing a Card moves focus to the Card now in its place, else the one above, else the hint button, Rung and No-hint lines go to the one `aria-live="polite"` region prefixed "The Guide:", the portrait is decorative with empty alt, label and line text meet WCAG AA on the dark theme, and motion respects reduced-motion settings
 
+**Given** the Play screen (amended 30 Oct 2026, story mode)
+**When** the Treasure chest renders on the floor right of the photo
+**Then** it shows two gems over the illustrated chest with its name and "{k} hints for the whole house", every count from the server's `hints_left`, never a client count; a click or Enter opens its dialog (`role=dialog`, `aria-modal`, focus on its first button and trapped, Escape or "Not yet" closing it with focus back on the chest, the arrow keys walking nowhere while it is open)
+**And** "Open it" sends one `hint_request` with `puzzle_id` omitted; on the reply the dialog closes, one gem flies to the Riddle note (650 ms; a cut under reduced motion), the hint is pinned to the note as "The Guide's hint · Nudge" (or Direction, Near-answer) beside the Guide's portrait, focus returns to the chest and the live region reads "The Guide's hint, nudge: {text}"; a reply that opened no Rung spends nothing and shows as the feedback line
+
+**Given** an empty chest, or a 409 `hint_cap_reached` (amended 30 Oct 2026, story mode)
+**When** the player opens it
+**Then** the dialog says "The chest is empty" with the Trickster's line and "Back to the room"; there is no text field and no countdown, so nothing typed exists to leave the browser
+**And** the Trickster's bubble above the chest says the chest line once at play start (first riddle, 7 s) and each new Card's sentence (7 s), each announced once; the bubble and the dialog end 12 px short of the right turn disc at 1024 x 768 and 1440 x 900, so neither covers it, and the chest, its bubble and its dialog stay inside the Scene frame
+
 **Given** the story's changes
 **When** the web build and type check run
 **Then** they pass with new tests covering this story's criteria
@@ -2966,6 +3085,8 @@ I want to see when the Guide moved to a new Rung and what triggered it,
 So that the hints feel earned by how I played, and the escalation is visible on video.
 
 _Covers FR-16, FR-24, UX-DR33, UX-DR80, UX-DR84. Owner: web. Depends on: 3.3, 3.4. Tier 1, Thu Oct 29; cut 5 moves the same content to a second window polling the same session. As shipped (owner decision Oct 29) a quiet 'How hints work' text button under the hint button, collapsed until the player opens it and never opened by a Disclosure, replaces the 'Triggers ({n})' toggle; it opens with 'The Guide offers a hint when you have been quiet for a while or tried three wrong answers, and whenever you ask.' (plus 'Set by how you played last time (kept in this browser)' when the threshold came from the Derived block); one row per rung_change, 'Puzzle {n}, hint {k}, {cause}', the cause 'after {s} quiet seconds', 'after three wrong tries', 'when you asked' or 'opened early by the Trickster', read from `SessionState.trigger_events` (TriggerEvent {type, t_ms} by log position), then ', worded on this Mac' when phrased; newest last and kept in view; empty 'No hints yet.'; `#/triggers` keeps the content._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (lane WEB2 9377be9): "How hints work" left the play screen with the hint button and sits under the Cards in the Card log (4.7), its line now "The chest holds 2 hints for the whole game. Each one opens the next hint for the riddle you're on. Nothing opens on its own." over the same rows, newest last; the criteria above placing the toggle under the hint button, its threshold lines and cut 5's second window stand as history._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -3093,6 +3214,8 @@ I want pure `validate_edit` and `apply_edit` in `src/domain/edits.py`, validator
 So that a Trickster edit lands only when the room stays fair and solvable, and the stored Room shared across Sessions never changes.
 
 _Covers FR-19, FR-11, AR-16, NFR-5, UX-DR77, AD-12. Owner: domain. Depends on: 1.6, 1.7, 1.8, 3.1. Tier 1, Thu Oct 29 if time remains, else Sat Oct 31._ (amended 29 Oct 2026, correct-course record)
+
+_Story mode (lane SV1 ced752a): under the chest hint policy a `loosen` is refused with "Hints come only from the chest." and a `decoy` with "Evidence is hidden until a lock opens." (edit bounds, `CHEST_REFUSALS` in `src/domain/edits.py`), so neither stands in a story-mode Session; merges and shortcuts are checked as above._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -3297,6 +3420,8 @@ So that I see when the room fought back and whether the Validator let the change
 
 _Covers FR-19, UX-DR40, UX-DR41, UX-DR42, UX-DR30, UX-DR70, UX-DR74, UX-DR76. Owner: web. Depends on: 3.4, 3.5, 4.4. Tier 1, Sat Oct 31. Mockup: mockups/play-screen.html (the first Trickster card)._
 
+_Story mode (lane WEB2 9377be9): the Hint area is gone, so Cards no longer stack in play: each new Card's sentence shows for 7 s in the Trickster's bubble above the Treasure chest, announced once, and the Card itself, with its label and a rejected Card's "Proposed:" line and reason, lives in the Card log (4.7). Under the chest a proposed Loosen or Decoy comes back as a rejected Card with its fixed message (4.1). The stacking, dismiss and focus criteria above stand as history; the window, post-once and Card-content criteria hold._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** the session state the client polls every 2000 ms shows `trickster_window` open for the first time
@@ -3357,6 +3482,8 @@ So that the Trickster's change is real in play, not just a message.
 
 _Covers FR-19, FR-11, UX-DR27, UX-DR39, UX-DR65. Owner: web. Depends on: 1.20, 1.21, 4.5. Tier 1, Sat Oct 31. Mockup: mockups/play-screen.html._
 
+_Story mode (lanes SV1 ced752a and WEB2 9377be9): an accepted edit redraws the Riddle note (its numbers and the current riddle) and the Hotspots from the refetched Effective room. The play projections serve a riddle's real evidence card alone once its lock opens and never a decoy, so the Decoy criterion above stands as history, and the chest refuses a Loosen, so the Loosen criterion holds under `ladder` only._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** polled state whose `room_revision` differs from the revision of the room the client last fetched
@@ -3403,6 +3530,8 @@ I want to reopen every Card of this play-through in a Card log,
 So that dismissing a Card or reloading never loses what the Trickster tried.
 
 _Covers FR-19, UX-DR43, UX-DR7, UX-DR71, UX-DR8. Owner: web. Depends on: 1.27, 4.5. Tier 1, Sat Oct 31. Mockup: mockups/play-screen.html (top bar)._
+
+_Story mode (lane WEB2 9377be9): the Card log opens from the top bar alone (no Hint area link exists) and holds "How hints work" under the Cards (3.5); the story intro and the solve beat hold the top bar inert, so the Card log cannot open over them, as it could not over the retired First-room welcome and Greeting cards._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -3745,6 +3874,8 @@ So that the second room visibly adapts to how I played the first.
 
 _Covers FR-21, UX-DR45, UX-DR64, UX-DR33. Owner: web. Depends on: 1.22, 3.5, 5.1, 5.6. Tier 1, Sat Oct 31 to Sun Nov 1. While phrasing is true the card shows the Guide introduction, voice line and static thinking state, polls every 2000 ms, has no 'Begin' yet and keeps focus on its heading; the line then appears with 'Begin' focused and is announced once; the template appears silently after 5 s or with Ollama unreachable; 'How hints work' (the Triggers panel, P4) adds 'Set by how you played last time (kept in this browser)' when the server's threshold came from the Derived block (90, 135 and 60 s at persistence 0, 1 and -1; 15 s at 6x, all in session state) and shows no number; no web module computes a threshold._ (amended 29 Oct 2026, correct-course record)
 
+_Story mode (lanes WEB1 a87bbf6 and ae4361a, SV1 ced752a): the Greeting card is retired: a returning player's Greeting (Local mode) is the Guide's line on the story intro's Guide beat, under "The Guide" and "Keeps the chest", in place of the chest line, as far as the poll has brought it, announced with the beat; there is no card and no "Begin". Under the chest the nudge threshold opens nothing, so the adaptive thresholds above act only in `ladder` Sessions, and "How hints work" (now in the Card log) states the chest rule instead of "Set by how you played last time". The criteria above stand as history._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** a Local Session with `GUIDE=ollama` whose `POST /sessions` response has `phrasing` true and `text` null
@@ -3788,6 +3919,8 @@ I want a second room built from fresh objects and greeted from a real room-1 pla
 So that the video's room-2 Greeting cites true play and room 2 is clearly not room 1 with new paint.
 
 _Covers FR-21, FR-22, NFR-11, NFR-12, AR-29. Owner: builder task. Depends on: 2.22, 5.2, 5.7 (5.4 in place of 5.2 when cut 2 is taken). Tier 1; Sun Nov 1 afternoon after the playtest (cut 8's slot; may finish Mon Nov 2); Mon Nov 2: room 1 played for real on PROFILE=demo at DEMO_TIMESCALE=1 (a play above timescale 1 is flagged demo and excluded). A fresh room-2 JPEG set kept under the ignored rooms/ and never staged; the Build reaches done within the Regeneration cap (Validator only under cut 4); as soon as it reaches done, before anyone reads room 2's content, Luis records the unassisted cold run of room 2 (the UAT-03 fallback, used only if the non-builder criterion is missed); at least 80% of room-2 Clues reference objects absent from room 1 (ratio recorded after the cold run); the Greeting cites room 1 and names no object or solution of either room._
+
+_Story mode: under the chest the cold run's only help is the chest's two hints, and the room-2 Greeting is heard on the story intro's Guide beat; the last criterion's "Set by how you played last time" line is gone from "How hints work" (now in the Card log), so that check waits on the owner's plan for the take. This builder gate is unrun._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -3926,6 +4059,8 @@ So that I never mistake a sped-up timer, a replayed Trickster or an earlier buil
 
 _Covers FR-26, NFR-12, UX-DR56, UX-DR80, UX-DR86. Owner: web. Depends on: 1.17, 1.23, 3.5, 6.2. Tier 1, Sat Oct 31. The Play and Completion screens render the session state's list and the Capture screen GET /meta's; when the Build view shipped (2.29) it renders the BuildView list, pinned; the same anatomy everywhere, never covered or dimmed by a scrim, never over the Scene or a Hotspot, several lines joined; the Triggers panel opens automatically while any Disclosure is active and the Completion screen keeps the banner; Scripted Cards render exactly like live ones; a failed GET /meta renders no surface; key text legible at 1080p for each shot-list beat._
 
+_Story mode: the Triggers panel no longer opens with a Disclosure (the Oct 29 change recorded in 3.5) and, since story mode, "How hints work" lives in the Card log, so the criterion that opens it automatically and the 0:50 shot-list beat with the Triggers header and the Rung line describe screens that no longer exist; the scrim criterion now covers the Story stage and the chest's dialog in place of the Greeting._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** a Session whose state `disclosure` holds two lines
@@ -4044,6 +4179,8 @@ I want an unedited capture proof and a captioned main demo recorded on Tue Nov 3
 So that the submission shows capture within the target and every headline beat, with each shortcut disclosed.
 
 _Covers NFR-1, NFR-3, NFR-11, NFR-12, UX-DR86. Owner: builder task. Depends on: 4.5, 5.8, 6.4, 6.5. Tier 1, Tue Nov 3, video only. Capture proof: a room-2 photo set shot that day and never sent before, CACHE=off, the cache cleared on camera (ledger and exports untouched), the Timer on screen from T0 to T1, kept only under 200 s with at most one visible retry, earlier builds disclosed; main demo 2:00 target, 2:30 cap, captioned and unlisted, three takes, the shot-list beats (persuasion attack, three Rungs at 6x within 40 s with triggers visible, one accepted and one rejected Card under the live Validator, the room-2 Greeting on PROFILE=demo, Model table unless cut 0, Disclosures in the last 10 s); recording memory about 10.6 GB on the M1; both links play logged out; UAT: the capture proof satisfies UAT-12 and the main demo UAT-13 in `docs/implementation-artifacts/uat-acceptance-tests.md`. Dev skills for the live capture: keyframe-muse, keyframe-sam31._
+
+_Story mode: the shot list's escalation beats (three Rungs within 40 s on Wrong attempts with the triggers visible, the typed words and helper line at 0:35, the Triggers header at 0:50) describe the replaced play screen: under the chest nothing opens on Wrong attempts and nothing is typed. The shot list waits on the owner's re-plan; the videos are unrecorded._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -4271,7 +4408,7 @@ _Covers NFR-11, NFR-13, FR-30. Owner: builder task. Depends on: 6.6, 6.8. Tier 1
 
 ## Epic 7: Judges play it themselves
 
-A judge opens the hosted URL, lands on the Demo rooms, plays one to the Completion screen with verbatim Rungs, and can build their own room behind the Access code within a 20-build quota. Builds survive the host's web timeout, and Judge data is deleted on Tue Nov 10 as promised. Tier 1 lands only the Tue Oct 27 smoke deployment (7.1 to 7.3) and the Thu Oct 29 browser parity check (7.23, SIT-10). Everything else is Tier 1.5 and comes after the backup video, starting with Clue cards (PRD §10.1 order: cuts restored, Clue cards, hosted).
+A judge opens the hosted URL, lands on the Demo rooms, plays one to the Completion screen with verbatim Rungs, and can build their own room behind the Access code within a 20-build quota. Builds survive the host's web timeout, and Judge data is deleted on Tue Nov 10 as promised. Since Oct 29 the Hosted landing also opens, once per browser, on a full-screen intro (7.24), the Watch card holds a captioned tutorial beside the real play-through (7.25), an ops action writes the story onto a Demo room built before story mode (7.26), and every screen has a way back to the start (7.27) (amended 30 Oct 2026, story mode). Tier 1 lands only the Tue Oct 27 smoke deployment (7.1 to 7.3) and the Thu Oct 29 browser parity check (7.23, SIT-10). Everything else is Tier 1.5 and comes after the backup video, starting with Clue cards (PRD §10.1 order: cuts restored, Clue cards, hosted).
 
 ### Story 7.1: Hosted stores on Modal Dict and Volume
 
@@ -4484,6 +4621,8 @@ I want a small painted card beside each Clue when the Room has them,
 So that each Puzzle feels illustrated and the notes never jump while the image loads.
 
 _Covers FR-37, UX-DR28. Owner: web. Depends on: 1.20, 4.6, 7.5. Tier 1.5, after 7.5._
+
+_Story mode: the Wizard notes this slot was drawn for are replaced by the Riddle note (1.20); if this backlog story is built, the slot sits beside the Riddle note's one Clue._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -4748,6 +4887,8 @@ So that judges can play the Demo rooms and see how each was built, with no paid 
 
 _Covers FR-31, AR-10, AR-12, AD-7. Owner: scripts. Depends on: 1.5, 7.1, 7.7 (a job read falls through to the Volume record). Tier 1.5, Thu Nov 5 to Sun Nov 8, subject to the 7.22 rules gate. Load the keyframe-modal skill. As shipped (owner decision Oct 28) the live Demo room came from a hosted Judge build moved into `rooms/demo/` by `scripts/promote_room.py` (the ops promote action, 7.14), not seeded; a seeded or promoted Demo copy holds no originals, each photo's `original_path` naming its downscaled key. Since ef7192e (Oct 29) a Demo room's outlines can be hand-corrected by `scripts/patch_demo_room.py` (the ops `patch-demo-room` action, a dry run unless `confirm` is the word `patch`, reading `ops/patches/<room_id>.json` from the checkout): it refuses a non-Demo id, an unknown Interactable id, a polygon under 3 points, a point outside its photo's frame or a Room the Validator refuses (rules 1 to 8), and a real run rewrites `room.json` alone and reads it back, so `job.json` keeps the build as it ran. On Thu Oct 29 ops run 6 (GitHub run 40934315244, dry run) and ops run 7 (40934614821, the write) hand-corrected the live Demo room `room_01M61TZ74F0FP3X9HHTMXGTPB9`: the floor vent's outline moved onto the grille and the throw pillows gained the corner-bend pair Puzzle 1's riddle points at. Those two outlines are a disclosed hand correction, not a pipeline result; the Build view still shows the build as it ran._ (amended 29 Oct 2026, correct-course record)
 
+_Story mode (lanes SV1 ced752a, SF2 c9f6aaa, X4 75b414d): the patch file may also carry `photos` (`{photo, area, pan}` for every photo exactly once, seeding a Room built before story mode with its areas and pans), a `photo` on an Interactable entry (moving it to that photo with polygons drawn there; a riddle's start photo follows its target by itself) and `story` (`{slot: line}` for any single line of a stored `Room.story`, each checked by the story stage's own line rules through `line_reason`; a refused line, or any line on a Room with no story, refuses the run). Re-applying a patch the Room already has changes nothing. The live Demo room's patch seeds its two areas (front hall, lounge) and pans, moves the wall clock and the decorative tray to photo 2 and the double front door to photo 0, giving start photos 2, 0, 5 and 0, and sets `guide_chest` to the fixed line "Stuck? I keep two hints for the whole house. Choose your moment.": ops run 19 (GitHub 41026767851, dry run) showed every Interactable unchanged and only `guide_chest` changing with validator rules 1 to 8 passing, and ops run 20 (41026890532) applied it, read it back equal, and the live API serves the new line. Its one-line summary still says "re-outlined 5 Interactables" although all five were unchanged, a wording follow-up._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** built Demo rooms in the git-ignored local `rooms/`
@@ -4817,6 +4958,8 @@ So that the opening line fits a room that isn't mine.
 
 _Covers FR-31, AR-31, UX-DR45, AD-4. Owner: api. Depends on: 1.13, 7.14. Tier 1.5._ (amended 29 Oct 2026, correct-course record)
 
+_Story mode (lanes WEB1 a87bbf6, SV5 f478fe5): the server still appends the Demo room welcome as above, but the client no longer shows it: on a Demo room the story intro's Architect beat says the visitor's welcome (the Room's `architect_welcome_visitor`, else "Welcome to someone's {areas}. I built it from their photos: {photos} angles, {things} things worth a closer look."), which thanks nobody for photos; 7.16's "shows the Demo room welcome" now reads "opens on the story intro"._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** this story starts
@@ -4853,6 +4996,8 @@ I want a landing page that shows the Demo rooms and how a room is built, all at 
 So that I can start playing, or see the work, within a minute of opening the URL.
 
 _Covers FR-31, UX-DR57, UX-DR58, UX-DR68, UX-DR81, NFR-10. Owner: web. Depends on: 1.17, 1.27, 7.15. Tier 1.5. As shipped first (owner decisions Oct 28 and 29, lanes D1, D6, D9, D10, P1, P6, V1) the landing was a title screen with an attract frame and a ten-second clip of the sample room. Since Oct 29 (lane H1, 25bb153 and 21287c4; owner decision: "3 seperate cards where they can pick like a Diablo 3 hero track that animates spins"; three prototypes judged in Chromium before the build) it opens on a hero-select chooser of three cards, Watch the demo, Play the sample room and Build your own, on a dark stage; the hero, the attract frame, the clip figure and the right column are gone; the cast, the Riddler's sample page and "How a room is built" stay below the fold. Reviewer feedback the owner relayed the same day (lanes K1 to K3: 3b67910, 43ec3c1, 96d8cb4) made Play the lead, put the access code on the Build card, raised the chooser's text sizes and contrast, named Meta's Muse Spark and SAM on the Build card and reworded the hosted Disclosure. Deploy run 12 put 21287c4 live; runs 13 to 15 deployed 43ec3c1, ef7192e and d3c622c, which the judge URL serves._ (amended 29 Oct 2026, correct-course record)
+
+_Since Oct 29 to 30 (lanes N2 a99a2ee, M1 3c14785, M2 28e3307, C2 223201d, X3 4bde3b3): the Watch card reads "Two videos", "0:20" and "A twenty-second tutorial, then a real room played start to finish." and its back holds two tabs, the captioned tutorial and the real play-through re-recorded on story mode at real speed ("muted · 1:48"), 7.25; the ten-second clip and its copy above stand as history; "Watch the intro" sits in the chooser's footer before "Pause motion" (7.24); and the Build-your-own back is capped at its stage and scrolls its own body, tightened under 840 px of window, so after a refused code the field, "Check code" and the banner stay inside the stage at 1024 x 768. Starting a Demo room opens on the story intro (1.22), not the Demo room welcome._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -4900,6 +5045,8 @@ I want to enter the access code, see how many builds are left, and follow my Bui
 So that building my own room is clear from the code check to the first Scene.
 
 _Covers FR-32, FR-5, FR-20, UX-DR59, UX-DR17, UX-DR18, UX-DR21, UX-DR63, UX-DR81, UX-DR46. Owner: web. Depends on: 1.23, 1.27, 2.25, 7.12, 7.16. Tier 1.5._
+
+_Since Oct 29 (lanes N1 c5e84d4, WEB1 a87bbf6): the accepted-code Capture screen has its own route `#/build-your-own` with "Back to the three cards" (7.27), and the automatic Play after a Judge Build opens on the story intro (1.22), not the First-room welcome._ (amended 30 Oct 2026, story mode)
 
 **Acceptance Criteria:**
 
@@ -5138,6 +5285,8 @@ So that the hosted app is the same game as Local mode, with Rungs as written and
 
 _Covers FR-31, FR-17, NFR-10, AR-25. Owner: web. Depends on: 1.19, 3.4, 7.3. Tier 1, Thu Oct 29. SIT-10 in `docs/implementation-artifacts/sit-checklist.md`: the browser checks moved here from 7.3 (which keeps the Tue Oct 27 deploy, `GET /api/meta`, the refusals and the curl session), plus a `tests/sit/` module that plays the same fixture Room with the same event sequence in Local mode (`GUIDE=verbatim`) and on the deployed URL with `DEMO_TRICKSTER=scripted` (before 4.3 lands the flag only affects `GET /meta` and the Disclosure; the Oct 29 run opens Rungs by Wrong attempts and no Trickster window); any live link submitted on Wed Nov 4 requires this pass recorded against the deployed commit. Load the keyframe-modal skill._
 
+_Story mode: under the chest, Wrong attempts open no Rung, so the event sequence above opens Rungs only with `HINT_POLICY=ladder` on both sides, or by asks. SIT-10 is still unrun (sit-checklist run log); a run on story mode needs `HINT_POLICY=ladder` on both sides, or asks, to open Rungs._ (amended 30 Oct 2026, story mode)
+
 **Acceptance Criteria:**
 
 **Given** the Tue Oct 27 deployment (7.3), made before the Scene (1.19) and hint (3.3, 3.4) stories landed, and the fact that a deployment does not acquire later source changes
@@ -5166,6 +5315,125 @@ _Covers FR-31, FR-17, NFR-10, AR-25. Owner: web. Depends on: 1.19, 3.4, 7.3. Tie
 **Given** the story's changes
 **When** `pytest` runs offline against the mock provider
 **Then** it passes with new tests covering this story's criteria (the module's comparison exercised offline against two recorded fixture responses), and the offline run never executes the `tests/sit/` case itself
+
+### Story 7.24: Full-screen intro on the first visit
+
+As a judge,
+I want a short teaser the first time I open the site, once, that I can skip, replay and see again later,
+So that the game introduces itself before I pick a card, without making me watch it twice.
+
+_Covers FR-31, NFR-10, NFR-14. Owner: web. Depends on: 7.16. Shipped Oct 29 (owner decision, verbatim: "use this second video as an intro to page when you first go the page you see it 1nce with a replay and auto brings you to the page.. then thers an option tosee the intro again.. but saved so everytime you go to it you dont have to see it again,, thats the teaser should be full screen"; lane M1 3c14785 and 192416d; the owner-supplied video re-encoded under `web/public/intro/`)._ (amended 30 Oct 2026, story mode)
+
+**Acceptance Criteria:**
+
+**Given** a page load that opens on the Hosted landing in a browser that has not seen the intro
+**When** the page loads
+**Then** a modal dialog named "Keyframe intro" covers the whole page, top bar and Disclosure strip included, before the cards are dealt: the teaser covers the viewport on black (held whole, letterboxed, when the window is wider than 21:9 or narrower than 5:4), autoplaying muted, with "Sound on" (then "Sound off") top right and "Skip intro" bottom right, focus on "Skip intro", Tab cycling its controls and everything behind it inert
+**And** sound plays only once the player turns it on (an owner exception to the no-sound rule; browsers block audible autoplay)
+
+**Given** the intro has played to its end
+**When** it holds the last frame, the gold title
+**Then** it shows "Entering in 4…" over "Replay" and "Enter Keyframe", focus on "Enter Keyframe", and enters by itself after 4 s unless Replay is chosen (Replay plays it from the start with no countdown after); Escape or "Skip intro" skips, Escape at the end enters, and entering or skipping fades it out over 600 ms before the cards are dealt, focus going back where it was
+
+**Given** the intro ended, was skipped or was entered
+**When** the landing loads again in that browser
+**Then** it never shows by itself again: `keyframe.introSeen.v1` = `yes` is stored in local storage (where storage is refused, it shows at most once per page load); a deep link (`#/play/…`, `#/build/…`, `#/done/…`) and Local mode never show it, and a video that errors or will not play goes straight to the landing and counts as seen
+**And** "Watch the intro" in the chooser's footer reopens it with the same Replay and Enter end and no countdown
+
+**Given** reduced motion
+**When** the landing loads for the first time
+**Then** the intro does not play by itself; reopened by hand it shows the native video controls, and "Skip intro" takes the top right, off the control bar
+
+**Given** this story's changes
+**When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline
+**Then** all pass, with tests for the first visit, the stored flag, deep links, Skip and Enter setting the flag, the countdown, Replay, reduced motion, the footer control and a video error
+
+### Story 7.25: Watch the demo: a captioned tutorial and the real play-through
+
+As a judge,
+I want a short captioned tutorial and a real play-through of the sample room behind the Watch card,
+So that I can see how a room plays before I try one, at a pace I can read.
+
+_Covers FR-31, NFR-10, NFR-14. Owner: web. Depends on: 7.16. Shipped Oct 29 to 30 (owner reports: "watch the demo is way to fast can we slow down the video?" and the tutorial ask quoted in 7.24; lanes N2 a99a2ee, M2 28e3307, C2 223201d; the owner-supplied tutorial footage slowed to half speed with burned-in captions under `web/public/tutorial/`, the play-through recorded from the live judge site under `web/public/clip/`)._ (amended 30 Oct 2026, story mode)
+
+**Acceptance Criteria:**
+
+**Given** the Watch card turned over
+**When** its back opens
+**Then** two tabs in a tab list named "Videos", "Tutorial" (selected first) and "Real play-through", work as a proper tablist (the arrow keys move between tabs, the selected tab's panel shows, the other video pauses)
+**And** the Tutorial plays muted with controls, headed "How a room plays." with "captioned · 0:20", named "A twenty-second tutorial: how a room plays." and described by its five captions in order: "Snap a room. Your photos become the game." "Read a riddle, then click the thing it means." "Pick things up. They wait in your inventory." "Use them where they belong to open the locks." "Open the last lock and walk out."
+
+**Given** the "Real play-through" tab
+**When** it is selected
+**Then** it plays, muted with native controls, a recording of the sample room on story mode, made on the live judge site at real speed with human pacing (the wizards' welcome, the four riddles, one hint from the chest, the way out and the escape sheet), headed "A play-through of this room." with "muted · 1:48" and named "A play-through of this room: the wizards' welcome, four riddles, one hint from the chest, the way out." (it replaced the ten-second sped-up clip of the old play screen, then a 0:37 real-speed one)
+**And** the Watch card's front loop is cut from the same recording, the Scene photo at its native size: riddle 1 from its first moment in play to the pillows picked up (two hovers, a turn out and back and one solve, 17 s), looping muted
+
+**Given** this story's changes
+**When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline
+**Then** all pass, with the tests that pin the clips' sizes, durations and dimensions updated only as far as the new files need, and `web/src/clip.ts` records how each file was derived
+
+### Story 7.26: Ops action writes a Demo room's story
+
+As a builder,
+I want an ops action that writes the wizard story onto a Demo room built before story mode, with the story stage's own code,
+So that the judges' sample room gets its own story without a rebuild and with its spend recorded like any build's.
+
+_Covers FR-28, FR-31, AD-6, AD-7, AD-9. Owner: scripts (with infra). Depends on: 2.32, 7.13. Shipped Oct 29 to 30 (lane SV3 01a7e22; SV4 2d885c3 added the refusal print, SV6 e817d3e the per-line source). Load the keyframe-modal skill. A live storyteller call cannot run from the development container (its egress cuts at about 30 s), so the action runs on Modal; its dry runs on the live Demo room are GitHub ops runs 40999622298, 41002307130, 41007098793 and 41010145826 (runs 10, 11, 16 and 17), and it was written by ops run 18 (41010435702, `confirm` `story`): 17 lines from model attempt 0, read back equal._ (amended 30 Oct 2026, story mode)
+
+**Acceptance Criteria:**
+
+**Given** `uv run scripts/story_demo_room.py --env <env> --room <room_id> [--dry-run]`
+**When** it runs
+**Then** it prints the Modal Environment first and runs in one short-lived container of its own app with the `keyframe-data` Volume and the `keyframe` Secret, building the `storyteller` provider the way the hosted Build does (the hosted Cache and spend ledger, each row tagged with the room's job id and the `story` stage)
+**And** a room id that is not a Demo room, a Judge room included, or a Demo room without its `job.json`, exits 1 with no call made
+
+**Given** a Demo room
+**When** the story is made
+**Then** it comes from `tell_story`, the story stage's own path (2.32): the brief, the prompt, the line rules with one retry, the last usable reply's passing lines with each refused slot filled from the fixed lines, the full fixed lines when no reply is usable
+**And** both runs print each refused attempt's reasons by slot with the refused line itself (the retry prompt never quotes a line), and the dry run prints the brief, every line by slot, its source (for example `model attempt 1 (<model>), templates for: riddle 4, opening`, or the fixed templates) and the spend, writing nothing
+
+**Given** a real run
+**When** the story is written
+**Then** it sets `Room.story` in `rooms/demo/<room_id>/room.json`, reads it back, checks it parses as a Room with that story and prints one line; `job.json`, the photos, the Sessions and the quota are never touched
+
+**Given** `.github/workflows/ops.yml`
+**When** `story-demo-room` is dispatched or requested through `.github/ops/request.json`
+**Then** it takes `room_id` (with the room id format check `patch-demo-room` uses) and `confirm`, and is a dry run unless `confirm` is the word `story`; `quota-probe` stays the last step
+
+**Given** this story's changes
+**When** `pytest` runs offline over the hosted fakes and the mock provider, without a Modal connection
+**Then** it passes, with tests for the dry run writing nothing and printing every slot, a real run writing and reading back, a refused reply retried then filled, a non-Demo id refused, the request validator and the step order
+
+### Story 7.27: Every screen has a way back to the start
+
+As a player or a judge,
+I want a way back to the start from every screen,
+So that I can leave a build or a room without hunting for the browser's Back button.
+
+_Covers UX-DR7, UX-DR8, UX-DR46, UX-DR59, NFR-14. Owner: web. Depends on: 1.17, 1.27, 2.18, 7.17. Shipped Oct 29 (owner report: "theres no back buttons if they want to exit the build modes or other ones as well"; lane N1 c5e84d4)._ (amended 30 Oct 2026, story mode)
+
+**Acceptance Criteria:**
+
+**Given** any screen
+**When** the top bar renders
+**Then** the wordmark "Keyframe" is a link to `#/` named "Keyframe, back to the start", reachable by Tab with the shared focus ring
+**And** on the Play screen it opens the Leave room confirmation first, as "Leave room" does (1.27), while on the Completion screen, where only the Play screen's controls are inert, it goes home at once
+
+**Given** a correct Access code on the Hosted landing
+**When** the Capture screen opens
+**Then** it has its own route, `#/build-your-own`, so the browser's Back returns to the landing, and "Back to the three cards" (secondary, at the top of its left area) goes to the Hosted landing, disabled with "Choose photos" while an upload is pending; the tab keeps its Access code in memory only, entered again there; Local mode's Capture screen is the start and has none
+
+**Given** the Build progress screen `#/build/<job_id>`, in either mode
+**When** the player activates "Back to the start"
+**Then** while the Build may still be running (before the first answered poll, `queued` or `running`) it first asks "Your room keeps building. Leave this page? This page's address brings you back." with "Leave" and "Stay", reusing the Leave room confirmation's card and focus handling ("Stay" focused, Escape means "Stay", focus returning to the button), and once the Build is `done` or has ended it leaves at once
+
+**Given** the other screens
+**When** they are checked
+**Then** each already had a way back: the chooser's backs ("Back", Escape), the Build view ("Back"), the Completion screen ("Build another room"), Session gone ("Start again"), the Deleted Judge room notice and the unknown-room card; the Narrow-screen message has none by design
+
+**Given** this story's changes
+**When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline against the mock provider
+**Then** all pass, with tests for the wordmark on each screen and its Play-screen confirmation, the Capture back and its route with the browser's Back, and the Build progress back with its running-job confirmation and its immediate leave once done
 
 ## Epic 8: Walk the room in 3D
 
