@@ -29,6 +29,9 @@ export const POLL_MS = 2000
 /** This many consecutive missed polls show the reconnecting state (UX-DR13). */
 export const MISSES_TO_RECONNECT = 2
 
+/** The story intro waits at most this long for the Scene's first photo; one that never loads holds it no longer. */
+export const INTRO_PHOTO_WAIT_MS = 4000
+
 /** The closing sheet rises this long into the way out (spec 5.6); at once under reduced motion. */
 export const EXIT_SHEET_DELAY_MS = 900
 
@@ -145,14 +148,15 @@ const pause = (ms: number): Promise<void> => new Promise((done) => setTimeout(do
  * every part draws open locks, the pack, the hints left and Wrong attempts from the latest state the server sent: a
  * poll or the reply to a posted event, never its own clicks. A poll sent before a reply that arrived first is stale and
  * dropped. A Session that starts plays the story intro first (`playIntro`, once per Session: a reload of a Session in
- * progress skips it), from the first view of the first area, on the Story stage with the Scene and the top bar inert
- * and the note, the pack, the walk map, the turn discs and the doorway signs out of sight; a returning player's
- * Greeting (Local mode) is the Guide's line there, as far as the poll has brought it. Play starts once the intro has
- * ended (or at once), on the first riddle's start photo: focus goes to the note's heading, and on the first riddle (no
- * lock open yet) the coach pill shows for 15 s, until the first Hotspot click or the chest opens, while the
- * Trickster's bubble by the chest says the chest line once. The top bar's "Show all objects" toggle outlines every
- * Hotspot while pressed, across walks. Each reply to a posted input reads one feedback line (`feedbackFor`, against the
- * state it was sent against), shown at the photo's bottom and written once to the live region as the Guide's.
+ * progress skips it), from the first view of the first area once its photo is live (4 s at most), on the Story
+ * stage with the Scene and the top bar inert and the note, the pack, the walk map, the turn discs and the doorway signs
+ * out of sight; a returning player's Greeting (Local mode) is the Guide's line there, as far as the poll has brought
+ * it. Play starts once the intro has ended (or at once), on the first riddle's start photo: focus goes to the note's
+ * heading, and on the first riddle (no lock open yet) the coach pill shows for 15 s, until the first Hotspot click or
+ * the chest opens, while the Trickster's bubble by the chest says the chest line once. The top bar's "Show all
+ * objects" toggle outlines every Hotspot while pressed, across walks. Each reply to a posted input reads one feedback
+ * line (`feedbackFor`, against the state it was sent against), shown at the photo's bottom and written once to the live
+ * region as the Guide's.
  *
  * A state that shows a lock newly open plays the unlock moment (`lockOpened`): the solved Hotspot blooms and the Scene
  * frame glows once, the note stamps the riddle "Solved", and 1100 ms later the solve beat opens over the Scene (the
@@ -463,7 +467,9 @@ export function mountPlay(
       async function begin(): Promise<void> {
         if (introducing) {
           holdForIntro(true)
-          await playIntro({ view, state: () => latest, beats, scene, chest })
+          // Beat 1 waits for the first photo, which places the chest, so the box is fitted where the chest stands.
+          await Promise.race([scene.live, pause(INTRO_PHOTO_WAIT_MS)])
+          if (mounted && !ended) await playIntro({ view, state: () => latest, beats, scene, chest })
           beats.close()
           holdForIntro(false)
         }

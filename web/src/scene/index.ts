@@ -159,6 +159,8 @@ export interface MountedScene {
   slots: { note: HTMLElement; floor: HTMLElement }
   /** The photo you face; -1 before the first is shown. */
   current: () => number
+  /** Resolves once the first photo and its Hotspots are live, so the frame has set `--wall-width`. */
+  live: Promise<void>
   /**
    * Walks to photo `index` as a move does (a turn, or a push-in across areas); resolves once you stand there. With
    * `quiet` the view is not announced (a story beat speaks over the walk).
@@ -203,6 +205,7 @@ function sceneUnavailable(frame: HTMLElement, ground: HTMLElement, say: (line: s
     unmount: () => frame.remove(),
     slots,
     current: () => -1,
+    live: Promise.resolve(),
     walkTo: async () => {},
     daylight: async () => {},
     coach: () => {},
@@ -807,6 +810,7 @@ export function mountScene(
     unmount,
     slots,
     current: () => current,
+    live,
     walkTo: async (index, quiet) => {
       while (moving && mounted) await pause(50) // a move under way finishes first
       return walk(index, undefined, quiet)

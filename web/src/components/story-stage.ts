@@ -193,7 +193,7 @@ export function storyStage(): StoryStage {
    * Keeps the speech box clear of `clear`: where the box would cover it, the box keeps its left edge and ends 12 px
    * short of it (the chest stands right of the photo's middle, so the box keeps at least half its width). Measured at
    * the first beat that carries it and held from beat to beat, so the box and its button keep one place through the
-   * intro; measured again only when `clear` itself moves (the first photo sizing the chest's place as it loads).
+   * intro; measured again only when `clear` itself moves (a resize of the Scene).
    */
   function fit(clear: HTMLElement | undefined): void {
     if (clear !== clearing) {

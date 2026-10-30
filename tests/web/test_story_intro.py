@@ -160,7 +160,7 @@ def test_the_guides_beat_lights_the_chest_through_the_scrim():
 def test_the_speech_box_keeps_one_place_on_all_five_intro_beats_so_next_never_moves():
     # Live replay, Oct 30: the box narrowed only on the Guide's beat, so Next jumped 73 px left. Every intro beat keeps
     # the box clear of the chest's box, measured at the first beat and held from beat to beat, and measured again only
-    # when the chest moves (at intro start the first photo has not loaded, so the chest has no place yet).
+    # when the chest moves (a resize of the Scene).
     intro = _ts("story.ts").split("export async function playIntro(", 1)[1]
     assert "beats.play({ ...beat, page: { at, of: intro.length }, clear: chest.element })" in intro
     stage = _ts("components/story-stage.ts")
@@ -175,6 +175,24 @@ def test_the_speech_box_keeps_one_place_on_all_five_intro_beats_so_next_never_mo
     assert "refit.disconnect()" in close and "fitted = null" in close
     # The chest's box runs from the chest to the frame's edge, so its width changes when the chest moves.
     assert css_rules(_ts("components/treasure-chest.css"))[".treasure-chest"]["right"] == "16px"
+
+def test_the_intro_waits_for_the_first_photo_so_beat_one_fits_the_chests_real_place():
+    # Live replay, Oct 30: beat 1 showed before the first photo loaded, so the chest stood by a frame with no width yet,
+    # the box was fitted 360 px wide, and 0.2 to 0.9 s later it refit to the chest's real place and Next jumped up to
+    # 353 px. The intro now waits for the Scene's first photo to be live, or 4 s for one that never loads; a Scene that
+    # cannot be drawn is live at once.
+    scene = _ts("scene/index.ts")
+    mounted = scene.split("export interface MountedScene {", 1)[1].split("\n}\n", 1)[0]
+    assert "live: Promise<void>" in mounted
+    assert "live: Promise.resolve()," in scene.split("function sceneUnavailable(", 1)[1].split("\n}\n", 1)[0]
+    assert "    live,\n" in scene.split("export function mountScene(", 1)[1].split("  return {", 1)[1]
+    play = _ts("play.ts")
+    assert "export const INTRO_PHOTO_WAIT_MS = 4000" in play
+    begin = _function(play, "begin")
+    wait = "await Promise.race([scene.live, pause(INTRO_PHOTO_WAIT_MS)])"
+    assert begin.index("holdForIntro(true)") < begin.index(wait) < begin.index("await playIntro(")
+    assert "if (mounted && !ended) await playIntro(" in begin
+
 
 def test_the_intro_holds_the_box_at_its_tallest_beat_and_next_at_its_widest_label_so_neither_moves():
     # Live replay, Oct 30: on the last beat Next grew 61 px left for "Start looking" and the box rose 134 px for the
