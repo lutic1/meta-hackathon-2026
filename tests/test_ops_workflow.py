@@ -13,7 +13,7 @@ from tests.test_ci_workflow import SETUP_UV
 REPO = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github/workflows/ops.yml"
 REQUEST = ".github/ops/request.json"
-ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe", "patch-demo-room")
+ACTIONS = ("ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "quota-probe", "patch-demo-room", "story-demo-room")
 UPLOAD_ARTIFACT = "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"
 VARIABLES = ("ACTION", "MODAL_ENVIRONMENT", "ROOM_ID", "ROOM_NAME", "CONFIRM")
 
@@ -101,6 +101,8 @@ def test_a_dispatch_takes_the_inputs_and_a_push_the_request_file_with_the_same_d
         ({"action": "warm", "confirm": 1}, "must be a string"),
         ({"action": "patch-demo-room"}, "needs a room_id"),
         ({"action": "patch-demo-room", "room_id": "../x"}, "needs a room_id"),
+        ({"action": "story-demo-room"}, "story-demo-room needs a room_id"),
+        ({"action": "story-demo-room", "room_id": "room_1"}, "story-demo-room needs a room_id"),
     ],
 )
 def test_a_bad_or_missing_request_file_fails_clearly(tmp_path: Path, request_body: dict[str, object] | None, message: str):
@@ -114,7 +116,7 @@ def test_checkout_uv_and_sync_run_before_the_env_guarded_action_steps():
     assert len(steps) == 3 + len(ACTIONS) + 1  # the ledger export has a second step, the upload
     assert re.findall(r"^      - if: env\.ACTION == '([a-z-]+)'$", _job("ops"), re.MULTILINE) == [
         "ledger-export", "ledger-export", "purge-dry-run", "purge", "warm", "cool", "autoscaler-settings", "promote", "patch-demo-room",
-        "quota-probe",
+        "story-demo-room", "quota-probe",
     ]
 
 
@@ -194,6 +196,21 @@ def test_the_demo_room_patch_is_a_dry_run_unless_confirm_is_the_word_patch_and_r
 
 def test_the_request_validator_accepts_patch_demo_room_with_a_room_id(tmp_path: Path):
     request = {"action": "patch-demo-room", "room_id": "room_01M61TZ74F0FP3X9HHTMXGTPB9", "confirm": "patch"}
+    code, _, outputs = _run_request(tmp_path, "push", request=request)
+    assert code == 0 and outputs == {**request, "environment": "main", "room_name": ""}
+
+
+def test_the_demo_room_story_is_a_dry_run_unless_confirm_is_the_word_story():
+    story = _job("ops").split("- if: env.ACTION == 'story-demo-room'\n", 1)[1].split("- if: env.ACTION == 'quota-probe'", 1)[0]
+    command = 'uv run scripts/story_demo_room.py --env "$MODAL_ENVIRONMENT" --room "$ROOM_ID"'
+    assert story.count(command + " --dry-run\n") == 1 and story.count(command + "\n") == 1
+    assert 'if [ "$CONFIRM" = story ]; then' in story
+    assert story.index('[ "$CONFIRM" = story ]') < story.index(command + "\n") < story.index("else") < story.index("--dry-run")
+    assert "story-demo-room writes" in _text().split("options:", 1)[0]  # the action's description says what it does
+
+
+def test_the_request_validator_accepts_story_demo_room_with_a_room_id(tmp_path: Path):
+    request = {"action": "story-demo-room", "room_id": "room_01M61TZ74F0FP3X9HHTMXGTPB9", "confirm": "story"}
     code, _, outputs = _run_request(tmp_path, "push", request=request)
     assert code == 0 and outputs == {**request, "environment": "main", "room_name": ""}
 

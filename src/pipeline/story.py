@@ -17,7 +17,9 @@ copy) filled from the Room, so the story never ends a Build; a call that
 raises logs one JSON line naming its code. The story is
 stored under `<room_id>/story.json` for scene to put on the Room; each call
 that answered adds its call row, and the done row counts the story's lines
-and names the model only when its lines were kept.
+and names the model only when its lines were kept. `tell_story` is that
+call, its retry and the fallback over a Room; `scripts/story_demo_room.py`
+runs it for a Demo room built before story mode.
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass
 
 import pydantic
 
@@ -38,6 +41,7 @@ from src.council.storyteller import (
 from src.domain.schema import (
     CallRow,
     FindSolution,
+    JobId,
     JobState,
     OrderSolution,
     Puzzle,
@@ -220,14 +224,21 @@ def _reasons(text: str, room: Room) -> tuple[StoryResponse | None, list[str]]:
     return response, story_reasons(response, room)
 
 
-def run_story(state: JobState, *, provider: ModelProvider, artifacts: ArtifactStore, ledger: LedgerStore) -> StageResult:
-    """The storyteller's lines when they pass, after at most one retry, else the templates; stored under `story.json`."""
-    room = assemble_room(state, artifacts, ledger)
+@dataclass(frozen=True)
+class Told:
+    """A Room's story and where it came from: the attempt whose lines were kept and their model (both None for the templates), and each answered call's row."""
+
+    story: Story
+    attempt: int | None
+    model: str | None
+    calls: list[CallRow]
+
+
+def tell_story(room: Room, provider: ModelProvider, job_id: JobId) -> Told:
+    """The storyteller's lines for `room` when they pass, after at most one retry, else the templates; each call tagged with `job_id` and `story`."""
     brief = story_brief(room)
     prompt = build_story_prompt(brief)
     rows: list[CallRow] = []
-    story: Story | None = None
-    model: str | None = None
     try:
         for attempt in range(2):
             reply = provider.chat(
@@ -235,20 +246,25 @@ def run_story(state: JobState, *, provider: ModelProvider, artifacts: ArtifactSt
                 response_schema=prompt.response_schema,
                 reasoning_effort=prompt.reasoning_effort,
                 attempt=attempt,
-                job_id=state.id,
+                job_id=job_id,
                 stage="story",
             )
             rows.append(call_row(reply.receipt, provider, "storyteller", reply.model))
             response, reasons = _reasons(reply.text, room)
             if response is not None and not reasons:
-                story, model = _story(response, room), reply.model
-                break
+                return Told(_story(response, room), attempt, reply.model, rows)
             prompt = build_story_retry_prompt(brief, reasons)
     except Exception as exc:  # noqa: BLE001 - the story never ends a Build: a call that raises leaves the templates
-        logger.info(json.dumps({"job_id": state.id, "stage": "story", "fallback": error_code(exc)}))
-    story = story or template_story(room, brief)
-    artifacts.put(story_key(room.id), story.model_dump_json().encode())
-    return StageResult(count=SINGLE_LINES + 2 * len(story.riddles), model=model, calls=rows)
+        logger.info(json.dumps({"job_id": job_id, "stage": "story", "fallback": error_code(exc)}))
+    return Told(template_story(room, brief), None, None, rows)
+
+
+def run_story(state: JobState, *, provider: ModelProvider, artifacts: ArtifactStore, ledger: LedgerStore) -> StageResult:
+    """The attempt's Room's story (`tell_story`), stored under `story.json`."""
+    room = assemble_room(state, artifacts, ledger)
+    told = tell_story(room, provider, state.id)
+    artifacts.put(story_key(room.id), told.story.model_dump_json().encode())
+    return StageResult(count=SINGLE_LINES + 2 * len(told.story.riddles), model=told.model, calls=told.calls)
 
 
 def story_stage(provider: ModelProvider, artifacts: ArtifactStore, ledger: LedgerStore) -> StageFn:

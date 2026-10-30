@@ -212,6 +212,16 @@ chosen (`main` or `dev`, default `main`):
   pillows gained the pair at the sofa's corner bend that Puzzle 1's riddle
   points at. These two outlines are a hand correction, not a pipeline
   result; the Build view still shows the build as it ran.
+- `story-demo-room` (needs `room_id`): `scripts/story_demo_room.py`
+  writes the wizard story onto a Demo room built before story mode, a
+  dry run unless `confirm` is the word `story`. It runs on Modal with the
+  `keyframe` Secret and the story stage's own code: the storyteller's
+  lines, sent back once when they break a line rule, else the fixed
+  templates, the call cached and recorded in the hosted ledger under the
+  room's job id. The dry run prints the brief, every line by slot, which
+  path wrote it and the spend; a real run sets `Room.story` in
+  `room.json` only, then reads it back. An id that is not a Demo room is
+  refused; `job.json`, the photos, Sessions and the quota are untouched.
 - `quota-probe`: `scripts/quota_probe.py` races separate processes for
   the 20 slot keys on an ephemeral Dict, never `keyframe-jobs`: 30
   claimers must win exactly 20 slots, then 8 must win exactly the last.
