@@ -208,6 +208,30 @@ def test_the_dimmed_play_screen_is_inert_and_never_polls_or_posts():
     assert "shownPhoto.set(play.id, index)" in _code("scene/index.ts") and "shownPhoto.set(play.id, to)" in _code("scene/index.ts")
 
 
+def test_the_exit_scene_stays_in_daylight_across_the_route_change():
+    """Final replay Oct 30 (X1): after "Step outside" the Completion screen built a new Scene and fetched the Room
+    again, so the exit photo went black behind "Setting the scene" before the door came back. The Play screen hands its
+    Scene, as it stands, and the Effective room it showed to the Completion screen of the same Session, so the door
+    stays in daylight and the wizard lines are there from the sheet's first frame; one opened cold mounts its own."""
+    play = _code("play.ts")
+    out = play.split("function wayOut(", 1)[1].split("\n      }\n", 1)[0]
+    assert "exitView = shown" in out
+    teardown = play.split("return () => {\n    mounted = false\n    frame.topBar.inert = false", 1)[1].split("\n  }\n}", 1)[0]
+    assert "if (exitView !== undefined) keepExitScene({ sessionId: session.id, stage, scene, view: exitView })" in teardown
+    keep = _function(play, "keepExitScene")
+    assert "queueMicrotask(" in keep and "kept.scene.unmount()" in keep
+    behind = _function(play, "mountPlayBehind")
+    assert "const kept = takeExitScene(session.id)" in behind
+    assert "if (kept !== undefined) sceneColumn.append(kept.stage)" in behind
+    assert "kept === undefined ? getEffectiveRoom(session.id) : Promise.resolve(kept.view)" in behind
+    assert "const scene = kept?.scene ?? mountScene(sceneColumn, play, room, () => lastShownPhoto(session.id))" in behind
+    assert "kept?.stage.remove()" in behind
+    # The shell tears the Play screen down and mounts the Completion screen in one task, so the Completion screen takes
+    # the kept Scene before the microtask that would release it runs.
+    shell = _code("shell.ts")
+    assert "show(bar.element, body.element, ...(banner === null ? [] : [banner]))\n    const unmountBody = body.mount?.()" in shell
+
+
 def test_the_heading_takes_focus_and_the_sign_off_is_announced_once():
     completion = _code("completion.ts")
     assert "heading.tabIndex = -1" in completion and "heading.focus()" in completion

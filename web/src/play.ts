@@ -44,6 +44,38 @@ export function endedOnPlay(sessionId: string): boolean {
   return exited.has(sessionId)
 }
 
+/** The way out's Scene as it stands, with its stage and the Effective room it showed, for the closing sheet. */
+interface ExitScene {
+  sessionId: string
+  stage: HTMLElement
+  scene: MountedScene
+  view: PlayView
+}
+
+/** The way out's Scene between the Play screen's teardown and the Completion screen that takes it. */
+let exitScene: ExitScene | undefined
+
+/**
+ * Keeps `kept` for the Completion screen of its Session, which the shell mounts in the same task as the Play screen's
+ * teardown; one not taken by then (another route, or the unreachable strip) is torn down.
+ */
+function keepExitScene(kept: ExitScene): void {
+  exitScene = kept
+  queueMicrotask(() => {
+    if (exitScene !== kept) return
+    exitScene = undefined
+    kept.scene.unmount()
+  })
+}
+
+/** The way out's Scene the Play screen kept for Session `sessionId`, taken once; undefined for any other. */
+function takeExitScene(sessionId: string): ExitScene | undefined {
+  if (exitScene?.sessionId !== sessionId) return undefined
+  const kept = exitScene
+  exitScene = undefined
+  return kept
+}
+
 /** The session as the Play screen's parts share it: the latest state the server sent, and the one way to post. */
 export interface PlaySession {
   readonly id: string
@@ -129,9 +161,10 @@ const pause = (ms: number): Promise<void> => new Promise((done) => setTimeout(do
  * (or Enter) shows the next riddle on the note at once, walks to its start photo and puts focus on the note's heading.
  * On the Exit puzzle the beat's button is "Step outside": the door fills with daylight, the area grows toward it, and
  * 900 ms in the client routes to `#/done/<session_id>`, replacing the Play route and its Back guard in the history
- * (`LeaveRoom.exit`); the Session counts as ended in this page load (`endedOnPlay`). An Exit already open when the
- * screen mounts routes at once, and its Completion screen is a reopened one. A reload plays no beat for locks already
- * open and shows the active riddle.
+ * (`LeaveRoom.exit`); the Session counts as ended in this page load (`endedOnPlay`), and the teardown keeps the Scene,
+ * door lit, for the closing sheet (`mountPlayBehind`). An Exit already open when the screen mounts routes at once,
+ * and its Completion screen is a reopened one. A reload plays no beat for locks already open and shows the active
+ * riddle.
  *
  * "Leave room" in the top bar, the top bar's wordmark (a link to the start elsewhere), or the browser Back button, asks
  * the Leave room confirmation (see `mountLeaveRoom`), never during the intro; confirming goes to `#/` in place of
@@ -290,6 +323,8 @@ export function mountPlay(
   }
 
   let leaving: ReturnType<typeof setTimeout> | undefined
+  /** The Effective room the way out showed: once set, the teardown keeps the Scene for the closing sheet. */
+  let exitView: PlayView | undefined
   /** To the Completion route, replacing the Play route; `after` ms in. */
   function leaveForDone(after: number): void {
     if (leaving !== undefined) return
@@ -403,6 +438,7 @@ export function mountPlay(
       /** The way out (spec 5.6): the door fills with daylight, then the closing sheet on the Completion route. */
       function wayOut(): void {
         exited.add(session.id)
+        exitView = shown
         for (const part of [note.element, held.element, chest.element]) part.hidden = true
         void scene.daylight(solvedTargets(session.id).at(-1) ?? null)
         leaveForDone(stateFadeMs() === 0 ? 0 : EXIT_SHEET_DELAY_MS) // at once under reduced motion
@@ -455,8 +491,11 @@ export function mountPlay(
     ticker.terminate()
     play.useOn.dispose()
     showAll.remove()
-    scene.unmount()
-    stage.remove()
+    if (exitView !== undefined) keepExitScene({ sessionId: session.id, stage, scene, view: exitView })
+    else {
+      scene.unmount()
+      stage.remove()
+    }
     beats.close()
     beats.element.remove()
     sideColumn.replaceChildren()
@@ -467,10 +506,11 @@ export function mountPlay(
  * The Play screen as it stands under the closing sheet: the Scene on the photo it last showed in this page (the first
  * after a reload) with its walls and walk map, the way out's door still in daylight (story mode, spec 1.10), drawn once
  * from `session` over its Effective room (`GET /sessions/<id>/room`), and the "Show all objects" toggle, unpressed, the
- * "Card log" button and "Leave room" in the top bar's `controls`. It never polls and never posts; the shell holds the
- * Scene column and the top bar inert. A Room answered 410 `room_deleted` or 404 `room_not_found` is handed to `onGone`.
- * Returns the teardown and the Effective room it drew, which the closing sheet's lines, filmstrip and shared line read
- * too.
+ * "Card log" button and "Leave room" in the top bar's `controls`. A Session whose Exit opened on the Play screen in
+ * this page load keeps that screen's Scene as it stands and the Effective room it showed, so the exit photo never
+ * leaves view and nothing is fetched again. It never polls and never posts; the shell holds the Scene column and the
+ * top bar inert. A Room answered 410 `room_deleted` or 404 `room_not_found` is handed to `onGone`. Returns the
+ * teardown and the Effective room it drew, which the closing sheet's lines, filmstrip and shared line read too.
  */
 export function mountPlayBehind(
   sceneColumn: HTMLElement,
@@ -492,13 +532,16 @@ export function mountPlayBehind(
     onState: () => undefined,
     useOn: useOnSelection(),
   }
-  const room: Promise<PlayView> = getEffectiveRoom(session.id)
-  const scene = mountScene(sceneColumn, play, room, () => lastShownPhoto(session.id))
+  // An Exit opened on the Play screen in this page load: its Scene stays as it stands, the door still in daylight.
+  const kept = takeExitScene(session.id)
+  if (kept !== undefined) sceneColumn.append(kept.stage)
+  const room: Promise<PlayView> = kept === undefined ? getEffectiveRoom(session.id) : Promise.resolve(kept.view)
+  const scene = kept?.scene ?? mountScene(sceneColumn, play, room, () => lastShownPhoto(session.id))
   room
     .then((view) => {
       const exit = view.puzzles.find((puzzle) => puzzle.is_exit)
       // The door the way out opened stays lit.
-      if (mounted && exit !== undefined && session.locks_open.includes(exit.id)) {
+      if (mounted && kept === undefined && exit !== undefined && session.locks_open.includes(exit.id)) {
         void scene.daylight(solvedTargets(session.id).at(-1) ?? null, true)
       }
     })
@@ -515,6 +558,7 @@ export function mountPlayBehind(
     log.remove()
     leave.remove()
     scene.unmount()
+    kept?.stage.remove()
     sideColumn.replaceChildren()
   }
   return { unmount, room }

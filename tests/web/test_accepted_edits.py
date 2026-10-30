@@ -66,8 +66,10 @@ def _room(client: TestClient, session_id: str) -> dict[str, dict[str, Any]]:
 def test_the_play_screen_draws_from_the_effective_room_and_records_the_revision_it_mounted_with():
     play, api = _ts("play.ts"), _ts("api/index.ts")
     assert "return getJson<PlayView>(`/sessions/${encodeURIComponent(sessionId)}/room`)" in api
-    # The Play screen and the screen under the Completion sheet both read the Effective room, never GET /rooms/<id>.
-    assert play.count("const room: Promise<PlayView> = getEffectiveRoom(session.id)") == 2 and "getRoom" not in play
+    # The Play screen and the screen under the Completion sheet both read the Effective room, never GET /rooms/<id>;
+    # under the sheet it is the one the way out showed, when the Exit opened on the Play screen in this page load.
+    assert "const room: Promise<PlayView> = getEffectiveRoom(session.id)" in play and "getRoom" not in play
+    assert "kept === undefined ? getEffectiveRoom(session.id) : Promise.resolve(kept.view)" in play
     assert "let fetchedRevision = session.room_revision" in play
 
 
