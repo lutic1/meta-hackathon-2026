@@ -23,6 +23,8 @@ stage's path: the brief (`story_brief`), `build_story_prompt`, the line
 rules with one retry over `build_story_retry_prompt`, and the fixed
 templates as the last resort.
 
+Both runs print, for each refused attempt, its fixed reasons by slot and
+the refused line itself (the retry prompt still never quotes a line).
 `--dry-run` prints the brief, every line by slot, the path that produced it
 (model attempt 0 or 1, or the templates) and the spend, and writes nothing to
 the room; its call is cached, so a real run after it costs nothing and keeps
@@ -115,6 +117,15 @@ def slot_lines(story: Story) -> list[str]:
     return scalars + riddles
 
 
+def refused_lines(told: Told) -> list[str]:
+    """Each refused attempt's fixed reasons by slot, each beside the line it refused."""
+    return [
+        f"attempt {refused.attempt} refused: {reason}" + ("" if line is None else f' Line: "{line}"')
+        for refused in told.refused
+        for reason, line in refused.reasons
+    ]
+
+
 def path(told: Told) -> str:
     return "the fixed templates" if told.attempt is None else f"model attempt {told.attempt} ({told.model})"
 
@@ -134,6 +145,8 @@ def story_demo_room(handles: ModalHandles, room_id: str, *, provider: ModelProvi
         return 1
     print(f"brief: {story_brief(room)}")
     told = tell_story(room, provider, job.id)
+    for line in refused_lines(told):
+        print(line)
     print("\n".join(slot_lines(told.story)))
     print(f"story from {path(told)}; spend {spend(told)}, ledger rows tagged {job.id} story")
     key = f"{DEMO_DIR}/{room_key(room.id)}"

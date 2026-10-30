@@ -124,6 +124,20 @@ def test_a_refused_reply_is_sent_back_once_then_the_templates_are_written(monkey
     assert "story from the fixed templates" in capsys.readouterr().out
 
 
+def test_the_dry_run_prints_each_refused_line_by_slot_with_its_reason(monkeypatch, handles, demo, capsys):
+    leaky = story_reply(guide_chest="Stuck? Look inside the wooden chest!", riddles=GOOD["riddles"][:3])
+    provider = storyteller(leaky, story_reply())
+    assert run(monkeypatch, handles, provider, "--room", demo.id, "--dry-run")[0] == 0
+    out = capsys.readouterr().out
+    assert ('attempt 0 refused: guide_chest: the line gives part of an answer away. '
+            'Line: "Stuck? Look inside the wooden chest!"\n') in out
+    assert 'attempt 0 refused: guide_chest: the line has an exclamation mark.' not in out
+    assert "attempt 0 refused: riddles: write exactly 5 riddles.\n" in out
+    assert "attempt 1 refused" not in out and "story from model attempt 1" in out
+    # The retry prompt still names the slot and never quotes the line.
+    assert "wooden chest" not in provider.calls[1].messages[-1].content
+
+
 def test_a_retried_reply_that_passes_is_kept_and_named_as_attempt_1(monkeypatch, handles, demo, capsys):
     provider = storyteller(story_reply(riddler_closing=""), story_reply())
     assert run(monkeypatch, handles, provider, "--room", demo.id, "--dry-run")[0] == 0

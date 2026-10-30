@@ -8,13 +8,17 @@ role's port at reasoning `low`, tagged with the job id and the `story`
 stage for the ledger. The reply must pass `story_reasons`: every slot
 present and non-empty, one riddle per Puzzle, each line at most `LINE_MAX`
 characters, no solution, target or item label, evidence attribute or code
-in any line (`gives_away`, rule 5's matching), no exclamation mark but the
+in any line (`gives_away`, rule 5's matching, which skips the words of the
+room's name and area labels: the player already sees those), no
+exclamation mark but the
 Trickster's trap line's, and no word about AI, models or the API. A reply
 that fails is sent back once at attempt 1 with its fixed reasons, which
 name slots and never quote a line; a second failure, or a call that raises,
 leaves the fixed templates (`template_story`, EXPERIENCE.md story mode
 copy) filled from the Room, so the story never ends a Build; a call that
-raises logs one JSON line naming its code. The story is
+raises logs one JSON line naming its code. Each refused attempt's
+reasons are kept beside the lines they refused (`Refused`), for the ops
+log of `scripts/story_demo_room.py` only. The story is
 stored under `<room_id>/story.json` for scene to put on the Room; each call
 that answered adds its call row, and the done row counts the story's lines
 and names the model only when its lines were kept. `tell_story` is that
@@ -184,12 +188,17 @@ def _slots(response: StoryResponse) -> list[tuple[str, str]]:
     return scalars + riddles
 
 
-def _line_reason(slot: str, text: str, room: Room) -> str | None:
+def _shown(brief: StoryBrief) -> tuple[str, ...]:
+    """What the player already sees of the brief, so no spoiler: the room's name and its area labels."""
+    return (*brief.areas, *((brief.room_name,) if brief.room_name else ()))
+
+
+def _line_reason(slot: str, text: str, room: Room, shown: tuple[str, ...]) -> str | None:
     if not text.strip():
         return EMPTY_MESSAGE
     if len(text) > LINE_MAX:
         return LONG_MESSAGE
-    if gives_away(text, room):
+    if gives_away(text, room, shown):
         return LEAK_MESSAGE
     if "!" in text and slot != TRAP_SLOT:
         return EXCLAMATION_MESSAGE
@@ -198,12 +207,20 @@ def _line_reason(slot: str, text: str, room: Room) -> str | None:
     return None
 
 
+def _refusals(response: StoryResponse, room: Room) -> list[tuple[str, str | None]]:
+    """Each fixed reason the reply breaks a line rule, naming its slot, beside the line it refuses (None for the riddle count)."""
+    shown = _shown(story_brief(room))
+    refusals: list[tuple[str, str | None]] = [
+        (f"{slot}: {reason}", text) for slot, text in _slots(response) if (reason := _line_reason(slot, text, room, shown))
+    ]
+    if len(response.riddles) != len(room.puzzles):
+        refusals.append((f"riddles: write exactly {len(room.puzzles)} riddles.", None))
+    return refusals
+
+
 def story_reasons(response: StoryResponse, room: Room) -> list[str]:
     """The fixed reasons the reply breaks a line rule, each naming its slot; empty when every line passes."""
-    reasons = [f"{slot}: {reason}" for slot, text in _slots(response) if (reason := _line_reason(slot, text, room))]
-    if len(response.riddles) != len(room.puzzles):
-        reasons.append(f"riddles: write exactly {len(room.puzzles)} riddles.")
-    return reasons
+    return [reason for reason, _ in _refusals(response, room)]
 
 
 def _story(response: StoryResponse, room: Room) -> Story:
@@ -215,23 +232,32 @@ def _story(response: StoryResponse, room: Room) -> Story:
     return Story.model_validate({**response.model_dump(exclude={"riddles"}), "riddles": riddles})
 
 
-def _reasons(text: str, room: Room) -> tuple[StoryResponse | None, list[str]]:
-    """The reply parsed and checked: its reasons, or the shape reason when it does not parse."""
+def _checked(text: str, room: Room) -> tuple[StoryResponse | None, list[tuple[str, str | None]]]:
+    """The reply parsed and checked: its refusals, or the shape reason when it does not parse."""
     try:
         response = StoryResponse.model_validate_json(text)
     except pydantic.ValidationError:
-        return None, [SHAPE_MESSAGE]
-    return response, story_reasons(response, room)
+        return None, [(SHAPE_MESSAGE, None)]
+    return response, _refusals(response, room)
+
+
+@dataclass(frozen=True)
+class Refused:
+    """One refused attempt: each fixed reason beside the line it refused (None when it names no line), for the ops log; the retry prompt gets the reasons only."""
+
+    attempt: int
+    reasons: list[tuple[str, str | None]]
 
 
 @dataclass(frozen=True)
 class Told:
-    """A Room's story and where it came from: the attempt whose lines were kept and their model (both None for the templates), and each answered call's row."""
+    """A Room's story and where it came from: the attempt whose lines were kept and their model (both None for the templates), each answered call's row and each refused attempt."""
 
     story: Story
     attempt: int | None
     model: str | None
     calls: list[CallRow]
+    refused: list[Refused]
 
 
 def tell_story(room: Room, provider: ModelProvider, job_id: JobId) -> Told:
@@ -239,6 +265,7 @@ def tell_story(room: Room, provider: ModelProvider, job_id: JobId) -> Told:
     brief = story_brief(room)
     prompt = build_story_prompt(brief)
     rows: list[CallRow] = []
+    refused: list[Refused] = []
     try:
         for attempt in range(2):
             reply = provider.chat(
@@ -250,13 +277,14 @@ def tell_story(room: Room, provider: ModelProvider, job_id: JobId) -> Told:
                 stage="story",
             )
             rows.append(call_row(reply.receipt, provider, "storyteller", reply.model))
-            response, reasons = _reasons(reply.text, room)
-            if response is not None and not reasons:
-                return Told(_story(response, room), attempt, reply.model, rows)
-            prompt = build_story_retry_prompt(brief, reasons)
+            response, refusals = _checked(reply.text, room)
+            if response is not None and not refusals:
+                return Told(_story(response, room), attempt, reply.model, rows, refused)
+            refused.append(Refused(attempt, refusals))
+            prompt = build_story_retry_prompt(brief, [reason for reason, _ in refusals])
     except Exception as exc:  # noqa: BLE001 - the story never ends a Build: a call that raises leaves the templates
         logger.info(json.dumps({"job_id": job_id, "stage": "story", "fallback": error_code(exc)}))
-    return Told(template_story(room, brief), None, None, rows)
+    return Told(template_story(room, brief), None, None, rows, refused)
 
 
 def run_story(state: JobState, *, provider: ModelProvider, artifacts: ArtifactStore, ledger: LedgerStore) -> StageResult:

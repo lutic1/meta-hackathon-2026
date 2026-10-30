@@ -14,6 +14,7 @@ session's Effective room and passes on the stored build Room, whose
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from typing import NamedTuple
 
 from .schema import (
@@ -81,9 +82,9 @@ def _has_whole(text: str, token: str) -> bool:
     return re.search(rf"(?<!\w){re.escape(token.casefold())}(?!\w)", text.casefold()) is not None
 
 
-def _names_label(text: str, label: str) -> bool:
-    """Whether any label word longer than the floor appears in `text` as a whole word."""
-    words = {word for word in _tokens(label) if len(word) > LABEL_WORD_FLOOR}
+def _names_label(text: str, label: str, shown: frozenset[str] = frozenset()) -> bool:
+    """Whether any label word longer than the floor, and not in `shown`, appears in `text` as a whole word."""
+    words = {word for word in _tokens(label) if len(word) > LABEL_WORD_FLOOR} - shown
     return bool(words & _tokens(text))
 
 
@@ -102,24 +103,29 @@ def _solution_labels(room: Room, puzzle: Puzzle) -> list[str]:
     return [labels[ix_id] for ix_id in ids if ix_id in labels]
 
 
-def _leaks(text: str, puzzle: Puzzle, labels: list[str]) -> int:
-    """How many solution tokens `text` gives away: the code or a digit counts once, each label once."""
+def _leaks(text: str, puzzle: Puzzle, labels: list[str], shown: frozenset[str] = frozenset()) -> int:
+    """How many solution tokens `text` gives away: the code or a digit counts once, each label once (its `shown` words skipped)."""
     solution = puzzle.solution
     if solution.lock_type == "code":
         digits = {ch for ch in solution.code if ch.isdigit()}
         return int(_has_whole(text, solution.code) or bool(digits & _tokens(text)))
-    return sum(_names_label(text, label) for label in labels)
+    return sum(_names_label(text, label, shown) for label in labels)
 
 
-def gives_away(text: str, room: Room) -> bool:
+def gives_away(text: str, room: Room, shown: Iterable[str] = ()) -> bool:
     """Whether `text` holds any Puzzle's solution token or a word of any evidence attribute, by rule 5's matching.
 
     For lines that speak for no single Puzzle (the story): every code and its
     digits, every label a solution names (targets and items) and every word
-    longer than the label floor of every `evidence.visible_attribute`.
+    longer than the label floor of every `evidence.visible_attribute`. A word
+    of a `shown` text (the room's name and area labels, which the player
+    already sees) is skipped when label and attribute words are matched;
+    codes and digits are not.
     """
+    skip = frozenset(word for phrase in shown for word in _tokens(phrase))
     return any(
-        _leaks(text, puzzle, _solution_labels(room, puzzle)) or _names_label(text, puzzle.evidence.visible_attribute)
+        _leaks(text, puzzle, _solution_labels(room, puzzle), skip)
+        or _names_label(text, puzzle.evidence.visible_attribute, skip)
         for puzzle in room.puzzles
     )
 

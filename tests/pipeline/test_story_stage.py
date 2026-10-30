@@ -19,6 +19,7 @@ from src.api.wiring import ROLE_CALLS
 from src.council.storyteller import LINE_MAX, StoryBrief, build_story_prompt
 from src.domain.redact import to_play_view
 from src.domain.schema import JobState, Room, Story, StoryResponse
+from src.domain.validator import validate
 from src.infra.clocks import BuildClock
 from src.pipeline.author import PUZZLES, assemble_provenance, puzzles_key
 from src.pipeline.build import STAGES, Build
@@ -208,6 +209,45 @@ def test_a_good_story_passes_and_only_the_trap_keeps_its_exclamation_mark(four_l
 def test_a_story_with_the_wrong_number_of_riddles_is_refused(four_lock_room):
     reasons = story_reasons(StoryResponse.model_validate_json(story_reply(riddles=GOOD["riddles"][:3])), four_lock_room)
     assert reasons == ["riddles: write exactly 5 riddles."]
+
+
+@pytest.fixture
+def front_hall_room(four_lock_room) -> Room:
+    """The four-lock room shaped like the Demo room: named for its front hall and lounge, a lock's target the double front door."""
+    data = four_lock_room.model_dump()
+    data["name"] = "The front hall and the lounge"
+    for n, photo in enumerate(data["photos"]):
+        photo["area"] = "front hall" if n < 2 else "lounge"
+    for ix in data["interactables"]:
+        if ix["id"] == IX["chest"]:
+            ix["label"] = "double front door"
+    return Room.model_validate(data)
+
+
+def slot_reasons(room: Room, slot: str, line: str) -> list[str]:
+    reasons = story_reasons(StoryResponse.model_validate_json(story_reply(**{slot: line})), room)
+    return [reason for reason in reasons if reason.startswith(f"{slot}: ")]
+
+
+def test_the_area_labels_and_the_room_name_are_not_spoilers(front_hall_room):
+    assert story_brief(front_hall_room).areas == ("front hall", "lounge")
+    assert slot_reasons(front_hall_room, "architect_welcome",
+                        "Thank you for the photos. I built your front hall and lounge from them.") == []
+    assert slot_reasons(front_hall_room, "guide_chest", "Stuck? I keep two hints in the front hall and the lounge.") == []
+
+
+@pytest.mark.parametrize("line", ["I hid the way out behind the front door.", "Mind the door on your way in.",
+                                  "Something double waits for you."])
+def test_a_word_only_in_an_answer_still_refuses_the_line(front_hall_room, line):
+    assert slot_reasons(front_hall_room, "architect_welcome", line) == ["architect_welcome: the line gives part of an answer away."]
+
+
+def test_rule_5_still_refuses_a_clue_naming_an_area_word_of_its_answer(front_hall_room):
+    data = front_hall_room.model_dump()
+    puzzle = next(puzzle for puzzle in data["puzzles"] if puzzle["id"] == PZ["key_on_chest"])
+    puzzle["clue"] = "What hangs on the hook opens something at the front."
+    reasons = validate(Room.model_validate(data)).reasons
+    assert (5, PZ["key_on_chest"], "clue") in {(reason.rule, reason.puzzle_id, reason.field) for reason in reasons}
 
 
 def test_a_leaking_line_is_sent_back_once_with_its_reasons_then_the_templates_stand(seeded, artifacts, ledger, four_lock_room):
