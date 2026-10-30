@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from src.domain.schema import Room
 from tests.api.test_app import make_app
-from tests.web.design import WEB_SRC, css_rules, design_text
+from tests.web.design import WEB_SRC, css_custom_properties, css_rules, design_text
 from tests.web.test_strings import _section, _strings
 
 STORY_CSS = ("components/riddle-note.css", "components/treasure-chest.css", "components/story-stage.css")
@@ -201,12 +201,24 @@ def test_the_pack_and_the_chest_stand_by_the_photo_but_never_leave_the_frame():
     assert chest["right"] == "16px" and chest["container-type"] == "inline-size"
     assert chest["--chest-width"] == "168px"  # the chest over "2 hints for the whole house", the widest label
     assert chest["pointer-events"] == "none" and rules[".treasure-chest > :not(.chest-bubble)"]["pointer-events"] == "auto"
-    # The bubble (250 px) and the dialog (340 px) overhang the box; they slide left by what would overflow it, and
-    # the bubble's tail stays over the chest.
+    # The bubble (250 px) and the dialog (340 px) overhang the box; they slide left by what would overflow it short
+    # of the right turn disc's lane, and the bubble's tail stays over the chest.
     assert rules[".chest-bubble"]["width"] == "250px" and rules[".chest-dialog"]["width"] == "340px"
-    assert rules[".chest-bubble"]["left"] == "min(-10px, calc(100cqw - 250px))"
-    assert rules[".chest-dialog"]["left"] == "min(0px, calc(100cqw - 340px))"
-    assert rules[".chest-bubble::after"]["left"] == "max(40px, calc(280px - 100cqw))"
+    assert rules[".chest-bubble"]["left"] == "min(-10px, calc(100cqw - 250px - var(--turn-lane)))"
+    assert rules[".chest-dialog"]["left"] == "min(0px, calc(100cqw - 340px - var(--turn-lane)))"
+    assert rules[".chest-bubble::after"]["left"] == "max(40px, calc(280px + var(--turn-lane) - 100cqw))"
+
+
+def test_the_chests_bubble_and_dialog_end_12_px_short_of_the_right_turn_disc():
+    # Live replay, Oct 30: at 1024 x 768 the bubble hid "Turn right" and at 1440 x 900 the dialog covered its edge. The
+    # disc stands 24 px in from the frame's edge and is 52 px wide; the chest's box ends 16 px in, so the lane past it
+    # is 24 + 52 - 16 = 60 px, and the bubble and the dialog end 12 px short of that.
+    turn = _rules("scene/walk.css")
+    assert turn[".walk-turn.is-right"]["right"] == "var(--spacing-5)" and turn[".walk-turn"]["width"] == "52px"
+    spacing = int(css_custom_properties()["spacing-5"].removesuffix("px"))
+    chest = _rules("components/treasure-chest.css")[".treasure-chest"]
+    assert chest["right"] == "16px"
+    assert chest["--turn-lane"] == f"{spacing + 52 - 16 + 12}px"
 
 
 def test_the_parts_hang_in_the_frame_in_the_tab_order_and_the_side_column_is_gone():

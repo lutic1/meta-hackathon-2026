@@ -5,9 +5,12 @@
    It never leaves the frame: its box runs from the chest to 16 px short of the frame's right edge, and where the side
    margin is narrower than the chest (a landscape photo nearly as wide as the frame) the chest stands over the photo's
    lower right corner instead. The box is a container, so the bubble and the dialog, which overhang it, slide left by
-   what they would overflow (100cqw is the room left of that edge); only the parts themselves take the pointer. */
+   what they would overflow (100cqw is the room left of that edge), and further by the right turn disc's lane, so they
+   end 12 px short of the disc (52 px wide, 24 px in from the frame's edge: 60 px past the box, plus 12); only the
+   parts themselves take the pointer. */
 .treasure-chest {
   --chest-width: 168px;
+  --turn-lane: 72px;
   position: absolute;
   z-index: 4;
   right: 16px;
@@ -107,7 +110,7 @@
 .chest-dialog {
   position: absolute;
   bottom: calc(100% + 10px);
-  left: min(0px, calc(100cqw - 340px));
+  left: min(0px, calc(100cqw - 340px - var(--turn-lane)));
   box-sizing: border-box;
   width: 340px;
   padding: var(--spacing-4) 18px;
@@ -167,7 +170,7 @@
 .chest-bubble {
   position: absolute;
   bottom: calc(100% + 14px);
-  left: min(-10px, calc(100cqw - 250px));
+  left: min(-10px, calc(100cqw - 250px - var(--turn-lane)));
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   column-gap: 10px;
@@ -188,7 +191,7 @@
   content: '';
   position: absolute;
   top: 100%;
-  left: max(40px, calc(280px - 100cqw)); /* over the chest wherever the bubble slid */
+  left: max(40px, calc(280px + var(--turn-lane) - 100cqw)); /* over the chest wherever the bubble slid */
   width: 18px;
   height: 11px;
   background: var(--parchment);
