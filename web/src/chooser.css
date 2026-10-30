@@ -921,6 +921,9 @@
   width: var(--pw, 980px);
   max-width: calc(100vw - 64px);
   height: var(--ph, auto);
+  /* Capped at its stage: a back taller than the stage scrolls its own body, never runs under the key row. */
+  max-height: 100%;
+  overflow-y: auto;
   padding: 26px 30px;
   border-radius: var(--rounded-lg);
   background: linear-gradient(180deg, #241c15 0%, var(--chrome) 40%);
@@ -1364,6 +1367,26 @@
 .chooser-code-judges {
   margin: var(--spacing-3) 0 0;
   color: var(--parchment);
+}
+/* Under 840 px of window the Build back alone tightens (Watch and Play take their height from the stage in layout()), so
+   at 1024 x 768 the field, "Check code" and a two-line banner all show inside the stage without scrolling. */
+@media (max-height: 840px) {
+  .chooser-panel:has(> :not([hidden]) > .chooser-steps) {
+    padding-block: 18px;
+    gap: var(--spacing-3);
+  }
+  .chooser-steps li {
+    padding-block: 12px;
+  }
+  .chooser-vis {
+    height: 56px;
+  }
+  .chooser-step-title {
+    margin-top: 4px;
+  }
+  .chooser-code-box {
+    padding-block: 12px;
+  }
 }
 
 /* ---------- The footer: the key hints, Watch the intro and Pause motion ---------- */

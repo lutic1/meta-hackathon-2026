@@ -433,6 +433,38 @@ def test_the_build_back_says_under_the_field_that_the_code_is_in_the_submission(
     assert _rules()[".chooser-code-judges"]["color"] == "var(--parchment)"
 
 
+def _px(value: str) -> int:
+    return int(re.findall(r"(\d+)px", value)[0])
+
+
+def test_the_build_back_never_runs_past_its_stage_into_the_key_row():
+    # Review X3, measured in the browser on the unfixed panel: at 1024 x 768 the stage is 554 px tall and the Build back
+    # 524 px before a check, 588 px with the one-line error banner and 616 px with a two-line warning ("Too many tries",
+    # the quota), so it ran up to 62 px under the key row, which is drawn on top.
+    text = re.sub(r"/\*.*?\*/", "", (WEB_SRC / "chooser.css").read_text(), flags=re.DOTALL)
+    media = r"@media \(max-height: 840px\) \{(.*?\n)\}"
+    rules = css_rules(re.sub(media, "", text, flags=re.DOTALL))  # the values above 840 px of window
+    short = css_rules("".join(re.findall(media, text, flags=re.DOTALL)))
+    panel = rules[".chooser-panel"]
+    # Capped at its stage, it scrolls its own body rather than run under the key row, in every state and size.
+    assert panel["max-height"] == "100%" and panel["overflow-y"] == "auto"
+    # Under 840 px of window the Build back alone tightens (Watch and Play take their height from the stage in layout()),
+    # so the field, the banner and "Check code" all show unscrolled at 1024 x 768.
+    build = short[".chooser-panel:has(> :not([hidden]) > .chooser-steps)"]
+    assert (panel["gap"], build["gap"]) == ("var(--spacing-4)", "var(--spacing-3)")  # two gaps, 16 to 12 px each
+    saved = (
+        2 * (_px(panel["padding"]) - _px(build["padding-block"]))
+        + 2 * (16 - 12)
+        + 2 * (_px(rules[".chooser-steps li"]["padding"]) - _px(short[".chooser-steps li"]["padding-block"]))
+        + _px(rules[".chooser-vis"]["height"]) - _px(short[".chooser-vis"]["height"])
+        + _px(rules[".chooser-step-title"]["margin-top"]) - _px(short[".chooser-step-title"]["margin-top"])
+        + 2 * (_px(rules[".chooser-code-box"]["padding"]) - _px(short[".chooser-code-box"]["padding-block"]))
+    )
+    assert 616 - saved <= 554 - 4, saved
+    # The step pictures still fit: the photo thumbnails are 56 px tall.
+    assert _px(short[".chooser-vis"]["height"]) >= 56
+
+
 def test_the_chooser_text_meets_the_reviewer_s_minimum_sizes():
     rules = _rules()
     # Card descriptions: at least 16 px at 1440, growing at 1920.
