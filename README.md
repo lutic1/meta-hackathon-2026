@@ -200,9 +200,10 @@ chosen (`main` or `dev`, default `main`):
 - `patch-demo-room` (needs `room_id`): `scripts/patch_demo_room.py`
   applies `ops/patches/<room_id>.json` (on master) to that Demo room's
   outlines, a dry run unless `confirm` is the word `patch`. Each entry
-  replaces one Interactable's polygons, its `instances` and its `box`;
-  an id that is not a Demo room, an unknown Interactable id, a polygon
-  with fewer than 3 points, a point outside its photo's frame or a Room
+  replaces one Interactable's polygons, its `instances` and its `box`,
+  and an entry naming a `photo` moves the Interactable to that photo;
+  an id that is not a Demo room, an unknown Interactable id or photo, a
+  polygon with fewer than 3 points, a point outside its photo's frame or a Room
   the validator refuses (rules 1 to 8) is refused with nothing written.
   Only `room.json` is rewritten, then read back; `job.json` keeps the
   pipeline's own output.

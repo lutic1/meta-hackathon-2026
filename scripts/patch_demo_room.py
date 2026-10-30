@@ -16,13 +16,16 @@ polygon with fewer than 3 points or a point outside its photo's frame
 refuses the run; so does a patched Room the validator refuses (rules 1 to
 8, AD-12). Each entry replaces that Interactable's `polygons`, sets
 `instances` to their number and `box` to their bounding box; the client
-never reads `box` (AD-11). A patch may also carry `photos` (amended 29 Oct
+never reads `box` (AD-11). An entry may also carry `photo` (amended 30 Oct
+2026): the Interactable moves to that photo, its polygons drawn in that
+photo's pixels; a photo the Room lacks refuses the run, and a riddle's
+start photo follows its target there by itself. A patch may also carry `photos` (amended 29 Oct
 2026, story mode): `{photo, area, pan}` for every photo of the Room exactly
 once, setting each photo's area and left-to-right pan; one that misses a
 photo or names one twice or one the Room lacks refuses the run. Nothing else
 in the Room changes.
 
-`--dry-run` prints, per entry, the old and new bounds and polygon counts
+`--dry-run` prints, per entry, any move (`photo 5 -> 2`), the old and new bounds and polygon counts
 and the validator verdict, and writes nothing. A real run overwrites
 `room.json` alone in one `batch_upload(force=True)`, reads it back and
 checks it equals what was written: `job.json` keeps the pipeline's own
@@ -68,10 +71,11 @@ class Volume(Protocol):
 
 
 class OutlinePatch(Model):
-    """One Interactable's hand-drawn outlines: one polygon per instance."""
+    """One Interactable's hand-drawn outlines, one polygon per instance, and the photo it moves to, if any."""
 
     id: InteractableId
     polygons: list[Polygon]
+    photo: int | None = Field(default=None, ge=0)
 
 
 class PhotoAreaPatch(Model):
@@ -117,19 +121,24 @@ def bounding_box(polygons: list[Polygon]) -> Box:
 
 
 def patched(room: Room, patch: RoomPatch, sizes: dict[int, tuple[int, int]]) -> Room:
-    """The Room with each entry's outlines in place; an unknown id, a short polygon, a point off its frame or a validator refusal raises `PatchRefused`."""
+    """The Room with each entry's outlines in place, on its new photo if it names one; an unknown id or photo, a short polygon, a point off its frame or a validator refusal raises `PatchRefused`."""
     by_id = {ix.id: ix for ix in room.interactables}
     replaced = dict(by_id)
     for entry in patch.interactables:
         ix = by_id.get(entry.id)
         if ix is None:
             raise PatchRefused(f"{room.id}: no Interactable {entry.id} in this Room")
+        photo = ix.photo if entry.photo is None else entry.photo
+        if photo >= len(room.photos):
+            raise PatchRefused(f"{room.id}: {entry.id} moves to photo {photo}, but there is no photo {photo} in this Room")
         if not entry.polygons or any(len(polygon) < 3 for polygon in entry.polygons):
             raise PatchRefused(f"{room.id}: {entry.id} has a polygon with fewer than 3 points")
-        width, height = sizes[ix.photo]
+        width, height = sizes[photo]
         if any(not (0 <= x <= width and 0 <= y <= height) for polygon in entry.polygons for x, y in polygon):
-            raise PatchRefused(f"{room.id}: {entry.id} has a point outside photo {ix.photo}'s {width} x {height} frame")
-        replaced[ix.id] = ix.model_copy(update={"polygons": entry.polygons, "instances": len(entry.polygons), "box": bounding_box(entry.polygons)})
+            raise PatchRefused(f"{room.id}: {entry.id} has a point outside photo {photo}'s {width} x {height} frame")
+        replaced[ix.id] = ix.model_copy(
+            update={"photo": photo, "polygons": entry.polygons, "instances": len(entry.polygons), "box": bounding_box(entry.polygons)}
+        )
     photos = room.photos
     if patch.photos:
         if sorted(entry.photo for entry in patch.photos) != list(range(len(room.photos))):
@@ -158,7 +167,8 @@ def plan(volume: Volume, room_id: str, patch: RoomPatch) -> tuple[Room, Room]:
     if room is None:
         raise PatchRefused(f"{room_id}: no Demo room is stored under {DEMO_PREFIX}/")
     by_id = {ix.id: ix for ix in room.interactables}
-    photos = {by_id[entry.id].photo for entry in patch.interactables if entry.id in by_id}
+    named = {by_id[entry.id].photo if entry.photo is None else entry.photo for entry in patch.interactables if entry.id in by_id}
+    photos = {index for index in named if index < len(room.photos)}  # `patched` refuses a photo the Room lacks
     return room, patched(room, patch, frame_sizes(volume, room, photos))
 
 
@@ -176,15 +186,18 @@ def write(volume: Volume, room: Room) -> None:
 
 
 def changes(before: Room, after: Room, patch: RoomPatch) -> list[str]:
-    """One line per entry: the Interactable, its old and new bounds and its old and new polygon counts."""
+    """One line per entry: the Interactable, its photo (and any move), its old and new bounds and its old and new polygon counts."""
     old = {ix.id: ix for ix in before.interactables}
     new = {ix.id: ix for ix in after.interactables}
 
     def box(value: Box) -> str:
         return "[" + ", ".join(f"{v:.1f}" for v in value) + "]"
 
+    def photo(ix_id: str) -> str:
+        return f"{old[ix_id].photo}" if old[ix_id].photo == new[ix_id].photo else f"{old[ix_id].photo} -> {new[ix_id].photo}"
+
     return [
-        f"{entry.id} {old[entry.id].label!r} on photo {old[entry.id].photo}: box {box(old[entry.id].box)} -> {box(new[entry.id].box)}, "
+        f"{entry.id} {old[entry.id].label!r} on photo {photo(entry.id)}: box {box(old[entry.id].box)} -> {box(new[entry.id].box)}, "
         f"polygons {len(old[entry.id].polygons or [])} -> {len(new[entry.id].polygons or [])}"
         for entry in patch.interactables
     ]

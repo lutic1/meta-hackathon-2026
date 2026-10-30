@@ -24,6 +24,9 @@ SCRIPT = REPO / "scripts/patch_demo_room.py"
 DEMO_ROOM = "room_01M61TZ74F0FP3X9HHTMXGTPB9"
 VENT = "ix_01M61V1ACGZFANRYAX39W29673"
 PILLOWS = "ix_01M61V1ACGTGK2QA16BZP494AC"
+CLOCK = "ix_01M61V1ACGDJP2ARZ8E0ZGYEN5"
+TRAY = "ix_01M61V1ACGP7FT9JZY9Y22P8JR"
+DOOR = "ix_01M61V1ACGVQQTEZ4D9S1PYPJM"
 
 
 def _load():
@@ -88,6 +91,12 @@ def write_patch(tmp_path: Path, *entries: tuple[str, Any]) -> Path:
     return path
 
 
+def write_move(tmp_path: Path, ix_id: str, photo: int, polygons: Any) -> Path:
+    path = tmp_path / "move.json"
+    path.write_text(json.dumps({"reason": "Moved in a test.", "interactables": [{"id": ix_id, "photo": photo, "polygons": polygons}]}))
+    return path
+
+
 def stored(mount: Path, room: Room) -> Room:
     return Room.model_validate_json((mount / "rooms/demo" / room_key(room.id)).read_bytes())
 
@@ -136,6 +145,44 @@ def test_a_write_that_does_not_read_back_equal_exits_1(monkeypatch, tmp_path, vo
     monkeypatch.setattr(volume, "read_file", stale_read)
     assert run(monkeypatch, volume, demo.id, write_patch(tmp_path, (KEY, TWO))) == 1
     assert "read back" in capsys.readouterr().err
+
+
+# --- A move ------------------------------------------------------------------------
+
+PORTRAIT = [[[100, 900], [500, 900], [500, 1200], [100, 1200]]]  # inside photo 2's 960 x 1280 frame, not photo 1's 1280 x 960
+
+
+def test_an_entry_with_a_photo_moves_the_interactable_there_with_its_polygons_count_and_bounds(monkeypatch, tmp_path, volume, mount, demo):
+    assert run(monkeypatch, volume, demo.id, write_move(tmp_path, KEY, 2, PORTRAIT)) == 0
+    chest = next(ix for ix in stored(mount, demo).interactables if ix.id == KEY)
+    assert chest.photo == 2 and chest.instances == 1 and chest.box == (100, 900, 500, 1200)
+    assert chest.polygons == [[tuple(map(float, point)) for point in polygon] for polygon in PORTRAIT]
+    old = next(ix for ix in demo.interactables if ix.id == KEY)
+    assert chest.model_dump(exclude={"photo", "box", "polygons", "instances"}) == old.model_dump(exclude={"photo", "box", "polygons", "instances"})
+
+
+def test_the_dry_run_prints_the_move(monkeypatch, tmp_path, volume, mount, demo, capsys):
+    before = snapshot(mount / "rooms/demo")
+    assert run(monkeypatch, volume, demo.id, write_move(tmp_path, KEY, 2, PORTRAIT), "--dry-run") == 0
+    assert f"{KEY} 'wooden chest' on photo 1 -> 2: box [380.0, 480.0, 900.0, 820.0] -> [100.0, 900.0, 500.0, 1200.0]" in capsys.readouterr().out
+    assert volume.forces == [] and snapshot(mount / "rooms/demo") == before
+
+
+@pytest.mark.parametrize(
+    ("photo", "polygons", "message"),
+    [
+        (6, PORTRAIT, "no photo 6 in this Room"),
+        (2, [[[100, 900], [1000, 900], [500, 1200]]], "outside photo 2's 960 x 1280 frame"),
+    ],
+    ids=["photo the room lacks", "point off the new photo"],
+)
+@pytest.mark.parametrize("flags", [(), ("--dry-run",)])
+def test_a_move_to_a_photo_the_room_lacks_or_off_its_frame_is_refused(monkeypatch, tmp_path, volume, mount, demo, capsys, photo, polygons, message, flags):
+    before = snapshot(mount / "rooms/demo")
+    assert run(monkeypatch, volume, demo.id, write_move(tmp_path, KEY, photo, polygons), *flags) == 1
+    err = capsys.readouterr().err
+    assert "refused, nothing written" in err and message in err
+    assert volume.forces == [] and snapshot(mount / "rooms/demo") == before
 
 
 # --- The dry run ------------------------------------------------------------------
@@ -217,7 +264,7 @@ def test_the_committed_patch_reoutlines_the_vent_and_both_pillow_pairs_in_the_96
     patch = patcher.load_patch(REPO / "ops/patches" / f"{DEMO_ROOM}.json")
     assert patch.reason.startswith("Hand-corrected 29 Oct 2026:") and "job.json keeps the pipeline's original output" in patch.reason
     entries = {entry.id: entry.polygons for entry in patch.interactables}
-    assert list(entries) == [VENT, PILLOWS]
+    assert list(entries) == [VENT, PILLOWS, CLOCK, TRAY, DOOR]
     assert entries[VENT] == [[(200, 1084), (253, 1071), (233, 1176), (168, 1190)]]
     corner, left = entries[PILLOWS]  # the corner-bend pair the riddle points at first: the Evidence card crops it
     assert corner[0] == (648, 725) and left[0] == (299, 669)
@@ -235,6 +282,17 @@ def test_the_committed_patch_seeds_the_front_hall_and_the_lounge_with_their_left
     _, left = dict((entry.id, entry.polygons) for entry in patch.interactables)[PILLOWS]
     assert left == [(299, 669), (335, 656), (352, 666), (380, 660), (391, 670), (408, 700), (365, 710), (347, 706),
                     (320, 717), (309, 705)]
+
+
+def test_the_committed_patch_moves_the_clock_and_the_tray_to_photo_2_and_the_door_to_photo_0():
+    """Where players look for them: the clock and the tray show in the riddle 1 view, the door head-on in the entryway."""
+    patch = patcher.load_patch(REPO / "ops/patches" / f"{DEMO_ROOM}.json")
+    assert "moved" in patch.reason
+    moves = {entry.id: entry.photo for entry in patch.interactables}
+    assert moves == {VENT: None, PILLOWS: None, CLOCK: 2, TRAY: 2, DOOR: 0}
+    entries = {entry.id: entry.polygons for entry in patch.interactables}
+    assert entries[DOOR] == [[(333, 479), (682, 479), (682, 899), (343, 948)]]
+    assert entries[CLOCK][0][0] == (567, 493) and entries[TRAY][0][0] == (420, 800)
 
 
 def write_areas(tmp_path: Path, photos: list[dict[str, Any]]) -> Path:
