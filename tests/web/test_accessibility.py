@@ -150,7 +150,10 @@ def test_exactly_one_polite_live_region_and_only_the_welcome_sign_off_feedback_l
         "web/src/components/wizard-notes.ts",  # the Puzzles a lock opening made available (owner decision 68)
         "web/src/components/narrow-screen-message.ts",  # the copied-link confirmation
         "web/src/chooser.ts",  # the Hosted landing's card announcement, once the pointer settles on a card
+        "web/src/components/walk-map.ts",  # the view description after every move (story mode)
     }
+    assert "if (said !== undefined) announce(said)" in sources["web/src/components/walk-map.ts"]
+    assert "mapView?.setCurrent(index, moved ? viewDescription(areas, room, index) : undefined)" in sources["web/src/scene/index.ts"]
     assert "announce(line)" in sources["web/src/chooser.ts"]
     assert "const line = fill(strings.cardAnnounce, { title: titles[i], n: i + 1 })" in sources["web/src/chooser.ts"]
     assert "announce(strings.reconnectingBuild)" in sources["web/src/build-progress.ts"]
@@ -175,13 +178,16 @@ def test_lock_outcomes_are_announced_once_per_reply_never_checking_and_nothing_a
 
 def test_keyboard_order_follows_the_page_and_there_are_no_single_key_shortcuts():
     shell, play, scene = _ts("shell.ts"), _ts("play.ts"), _ts("scene/index.ts")
-    # Top bar, then the Scene column (Scene frame, Thumbnail strip, Inventory), then the side column (Wizard notes).
+    # Top bar, then the Scene column (the Scene frame with its Hotspots, doorway signs, turn discs and walk map, then
+    # the Inventory), then the side column (Wizard notes).
     assert "show(bar.element, body.element, ...(banner === null ? [] : [banner]))" in shell
     assert "element.append(sceneColumn, sideColumn)" in shell
-    assert "root.append(frame)" in scene and "sceneColumn.append(stripRow)" in play
-    assert "stripRow.prepend(strip.element)" in scene and "stripRow.append(held.element)" in play
+    assert "root.append(frame)" in scene and "sceneColumn.append(stage, stripRow)" in play
+    assert "frame.append(ground, feedback.element, turns.left, turns.right)" in scene
+    assert "view.append(zones.left, zones.right, photo)" in scene and "view.append(...signs)" in scene
+    assert "frame.append(mapView.element)" in scene and "stripRow.append(held.element)" in play
     assert "sideColumn.append(notes.element)" in play
-    # The Inventory and the Wizard notes are Tab stops of their own, in that order after the strip.
+    # The Inventory and the Wizard notes are Tab stops of their own, in that order after the Scene.
     assert "element.tabIndex = 0" in _ts("components/inventory.ts")
     assert "element.tabIndex = 0" in _ts("components/wizard-notes.ts")
     # No positive tabindex anywhere, so the DOM order is the Tab order.
@@ -191,8 +197,13 @@ def test_keyboard_order_follows_the_page_and_there_are_no_single_key_shortcuts()
         assert "accessKey" not in code and "accesskey" not in code, path
         keys = set(re.findall(r"event\.key [!=]== '([^']+)'", code))
         assert keys <= {"Enter", "Tab", "Escape"}, f"{path} listens for {keys}"
-        if not path.endswith("web/src/chooser.ts"):
+        if not path.endswith(("web/src/chooser.ts", "web/src/walk.ts")):
             assert not re.search(r"\b(?:ArrowRight|ArrowLeft|ArrowUp|ArrowDown|Home|End):", code), path
+    # The walk's keys (story mode, owner decision Oct 29): ArrowLeft and ArrowRight turn, ArrowUp goes through the
+    # doorway, read only through `walkKey` (test_walk.py).
+    walk = _code(_ts("walk.ts"))
+    assert "{ ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'door' }" in walk
+    assert [path for path, text in source_ts().items() if "walkKey(" in _code(text)] == ["web/src/scene/index.ts", "web/src/walk.ts"]
     # The one roving group: the Hosted landing's three cards take the arrows, Home and End, only while a card has focus
     # (owner decision Oct 29); no other key moves anything.
     roving = _code(_ts("chooser.ts")).split("button.addEventListener('keydown', (event) => {", 1)[1].split("\n    })", 1)[0]

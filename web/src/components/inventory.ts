@@ -38,7 +38,7 @@ export function inventory(room: PlayView, selection: UseOnSelection): InventoryT
   const element = document.createElement('ul')
   element.className = 'inventory'
   element.setAttribute('aria-label', strings.inventory)
-  element.tabIndex = 0 // its place in the Play screen's Tab order, after the Thumbnail strip (UX-DR71)
+  element.tabIndex = 0 // its place in the Play screen's Tab order, after the Scene (UX-DR71)
   const interactables = new Map(room.interactables.map((interactable) => [interactable.id, interactable]))
   let drawn: string | undefined
   let buttons: HTMLButtonElement[] = []

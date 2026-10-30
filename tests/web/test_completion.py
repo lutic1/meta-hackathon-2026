@@ -197,8 +197,8 @@ def test_the_dimmed_play_screen_is_inert_and_never_polls_or_posts():
     assert "sceneColumn.inert = true" in completion and "sideColumn.inert = true" in completion
     behind = _function(_code("play.ts"), "mountPlayBehind")
     assert "Worker" not in behind and "getSession" not in behind and "postEvent" not in behind
-    assert "mountScene(sceneColumn, stripRow, play, room, lastShownPhoto(session.id))" in behind
-    assert "shownPhoto.set(play.id, index)" in _code("scene/index.ts")
+    assert "mountScene(sceneColumn, play, room, () => lastShownPhoto(session.id))" in behind
+    assert "shownPhoto.set(play.id, index)" in _code("scene/index.ts") and "shownPhoto.set(play.id, to)" in _code("scene/index.ts")
 
 
 def test_the_heading_takes_focus_and_the_sign_off_is_announced_once():

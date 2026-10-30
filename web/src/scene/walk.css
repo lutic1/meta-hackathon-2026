@@ -1,0 +1,245 @@
+/* The walk (story mode, owner decision Oct 29; DESIGN.md Motion, the walk and story exception): the photo you face
+   stands in the middle of the Scene with the views either side of it as dimmed walls, angled away in a 1500 px
+   perspective; a turn swings them round in 780 ms, a doorway pushes through in 900 ms, and at rest the photo you face
+   pushes in 3.5% over 26 s and drifts a few pixels against the pointer. Every one of them is off under reduced
+   motion: a move is a cut. The poses come from walk.ts (`wallPose`); every wall is the size of the photo you face
+   (--wall-width, --wall-height, set by the Scene), and only that photo takes input. */
+.scene-world {
+  position: absolute;
+  inset: 0;
+  perspective: 1500px;
+  perspective-origin: 50% 50%;
+}
+.scene-wall {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--wall-width);
+  height: var(--wall-height);
+  margin: calc(var(--wall-height) / -2) 0 0 calc(var(--wall-width) / -2);
+  transform-style: preserve-3d;
+}
+.scene-world.is-turning .scene-wall {
+  transition:
+    transform 780ms cubic-bezier(0.55, 0.05, 0.25, 1),
+    opacity 780ms ease;
+  animation: walk-blur 780ms ease-in-out 1;
+}
+@keyframes walk-blur {
+  0%,
+  100% {
+    filter: blur(0);
+  }
+  45% {
+    filter: blur(2px);
+  }
+}
+.scene-wall-drift {
+  position: absolute;
+  inset: 0;
+  transition: transform 500ms ease;
+}
+.scene-wall-rest {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 55%;
+}
+.scene-wall.is-centre .scene-wall-rest.is-resting {
+  animation: walk-rest 26s cubic-bezier(0.3, 0, 0.4, 1) forwards;
+}
+@keyframes walk-rest {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.035);
+  }
+}
+.scene-wall-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--rounded-sm);
+  object-fit: cover;
+  user-select: none;
+}
+/* The walls darken toward their far edge; the photo you face is never darkened. */
+.scene-wall-shade {
+  position: absolute;
+  inset: -1px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 780ms ease;
+}
+.scene-wall.is-left .scene-wall-shade {
+  opacity: 1;
+  background: linear-gradient(to left, color-mix(in srgb, var(--canvas) 55%, transparent) 0%,
+      color-mix(in srgb, var(--canvas) 85%, transparent) 55%, var(--canvas) 100%);
+}
+.scene-wall.is-right .scene-wall-shade {
+  opacity: 1;
+  background: linear-gradient(to right, color-mix(in srgb, var(--canvas) 55%, transparent) 0%,
+      color-mix(in srgb, var(--canvas) 85%, transparent) 55%, var(--canvas) 100%);
+}
+/* A push-in's outgoing area, finishing over the incoming one. */
+.scene-world.is-leaving {
+  pointer-events: none;
+}
+
+/* The view on the wall you face: the turn zones, the photo with its Hotspots, the doorway signs. */
+.scene-view {
+  position: absolute;
+  inset: 0;
+}
+.scene-view[hidden] {
+  display: none;
+}
+/* The outer fifth of the photo either side turns you, under the Hotspots, its cursor a lamp-ringed curved arrow
+   (web/public/cursors); off at the ring's ends. */
+.walk-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20%;
+}
+.walk-zone[hidden] {
+  display: none;
+}
+.walk-zone.is-left {
+  left: 0;
+  cursor: url('/cursors/turn-left.svg') 18 18, pointer;
+}
+.walk-zone.is-right {
+  right: 0;
+  cursor: url('/cursors/turn-right.svg') 18 18, pointer;
+}
+.walk-zone::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-hover) var(--motion-ease);
+}
+.walk-zone.is-left::after {
+  left: 0;
+  background: linear-gradient(to right, color-mix(in srgb, var(--canvas) 60%, transparent), transparent);
+}
+.walk-zone.is-right::after {
+  right: 0;
+  background: linear-gradient(to left, color-mix(in srgb, var(--canvas) 60%, transparent), transparent);
+}
+.walk-zone:hover::after {
+  opacity: 1;
+}
+
+/* The doorway sign: a gilt plaque hanging by two chains from the photo's top edge, placed clear of every Hotspot. */
+.walk-door {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 6px 6px;
+  border: 0;
+  border-radius: 0 0 10px 10px;
+  background: none;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+.walk-door-chains {
+  width: 70%;
+  height: 14px;
+  border-right: 1.5px solid color-mix(in srgb, var(--gilt) 80%, transparent);
+  border-left: 1.5px solid color-mix(in srgb, var(--gilt) 80%, transparent);
+}
+.walk-door-sign {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) 14px var(--spacing-2) 11px;
+  border-radius: 6px;
+  background: linear-gradient(#C9A464, #9C7A43);
+  color: var(--on-lamp);
+  box-shadow: 0 0 0 1px #6B5433, 0 8px 18px #0A0806AA;
+  font: 500 18px/1 var(--font-serif);
+  white-space: nowrap;
+}
+.walk-door-sign svg {
+  flex: none;
+}
+.walk-door-sign kbd {
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--on-lamp) 40%, transparent);
+  border-radius: var(--rounded-sm);
+  color: #3B2A12;
+  font: 600 11px/1 var(--font-sans);
+}
+.walk-door:hover .walk-door-sign {
+  background: linear-gradient(#DDB874, #AE8A50);
+  filter: drop-shadow(0 0 12px #E9A94BA6);
+}
+
+/* The turn discs: 52 px chrome discs at the Scene's edges, 58% down, hidden at the ring's ends; the name shows under
+   the disc on hover and focus. */
+.walk-turn {
+  position: absolute;
+  z-index: 2;
+  top: 58%;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-top: -26px;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-full);
+  background: color-mix(in srgb, var(--chrome) 85%, transparent);
+  color: var(--lamp-strong);
+  cursor: pointer;
+  transition: border-color var(--motion-hover) var(--motion-ease), background-color var(--motion-hover) var(--motion-ease);
+}
+.walk-turn[hidden] {
+  display: none;
+}
+.walk-turn.is-left {
+  left: var(--spacing-5);
+}
+.walk-turn.is-right {
+  right: var(--spacing-5);
+}
+.walk-turn:hover {
+  border-color: var(--lamp);
+  background-color: var(--chrome-raised);
+}
+.walk-turn-tip {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  color: var(--text-muted);
+  font: 600 13px/1 var(--font-sans);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity var(--motion-hover) var(--motion-ease);
+}
+.walk-turn:hover .walk-turn-tip,
+.walk-turn:focus-visible .walk-turn-tip {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-world.is-turning .scene-wall,
+  .scene-wall.is-centre .scene-wall-rest.is-resting {
+    animation: none;
+  }
+  .scene-world.is-turning .scene-wall,
+  .scene-wall-drift,
+  .scene-wall-shade {
+    transition: none;
+  }
+}

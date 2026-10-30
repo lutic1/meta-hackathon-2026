@@ -89,18 +89,16 @@ def test_a_changed_room_revision_refetches_the_room_once_and_redraws_the_notes_a
 
 def test_the_scene_keeps_its_photo_and_lays_changed_hotspots_again_with_focus_on_the_same_one():
     scene = _ts("scene/index.ts")
-    reshape = _nested(scene, "function reshape(view: PlayView): void {")
-    assert "room = view" in reshape
-    assert "if (before === undefined || size === undefined || photo.hidden || layer === undefined) return" in reshape
+    reshape = _nested(scene, "function reshape(next: PlayView): void {")
+    assert "room = next" in reshape
+    assert "if (before === undefined || size === undefined || view.hidden || layer === undefined) return" in reshape
     # The shown photo's Hotspots are laid again only when its Interactables changed, so focus stays put otherwise.
-    assert "if (on(before) === on(view)) return" in reshape
+    assert "if (on(before) === on(next)) return" in reshape
     assert "const focused = svg.contains(document.activeElement) ? document.activeElement?.id : undefined" in reshape
-    assert "layHotspots(view, size, current)" in reshape
+    assert "layHotspots(next, size, current)" in reshape and "laySigns(next, size, current)" in reshape
     assert "layer.elements[0].querySelector<SVGElement>(`[id=\"${focused}\"]`)?.focus()" in reshape
-    # The strip stays; only its object counts are redrawn in place from the new Room (playtest Oct 29).
-    assert "strip?.setCounts(objectCounts(view))" in reshape
-    kept = reshape.replace("strip?.setCounts(objectCounts(view))", "")
-    assert "show(" not in kept and "strip" not in kept and "useOn" not in kept
+    # The photo, the walk and the selection stay: nothing walks, nothing is posed again (story mode).
+    assert "show(" not in reshape and "walk(" not in reshape and "pose(" not in reshape and "useOn" not in reshape
     assert "return { unmount, reshape, lastTarget: () => lastTarget, bloom, say: feedback.say }" in scene
 
 

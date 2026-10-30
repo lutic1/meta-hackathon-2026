@@ -175,7 +175,7 @@ def test_the_line_sits_over_the_bottom_of_the_scene_frame_with_the_guide_and_fad
     say = _function(line, "feedbackLine").split("function say(", 1)[1]
     assert "fadeIn(element)" in say and "setTimeout(() => element.classList.remove('is-shown'), FEEDBACK_HOLD_MS)" in say
     scene = _ts("scene/index.ts")
-    assert "const feedback = feedbackLine()" in scene and "frame.append(ground, feedback.element)" in scene
+    assert "const feedback = feedbackLine()" in scene and "frame.append(ground, feedback.element, turns.left, turns.right)" in scene
     assert "say: feedback.say" in scene
     rules = css_rules(_ts("components/feedback-line.css"))
     strip = rules[".feedback-line"]

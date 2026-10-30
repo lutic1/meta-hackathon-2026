@@ -159,7 +159,9 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     if (hotspot === undefined || (release !== undefined && hold !== 'pending')) return () => undefined
     hide?.()
     release?.()
-    const rendered = svg.getBoundingClientRect()
+    const drawn = svg.getBoundingClientRect()
+    // Its laid-out size, not the drawn one: the walk's slow push-in at rest scales the photo, the chip with it.
+    const rendered = { width: svg.clientWidth || drawn.width, height: svg.clientHeight || drawn.height }
     const scale = rendered.width / photo.width
     const [left, top] = topLeft(interactable.polygons ?? [])
     if (typeof text === 'string') chip.textContent = text

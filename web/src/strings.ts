@@ -1,8 +1,8 @@
 // Every client-authored user-facing string, copied verbatim from EXPERIENCE.md Voice and Tone (UX-DR73, UX-DR75);
 // a few lines EXPERIENCE.md gives only in Component Patterns (the Stored Room row, the Wizard portrait's speaker
 // prefixes, the Build view rows and its JSON toggle, the Code field's Submit, a Trickster card's "Dismiss card") or State Patterns (the Build view states, the Completion
-// screen's error line). EXPERIENCE.md words no Scene loading line and no thumbnail name, so the loading line reuses the "Setting
-// the scene" stage name, and a thumbnail is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb. The Inventory,
+// screen's error line). EXPERIENCE.md words no Scene loading line and no mask tile name, so the loading line reuses the "Setting
+// the scene" stage name, and a mask tile is named "Photo {n}", the photo tray's "Remove photo {n}" without its verb. The Inventory,
 // the Wizard notes and the Hint area take their component names as their accessible names. A `{name}` placeholder stands where
 // the source shows a placeholder or an example value; the First-room welcome's live-region text, worded only in
 // Component Patterns, names its placeholders as that row does. The live-region lines for Cards are worded only in the
@@ -72,9 +72,14 @@ export const strings = {
   sceneUnavailableBody: "Turn on hardware acceleration in the browser's settings, then reload.",
   reload: 'Reload',
   photoThumbnail: 'Photo {n}',
-  photoObjects: '{k} objects',
-  photoObject: '1 object',
-  photoNoObjects: 'no objects',
+  turnLeft: 'Turn left',
+  turnRight: 'Turn right',
+  whereYouAre: 'Where you are',
+  toArea: 'To the {area}',
+  toAreaThroughDoorway: 'To the {area}, through the doorway',
+  photoView: '{Area}, view {i} of {n}',
+  viewHere: '{Area}, view {i} of {n}. Here: {labels}.',
+  viewNothingHere: '{Area}, view {i} of {n}. Nothing outlined here.',
   photosToPlay: 'Photos to play',
   playableIn: 'Playable in',
   uploadFailedStatus: 'Upload failed',

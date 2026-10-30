@@ -37,8 +37,8 @@
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 }
-/* The Scene column: the Scene frame filling the height over the 88 px row of the Thumbnail strip (flexible, left)
-   and the Inventory (about 288 px, right, beside the Scene it drags onto), 24 px apart. */
+/* The Scene column: the Scene frame filling the height over the 88 px row of the Inventory (about 288 px, right,
+   beside the Scene it drags onto). */
 .scene-column {
   display: grid;
   grid-template-rows: minmax(0, 1fr) var(--spacing-thumbnail-strip);
@@ -48,7 +48,7 @@
 }
 /* The Scene stage: the reconnecting strip (32 px) on top and the Scene frame taking the rest, so the strip never
    covers the photo or a Hotspot; it positions the play-through-ended box over the frame. While reconnecting or ended
-   the photo dims to 60%. */
+   the photo and its walls dim to 60%. */
 .scene-stage {
   position: relative;
   display: flex;
@@ -62,10 +62,10 @@
 .scene-stage > .scene-frame {
   flex: 1 1 0;
 }
-.scene-stage .scene-photo {
+.scene-stage .scene-world {
   transition: opacity var(--motion-state) var(--motion-ease);
 }
-.scene-stage.is-dimmed .scene-photo {
+.scene-stage.is-dimmed .scene-world {
   opacity: 0.6;
 }
 .scene-strip-row {

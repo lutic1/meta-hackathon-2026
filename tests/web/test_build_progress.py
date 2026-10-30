@@ -17,7 +17,7 @@ from src.domain.schema import JobState, Stage, StageRecord
 from src.pipeline.architect import ARCHITECT_MODEL
 from src.pipeline.build import STAGES
 from src.pipeline.segment import SEGMENT_MODEL
-from tests.web.design import REPO, WEB_SRC, css_rules, design_text, source_css
+from tests.web.design import REPO, WALK_CSS, WEB_SRC, css_rules, design_text, source_css
 
 COMPONENTS = WEB_SRC / "components"
 
@@ -405,7 +405,7 @@ def test_the_fades_are_200_ms_opacity_transitions_instant_under_reduced_motion()
     reduced = tokens.split("@media (prefers-reduced-motion: reduce)", 1)[1]
     assert "--motion-state: 0ms;" in reduced and "transition-duration: 0ms !important;" in reduced
     for path, text in source_css().items():
-        if path.endswith("web/src/chooser.css"):  # the owner's one exception (DESIGN.md Motion), test_chooser.py
+        if path.endswith("web/src/chooser.css") or path in WALK_CSS:  # the owner's exceptions (DESIGN.md Motion)
             continue
         assert "@keyframes" not in text and "animation" not in text, path
 

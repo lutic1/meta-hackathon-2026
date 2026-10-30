@@ -39,12 +39,19 @@
   margin: 0;
   color: var(--text-muted);
 }
+/* The photo you face fills its wall; it takes no pointer itself, so the turn zones under it answer wherever no
+   Hotspot is. While loading, the walls wait unseen behind the line. */
 .scene-photo {
-  grid-area: 1 / 1;
-  position: relative;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 .scene-photo canvas {
+  display: block;
   border-radius: var(--rounded-sm);
+}
+.scene-frame.is-loading .scene-world {
+  visibility: hidden;
 }
 
 /* {components.hotspot}: invisible at rest, a pointer cursor on its polygons only. Hover reveals the 3 px lamp

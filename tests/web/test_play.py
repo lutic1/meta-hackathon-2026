@@ -405,7 +405,7 @@ def test_the_strip_sits_above_the_scene_frame_which_shrinks_by_its_height_and_th
     assert stage["display"] == "flex" and stage["flex-direction"] == "column" and stage["position"] == "relative"
     assert rules[".scene-stage > .status-strip"] == {"flex": "none"}
     assert rules[".scene-stage > .scene-frame"] == {"flex": "1 1 0"}
-    assert rules[".scene-stage.is-dimmed .scene-photo"] == {"opacity": "0.6"}
+    assert rules[".scene-stage.is-dimmed .scene-world"] == {"opacity": "0.6"}  # the photo and its walls
     assert "sceneColumn.append(stage, stripRow)" in _ts("play.ts")
     assert "status-strip: 32px" in design_text()
 
@@ -474,7 +474,7 @@ def test_an_unknown_session_and_an_unknown_room_answer_404_with_their_codes(clie
 
 
 def test_the_play_screen_keeps_one_ornate_frame_around_the_scene_and_the_current_riddle_reads_largest():
-    """Reviewer feedback 4 (Oct 29): the gilt rule and the vignette frame the Scene alone; the Thumbnail strip, the
+    """Reviewer feedback 4 (Oct 29): the gilt rule and the vignette frame the Scene alone; the walk map, the
     Inventory, the Wizard notes and the Hint area are flat, quiet grounds with a hairline edge, and the Current
     puzzle's Clue is a type step larger (wizard-line-lg) than every other line in the side column."""
     frame = _rules("scene/scene.css")[".scene-frame"]
@@ -485,11 +485,9 @@ def test_the_play_screen_keeps_one_ornate_frame_around_the_scene_and_the_current
         tray = _rules(name)[selector]
         assert tray["background"] == "var(--chrome-raised)" and tray["border"] == "1px solid var(--hairline)", name
         assert "box-shadow" not in tray, name
-    for name in ("components/thumbnail-strip.css", "components/order-progress.css", *trays):
+    for name in ("components/walk-map.css", "components/order-progress.css", *trays):
         css = _code((WEB_SRC / name).read_text())
         assert "--gilt" not in css and "--elevation-vignette" not in css and "--parchment" not in css, name
-    badge = _rules("components/thumbnail-strip.css")[".thumbnail-count"]
-    assert badge["background"] == "var(--chrome-raised)" and badge["color"] == "var(--text)"
     # The Current puzzle's Clue in wizard-line-lg, every other entry's in wizard-line.
     current = _rules("components/wizard-notes.css")[".notes-entry.is-current .notes-clue p"]
     lg = css_rules(_ts("tokens.css"))[".wizard-line-lg"]

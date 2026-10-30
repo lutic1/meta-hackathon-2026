@@ -92,7 +92,7 @@ function focusFirstHotspot(sceneColumn: HTMLElement): () => void {
 
 /**
  * The top bar's "Show all objects" toggle: pressed, every Hotspot of every Scene in `sceneColumn` is outlined until it
- * is released (NFR-14); the class lives on the column, so it outlives a photo switch.
+ * is released (NFR-14); the class lives on the column, so it outlives a walk.
  */
 function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
   return toggleButton({
@@ -103,8 +103,8 @@ function showAllToggle(sceneColumn: HTMLElement): HTMLButtonElement {
 }
 
 /**
- * The Play screen (FR-11): the Scene over the row of the Thumbnail strip and the Inventory, and the Wizard notes in
- * the side column, over the session's Effective room from `GET /sessions/<id>/room` (never `GET /rooms/<room_id>`),
+ * The Play screen (FR-11): the Scene, walked around from the active riddle's start photo, over the row of the
+ * Inventory, and the Wizard notes in the side column, over the session's Effective room from `GET /sessions/<id>/room` (never `GET /rooms/<room_id>`),
  * whose revision is the `room_revision` of the state it mounted with. The client polls `GET /sessions/<id>` every
  * 2000 ms, from a worker so the cadence holds while the tab is hidden, and every part draws open locks, the
  * Inventory and Wrong attempts from the latest state the server sent: a poll or the reply to a posted event, never
@@ -311,7 +311,10 @@ export function mountPlay(
   let fetchedRevision = session.room_revision
   let refetching = false
   sceneColumn.append(stage, stripRow)
-  const scene = mountScene(stage, stripRow, play, room)
+  // A reload opens on the active riddle's start photo (story mode); the first photo when none is active.
+  const start = (view: PlayView): number =>
+    view.puzzles.find((puzzle) => puzzle.id === latest.active_puzzle_id)?.start_photo ?? 0
+  const scene = mountScene(stage, play, room, start)
   room
     .then((view) => {
       if (!mounted) return
@@ -410,7 +413,7 @@ export function mountPlay(
 
 /**
  * The Play screen as it stands under the Completion sheet: the Scene on the photo it last showed in this page (the
- * first after a reload), the Thumbnail strip, the Inventory and the Wizard notes drawn once from `session` over its
+ * first after a reload) with its walls and walk map, the Inventory and the Wizard notes drawn once from `session` over its
  * Effective room (`GET /sessions/<id>/room`), and the "Show all objects" toggle, unpressed, the "Card log" button and
  * "Leave room" in the top bar's `controls`. It never polls and never posts; the shell holds both columns and the top
  * bar inert. A Room
@@ -441,7 +444,7 @@ export function mountPlayBehind(
   const room: Promise<PlayView> = getEffectiveRoom(session.id)
   const stripRow = document.createElement('div')
   stripRow.className = 'scene-strip-row'
-  const scene = mountScene(sceneColumn, stripRow, play, room, lastShownPhoto(session.id))
+  const scene = mountScene(sceneColumn, play, room, () => lastShownPhoto(session.id))
   sceneColumn.append(stripRow)
   room
     .then((view) => {

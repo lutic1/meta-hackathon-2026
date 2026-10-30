@@ -5,7 +5,16 @@ import re
 
 import pytest
 
-from tests.web.design import GROUPS, REPO, WEB_SRC, css_custom_properties, css_rules, frontmatter, source_css
+from tests.web.design import (
+    GROUPS,
+    REPO,
+    WALK_CSS,
+    WEB_SRC,
+    css_custom_properties,
+    css_rules,
+    frontmatter,
+    source_css,
+)
 
 FONTS = REPO / "web/public/fonts"
 FAMILIES = {"EB Garamond": "eb-garamond", "Source Sans 3": "source-sans-3", "IBM Plex Mono": "ibm-plex-mono"}
@@ -135,7 +144,7 @@ def test_motion_tokens_and_every_transition_is_a_fade_or_glow_with_ease_out(prop
     assert {name: props[name] for name in MOTION} == MOTION
     assert "motion-attract" not in props  # the attract frame is gone with its cycle (owner decision Oct 29)
     for path, text in source_css().items():
-        if path.endswith(CHOOSER):
+        if path.endswith(CHOOSER) or path in WALK_CSS:  # the walk: test_walk.py
             continue
         assert not re.search(r"@keyframes|animation|transform|translate|scale\(", text), f"{path}: nothing slides, bounces, shakes or loops"
         for value in re.findall(r"transition:\s*([^;]+);", text):

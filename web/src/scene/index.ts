@@ -1,4 +1,5 @@
 import './scene.css'
+import './walk.css'
 import {
   Mesh,
   MeshBasicMaterial,
@@ -15,14 +16,51 @@ import { photoUrl } from '../api/index.ts'
 import { bannerSlot, showBanner } from '../components/error-banner.ts'
 import { feedbackLine } from '../components/feedback-line.ts'
 import { GLOW_MS, GLOW_REDUCED_MS } from '../components/hint-area.ts'
-import { objectCounts, type ThumbnailStrip, thumbnailStrip } from '../components/thumbnail-strip.ts'
+import { areaName, viewDescription, type WalkMap, walkMap } from '../components/walk-map.ts'
 import { glowOnce } from '../fade.ts'
 import { foundBy } from '../feedback.ts'
 import type { PlaySession } from '../play.ts'
-import { strings } from '../strings.ts'
+import { fill, strings } from '../strings.ts'
 import { useOnChip } from '../use-on.ts'
-import { contain, type Size } from './geometry.ts'
+import { areaOf, doorways, neighbours, signCentre, type WalkArea, walkGraph, walkKey, wallPose } from '../walk.ts'
+import { bounds, contain, type Size } from './geometry.ts'
 import { type HotspotLayer, hotspotLayer } from './hotspots.ts'
+
+/** A turn's swing (DESIGN.md Motion, the walk and story exception). */
+export const TURN_MS = 780
+/** A push-in through a doorway: the area you leave grows and fades over 720 ms; the next fades in 260 ms after it. */
+export const PUSH_OUT_MS = 720
+export const PUSH_IN_DELAY_MS = 260
+export const PUSH_IN_MS = 640
+/** The room either side of the photo you face, kept free so its walls show (spec 1.6). */
+const WALL_GUTTER_PX = 32
+
+const reduced = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches
+const pause = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms))
+
+const ARCH =
+  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V9a7 7 0 0 1 14 0v12"/>' +
+  '<path d="M12 17V11M9 14l3-3 3 3"/></svg>'
+const TURN_ICON = {
+  left: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
+  right: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+}
+
+/** One view of the area you stand in, as a wall: its photo as a plain image, inert, posed by its offset. */
+interface Wall {
+  element: HTMLElement
+  drift: HTMLElement
+  rest: HTMLElement
+}
+
+/** Whether a key pressed on `target` may walk: on the page, in the Scene, or on a button; never in a field or tray. */
+function walksFrom(target: EventTarget | null, frame: HTMLElement): boolean {
+  if (target === document.body) return true
+  return target instanceof Element && (frame.contains(target) || target.closest('button, a') !== null)
+}
 
 /**
  * Dispatched on `window` the first time any Hotspot responds to the pointer in a session (T1): the Timer stops on
@@ -133,28 +171,38 @@ function firstPointerResponse(sessionId: string): void {
 }
 
 /**
- * The Play screen's Scene (FR-11, AD-11): the Scene frame in `root` and the Thumbnail strip at the start of
- * `stripRow`, for the session's Effective room as `GET /sessions/<id>/room` serves it. Each photo from
- * `GET /rooms/<room_id>/photos/<i>` is drawn as a three textured plane, exactly as served (no tone mapping, no
- * light), on a canvas sized to the photo contained in the frame; the photo's Hotspots lie over it in its own pixel
- * space. The frame shows its loading line until a photo and its Hotspots are live. A Hotspot click posts one `click`
- * naming its Interactable and nothing else, its label chip showing with "Checking" beside it until the reply; when
- * the reply opened no lock, the click hit no target and the label chip stays ("{label} · in hand" on an Interactable
- * the Inventory holds, "{label} · found" on a found target). The Hotspots of collected Interactables follow
- * `inventory` in every state the server sends, so a solved `find` target's glow fades out; a click that found a target
- * no `use_on` needs (`foundBy`) keeps it in `foundTargets` for the tab, a reload included, and its glow fades out
- * the same way. An Inventory item dropped on a Hotspot, or a Hotspot activated while an item is selected (whose
- * "Using {item label}" chip is pinned to the frame's top-left), posts one `use_on` lock input naming the item and the Hotspot's Interactable, never a
- * `click` and never a Puzzle (AD-4), and clears the selection; until the reply, the target's label chip shows with
- * "Checking" beside it. The selection outlives photo switches. It opens on photo `first`. The Interactable the latest
- * click or `use_on` named is kept as `lastTarget`, and `bloom` plays the unlock moment (lock-opened.ts): the frame's
- * gilt rule turns lamp with the lamp glow once (in and out by `--motion-hover`, 300 ms in all; held 2 s with no
- * animation under reduced motion) and the solved target's Hotspot, when it is on the shown photo, blooms with it;
- * the target is kept for the tab, a reload included, for the Completion screen's filmstrip (`solvedTargets`).
- * `say` shows the Play screen's feedback line for a reply over the bottom edge of the frame.
+ * The Play screen's Scene (FR-11, AD-11), for the session's Effective room as `GET /sessions/<id>/room` serves it:
+ * the Scene frame in `root`, holding the walk (story mode, owner decision Oct 29). The photo you face stands in the
+ * middle of the frame at its full height, the views either side of it in its area (`walkGraph`, from each photo's
+ * `area` and `pan`) as dimmed, angled walls: plain images, inert, with no Hotspots. Only the photo you face is drawn
+ * by three and takes input: a textured plane drawn exactly as served (no tone mapping, no light), on a canvas the
+ * size of the photo, its Hotspots over it in its own pixel space. The frame shows its loading line until the first
+ * photo and its Hotspots are live. You turn with the outer fifth of the photo either side, the turn discs at the
+ * frame's edges or ArrowLeft and ArrowRight (a 780 ms swing that brings a wall to the middle; nothing at the ring's
+ * ends), and go through to the next area with the doorway sign hanging from the photo's top edge, ArrowUp or the
+ * walk map's area buttons (a 900 ms push-in to the area's entry view). Input is ignored while a move runs; every move
+ * is a cut under reduced motion. After each move the photo's Hotspots are laid again, the next views' photos are
+ * fetched ahead, and the view description is announced ("{Area}, view {i} of {n}. Here: ..."). At rest the photo
+ * pushes in 3.5% over 26 s and drifts a few pixels against the pointer, the walls more.
+ *
+ * A Hotspot click posts one `click` naming its Interactable and nothing else, its label chip showing with "Checking"
+ * beside it until the reply; when the reply opened no lock, the click hit no target and the label chip stays
+ * ("{label} · in hand" on an Interactable the Inventory holds, "{label} · found" on a found target). The Hotspots of
+ * collected Interactables follow `inventory` in every state the server sends, so a solved `find` target's glow fades
+ * out; a click that found a target no `use_on` needs (`foundBy`) keeps it in `foundTargets` for the tab, a reload
+ * included, and its glow fades out the same way. An Inventory item dropped on a Hotspot, or a Hotspot activated
+ * while an item is selected (whose "Using {item label}" chip is pinned to the frame's top-left), posts one `use_on`
+ * lock input naming the item and the Hotspot's Interactable, never a `click` and never a Puzzle (AD-4), and clears the
+ * selection; until the reply, the target's label chip shows with "Checking" beside it. The selection outlives a
+ * walk. It opens on photo `first(view)`. The Interactable the latest click or `use_on` named is kept as `lastTarget`,
+ * and `bloom` plays the unlock moment (lock-opened.ts): the frame's gilt rule turns lamp with the lamp glow once (in
+ * and out by `--motion-hover`, 300 ms in all; held 2 s with no animation under reduced motion) and the solved
+ * target's Hotspot, when it is on the shown photo, blooms with it; the target is kept for the tab, a reload included,
+ * for the Completion screen's filmstrip (`solvedTargets`). `say` shows the Play screen's feedback line for a reply
+ * over the bottom edge of the frame.
  *
  * `reshape` lays the shown photo's Hotspots again from a refetched `PlayView` when its Interactables changed, keeping
- * the photo, the strip (its object counts redrawn in place) and the selection; keyboard focus on a Hotspot that is still there stays on it. Returns the
+ * the photo, the walk and the selection; keyboard focus on a Hotspot that is still there stays on it. Returns the
  * teardown and `reshape`.
  *
  * A browser that cannot start WebGL (hardware acceleration off, or a blocked GPU) has no Scene to draw and no DOM one
@@ -163,10 +211,9 @@ function firstPointerResponse(sessionId: string): void {
  */
 export function mountScene(
   root: HTMLElement,
-  stripRow: HTMLElement,
   play: PlaySession,
   rooms: Promise<PlayView>,
-  first = 0,
+  first: (view: PlayView) => number = () => 0,
 ): MountedScene {
   const frame = document.createElement('div')
   frame.className = 'scene-frame is-loading'
@@ -175,12 +222,20 @@ export function mountScene(
   const loading = document.createElement('p')
   loading.className = 'scene-loading body-sm'
   loading.textContent = strings.sceneLoading
+  const world = document.createElement('div')
+  world.className = 'scene-world'
+  ground.append(loading, world)
+  // The view on the wall you face: the turn zones under the photo and its Hotspots, the doorway signs over them.
+  const view = document.createElement('div')
+  view.className = 'scene-view'
+  view.hidden = true
   const photo = document.createElement('div')
   photo.className = 'scene-photo'
-  photo.hidden = true
-  ground.append(loading, photo)
+  const zones = { left: turnZone('is-left'), right: turnZone('is-right') }
+  view.append(zones.left, zones.right, photo)
+  const turns = { left: turnDisc('is-left', strings.turnLeft, TURN_ICON.left), right: turnDisc('is-right', strings.turnRight, TURN_ICON.right) }
   const feedback = feedbackLine()
-  frame.append(ground, feedback.element)
+  frame.append(ground, feedback.element, turns.left, turns.right)
   root.append(frame)
 
   let renderer: WebGLRenderer
@@ -190,6 +245,7 @@ export function mountScene(
     return sceneUnavailable(frame, ground, feedback.say)
   }
   renderer.setPixelRatio(window.devicePixelRatio)
+  renderer.domElement.setAttribute('role', 'img')
   const scene = new Scene()
   const camera = new OrthographicCamera()
   camera.position.z = 1
@@ -201,10 +257,16 @@ export function mountScene(
   const textures = new Map<number, Promise<Texture<HTMLImageElement>>>()
   let mounted = true
   let room: PlayView | undefined
+  let areas: WalkArea[] = []
+  let walls = new Map<number, Wall>()
   let current = -1
+  let moving = false
   let size: Size | undefined
+  /** The width every wall is drawn at: the photo you face contained in the ground, less the gutter. */
+  let width = 0
   let layer: HotspotLayer | undefined
-  let strip: ThumbnailStrip | undefined
+  let mapView: WalkMap | undefined
+  let signs: HTMLButtonElement[] = []
   let lastTarget: string | null = null
 
   function texture(index: number): Promise<Texture<HTMLImageElement>> {
@@ -216,7 +278,7 @@ export function mountScene(
           return map
         },
         (error: unknown) => {
-          textures.delete(index) // the next switch to this photo asks again
+          textures.delete(index) // the next walk to this photo asks again
           throw error
         },
       )
@@ -225,12 +287,87 @@ export function mountScene(
     return loaded
   }
 
-  /** Sizes the canvas to the photo contained in the ground and draws the plane. */
+  function turnZone(side: string): HTMLElement {
+    const zone = document.createElement('div')
+    zone.className = `walk-zone ${side}`
+    zone.addEventListener('click', () => void turn(side === 'is-left' ? 'left' : 'right'))
+    return zone
+  }
+
+  function turnDisc(side: string, label: string, icon: string): HTMLButtonElement {
+    const disc = document.createElement('button')
+    disc.type = 'button'
+    disc.className = `walk-turn ${side}`
+    disc.setAttribute('aria-label', label)
+    disc.innerHTML = icon
+    const tip = document.createElement('span')
+    tip.className = 'walk-turn-tip'
+    tip.setAttribute('aria-hidden', 'true') // the disc's name says it
+    tip.textContent = label
+    disc.append(tip)
+    disc.hidden = true
+    disc.addEventListener('click', () => void turn(side === 'is-left' ? 'left' : 'right'))
+    return disc
+  }
+
+  /** The walls of the area photo `index` stands in, replacing the last area's; posed around `index`. */
+  function layArea(index: number): void {
+    const ring = areas[areaOf(areas, index)]?.ring ?? [index]
+    walls = new Map(
+      ring.map((shown) => {
+        const element = document.createElement('div')
+        element.className = 'scene-wall'
+        const drift = document.createElement('div')
+        drift.className = 'scene-wall-drift'
+        const rest = document.createElement('div')
+        rest.className = 'scene-wall-rest'
+        const image = document.createElement('img')
+        image.className = 'scene-wall-photo'
+        image.src = photoUrl(play.roomId, shown)
+        image.alt = '' // a wall; the photo you face carries the name
+        image.draggable = false
+        const shade = document.createElement('div')
+        shade.className = 'scene-wall-shade'
+        rest.append(image)
+        drift.append(rest, shade)
+        element.append(drift)
+        return [shown, { element, drift, rest }]
+      }),
+    )
+    world.replaceChildren(...[...walls.values()].map(({ element }) => element))
+    pose()
+  }
+
+  /** Poses every wall by its offset from the photo you face (`wallPose`); only that one takes input. */
+  function pose(): void {
+    const ring = [...walls.keys()]
+    const here = ring.indexOf(current)
+    for (const [shown, { element }] of walls) {
+      const offset = ring.indexOf(shown) - here
+      const { transform, opacity } = wallPose(offset, width)
+      element.style.transform = transform
+      element.style.opacity = String(opacity)
+      element.style.zIndex = String(10 - Math.abs(offset))
+      element.classList.toggle('is-centre', offset === 0)
+      element.classList.toggle('is-left', offset === -1)
+      element.classList.toggle('is-right', offset === 1)
+      element.inert = offset !== 0
+      if (offset === 0) element.removeAttribute('aria-hidden')
+      else element.setAttribute('aria-hidden', 'true')
+    }
+  }
+
+  /** Sizes the walls and the canvas to the photo you face, contained in the ground at its full height, and draws. */
   function render(): void {
     if (size === undefined) return
-    const fitted = contain(size, ground.getBoundingClientRect())
-    photo.style.width = `${fitted.width}px`
-    photo.style.height = `${fitted.height}px`
+    const box = ground.getBoundingClientRect()
+    const fitted = contain(size, { width: box.width - WALL_GUTTER_PX, height: box.height })
+    ground.style.setProperty('--wall-width', `${fitted.width}px`)
+    ground.style.setProperty('--wall-height', `${fitted.height}px`)
+    if (fitted.width !== width) {
+      width = fitted.width
+      pose()
+    }
     renderer.setSize(fitted.width, fitted.height)
     renderer.render(scene, camera)
   }
@@ -284,38 +421,75 @@ export function mountScene(
     photo.replaceChildren(renderer.domElement, ...layer.elements)
   }
 
-  function reshape(view: PlayView): void {
+  /** Hangs one doorway sign per neighbouring area from the top edge of photo `index`, clear of its Hotspots. */
+  function laySigns(shown: PlayView, photoSize: Size, index: number): void {
+    for (const sign of signs) sign.remove()
+    const boxes = shown.interactables
+      .filter((interactable) => interactable.photo === index)
+      .flatMap((interactable) => (interactable.polygons ?? []).filter((polygon) => polygon.length > 0).map((polygon) => bounds([polygon])))
+    const centre = (signCentre(boxes, photoSize.width) / photoSize.width) * 100
+    signs = doorways(areas, index).map((area, k) => {
+      const sign = document.createElement('button')
+      sign.type = 'button'
+      sign.className = 'walk-door'
+      sign.style.left = `${centre + k * 30}%`
+      sign.setAttribute('aria-label', fill(strings.toAreaThroughDoorway, { area: area.label }))
+      const chains = document.createElement('span')
+      chains.className = 'walk-door-chains'
+      const plaque = document.createElement('span')
+      plaque.className = 'walk-door-sign'
+      plaque.innerHTML = ARCH
+      const label = document.createElement('span')
+      label.textContent = fill(strings.toArea, { area: area.label })
+      const key = document.createElement('kbd')
+      key.setAttribute('aria-hidden', 'true')
+      key.textContent = '↑'
+      plaque.append(label, key)
+      sign.append(chains, plaque)
+      sign.addEventListener('click', () => void walk(area.entry, sign))
+      return sign
+    })
+    view.append(...signs)
+  }
+
+  function reshape(next: PlayView): void {
     const before = room
-    room = view
-    strip?.setCounts(objectCounts(view))
+    room = next
     // A photo still loading lays the new Room's Hotspots when it is live.
-    if (before === undefined || size === undefined || photo.hidden || layer === undefined) return
+    if (before === undefined || size === undefined || view.hidden || layer === undefined) return
     const on = (shown: PlayView): string =>
       JSON.stringify(shown.interactables.filter((interactable) => interactable.photo === current))
-    if (on(before) === on(view)) return
+    if (on(before) === on(next)) return
     const [svg] = layer.elements
     const focused = svg.contains(document.activeElement) ? document.activeElement?.id : undefined
-    layHotspots(view, size, current)
+    layHotspots(next, size, current)
+    laySigns(next, size, current)
     if (focused !== undefined) layer.elements[0].querySelector<SVGElement>(`[id="${focused}"]`)?.focus()
     render()
   }
 
-  async function show(index: number): Promise<void> {
-    if (room === undefined || index === current) return
-    current = index
-    shownPhoto.set(play.id, index)
-    strip?.setCurrent(index)
-    frame.classList.add('is-loading')
-    loading.hidden = false
-    photo.hidden = true
+  /** The photo you face, at rest: pushing in slowly from scale 1 again (never under reduced motion). */
+  function restAgain(): void {
+    for (const { rest } of walls.values()) rest.classList.remove('is-resting')
+    const centre = walls.get(current)?.rest
+    if (centre === undefined || reduced()) return
+    void centre.offsetWidth
+    centre.classList.add('is-resting')
+  }
+
+  /**
+   * Makes photo `index`, the one you now face, live: its texture on the plane, its Hotspots, turn zones and doorway
+   * signs on its wall, the turn discs at the ring's ends hidden, and the map lit; `moved` announces the view.
+   * Resolves false when the photo could not be fetched or another walk took its place.
+   */
+  async function arrive(index: number, moved: boolean): Promise<boolean> {
     let map: Texture<HTMLImageElement>
     try {
       map = await texture(index)
     } catch {
-      if (index === current) current = -1
-      return
+      return false
     }
-    if (!mounted || index !== current) return
+    if (!mounted || index !== current || room === undefined) return false
     size = { width: map.image.width, height: map.image.height }
     material.map = map
     material.needsUpdate = true
@@ -326,11 +500,146 @@ export function mountScene(
     camera.bottom = -size.height / 2
     camera.updateProjectionMatrix()
     layHotspots(room, size, index)
+    laySigns(room, size, index)
+    const area = areas[areaOf(areas, index)]
+    const name = { Area: areaName(area.label), i: area.ring.indexOf(index) + 1, n: area.ring.length }
+    renderer.domElement.setAttribute('aria-label', fill(strings.photoView, name))
+    const side = neighbours(areas, index)
+    zones.left.hidden = turns.left.hidden = side.left === null
+    zones.right.hidden = turns.right.hidden = side.right === null
+    walls.get(index)?.rest.append(view)
     frame.classList.remove('is-loading')
     loading.hidden = true
-    photo.hidden = false
+    view.hidden = false
     render()
+    restAgain()
+    mapView?.setCurrent(index, moved ? viewDescription(areas, room, index) : undefined)
+    // The views a next move can reach are fetched ahead, so the swing ends on a photo that is ready.
+    for (const next of [side.left, side.right, ...doorways(areas, index).map((area) => area.entry)]) {
+      if (next !== null) void texture(next).catch(() => undefined)
+    }
+    return true
   }
+
+  /** The first photo, behind the loading line. */
+  async function show(index: number): Promise<void> {
+    if (room === undefined || index === current) return
+    current = index
+    shownPhoto.set(play.id, index)
+    frame.classList.add('is-loading')
+    loading.hidden = false
+    view.hidden = true
+    moving = true
+    layArea(index)
+    const live = await arrive(index, false)
+    moving = false
+    if (!live && index === current) current = -1 // a later walk asks again
+  }
+
+  /**
+   * Walks to photo `to`: a turn within its area, a push-in through the doorway (or toward the middle of the view)
+   * into another; a cut under reduced motion. Ignored while a move runs. Focus that the move took from the Scene comes
+   * back to the new view's first Hotspot, its doorway sign or a turn disc.
+   */
+  async function walk(to: number, via?: HTMLElement): Promise<void> {
+    if (room === undefined || moving || to === current || areaOf(areas, to) < 0) return
+    if (current < 0) return show(to)
+    const focused = frame.contains(document.activeElement) ? document.activeElement : null
+    const across = areaOf(areas, to) !== areaOf(areas, current)
+    moving = true
+    view.hidden = true // the Hotspots, zones and signs leave with the view; its wall stands in for the photo
+    view.remove()
+    for (const { rest } of walls.values()) rest.classList.remove('is-resting')
+    current = to
+    shownPhoto.set(play.id, to)
+    const instant = reduced()
+    const ready = texture(to).catch(() => undefined)
+    if (across) await pushIn(to, via, instant)
+    else if (instant) pose()
+    else {
+      world.classList.add('is-turning')
+      pose()
+      await pause(TURN_MS)
+      world.classList.remove('is-turning')
+    }
+    await ready
+    await arrive(to, true)
+    moving = false
+    refocus(focused)
+  }
+
+  /** Into the area of photo `to`: the area you leave grows and fades from the doorway while the next fades in. */
+  async function pushIn(to: number, via: HTMLElement | undefined, instant: boolean): Promise<void> {
+    if (instant) return layArea(to)
+    const leaving = world.cloneNode(true) as HTMLElement
+    leaving.classList.add('is-leaving')
+    leaving.inert = true
+    leaving.setAttribute('aria-hidden', 'true')
+    const box = ground.getBoundingClientRect()
+    const door = via?.getBoundingClientRect()
+    leaving.style.transformOrigin = door === undefined
+      ? '50% 45%'
+      : `${((door.left + door.width / 2 - box.left) / box.width) * 100}% ${((door.top + door.height / 2 - box.top) / box.height) * 100 + 18}%`
+    ground.append(leaving)
+    layArea(to)
+    const out = leaving.animate(
+      [{ transform: 'scale(1)', opacity: 1, filter: 'blur(0px)' }, { opacity: 0.85, offset: 0.5 },
+        { transform: 'scale(1.55)', opacity: 0, filter: 'blur(3px)' }],
+      { duration: PUSH_OUT_MS, easing: 'cubic-bezier(.5,0,.75,.2)', fill: 'forwards' },
+    )
+    const arriving = world.animate(
+      [{ transform: 'scale(0.92)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
+      { duration: PUSH_IN_MS, delay: PUSH_IN_DELAY_MS, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'backwards' },
+    )
+    await Promise.all([out.finished, arriving.finished]).catch(() => undefined)
+    leaving.remove()
+  }
+
+  function turn(side: 'left' | 'right'): Promise<void> {
+    if (current < 0) return Promise.resolve()
+    const next = neighbours(areas, current)[side]
+    return next === null ? Promise.resolve() : walk(next)
+  }
+
+  /** Puts back focus a move took from the Scene: on the disc still shown, else the new view's first control. */
+  function refocus(focused: Element | null): void {
+    if (focused === null || document.activeElement === focused || !mounted) return
+    const disc = [turns.left, turns.right].find((button) => !button.hidden)
+    const wasDisc = focused === turns.left || focused === turns.right
+    const next = wasDisc ? disc : (photo.querySelector<SVGElement>('.hotspot') ?? signs[0] ?? disc)
+    next?.focus()
+  }
+
+  /** ArrowLeft and ArrowRight turn, ArrowUp goes through the first doorway; never while the Scene is held inert. */
+  function onKey(event: KeyboardEvent): void {
+    const move = walkKey(event.key)
+    if (move === null || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    if (frame.closest('[inert]') !== null || !walksFrom(event.target, frame) || current < 0) return
+    event.preventDefault()
+    if (move !== 'door') return void turn(move)
+    const [area] = doorways(areas, current)
+    if (area !== undefined) void walk(area.entry, signs[0])
+  }
+  window.addEventListener('keydown', onKey)
+
+  /** The pointer drift: the photo you face moves a few pixels against the pointer, the walls 2.4 times as far. */
+  let drift = 0
+  let pointer = { x: 0, y: 0 }
+  function onPointer(event: PointerEvent): void {
+    pointer = { x: event.clientX, y: event.clientY }
+    if (drift !== 0 || reduced()) return
+    drift = requestAnimationFrame(() => {
+      drift = 0
+      const box = ground.getBoundingClientRect()
+      const x = (pointer.x - box.left) / box.width - 0.5
+      const y = (pointer.y - box.top) / box.height - 0.5
+      for (const [shown, wall] of walls) {
+        const k = shown === current ? 1 : 2.4
+        wall.drift.style.transform = `translate3d(${-x * 14 * k}px, ${-y * 9 * k}px, 0px)`
+      }
+    })
+  }
+  ground.addEventListener('pointermove', onPointer)
 
   play.onState((state) => {
     if (mounted) layer?.setCollected(state.inventory, foundTargets(play.id))
@@ -348,25 +657,28 @@ export function mountScene(
   observer.observe(ground)
   // A failed room or photo request leaves the loading line; missed polls show the reconnecting state (play.ts).
   rooms
-    .then((view) => {
+    .then((shown) => {
       if (!mounted) return
-      room = view
-      frame.prepend(useOnChip(new Map(view.interactables.map(({ id, label }) => [id, label])), play.useOn))
-      strip = thumbnailStrip(play.roomId, objectCounts(view), (index) => void show(index))
-      stripRow.prepend(strip.element)
-      return show(first)
+      room = shown
+      areas = walkGraph(shown.photos)
+      frame.prepend(useOnChip(new Map(shown.interactables.map(({ id, label }) => [id, label])), play.useOn))
+      mapView = walkMap(areas, (index) => void walk(index))
+      frame.append(mapView.element)
+      const start = first(shown)
+      return show(areaOf(areas, start) < 0 ? areas[0].ring[0] : start)
     })
     .catch(() => undefined)
 
   function unmount(): void {
     mounted = false
     observer.disconnect()
+    window.removeEventListener('keydown', onKey)
+    cancelAnimationFrame(drift)
     for (const loaded of textures.values()) void loaded.then((map) => map.dispose(), () => undefined)
     plane.geometry.dispose()
     material.dispose()
     renderer.dispose()
     frame.remove()
-    strip?.element.remove()
   }
 
   return { unmount, reshape, lastTarget: () => lastTarget, bloom, say: feedback.say }

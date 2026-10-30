@@ -275,8 +275,10 @@ def test_escape_clears_the_selection_and_the_selection_outlives_photo_switches()
     assert "dispose: () => document.removeEventListener('keydown', escape)" in use_on
     assert play.count("useOn: useOnSelection()") == 2 and play.count("play.useOn.dispose()") == 2
     # The Scene's photo switch never touches the selection; only a use_on or the user clears it.
-    show = _ts("scene/index.ts").split("async function show(", 1)[1].split("\n  }\n", 1)[0]
-    assert "select(" not in show and "useOn.select" not in _ts("components/thumbnail-strip.ts")
+    scene = _ts("scene/index.ts")
+    for name in ("show", "walk", "arrive", "pushIn"):
+        assert "select(" not in scene.split(f"async function {name}(", 1)[1].split("\n  }\n", 1)[0], name
+    assert "useOn" not in _ts("components/walk-map.ts")
 
 
 def test_a_hotspot_activation_while_selected_or_a_drop_posts_one_use_on_and_no_click():

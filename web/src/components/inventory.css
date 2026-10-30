@@ -1,4 +1,4 @@
-/* {components.inventory}: a flat chrome-raised tray with a 1 px hairline edge in the Thumbnail strip row, three 64 px
+/* {components.inventory}: a flat chrome-raised tray with a 1 px hairline edge in the Scene column's lower row, three 64 px
    slots across; an item is a 56 px crop over its caption label, and a free slot is the 1 px dashed hairline well. It
    scrolls inside itself once a second row of items would pass the 88 px row. */
 .inventory {
