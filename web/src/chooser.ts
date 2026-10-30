@@ -27,9 +27,8 @@ const P_ROW = 1500
 const P_PANEL = 2600
 /** Under reduced motion every change is this crossfade, out then in. */
 const FADE_MS = 160
-/** How long the Play card and the Play back hold each photo. */
+/** How long the Play card holds each photo. */
 const HOLD_CARD_MS = 3600
-const HOLD_BACK_MS = 2800
 /** The polite announcement waits this long after the pointer settles on a card. */
 const ANNOUNCE_MS = 500
 const MOTES = 26
@@ -225,8 +224,8 @@ type State = 'arriving' | 'rest' | 'choosing' | 'chosen' | 'returning'
  * (it lifts, squares up, tilts toward the pointer and shows its prompt) while the other two step back and dim. Choosing
  * one (click, Enter or Space) gives it one full turn, handing over at the edge-on moment to one shared back panel, a
  * modal dialog that finishes the turn: Watch plays the captioned tutorial larger with controls, the real play-through a
- * tab away; Play shows the first Demo room, its hosts, how to play and "Play this room" (the guarded start, "Opening the
- * room…" while pending); Build holds
+ * tab away; Play plays the same tutorial on its left over a strip of the first Demo room's photos, beside the room, its
+ * hosts, how to play and "Play this room" (the guarded start, "Opening the room…" while pending); Build holds
  * the three steps and the Access-code build. Escape, Back or a click on the bare stage turns it home, focus returning
  * to the card. The cards are one Tab stop, Play first; arrows, Home and End move between them; Tab is trapped in the
  * dialog and everything outside it is inert. The footer holds the key hints, "Watch the intro", which reopens the
@@ -540,11 +539,12 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     element('div', 'chooser-watch-foot', voice('trickster', strings.tricksterVoice), watchActions),
   )
 
-  // Play back: the room, its facts, its hosts, how to play and the guarded start; or the no-room or failed line.
-  const panelPhotos = element('div', 'chooser-mosaic-big')
+  // Play back: the tutorial over a strip of the room's photos (owner request Oct 30), beside the room, its facts, its
+  // hosts, how to play and the guarded start; or the no-room or failed line.
+  const playVideo = watchVideo(TUTORIAL, strings.tutorialLabel)
+  playVideo.setAttribute('aria-describedby', described.id)
   const count = element('span', 'chooser-count mono-sm')
-  panelPhotos.append(count)
-  const stills = [element('div'), element('div')]
+  const strip = hidden(element('div', 'chooser-play-strip'))
   const photoFact = element('span')
   const thumbs = hidden(element('div', 'chooser-vis is-thumbs'))
   let playView: HTMLElement
@@ -580,7 +580,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       element(
         'div',
         'chooser-play-body',
-        hidden(element('div', 'chooser-mosaic', panelPhotos, ...stills)),
+        element('div', 'chooser-play-media', element('div', 'chooser-watch-video chooser-play-video', playVideo), strip),
         element(
           'div',
           'chooser-play-info',
@@ -772,7 +772,6 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     return cycle
   }
   const frontCycler = cycler(frontPhotos, HOLD_CARD_MS)
-  const panelCycler = cycler(panelPhotos, HOLD_BACK_MS)
 
   /** Fills every place the first Demo room's photos show, `order` its photo indices, the cover first. */
   function showOrder(): void {
@@ -780,7 +779,6 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     const urls = order.map((n) => photoUrl(first.room_id, n))
     const at = (k: number): string => urls[k % urls.length]
     frontCycler.set(urls)
-    panelCycler.set(urls)
     const known = urls.length > 1
     const figures = (known && urls.length >= 3 ? [[2, -1], [4, 1], [0, 0]] : [[0, 0]]).map(([k, i]) => {
       const image = element('img')
@@ -791,13 +789,16 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       return figure
     })
     fan.replaceChildren(...figures)
-    stills.forEach((cell, k) => {
-      if (!known) return
-      const image = element('img', 'chooser-still')
-      image.src = at(1 + 2 * k)
-      image.alt = ''
-      cell.replaceChildren(image)
-    })
+    // Three photos spread through the room, the cover first.
+    strip.replaceChildren(
+      ...urls.filter((_, k) => k % Math.ceil(urls.length / 3) === 0).map((url) => {
+        const image = element('img', 'chooser-still')
+        image.src = url
+        image.alt = ''
+        return element('div', '', image)
+      }),
+      count,
+    )
     thumbs.replaceChildren(
       ...urls.slice(0, 5).map((url, k, shown) => {
         const image = element('img')
@@ -1173,7 +1174,10 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
         watchVideos[watchTab].currentTime = 0
         play(watchVideos[watchTab])
       }
-      if (i === 1) panelCycler.start()
+      if (i === 1 && !reduced && !still) {
+        playVideo.currentTime = 0
+        play(playVideo)
+      }
       if (queuedHome) goHome()
     }
 
@@ -1230,7 +1234,8 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     const { slot, card: turning, deal, reverse, choose: button } = cards[i]
     tutorialVideo.pause()
     panelVideo.pause()
-    panelCycler.stop()
+    playVideo.pause()
+    playVideo.currentTime = 0
     state = 'returning'
     section.classList.remove('is-chosen')
     const s0 = startScale()
@@ -1309,13 +1314,12 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       frontVideo.pause()
       tutorialVideo.pause()
       panelVideo.pause()
+      playVideo.pause()
       frontCycler.stop()
-      panelCycler.stop()
       return
     }
     startFrontVideo()
     if (state === 'rest') frontCycler.start()
-    if (state === 'chosen' && chosen === 1) panelCycler.start()
   })
 
   // ---- the intro, reopened by hand: no countdown at its end ----
@@ -1405,8 +1409,8 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
         frontVideo.pause()
         tutorialVideo.pause()
         panelVideo.pause()
+        playVideo.pause()
         frontCycler.stop()
-        panelCycler.stop()
         document.removeEventListener('keydown', onKey, true)
         document.removeEventListener('visibilitychange', onVisibility)
         if (chosen !== -1) setModal(false)

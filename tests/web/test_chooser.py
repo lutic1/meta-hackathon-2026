@@ -282,7 +282,7 @@ def test_pause_motion_holds_every_loop_still_and_the_player_s_own_motion_still_a
     assert "stillToggle.setAttribute('aria-pressed', String(still))" in ts
     toggle = ts.split("stillToggle.addEventListener('click', () => {", 1)[1].split("\n  })", 1)[0]
     assert "section.classList.toggle('is-still', still)" in toggle
-    for line in ("frontVideo.pause()", "panelVideo.pause()", "frontCycler.stop()", "panelCycler.stop()"):
+    for line in ("frontVideo.pause()", "panelVideo.pause()", "playVideo.pause()", "frontCycler.stop()"):
         assert line in toggle
     assert "let still = false" in ts  # held for the page, across a re-render of the landing
     rules = _rules()
@@ -314,7 +314,7 @@ def test_the_teardown_stops_every_loop_listener_and_animation():
     teardown = _chooser().split("      return () => {\n        mounted = false", 1)[1]
     for line in ("observer.disconnect()", "for (const timer of timers) clearTimeout(timer)",
                  "for (const animation of section.getAnimations({ subtree: true })) animation.cancel()",
-                 "frontVideo.pause()", "panelVideo.pause()", "frontCycler.stop()", "panelCycler.stop()",
+                 "frontVideo.pause()", "panelVideo.pause()", "playVideo.pause()", "frontCycler.stop()",
                  "document.removeEventListener('visibilitychange', onVisibility)", "if (chosen !== -1) setModal(false)"):
         assert line in teardown, line
 

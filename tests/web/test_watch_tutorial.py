@@ -134,6 +134,42 @@ def test_the_selected_video_plays_once_the_panel_is_open_and_every_pause_holds_b
         assert "tutorialVideo.pause()" in block and "panelVideo.pause()" in block
 
 
+def test_the_play_back_plays_the_tutorial_on_its_left_and_stops_it_on_the_way_home():
+    """Owner request Oct 30: choosing the Play card plays the tutorial (its files as they are, at normal speed) in the
+    left column of its back, muted, looping, with native controls, in the Watch back's framed box; the room's photos
+    stay under it as a strip with the photo count. It never starts by itself under reduced motion or Pause motion, and
+    Back, Escape or another card stop it and set it back to the start, so it never plays beside the Watch back's."""
+    ts = _code("chooser.ts")
+    assert "const playVideo = watchVideo(TUTORIAL, strings.tutorialLabel)" in ts
+    assert "playVideo.setAttribute('aria-describedby', described.id)" in ts
+    assert "element('div', 'chooser-watch-video chooser-play-video', playVideo)" in ts
+    assert "const strip = hidden(element('div', 'chooser-play-strip'))" in ts
+    shown = _body(ts, "  function showOrder(): void {")
+    assert "strip.replaceChildren(" in shown and "      count,\n    )" in shown
+    assert "urls.filter((_, k) => k % Math.ceil(urls.length / 3) === 0)" in shown  # three spread through the room
+    finish = ts.split("const finish = (): void => {", 1)[1].split("\n    }\n", 1)[0]
+    assert "if (i === 1 && !reduced && !still) {\n        playVideo.currentTime = 0\n        play(playVideo)" in finish
+    home = _body(ts, "  function goHome(then?: () => void): void {")
+    assert "playVideo.pause()" in home and "playVideo.currentTime = 0" in home
+    still = ts.split("stillToggle.addEventListener('click', () => {", 1)[1].split("\n  })", 1)[0]
+    teardown = ts.split("      return () => {\n        mounted = false", 1)[1]
+    assert "playVideo.pause()" in still and "playVideo.pause()" in teardown
+    # The back's photos no longer cycle: a still strip under the video.
+    assert "panelCycler" not in ts and "HOLD_BACK_MS" not in ts
+    css = (WEB_SRC / "chooser.css").read_text()
+    assert re.search(r"\.chooser-play-video \{[^}]*flex: none;[^}]*aspect-ratio: 16 / 9;", css)
+    assert re.search(r"\.chooser-play-strip \{[^}]*flex: 1;[^}]*min-height: 0;", css)
+    experience = EXPERIENCE.read_text()
+    row = next(line for line in experience.splitlines() if line.startswith("| Play back |"))
+    assert "the tutorial" in row and "(amended 30 Oct 2026, owner request)" in row
+
+
+def test_every_video_plays_at_normal_speed():
+    """Owner, Oct 30: "keep the video at 1x please sorry". No code sets a playback rate; the files keep their lengths."""
+    for path in WEB_SRC.rglob("*.ts"):
+        assert "playbackRate" not in path.read_text(), path
+    assert 19.5 <= _seconds(TUTORIAL / "tutorial.mp4") <= 20.5 and _strings()["tutorialTag"] == "captioned · 0:20"
+
 def test_the_docs_record_the_tutorial():
     experience = EXPERIENCE.read_text()
     assert "the captioned tutorial (owner decision Oct 29" in experience

@@ -1103,15 +1103,28 @@
   gap: 30px;
   min-height: 0;
 }
-.chooser-mosaic {
-  display: grid;
-  grid-template-columns: 2.25fr 1fr;
-  grid-template-rows: 1fr 1fr;
+/* The left column (owner request Oct 30): the tutorial, held whole in the Watch back's framed box, over a strip of the
+   room's photos that takes the height left, the photo count on its chip. */
+.chooser-play-media {
+  display: flex;
+  flex-direction: column;
   gap: var(--spacing-2);
   width: calc((var(--ph) - 112px) * 1.06);
   height: calc(var(--ph) - 52px - 44px - 16px);
 }
-.chooser-mosaic > div {
+.chooser-play-video {
+  flex: none;
+  aspect-ratio: 16 / 9;
+}
+.chooser-play-strip {
+  position: relative;
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-2);
+  min-height: 0;
+}
+.chooser-play-strip > div {
   position: relative;
   overflow: hidden;
   border-radius: 6px;
@@ -1119,9 +1132,6 @@
   box-shadow:
     0 0 0 1px #b08a4e99,
     0 10px 24px #00000099;
-}
-.chooser-mosaic-big {
-  grid-row: span 2;
 }
 .chooser-still {
   display: block;
