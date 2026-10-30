@@ -171,8 +171,11 @@ export interface MountedScene {
   daylight: (target: string | null, still?: boolean) => Promise<void>
   /** The coach pill in the feedback line's slot: shown for at most 15 s, or taken away. */
   coach: (on: boolean) => void
-  /** The story intro's trap: the lights flicker and the Trickster's lock seal slams onto the photo you face; or lifts. */
-  lockSeal: (on: boolean) => void
+  /**
+   * The story intro's trap: the lights flicker and the Trickster's lock seal slams onto the photo you face (onto its
+   * part above the line `above` gives, with one); or lifts.
+   */
+  lockSeal: (on: boolean, above?: () => number) => void
   /** The Effective room after an accepted edit (AD-12): the shown photo's Hotspots from `view`; the photo stays. */
   reshape: (view: PlayView) => void
   /** The Interactable the latest `click` or `use_on` named, null before the first: the unlock moment's target. */
@@ -323,6 +326,8 @@ export function mountScene(
   let signs: HTMLButtonElement[] = []
   let lastTarget: string | null = null
   let seal: HTMLElement | undefined
+  /** The line, in px from the viewport's top, the seal lands above (the story intro's speech box; see `placeSeal`). */
+  let sealAbove: (() => number) | undefined
   /** Resolves once the first photo and its Hotspots are live. */
   let markLive: () => void = () => undefined
   const live = new Promise<void>((resolve) => {
@@ -431,6 +436,7 @@ export function mountScene(
     }
     renderer.setSize(fitted.width, fitted.height)
     renderer.render(scene, camera)
+    placeSeal()
   }
 
   /** Posts the `use_on` of `item` on `target`, the target's label chip and "Checking" showing until the reply. */
@@ -736,19 +742,29 @@ export function mountScene(
 
   /**
    * The Trickster's trap (spec 5.5): the lights flicker for 700 ms and 260 ms in the lock seal slams onto the middle of
-   * the photo you face (the client never knows which object the way out is), where it stays until `lockSeal(false)`
-   * lifts it. Under reduced motion there is no flicker and the seal simply appears.
+   * the photo you face (the client never knows which object the way out is), or of the part of it above `above`, where
+   * it stays until `lockSeal(false)` lifts it. Under reduced motion there is no flicker and the seal simply appears.
    */
-  function lockSeal(on: boolean): void {
+  function lockSeal(on: boolean, above?: () => number): void {
     seal?.remove()
     seal = undefined
+    sealAbove = above
     if (!on) return
     seal = document.createElement('div')
     seal.className = 'scene-seal is-slamming'
     seal.append(lockSealSvg())
     view.append(seal)
+    placeSeal()
     if (reduced()) return
     world.animate(FLICKER, { duration: FLICKER_MS })
+  }
+
+  /** Centres the seal between the photo's top and the line it lands above, so the speech box held there leaves it seen. */
+  function placeSeal(): void {
+    if (seal === undefined || sealAbove === undefined) return
+    const photo = view.getBoundingClientRect()
+    const line = Math.max(photo.top, Math.min(photo.bottom, sealAbove()))
+    seal.style.top = `${(line - photo.top) / 2}px`
   }
 
   function bloom(target: string | null): void {

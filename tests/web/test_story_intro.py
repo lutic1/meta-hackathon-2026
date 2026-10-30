@@ -202,6 +202,27 @@ def test_the_intro_holds_the_box_at_its_tallest_beat_and_next_at_its_widest_labe
     assert rules[".story-next"]["justify-content"] == "center"
 
 
+def test_the_trap_seal_lands_in_the_middle_of_the_photo_above_the_held_box():
+    # Review of the hold, Oct 30: the box held at beat 5's height rose over the middle of the photo at 1024x768 to
+    # 1366x768 and hid up to half of beat 2's lock seal. The seal now lands midway between the photo's top and the box's
+    # held top (its name plate's), which the stage reports; a resize of the Scene places it again.
+    stage = _ts("components/story-stage.ts")
+    assert "top: () => number" in stage and "top: () => plate.getBoundingClientRect().top" in stage
+    assert "if (!skipped) scene.lockSeal(true, beats.top)" in _ts("story.ts")
+    scene = _ts("scene/index.ts")
+    assert "lockSeal: (on: boolean, above?: () => number) => void" in scene
+    seal = _function(scene, "lockSeal")
+    assert "sealAbove = above" in seal and seal.index("view.append(seal)") < seal.index("placeSeal()")
+    place = _function(scene, "placeSeal")
+    assert "if (seal === undefined || sealAbove === undefined) return" in place
+    assert "const photo = view.getBoundingClientRect()" in place
+    assert "const line = Math.max(photo.top, Math.min(photo.bottom, sealAbove()))" in place
+    assert "seal.style.top = `${(line - photo.top) / 2}px`" in place
+    assert "placeSeal()" in _function(scene, "render")
+    # Without a line it stays on the middle of the photo.
+    assert css_rules(_ts("scene/walk.css"))[".scene-seal"]["top"] == "50%"
+
+
 # --- The intro on the Play screen ------------------------------------------------------------------------------------
 
 
@@ -229,7 +250,7 @@ def test_the_play_screen_plays_the_five_beats_once_per_session_and_the_welcome_c
 
 def test_the_trap_turns_to_the_way_out_and_slams_the_seal_which_lifts_on_the_first_riddle():
     intro = _ts("story.ts").split("export async function playIntro(", 1)[1]
-    assert intro.index("await scene.walkTo(exit.start_photo, true)") < intro.index("scene.lockSeal(true)")
+    assert intro.index("await scene.walkTo(exit.start_photo, true)") < intro.index("scene.lockSeal(true, beats.top)")
     assert intro.index("scene.lockSeal(false)") < intro.index("await scene.walkTo(first.start_photo, true)")
     scene = _ts("scene/index.ts")
     # The beat's line is what is said: a walk under a beat announces no view.
@@ -248,7 +269,7 @@ def test_a_press_during_a_walk_is_held_until_the_walk_ends():
     assert loop.index("const moved = move?.()") < loop.index("await beats.play(") < loop.index("await moved")
     # "Skip intro" waits for nothing: the stage closes and the Scene walks on to the first riddle; no seal lands late.
     assert loop.index("skipped = true") < loop.index("await moved")
-    assert "if (!skipped) scene.lockSeal(true)" in _ts("story.ts")
+    assert "if (!skipped) scene.lockSeal(true, beats.top)" in _ts("story.ts")
     assert "void scene.walkTo(first.start_photo)" in loop
 
 

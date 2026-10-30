@@ -65,10 +65,10 @@ export interface Intro {
  * Trickster; the Guide, with the chest lit through the scrim (a returning player's Greeting in Local mode takes the
  * Guide's line); and the Riddler again, the seal lifted, walking to the first riddle's start photo and setting it under
  * his line, with "Start looking". The speech box stays clear of the chest on all five beats, in one place, so Next
- * never moves. Lines change at once while the Scene moves under them, walking without announcing its views (the
- * beat's line is what is said); a press during a move is held until it ends. "Skip intro" ends it at once, and the
- * Scene then walks on to the first riddle's start photo. Either way the seal is lifted and the intro is recorded as
- * done for the Session. Resolves then; the caller closes the stage.
+ * never moves, and the seal lands on the photo above it. Lines change at once while the Scene moves under them,
+ * walking without announcing its views (the beat's line is what is said); a press during a move is held until it ends.
+ * "Skip intro" ends it at once, and the Scene then walks on to the first riddle's start photo. Either way the seal is
+ * lifted and the intro is recorded as done for the Session. Resolves then; the caller closes the stage.
  */
 export async function playIntro({ view, state, beats, scene, chest }: Intro): Promise<void> {
   const shown = state()
@@ -86,7 +86,7 @@ export async function playIntro({ view, state, beats, scene, chest }: Intro): Pr
       beat: { speaker: 'trickster', cast: { right: 'trickster' }, role: strings.roleTrickster, line: said.trap, button: strings.next },
       move: async () => {
         await scene.walkTo(exit.start_photo, true)
-        if (!skipped) scene.lockSeal(true)
+        if (!skipped) scene.lockSeal(true, beats.top)
       },
     },
     {

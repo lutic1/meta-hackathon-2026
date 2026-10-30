@@ -58,6 +58,8 @@ export interface StoryStage {
   play: (beat: StoryBeat) => Promise<BeatEnd>
   /** Keeps the box as tall as the tallest of `beats` and the button as wide as the widest, until `close`. */
   hold: (beats: StoryBeat[]) => void
+  /** Where the box begins, its name plate included (px from the viewport's top): held in one place through the intro. */
+  top: () => number
   /** Takes the stage away. */
   close: () => void
 }
@@ -325,5 +327,5 @@ export function storyStage(): StoryStage {
     window.removeEventListener('keydown', onKey)
   }
 
-  return { element, play, hold, close }
+  return { element, play, hold, top: () => plate.getBoundingClientRect().top, close }
 }
