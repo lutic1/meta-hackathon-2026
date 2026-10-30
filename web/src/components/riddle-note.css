@@ -41,6 +41,11 @@
   color: var(--ink);
   font: 500 21px/1 var(--font-serif);
 }
+/* The heading takes focus at play start and at every riddle start; it is no control, so no ring shows. */
+.riddle-note-heading:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
 .riddle-seals {
   display: flex;
   gap: 5px;

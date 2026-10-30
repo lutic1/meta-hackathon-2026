@@ -41,6 +41,8 @@ export interface StoryBeat {
   riddle?: { heading: string; place: string; clue: string }
   /** A part of the play screen lit through the scrim while the beat shows (the Guide's chest). */
   spot?: HTMLElement
+  /** A part of the play screen the speech box stays clear of (the chest's box, on every intro beat; see `fit`). */
+  clear?: HTMLElement
   /** A solve beat: the light stage, the shorter portrait and the row "Riddle {n} solved" with its wax seal. */
   solved?: number
   /** The item the solve put in the pack, shown as a crop beside "In your pack now: {label}. …". */
@@ -78,10 +80,11 @@ function portrait(side: Side): { figure: HTMLElement; painting: HTMLImageElement
  * and the parchment speech box, its tail toward the speaker: a brass name plate with the name and role line, the
  * optional "Riddle {n} solved" row with its wax seal, the line (whole, at once: no typing effect), the optional first
  * riddle inset and pack row, and the footer with an intro beat's page dots and the button with its Enter key cap. An
- * intro beat also shows "Skip intro" at the top right; a beat with a `spot` lights that part through the scrim. Each
- * beat's spoken line goes to the live region once, as "{name}: {line}" (the first riddle's Clue after it); focus moves
- * to the button, and Enter on the page or the stage presses it. The portraits' slide, the box's swap and the seal's
- * stamp belong to DESIGN.md Motion's walk and story exception and are off under reduced motion.
+ * intro beat also shows "Skip intro" at the top right; a beat with a `spot` lights that part through the scrim, and a
+ * beat with a `clear` keeps the box off that part, in one place from beat to beat. Each beat's spoken line goes to the
+ * live region once, as "{name}: {line}" (the first riddle's Clue after it); focus moves to the button, and Enter on the
+ * page or the stage presses it. The portraits' slide, the box's swap and the seal's stamp belong to DESIGN.md Motion's
+ * walk and story exception and are off under reduced motion.
  */
 export function storyStage(): StoryStage {
   const element = document.createElement('section')
@@ -128,6 +131,14 @@ export function storyStage(): StoryStage {
 
   let settle: (end: BeatEnd) => void = () => undefined
   let waiting = false
+  /** The part of the play screen the beats keep the speech box clear of, and the box's place beside it (see `fit`). */
+  let clearing: HTMLElement | undefined
+  let fitted: { marginLeft: string; width: string } | null = null
+  // The chest's box spans from the chest to the frame's edge, so it resizes when the chest moves (its photo loading).
+  const refit = new ResizeObserver(() => {
+    fitted = null
+    fit(clearing)
+  })
   next.addEventListener('click', () => settle('next'))
   skip.addEventListener('click', () => settle('skip'))
   function onKey(event: KeyboardEvent): void {
@@ -160,25 +171,40 @@ export function storyStage(): StoryStage {
     box.classList.toggle('is-right', beat.cast?.right === beat.speaker && beat.cast.left === undefined)
   }
 
-  /**
-   * Opens the scrim round `spot`; where the speech box would cover it, the box keeps its left edge and ends 12 px short
-   * of it (the chest stands right of the photo's middle, so the box keeps at least half its width).
-   */
+  /** Opens the scrim round `spot`. */
   function light(spot: HTMLElement): void {
     const stage = element.getBoundingClientRect()
     const lit = spot.getBoundingClientRect()
     element.style.setProperty('--spot-x', `${lit.left + lit.width / 2 - stage.left}px`)
     element.style.setProperty('--spot-y', `${lit.top + lit.height / 2 - stage.top}px`)
-    unlight()
-    const said = box.getBoundingClientRect()
-    if (said.right <= lit.left || said.left >= lit.right) return
-    box.style.marginLeft = `${said.left - stage.left}px`
-    box.style.width = `${lit.left - 12 - said.left}px`
   }
 
-  function unlight(): void {
-    box.style.marginLeft = ''
-    box.style.width = ''
+  /**
+   * Keeps the speech box clear of `clear`: where the box would cover it, the box keeps its left edge and ends 12 px
+   * short of it (the chest stands right of the photo's middle, so the box keeps at least half its width). Measured at
+   * the first beat that carries it and held from beat to beat, so the box and its button keep one place through the
+   * intro; measured again only when `clear` itself moves (the first photo sizing the chest's place as it loads).
+   */
+  function fit(clear: HTMLElement | undefined): void {
+    if (clear !== clearing) {
+      refit.disconnect()
+      clearing = clear
+      fitted = null
+      if (clear !== undefined) refit.observe(clear)
+    }
+    if (clear !== undefined && fitted === null) {
+      box.style.marginLeft = ''
+      box.style.width = ''
+      const stage = element.getBoundingClientRect()
+      const lit = clear.getBoundingClientRect()
+      const said = box.getBoundingClientRect()
+      const covers = said.right > lit.left && said.left < lit.right
+      fitted = covers
+        ? { marginLeft: `${said.left - stage.left}px`, width: `${lit.left - 12 - said.left}px` }
+        : { marginLeft: '', width: '' }
+    }
+    box.style.marginLeft = fitted?.marginLeft ?? ''
+    box.style.width = fitted?.width ?? ''
   }
 
   function play(beat: StoryBeat): Promise<BeatEnd> {
@@ -225,8 +251,8 @@ export function storyStage(): StoryStage {
     void box.offsetWidth
     box.classList.add('is-swapping')
     element.hidden = false
+    fit(beat.clear)
     if (beat.spot !== undefined) light(beat.spot)
-    else unlight()
     window.addEventListener('keydown', onKey)
     announce(`${NAMES[beat.speaker]}: ${beat.line}${beat.riddle === undefined ? '' : ` ${beat.riddle.heading}: ${beat.riddle.clue}`}`)
     next.focus({ preventScroll: true })
@@ -242,6 +268,9 @@ export function storyStage(): StoryStage {
 
   function close(): void {
     waiting = false
+    refit.disconnect()
+    clearing = undefined
+    fitted = null
     element.hidden = true
     for (const slot of Object.values(slots)) {
       slot.figure.classList.remove('is-in', 'is-quiet')

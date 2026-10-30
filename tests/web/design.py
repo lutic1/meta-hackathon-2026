@@ -11,6 +11,10 @@ WALK_CSS = ("web/src/scene/walk.css", "web/src/components/walk-map.css", "web/sr
             "web/src/components/treasure-chest.css", "web/src/components/story-stage.css")
 """The walk and story stylesheets: DESIGN.md Motion's walk and story exception (owner decision Oct 29),
 tests/web/test_walk.py and tests/web/test_story_play.py."""
+RINGLESS = {"web/src/components/riddle-note.css": ".riddle-note-heading:focus-visible",
+            "web/src/completion.css": ".completion-heading:focus-visible"}
+"""The two headings that take focus but are no control, so no ring shows (EXPERIENCE.md Riddle note, DESIGN.md
+Completion screen): the one place a stylesheet drops the focus ring."""
 
 
 def design_text() -> str:

@@ -8,6 +8,7 @@ import pytest
 from tests.web.design import (
     GROUPS,
     REPO,
+    RINGLESS,
     WALK_CSS,
     WEB_SRC,
     css_custom_properties,
@@ -168,8 +169,11 @@ def test_focus_ring_is_two_tone_at_2px_offset_on_focus_visible_and_never_removed
     assert ring == {"outline": "2px solid var(--focus-ring)", "outline-offset": "2px",
                     "box-shadow": "0 0 0 2px var(--focus-ring-inner)"}
     for path, text in source_css().items():
-        assert not re.search(r"outline:\s*(none|0)", text), f"{path} removes a focus outline"
-        for selector, rule in css_rules(text).items():
+        rules = css_rules(text)
+        if path in RINGLESS:  # the two headings that take focus but are no control show no ring
+            assert rules.pop(RINGLESS[path]) == {"outline": "none", "box-shadow": "none"}, path
+        for selector, rule in rules.items():
+            assert not re.match(r"(none|0)", rule.get("outline", "")), f"{path}: {selector} removes a focus outline"
             if ":focus-visible" in selector and "box-shadow" in rule:
                 # The chooser's card ring stands 4 px out at 3 px, so its inner ring fills that gap (DESIGN.md Chooser).
                 inner = "0 0 0 4px" if selector == ".chooser-choose:focus-visible" else "0 0 0 2px"

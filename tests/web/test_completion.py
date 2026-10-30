@@ -221,6 +221,21 @@ def test_the_heading_takes_focus_and_the_sign_off_is_announced_once():
     assert "liveRegion()" in _code("shell.ts")
 
 
+
+def test_opening_details_brings_its_actions_into_view_at_once_under_reduced_motion():
+    # Live replay, Oct 30: "Build another room", "Copy your result" and "How this room was built" opened cut off at
+    # the scrim's lower edge. The scrim scrolls when the sheet is taller than the body, so Details scrolls them in.
+    completion = _code("completion.ts")
+    toggle = completion.split("details.addEventListener('toggle', () => {", 1)[1].split("\n  })", 1)[0]
+    assert "if (!details.open) return" in toggle
+    assert "const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches" in toggle
+    assert "actions.scrollIntoView({ block: 'nearest', behavior: reduced ? 'instant' : 'smooth' })" in toggle
+    # They come to rest where the sheet ends (its 20 px bottom padding and the scrim's 22 px), not flush on the edge.
+    rules = _rules()
+    assert rules[".completion-sheet"]["padding"] == "22px 26px 20px"
+    assert rules[".completion-scrim"]["padding"] == "var(--spacing-frame-margin) 20px 22px"
+    assert rules[".completion-actions"]["scroll-margin-bottom"] == "42px"
+
 def test_every_completion_color_pair_is_in_the_contrast_table():
     table = design_text().split("### Contrast (load-bearing pairs)", 1)[1].split("\n## ", 1)[0]
     rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]

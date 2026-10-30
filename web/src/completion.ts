@@ -316,6 +316,12 @@ export function mountCompletion(
   summary.className = 'completion-details-toggle label'
   summary.textContent = strings.details
   details.append(summary, filmstrip, times, wizards, actions, copied)
+  // Opening Details brings its actions into view: the scrim scrolls when the sheet is taller than the body.
+  details.addEventListener('toggle', () => {
+    if (!details.open) return
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+    actions.scrollIntoView({ block: 'nearest', behavior: reduced ? 'instant' : 'smooth' })
+  })
 
   sheet.append(story, side, failed, kept, details)
   scrim.append(sheet)

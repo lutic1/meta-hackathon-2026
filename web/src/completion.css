@@ -47,6 +47,11 @@
   color: var(--ink);
   font: 500 36px/1.05 var(--font-serif);
 }
+/* The heading takes focus when the sheet opens; it is no control, so no ring shows. */
+.completion-heading:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
 .completion-subline {
   margin: 0 0 var(--spacing-3);
   color: var(--ink-muted);
@@ -155,12 +160,15 @@
 }
 
 /* The other actions, left-aligned in Details; "Copy your result" stays out until the result and the title are in. */
+/* Opening Details scrolls the actions into view; they come to rest where the sheet ends, its 20 px and the scrim's
+   22 px under them, so no edge or focus ring is cut. */
 .completion-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-3);
   align-items: center;
   margin-top: var(--spacing-5);
+  scroll-margin-bottom: 42px;
 }
 
 /* The filmstrip of the Room's photos, over the time table. */

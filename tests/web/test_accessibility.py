@@ -14,7 +14,14 @@ from fastapi.testclient import TestClient
 from src.domain.schema import Room
 from tests.api.test_app import make_app
 from tests.fixtures.rooms import IX
-from tests.web.design import WEB_SRC, css_rules, design_text, source_css, source_ts
+from tests.web.design import (
+    RINGLESS,
+    WEB_SRC,
+    css_rules,
+    design_text,
+    source_css,
+    source_ts,
+)
 from tests.web.test_contrast import PROPS, _hex, _over, contrast
 from tests.web.test_strings import _strings
 
@@ -203,9 +210,16 @@ def test_every_surface_control_keeps_the_two_tone_focus_ring():
     focus = _rules("tokens.css")[":focus-visible"]
     assert focus == {"outline": "2px solid var(--focus-ring)", "outline-offset": "2px",
                      "box-shadow": "0 0 0 2px var(--focus-ring-inner)"}
+    # A heading that takes focus but is no control shows no ring: these two, and nothing else, drop it.
     for path, text in source_css().items():
-        code = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
-        assert not re.search(r"outline:\s*(none|0)", code), f"{path} removes the focus outline"
+        rules = css_rules(text)
+        if path in RINGLESS:
+            assert rules.pop(RINGLESS[path]) == {"outline": "none", "box-shadow": "none"}, path
+        for selector, declarations in rules.items():
+            outline = declarations.get("outline", "")
+            assert not re.match(r"(none|0)", outline), f"{path} removes the focus outline on {selector}"
+    for name in ("components/riddle-note.ts", "completion.ts"):
+        assert "heading.tabIndex = -1" in _ts(name), name
 
 
 def test_every_fade_is_instant_under_reduced_motion():

@@ -148,12 +148,33 @@ def test_the_guides_beat_lights_the_chest_through_the_scrim():
     # The hole sits on the chest, and the speech box ends 12 px short of it where the two would overlap.
     light = _function(stage, "light")
     assert "element.style.setProperty('--spot-x', `${lit.left + lit.width / 2 - stage.left}px`)" in light
-    assert "if (said.right <= lit.left || said.left >= lit.right) return" in light
-    assert "box.style.width = `${lit.left - 12 - said.left}px`" in light
+    fit = _function(stage, "fit")
+    assert "const covers = said.right > lit.left && said.left < lit.right" in fit
+    assert "width: `${lit.left - 12 - said.left}px`" in fit
     rules = css_rules(_ts("components/story-stage.css"))
     assert "radial-gradient(" in rules[".story-stage.is-spotlit .story-scrim"]["mask-image"]
     assert rules[".treasure-chest.is-beckoning .chest"]["box-shadow"] == "0 0 0 1px var(--lamp), 0 0 30px #E9A94BA6"
 
+
+
+def test_the_speech_box_keeps_one_place_on_all_five_intro_beats_so_next_never_moves():
+    # Live replay, Oct 30: the box narrowed only on the Guide's beat, so Next jumped 73 px left. Every intro beat keeps
+    # the box clear of the chest's box, measured at the first beat and held from beat to beat, and measured again only
+    # when the chest moves (at intro start the first photo has not loaded, so the chest has no place yet).
+    intro = _ts("story.ts").split("export async function playIntro(", 1)[1]
+    assert "beats.play({ ...beat, page: { at, of: intro.length }, clear: chest.element })" in intro
+    stage = _ts("components/story-stage.ts")
+    fit = _function(stage, "fit")
+    assert "if (clear !== clearing) {" in fit and "if (clear !== undefined) refit.observe(clear)" in fit
+    assert "if (clear !== undefined && fitted === null) {" in fit
+    assert "box.style.width = fitted?.width ?? ''" in fit
+    assert "const refit = new ResizeObserver(() => {\n    fitted = null\n    fit(clearing)\n  })" in stage
+    play = _function(stage, "play")
+    assert "fit(beat.clear)" in play and "unlight()" not in stage
+    close = _function(stage, "close")
+    assert "refit.disconnect()" in close and "fitted = null" in close
+    # The chest's box runs from the chest to the frame's edge, so its width changes when the chest moves.
+    assert css_rules(_ts("components/treasure-chest.css"))[".treasure-chest"]["right"] == "16px"
 
 # --- The intro on the Play screen ------------------------------------------------------------------------------------
 
