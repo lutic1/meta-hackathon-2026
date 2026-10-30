@@ -179,12 +179,34 @@ def test_your_pack_stands_on_the_floor_left_of_the_photo_and_says_what_to_do():
     change = pack.split("selection.onChange((item, cause) => {", 1)[1].split("\n  })", 1)[0]
     assert "say(fill(strings.inHandWhere, { Label: capitalized(label(item)) }))" in change
     assert "say(fill(strings.putAway, { label: label(was) }))" in change and "say(strings.handsEmpty)" in change
-    floor = _rules("components/inventory.css")[".inventory"]
-    assert floor["right"] == "calc(50% + var(--wall-width, 0px) / 2 + 22px)" and floor["bottom"] == "26px"
-    chest = _rules("components/treasure-chest.css")[".treasure-chest"]
-    assert chest["left"] == "calc(50% + var(--wall-width, 0px) / 2 + 22px)" and chest["bottom"] == "26px"
     # A crop is cut around the largest polygon, so the two-polygon pillows read as one object.
     assert "const polygon = largest(interactable.polygons ?? []) ?? []" in _ts("components/crop.ts")
+
+
+def test_the_pack_and_the_chest_stand_by_the_photo_but_never_leave_the_frame():
+    # 22 px beside the photo and 26 px up, but a landscape photo nearly as wide as the frame leaves a side margin
+    # narrower than either part: the pack then starts 16 px inside the frame's left edge (`safe` alignment) and the
+    # chest ends 16 px inside its right edge, each over the photo's lower corner, so the page never scrolls sideways.
+    pack = _rules("components/inventory.css")
+    floor = pack[".inventory"]
+    assert floor["right"] == "calc(50% + var(--wall-width, 0px) / 2 + 22px)" and floor["bottom"] == "26px"
+    assert floor["left"] == "16px" and floor["grid-template-columns"] == "max-content"
+    assert floor["justify-content"] == "safe end" and floor["justify-items"] == "end"
+    assert "width" not in floor  # the box spans the margin; its column takes what it needs
+    assert floor["pointer-events"] == "none" and pack[".inventory > *"]["pointer-events"] == "auto"
+    rules = _rules("components/treasure-chest.css")
+    chest = rules[".treasure-chest"]
+    edge = "calc(50% + var(--wall-width, 0px) / 2 + 22px)"
+    assert chest["left"] == f"min({edge}, calc(100% - var(--chest-width) - 16px))" and chest["bottom"] == "26px"
+    assert chest["right"] == "16px" and chest["container-type"] == "inline-size"
+    assert chest["--chest-width"] == "168px"  # the chest over "2 hints for the whole house", the widest label
+    assert chest["pointer-events"] == "none" and rules[".treasure-chest > :not(.chest-bubble)"]["pointer-events"] == "auto"
+    # The bubble (250 px) and the dialog (340 px) overhang the box; they slide left by what would overflow it, and
+    # the bubble's tail stays over the chest.
+    assert rules[".chest-bubble"]["width"] == "250px" and rules[".chest-dialog"]["width"] == "340px"
+    assert rules[".chest-bubble"]["left"] == "min(-10px, calc(100cqw - 250px))"
+    assert rules[".chest-dialog"]["left"] == "min(0px, calc(100cqw - 340px))"
+    assert rules[".chest-bubble::after"]["left"] == "max(40px, calc(280px - 100cqw))"
 
 
 def test_the_parts_hang_in_the_frame_in_the_tab_order_and_the_side_column_is_gone():

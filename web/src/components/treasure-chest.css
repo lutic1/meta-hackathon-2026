@@ -1,16 +1,27 @@
 /* The Treasure chest (story mode, owner decision Oct 29; DESIGN.md Treasure chest): it stands on the floor right of
    the photo, 22 px from its edge and 26 px up, two gems over the illustrated chest and its name and count beside. Its
    dialog opens above it on parchment; the Trickster's bubble rises above it. The lid's swing and a gem's flight belong
-   to DESIGN.md Motion's walk and story exception and are off under reduced motion. */
+   to DESIGN.md Motion's walk and story exception and are off under reduced motion.
+   It never leaves the frame: its box runs from the chest to 16 px short of the frame's right edge, and where the side
+   margin is narrower than the chest (a landscape photo nearly as wide as the frame) the chest stands over the photo's
+   lower right corner instead. The box is a container, so the bubble and the dialog, which overhang it, slide left by
+   what they would overflow (100cqw is the room left of that edge); only the parts themselves take the pointer. */
 .treasure-chest {
+  --chest-width: 168px;
   position: absolute;
   z-index: 4;
+  right: 16px;
   bottom: 26px;
-  left: calc(50% + var(--wall-width, 0px) / 2 + 22px);
+  left: min(calc(50% + var(--wall-width, 0px) / 2 + 22px), calc(100% - var(--chest-width) - 16px));
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
+  pointer-events: none;
+}
+.treasure-chest > :not(.chest-bubble) {
+  pointer-events: auto;
 }
 .chest {
   display: flex;
@@ -96,7 +107,7 @@
 .chest-dialog {
   position: absolute;
   bottom: calc(100% + 10px);
-  left: 0;
+  left: min(0px, calc(100cqw - 340px));
   box-sizing: border-box;
   width: 340px;
   padding: var(--spacing-4) 18px;
@@ -156,7 +167,7 @@
 .chest-bubble {
   position: absolute;
   bottom: calc(100% + 14px);
-  left: -10px;
+  left: min(-10px, calc(100cqw - 250px));
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   column-gap: 10px;
@@ -177,7 +188,7 @@
   content: '';
   position: absolute;
   top: 100%;
-  left: 40px;
+  left: max(40px, calc(280px - 100cqw)); /* over the chest wherever the bubble slid */
   width: 18px;
   height: 11px;
   background: var(--parchment);

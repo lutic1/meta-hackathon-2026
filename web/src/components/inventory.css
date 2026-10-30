@@ -1,16 +1,25 @@
 /* {components.inventory}, "Your pack" (story mode, build spec 1.8): it stands on the floor left of the photo, 22 px
    from its edge and 26 px up, right-aligned toward the photo: its name, a row of 76 x 60 crops in gilt-edged wells (a
-   free one the dashed hairline well) and a caption. */
+   free one the dashed hairline well) and a caption.
+   It never leaves the frame: its box runs from 16 px inside the frame's left edge to the photo, its one column set
+   against the box's right end, and where the column is wider than that margin (a landscape photo nearly as wide as the
+   frame, or a full pack) `safe` starts it 16 px from the frame's edge instead, over the photo's lower left corner.
+   Only the parts themselves take the pointer. */
 .inventory {
   position: absolute;
   z-index: 4;
   right: calc(50% + var(--wall-width, 0px) / 2 + 22px);
   bottom: 26px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--spacing-2);
-  width: max-content;
+  left: 16px;
+  display: grid;
+  grid-template-columns: max-content;
+  justify-content: safe end;
+  justify-items: end;
+  row-gap: var(--spacing-2);
+  pointer-events: none;
+}
+.inventory > * {
+  pointer-events: auto;
 }
 .inventory-name {
   color: var(--text-muted);
