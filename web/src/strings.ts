@@ -400,7 +400,7 @@ export const strings = {
   keysBack: 'back to the three',
   pauseMotion: 'Pause motion',
   cardAnnounce: '{title}, card {n} of 3. Click or press Enter to choose.',
-  watchIntro: 'Watch the intro',
+  playIntro: 'Play intro',
   introLabel: 'Keyframe intro',
   introSoundOn: 'Sound on',
   introSoundOff: 'Sound off',

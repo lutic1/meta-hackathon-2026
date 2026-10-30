@@ -208,7 +208,7 @@ it holds the title with "Replay" and "Enter Keyframe" and enters by
 itself after a four-second countdown unless Replay is chosen. Once it
 has ended, been skipped or entered, this browser remembers it
 (`keyframe.introSeen.v1` in local storage) and it never plays by itself
-again; "Watch the intro" in the chooser's key row replays it. A deep
+again; "Play intro" at the top right of the landing replays it. A deep
 link (`#/play/...`, `#/build/...`) never shows it, and under reduced
 motion it never plays by itself (shown on request, it has the native
 controls and "Skip intro" sits top right). Every screen has a way back

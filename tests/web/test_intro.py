@@ -1,6 +1,6 @@
 """Owner decision Oct 29: a full-screen intro over the Hosted landing on the first visit, once, with Replay and Enter
-at its end, remembered in the browser so it never shows by itself again, and a "Watch the intro" control that reopens
-it. The owner's own generated teaser, re-encoded under web/public/intro/; its sound starts only when the player turns
+at its end, remembered in the browser so it never shows by itself again, and a control that reopens it: "Play intro" at
+the top bar's right end since the owner's request of Oct 30 (it was "Watch the intro" in the chooser's footer). The owner's own generated teaser, re-encoded under web/public/intro/; its sound starts only when the player turns
 it on (the owner's exception to the no-sound rule, DESIGN.md Motion and EXPERIENCE.md Theme and senses).
 
 As in test_landing_clip.py, the client checks read the TypeScript and the stylesheet (the client has no test runner);
@@ -67,9 +67,10 @@ def test_the_intro_strings_are_the_experience_lines():
         "introReplay": "Replay",
         "introEnter": "Enter Keyframe",
         "introCountdown": "Entering in {n}…",
-        "watchIntro": "Watch the intro",
+        "playIntro": "Play intro",
     }
     assert {key: strings.get(key) for key in expected} == expected
+    assert "watchIntro" not in strings  # the footer's "Watch the intro" went with the top-right button
     voice = _section("Voice and Tone")
     assert "| Intro (full screen, the first visit" in voice
 
@@ -147,11 +148,41 @@ def test_reduced_motion_skips_the_auto_show_and_the_control_reopens_it_with_nati
     assert rules[".intro-skip"]["bottom"] == "var(--spacing-5)"
     assert rules[".intro.is-reduced .intro-skip"] == {"top": "var(--spacing-5)", "bottom": "auto"}
     chooser = _code("chooser.ts")
-    assert "const introButton = element('button', 'chooser-intro-toggle label', strings.watchIntro)" in chooser
-    reopen = chooser.split("introButton.addEventListener('click', () => {", 1)[1].split("\n  })", 1)[0]
-    assert "introShown = openIntro(false)" in reopen
-    assert "element('footer', 'chooser-keys body-sm', hints, element('div', 'chooser-keys-end', introButton, stillToggle))" in chooser
+    assert "const introButton = secondaryButton({ label: strings.playIntro, onActivate: () => reopenIntro() })" in chooser
+    assert "introShown = openIntro(false)" in _body(chooser, "  function reopenIntro(): void {")
+    assert "introButton.hidden" not in chooser  # shown under reduced motion too: the player asked for it
 
+
+def test_play_intro_sits_at_the_top_bar_s_right_end_on_the_landing_and_every_back():
+    """Owner request Oct 30: "a button on the top right that says play Intro". It is the play screen's quiet top-bar
+    button (fix D12), put in the top bar's controls slot by the landing's chooser alone, so it shows on the landing and
+    on every card back and on no other screen; it opens the same overlay the footer's "Watch the intro" did, which goes.
+    Open on a back, the dialog leaves it out of the inert top bar and its Tab ring takes it after the panel's controls;
+    while the intro shows, the chooser's own keys wait and the videos behind it pause, so no two play at once."""
+    chooser = _code("chooser.ts")
+    mount = chooser.split("    mount() {", 1)[1]
+    assert "document.querySelector<HTMLElement>('.top-bar-controls')?.append(introButton)" in mount
+    assert "introButton.remove()" in mount.split("return () => {", 1)[1]
+    assert "element('footer', 'chooser-keys body-sm', hints, element('div', 'chooser-keys-end', stillToggle))" in chooser
+    css = (WEB_SRC / "chooser.css").read_text()
+    assert "chooser-intro-toggle" not in chooser and "chooser-intro-toggle" not in css
+    assert ".top-bar-controls > .button-secondary" in (WEB_SRC / "components/top-bar.css").read_text()
+    outside = _body(chooser, "  function outside(): HTMLElement[] {")
+    assert "!node.contains(introButton)" in outside
+    trap = _body(chooser, "  function trapTab(event: KeyboardEvent): void {")
+    assert "const ring = introButton.isConnected ? [...controls, introButton] : controls" in trap
+    assert "if (introOpen) return" in _body(chooser, "  function onKey(event: KeyboardEvent): void {")
+    reopen = _body(chooser, "  function reopenIntro(): void {")
+    for line in ("introOpen = true", "for (const video of [frontVideo, tutorialVideo, panelVideo, playVideo]) video.pause()",
+                 "introOpen = false", "startFrontVideo()"):
+        assert line in reopen, line
+    for name in ("shell.ts", "play.ts", "capture.ts", "build-view.ts", "completion.ts", "landing.ts"):
+        assert "strings.playIntro" not in _code(name), name
+    experience = EXPERIENCE.read_text()
+    assert '"Play intro"' in experience and "Watch the intro" not in experience
+    rows = [line for line in experience.splitlines() if '"Play intro"' in line]
+    assert rows and all("(amended 30 Oct 2026, owner request)" in row for row in rows)
+    assert '"Play intro"' in design_text() and "Watch the intro" not in design_text()
 
 def test_a_video_that_cannot_play_falls_through_to_the_landing():
     intro = _intro()

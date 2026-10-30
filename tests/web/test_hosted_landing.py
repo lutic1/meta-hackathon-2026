@@ -65,7 +65,7 @@ def test_the_landing_top_bar_has_no_timer_and_no_play_control():
     shell = _code("shell.ts")
     owner = shell.split("function timerOwner(", 1)[1].split("\n}\n", 1)[0]
     assert "if (route.name === 'home') return null" in owner
-    # Only the Play and Completion surfaces fill the controls slot.
+    # Only the Play and Completion surfaces fill the controls slot, and the chooser its "Play intro" (test_intro.py).
     landing = _code("landing.ts") + _code("components/demo-room-card.ts")
     assert "controls" not in landing and "mountTimer" not in landing and "timer" not in landing
     assert "if (meta.mode === 'hosted') return strings.modeHosted" in _ts("components/top-bar.ts")

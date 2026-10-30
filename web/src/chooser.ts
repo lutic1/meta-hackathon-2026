@@ -228,9 +228,10 @@ type State = 'arriving' | 'rest' | 'choosing' | 'chosen' | 'returning'
  * hosts, how to play and "Play this room" (the guarded start, "Opening the room…" while pending); Build holds
  * the three steps and the Access-code build. Escape, Back or a click on the bare stage turns it home, focus returning
  * to the card. The cards are one Tab stop, Play first; arrows, Home and End move between them; Tab is trapped in the
- * dialog and everything outside it is inert. The footer holds the key hints, "Watch the intro", which reopens the
- * full-screen intro (`intro.ts`), and Pause motion, which holds every loop still. On the first visit the intro shows by
- * itself on mount and the cards are dealt in once it is gone. Under reduced motion nothing
+ * dialog and everything outside it is inert, but for "Play intro", which the chooser puts at the top bar's right end on
+ * mount and which reopens the full-screen intro (`intro.ts`) from the landing and from every back. The footer holds the
+ * key hints and Pause motion, which holds every loop still. On the first visit the intro shows by itself on mount and
+ * the cards are dealt in once it is gone. Under reduced motion nothing
  * deals, spins or loops and every change is a 160 ms crossfade. With no Demo room listed, or a failed listing, Watch and
  * Build stay whole and the Play back holds the no-room line or the failed line with "Try again".
  */
@@ -678,9 +679,9 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   stillToggle.type = 'button'
   stillToggle.setAttribute('aria-pressed', String(still))
   stillToggle.append(...Array.from(art(`<span>${STILL_ICONS}</span>`).childNodes), strings.pauseMotion)
-  const introButton = element('button', 'chooser-intro-toggle label', strings.watchIntro)
-  introButton.type = 'button'
-  const keys = element('footer', 'chooser-keys body-sm', hints, element('div', 'chooser-keys-end', introButton, stillToggle))
+  // "Play intro", the play screen's quiet top-bar button, goes to the top bar's right end on mount (owner request Oct 30).
+  const introButton = secondaryButton({ label: strings.playIntro, onActivate: () => reopenIntro() })
+  const keys = element('footer', 'chooser-keys body-sm', hints, element('div', 'chooser-keys-end', stillToggle))
 
   section.append(atmos, pitch, stage, keys)
 
@@ -693,6 +694,8 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   let clipPausedByUser = false
   let mounted = false
   let introShown: Intro | null = null
+  /** The intro reopened by hand is showing: the chooser's own keys wait for it. */
+  let introOpen = false
   let raf = 0
   let announceTimer: ReturnType<typeof setTimeout> | undefined
   let lastAnnounced = ''
@@ -1063,6 +1066,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     if (state === 'chosen' && event.target instanceof Node && !panel.contains(event.target)) goHome()
   })
   function onKey(event: KeyboardEvent): void {
+    if (introOpen) return
     if (event.key === 'Escape' && state === 'chosen') {
       event.preventDefault()
       goHome()
@@ -1073,36 +1077,38 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       trapTab(event)
     }
   }
-  /** The dialog keeps Tab inside it, cycling its visible controls. */
+  /**
+   * The dialog keeps Tab inside it, cycling its visible controls and then "Play intro" in the top bar: the browser steps
+   * within the panel, and the ring takes over at its ends, into and out of "Play intro" and from anywhere outside.
+   */
   function trapTab(event: KeyboardEvent): void {
     const view = views[chosen]
     const controls = [...view.querySelectorAll<HTMLElement>('button, a[href], input, video[tabindex]')].filter(
       (control) => !(control instanceof HTMLButtonElement && control.disabled) && control.offsetParent !== null,
     )
     if (controls.length === 0) return
-    const firstControl = controls[0]
-    const lastControl = controls[controls.length - 1]
+    const ring = introButton.isConnected ? [...controls, introButton] : controls
     const at = document.activeElement
-    if (!(at instanceof Node) || !panel.contains(at)) {
-      event.preventDefault()
-      firstControl.focus()
-    } else if (event.shiftKey && at === firstControl) {
-      event.preventDefault()
-      lastControl.focus()
-    } else if (!event.shiftKey && at === lastControl) {
-      event.preventDefault()
-      firstControl.focus()
-    }
+    const k = ring.findIndex((control) => control === at)
+    let next: HTMLElement | undefined
+    if (k === -1) next = at instanceof Node && panel.contains(at) ? undefined : ring[0]
+    else if (event.shiftKey) next = k === 0 || at === introButton ? ring.at(k - 1) : undefined
+    else next = k === ring.length - 1 || ring[k + 1] === introButton ? ring[(k + 1) % ring.length] : undefined
+    if (next === undefined) return
+    event.preventDefault()
+    next.focus()
   }
 
   // ---- choosing and going home ----
-  /** Everything outside the dialog: the top bar, the row, the footer and the page below the fold. */
+  /** Everything outside the dialog: the top bar but its "Play intro" slot, the row, the footer and the page below the fold. */
   function outside(): HTMLElement[] {
-    const bar = document.querySelector<HTMLElement>('.top-bar')
+    const bar = [...(document.querySelector<HTMLElement>('.top-bar')?.children ?? [])].filter(
+      (node): node is HTMLElement => node instanceof HTMLElement && !node.contains(introButton),
+    )
     const below = [...(section.parentElement?.children ?? [])].filter(
       (node): node is HTMLElement => node instanceof HTMLElement && node !== section,
     )
-    return [...(bar === null ? [] : [bar]), row, keys, ...below]
+    return [...bar, row, keys, ...below]
   }
   function setModal(on: boolean): void {
     for (const node of outside()) node.inert = on
@@ -1323,9 +1329,16 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   })
 
   // ---- the intro, reopened by hand: no countdown at its end ----
-  introButton.addEventListener('click', () => {
+  /** Opens the intro over the landing or a back, the videos behind it paused, so no two play at once. */
+  function reopenIntro(): void {
+    introOpen = true
+    for (const video of [frontVideo, tutorialVideo, panelVideo, playVideo]) video.pause()
     introShown = openIntro(false)
-  })
+    void introShown.closed.then(() => {
+      introOpen = false
+      startFrontVideo()
+    })
+  }
 
   // ---- the arrival: dealt in from below with a 540-degree spin, the centre first ----
   function arrive(): void {
@@ -1386,6 +1399,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       })
       document.addEventListener('keydown', onKey, true) // capture: the video's own controls keep Escape otherwise
       document.addEventListener('visibilitychange', onVisibility)
+      document.querySelector<HTMLElement>('.top-bar-controls')?.append(introButton)
       if (introDue(reduced)) introShown = openIntro(true)
       // The cards are dealt in once the fonts are in and the intro that showed by itself is gone.
       Promise.all([document.fonts.ready, introShown?.closed]).then(
@@ -1415,6 +1429,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
         document.removeEventListener('visibilitychange', onVisibility)
         if (chosen !== -1) setModal(false)
         introShown?.remove()
+        introButton.remove()
       }
     },
   }

@@ -1399,7 +1399,7 @@
   }
 }
 
-/* ---------- The footer: the key hints, Watch the intro and Pause motion ---------- */
+/* ---------- The footer: the key hints and Pause motion ---------- */
 .chooser-keys {
   position: relative;
   z-index: 3;
@@ -1430,27 +1430,13 @@
 .chooser.is-chosen .chooser-hint.is-chosen-only {
   display: inline-flex;
 }
-/* The footer's right end: "Watch the intro", a quiet underlined text button, then Pause motion. */
+/* The footer's right end: Pause motion ("Play intro" moved to the top bar, Oct 30). */
 .chooser-keys-end {
   grid-column: 3;
   justify-self: end;
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-}
-.chooser-intro-toggle {
-  height: 32px;
-  padding: 0 var(--spacing-2);
-  border: 0;
-  background: none;
-  font-size: 14px;
-  color: var(--parchment);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-.chooser-intro-toggle:hover {
-  color: var(--text);
 }
 .chooser-still-toggle {
   display: inline-flex;
