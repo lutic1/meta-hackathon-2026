@@ -3352,6 +3352,18 @@
           "title": "Architect Welcome",
           "type": "string"
         },
+        "architect_welcome_visitor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Architect Welcome Visitor"
+        },
         "trickster_trap": {
           "title": "Trickster Trap",
           "type": "string"

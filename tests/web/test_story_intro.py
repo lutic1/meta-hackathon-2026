@@ -68,7 +68,7 @@ def test_a_room_whose_photos_name_no_area_is_your_room():
 
 @needs_node
 def test_the_rooms_story_wins_and_the_first_riddles_opening_follows_its_where_line():
-    told = {**TOLD, "interactables": THINGS}
+    told = {**TOLD, "name": None, "interactables": THINGS}
     assert _run(["introLines", told, "pillows", None])[0] == {
         "welcome": "a", "trap": "t", "entrance": "r", "guide": "g", "first": "Start in the lounge. Open.",
     }
@@ -79,9 +79,22 @@ def test_the_rooms_story_wins_and_the_first_riddles_opening_follows_its_where_li
 
 
 @needs_node
+def test_a_demo_room_is_welcomed_by_the_visitor_line_and_your_own_room_by_the_thank_you():
+    visitor = {**STORY, "architect_welcome_visitor": "v"}
+    demo, own = _run(["introLines", {**TOLD, "story": visitor, "interactables": THINGS}, "pillows", None],
+                     ["introLines", {**TOLD, "story": visitor, "name": None, "interactables": THINGS}, "pillows", None])
+    assert (demo["welcome"], own["welcome"]) == ("v", "a")
+    # A story stored before the visitor line, or with it null, welcomes a Demo room with the Demo template.
+    for story in (STORY, {**STORY, "architect_welcome_visitor": None}):
+        line = _run(["introLines", {**TOLD, "story": story, "interactables": THINGS}, "pillows", None])[0]["welcome"]
+        assert line == "Welcome to someone's front hall and lounge. I built it from their photos: 8 angles, 12 things " \
+                       "worth a closer look."
+
+
+@needs_node
 def test_a_returning_players_greeting_replaces_the_guides_line_and_nothing_else():
     greeted, told = _run(["introLines", OWN, "pillows", "Back again. Two hints wait."],
-                         ["introLines", {**TOLD, "interactables": THINGS}, "pillows", "Back again."])
+                         ["introLines", {**TOLD, "name": None, "interactables": THINGS}, "pillows", "Back again."])
     assert greeted["guide"] == "Back again. Two hints wait." and told["guide"] == "Back again."
     assert greeted["welcome"].startswith("Thank you for your photos.") and told["welcome"] == "a"
 

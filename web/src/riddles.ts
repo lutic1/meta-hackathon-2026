@@ -82,8 +82,10 @@ export interface IntroLines {
 
 /**
  * The intro's lines for a Room whose first riddle is `first`: the Room's story when it has one, else the templates
- * filled from served data (a Demo room, the one with a name, is "someone's"); the first riddle's opening is the one
- * the story wrote for it. A returning player's Greeting (`greeting`, Local mode) takes the Guide's line.
+ * filled from served data. A Demo room, the one with a name, is "someone's": the Architect welcomes a visitor there
+ * (`architect_welcome_visitor`, the Demo template when the story has none) and thanks the player only in their own
+ * Room. The first riddle's opening is the one the story wrote for it. A returning player's Greeting (`greeting`,
+ * Local mode) takes the Guide's line.
  */
 export function introLines(
   room: Room & Pick<PlayView, 'interactables'>,
@@ -98,7 +100,9 @@ export function introLines(
   }
   const opening = story?.riddles.find((riddle) => riddle.puzzle_id === first)?.opening ?? strings.riddleOpening
   return {
-    welcome: story?.architect_welcome ?? fill(room.name ? strings.introArchitectDemo : strings.introArchitect, counts),
+    welcome: room.name
+      ? (story?.architect_welcome_visitor ?? fill(strings.introArchitectDemo, counts))
+      : (story?.architect_welcome ?? fill(strings.introArchitect, counts)),
     trap: story?.trickster_trap ?? strings.introTrap,
     entrance: story?.riddler_entrance ?? fill(strings.introRiddler, { riddles: room.puzzles.length }),
     guide: greeting ?? story?.guide_chest ?? fill(strings.introGuide, { hints: CHEST_HINTS }),

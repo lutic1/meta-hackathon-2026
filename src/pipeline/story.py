@@ -10,8 +10,12 @@ present and non-empty, one riddle per Puzzle, each line at most `LINE_MAX`
 characters, no solution, target or item label, evidence attribute or code
 in any line (`gives_away`, rule 5's matching, which skips the words of the
 room's name and area labels: the player already sees those), no
-exclamation mark but the
-Trickster's trap line's, and no word about AI, models or the API. A reply
+exclamation mark but the Trickster's trap line's, no word about AI, models
+or the API and no filler word (`FILLER_WORDS`); the Guide's chest line says
+how many hints the chest holds and the Riddler's entrance how many riddles
+there are (the number in digits or in words: a count, whose word is
+no spoiler, though a code's digits stay refused), the exit riddle's solved line says the way out is open, and
+the visitor's welcome thanks nobody for photos. A reply
 that fails is sent back once at attempt 1 with its fixed reasons, which
 name slots and never quote a line; a second failure, or a call that raises,
 leaves the fixed templates (`template_story`, EXPERIENCE.md story mode
@@ -36,7 +40,7 @@ from dataclasses import dataclass
 import pydantic
 
 from src.council.storyteller import (
-    CHEST_HINTS,
+    FILLER_WORDS,
     LINE_MAX,
     StoryBrief,
     build_story_prompt,
@@ -56,6 +60,7 @@ from src.domain.schema import (
     StoryRiddle,
     UseOnSolution,
 )
+from src.domain.rungs import HINTS_PER_SESSION
 from src.domain.validator import gives_away
 from src.pipeline.author import assemble_room
 from src.pipeline.build import StageFn, StageResult, call_row, error_code
@@ -68,9 +73,15 @@ STORY_FILE = "story.json"
 """The stage artifact under `<room_id>/`: the `Story` scene puts on the Room."""
 TRAP_SLOT = "trickster_trap"
 """The one slot whose line keeps an exclamation mark (owner call, 29 Oct 2026)."""
+VISITOR_SLOT = "architect_welcome_visitor"
+"""The Architect's welcome in someone else's Room: the visitor sent no photos to be thanked for."""
 SINGLE_LINES = len(Story.model_fields) - 1
 """The story's lines outside its riddles; each riddle adds two."""
 OFF_STORY = re.compile(r"\b(a\.?i|llms?|models?|apis?|prompts?|chatbots?)\b", re.IGNORECASE)
+FILLER = re.compile(rf"\b({'|'.join(FILLER_WORDS)})\w*", re.IGNORECASE)
+THANKS = re.compile(r"\bthank", re.IGNORECASE)
+NUMBER_WORDS = ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+                "twelve")
 
 SHAPE_MESSAGE = "The reply did not follow the response shape."
 EMPTY_MESSAGE = "the line is empty."
@@ -78,6 +89,11 @@ LONG_MESSAGE = f"the line is longer than {LINE_MAX} characters."
 LEAK_MESSAGE = "the line gives part of an answer away."
 EXCLAMATION_MESSAGE = "the line has an exclamation mark."
 OFF_STORY_MESSAGE = "the line talks about AI, models or the API."
+FILLER_MESSAGE = f"the line uses filler ({', '.join(FILLER_WORDS)}); say something plain and concrete."
+HINTS_MESSAGE = "the line does not say the chest holds {hints} hints for the whole house."
+RIDDLES_MESSAGE = "the line does not say there are {riddles} riddles."
+WAY_OUT_MESSAGE = "the line does not say the way out is open."
+THANKS_MESSAGE = "the visitor sent no photos; welcome them without thanking them for any."
 """The fixed reasons, each after its slot's name; none quotes a line."""
 
 
@@ -108,16 +124,24 @@ def _named(puzzle: Puzzle) -> set[str]:
 
 
 def story_brief(room: Room) -> StoryBrief:
-    """The brief for `room`: its name, area labels (none until photos carry one), counts and scenery labels."""
+    """The brief for `room`: its name, area labels (none until photos carry one), counts and scenery labels.
+
+    A scenery label holding a word the story check would refuse (`gives_away`)
+    is left out, so the storyteller is never offered a word it may not use.
+    """
     named = set().union(*(_named(puzzle) for puzzle in room.puzzles))
-    areas = (getattr(photo, "area", None) for photo in room.photos)
+    areas = tuple(dict.fromkeys(area for photo in room.photos if (area := getattr(photo, "area", None))))
+    shown = (*areas, *((room.name,) if room.name else ()))
     return StoryBrief(
         room_name=room.name,
-        areas=tuple(dict.fromkeys(area for area in areas if area)),
+        areas=areas,
         photos=len(room.photos),
         things=sum(ix.polygons is not None for ix in room.interactables),
         riddles=len(room.puzzles),
-        scenery=tuple(ix.label for ix in room.interactables if ix.id not in named),
+        hints=HINTS_PER_SESSION,
+        scenery=tuple(
+            ix.label for ix in room.interactables if ix.id not in named and not gives_away(ix.label, room, shown)
+        ),
     )
 
 
@@ -158,11 +182,13 @@ def template_story(room: Room, brief: StoryBrief | None = None) -> Story:
     return Story(
         architect_welcome=f"Thank you for your photos. I built your {_joined(brief.areas)} from them: "
         f"{brief.photos} angles, {brief.things} things worth a closer look.",
+        architect_welcome_visitor=f"Welcome to someone's {_joined(brief.areas)}. I built it from their photos: "
+        f"{brief.photos} angles, {brief.things} things worth a closer look.",
         trickster_trap="Oh no, you seem to be trapped! I locked the way out and gave the key to the Riddler. "
         "Wicked of me, I know.",
         riddler_entrance="Don't mind him; he thinks a locked door is a party. To escape, you must answer my riddles: "
         f"{brief.riddles} of them, one at a time.",
-        guide_chest=f"Stuck? I keep {CHEST_HINTS} hints in that chest, for the whole house. Choose your moment.",
+        guide_chest=f"Stuck? I keep {brief.hints} hints in that chest, for the whole house. Choose your moment.",
         riddles=[
             StoryRiddle(puzzle_id=puzzle.id, opening="You must answer this.", solved=_solved_line(room, puzzle))
             for puzzle in riddle_order(room)
@@ -193,25 +219,51 @@ def _shown(brief: StoryBrief) -> tuple[str, ...]:
     return (*brief.areas, *((brief.room_name,) if brief.room_name else ()))
 
 
-def _line_reason(slot: str, text: str, room: Room, shown: tuple[str, ...]) -> str | None:
+def _count_word(n: int) -> str:
+    return NUMBER_WORDS[n] if n < len(NUMBER_WORDS) else str(n)
+
+
+def _says(text: str, n: int) -> bool:
+    """Whether `text` holds the count `n` as a whole word, in digits or in words."""
+    words = set(re.findall(r"\w+", text.casefold()))
+    return str(n) in words or _count_word(n) in words
+
+
+def _line_reason(slot: str, text: str, room: Room, brief: StoryBrief, exit_slot: str) -> str | None:
+    count = {"guide_chest": brief.hints, "riddler_entrance": brief.riddles}.get(slot)
+    # A count is no spoiler, even where its word is an evidence word ("four"); a code's digits stay refused.
+    counted = (_count_word(count),) if count is not None else ()
     if not text.strip():
         return EMPTY_MESSAGE
     if len(text) > LINE_MAX:
         return LONG_MESSAGE
-    if gives_away(text, room, shown):
+    if gives_away(text, room, (*_shown(brief), *counted)):
         return LEAK_MESSAGE
     if "!" in text and slot != TRAP_SLOT:
         return EXCLAMATION_MESSAGE
     if OFF_STORY.search(text):
         return OFF_STORY_MESSAGE
+    if FILLER.search(text):
+        return FILLER_MESSAGE
+    if slot == "guide_chest" and not _says(text, brief.hints):
+        return HINTS_MESSAGE.format(hints=_count_word(brief.hints))
+    if slot == "riddler_entrance" and not _says(text, brief.riddles):
+        return RIDDLES_MESSAGE.format(riddles=_count_word(brief.riddles))
+    if slot == exit_slot and "way out" not in text.casefold():
+        return WAY_OUT_MESSAGE
+    if slot == VISITOR_SLOT and THANKS.search(text):
+        return THANKS_MESSAGE
     return None
 
 
 def _refusals(response: StoryResponse, room: Room) -> list[tuple[str, str | None]]:
     """Each fixed reason the reply breaks a line rule, naming its slot, beside the line it refuses (None for the riddle count)."""
-    shown = _shown(story_brief(room))
+    brief = story_brief(room)
+    exit_slot = f"riddle {len(room.puzzles)}, solved"
     refusals: list[tuple[str, str | None]] = [
-        (f"{slot}: {reason}", text) for slot, text in _slots(response) if (reason := _line_reason(slot, text, room, shown))
+        (f"{slot}: {reason}", text)
+        for slot, text in _slots(response)
+        if (reason := _line_reason(slot, text, room, brief, exit_slot))
     ]
     if len(response.riddles) != len(room.puzzles):
         refusals.append((f"riddles: write exactly {len(room.puzzles)} riddles.", None))

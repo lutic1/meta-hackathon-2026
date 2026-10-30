@@ -208,6 +208,12 @@ class Story(Model):
     """
 
     architect_welcome: str
+    """The Architect's welcome to the player in a Room built from their own photos."""
+    architect_welcome_visitor: str | None = None
+    """The Architect's welcome to a visitor in someone else's Room (a Demo room), never thanking them for photos.
+
+    Null on a story stored before it, where the client fills the template.
+    """
     trickster_trap: str
     riddler_entrance: str
     guide_chest: str
@@ -298,6 +304,7 @@ class StoryResponse(Model):
     """The storyteller's reply: the `Story` slots, its riddles a list in riddle order, the exit last (no map field, AD-2)."""
 
     architect_welcome: str
+    architect_welcome_visitor: str
     trickster_trap: str
     riddler_entrance: str
     guide_chest: str

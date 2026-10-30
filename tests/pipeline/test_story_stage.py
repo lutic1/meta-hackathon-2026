@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.wiring import ROLE_CALLS
-from src.council.storyteller import LINE_MAX, StoryBrief, build_story_prompt
+from src.council.storyteller import FILLER_WORDS, LINE_MAX, StoryBrief, build_story_prompt
 from src.domain.redact import to_play_view
 from src.domain.schema import JobState, Room, Story, StoryResponse
 from src.domain.validator import validate
@@ -55,11 +55,13 @@ HOST = "api.meta.ai"
 
 GOOD: dict[str, Any] = {
     "architect_welcome": "Thank you for the photos. I measured every corner twice and grumbled only once.",
+    "architect_welcome_visitor": "Welcome to someone's home. I measured every corner of it twice.",
     "trickster_trap": "Oh no, you seem to be trapped! I locked the way out and gave the key to the Riddler.",
-    "riddler_entrance": "Don't mind him; he thinks a locked door is a party. Answer my riddles, one at a time.",
+    "riddler_entrance": "Don't mind him; he thinks a locked door is a party. Answer my five riddles, one at a time.",
     "guide_chest": "Stuck? I keep two hints for the whole house. Choose your moment.",
     "riddles": [{"opening": f"Riddle the {n}th, if you please.", "solved": "Well done. The house noticed."}
-                for n in ("first", "second", "third", "fourth", "fifth")],
+                for n in ("first", "second", "third", "fourth")]
+               + [{"opening": "Riddle the last, if you please.", "solved": "Well done. The way out is open."}],
     "trickster_closing": "Fine. Out you go. I'll lock it again for the next guest.",
     "riddler_closing": "Clever mind. I'll write harder ones next time.",
     "guide_closing_no_hints": "Not a single hint. I'm almost offended.",
@@ -140,7 +142,7 @@ def test_the_stage_writes_the_models_story_and_scene_puts_it_on_the_room(build, 
     done = runner.run(runner.submit(uploads).id)
     assert done.status == "done" and done.error is None
     record = next(record for record in done.stages if record.stage == "story")
-    assert record.model == "mock-chat-1" and record.count == 8 + 2 * len(four_lock_room.puzzles)
+    assert record.model == "mock-chat-1" and record.count == 9 + 2 * len(four_lock_room.puzzles)
     room = stored_room(artifacts, done)
     assert room.story is not None and room.story == read_story(done.room_id, artifacts)
     assert room.story.architect_welcome == GOOD["architect_welcome"]
@@ -169,7 +171,8 @@ def test_the_call_is_tagged_with_the_job_and_the_story_stage(seeded, artifacts, 
 
 def test_the_brief_carries_counts_and_scenery_labels_only(four_lock_room):
     brief = story_brief(four_lock_room)
-    assert brief == StoryBrief(room_name=None, areas=("room",), photos=6, things=8, riddles=5, scenery=("woven rug",))
+    assert brief == StoryBrief(room_name=None, areas=("room",), photos=6, things=8, riddles=5, hints=2,
+                         scenery=("woven rug",))
 
 
 def test_the_prompt_never_carries_a_solution_target_evidence_or_code(four_lock_room):
@@ -182,6 +185,31 @@ def test_the_prompt_never_carries_a_solution_target_evidence_or_code(four_lock_r
     assert all(token not in text for token in (SENTINEL_CODE, *SENTINEL_IX, *IX.values(), *PZ.values()))
     for voice in ("observes", "teases", "encourages", "most fun"):
         assert voice in build_story_prompt(story_brief(four_lock_room)).system
+
+
+def test_the_prompt_gives_each_wizard_a_personality_style_examples_and_the_counts(four_lock_room):
+    prompt = build_story_prompt(story_brief(four_lock_room))
+    for personality in ("proud and precise", "gleeful and mischievous", "arch and teasing", "warm and dry"):
+        assert personality in prompt.system
+    for example in ("Wicked of me, I know.", "Don't mind him; he thinks a locked door is a party.",
+                    "Choose your moment.", "I notice everything. Mostly mugs.", "The way out is yours.",
+                    "Not a single hint. I'm almost offended.", "Welcome to someone's"):
+        assert example in prompt.system, example
+    assert '"architect_welcome_visitor"' in prompt.system and f"at most {LINE_MAX} characters" in prompt.system
+    assert LINE_MAX == 160 and all(word in prompt.system for word in FILLER_WORDS)
+    brief = json.loads(prompt.user[0])
+    assert (brief["riddles"], brief["hints"]) == (5, 2)
+
+
+def test_scenery_holding_a_word_the_check_would_refuse_is_left_out_of_the_brief(front_hall_room):
+    data = front_hall_room.model_dump()
+    rug = next(ix for ix in data["interactables"] if ix["id"] == IX["rug"])
+    data["interactables"] += [{**rug, "id": f"ix_{n:026d}", "label": label}
+                              for n, label in ((97, "front hall mirror"), (98, "brass lamp"), (99, "entryway rug"))]
+    find_key = next(puzzle for puzzle in data["puzzles"] if puzzle["id"] == PZ["find_key"])
+    find_key["evidence"]["visible_attribute"] = "hangs in the entryway"
+    # "brass" and "entryway" are evidence words; "front" and "hall" are the room's own words, which the player sees.
+    assert story_brief(Room.model_validate(data)).scenery == ("woven rug", "front hall mirror")
 
 
 # --- Line rules, the one retry and the templates -----------------------------------
@@ -204,6 +232,52 @@ def test_a_line_that_breaks_a_rule_is_named_by_its_slot(four_lock_room, changes,
 
 def test_a_good_story_passes_and_only_the_trap_keeps_its_exclamation_mark(four_lock_room):
     assert story_reasons(StoryResponse.model_validate_json(story_reply()), four_lock_room) == []
+
+
+@pytest.mark.parametrize(("changes", "reason"), [
+    ({"guide_chest": "I keep hints here to last through your stay. Open them whenever the moment feels right."},
+     "guide_chest: the line does not say the chest holds two hints for the whole house."),
+    ({"riddler_entrance": "To escape, you must meet my riddles in turn and answer with care."},
+     "riddler_entrance: the line does not say there are five riddles."),
+    ({"riddles": [*GOOD["riddles"][:4], {"opening": "The last one.", "solved": "Charming work, you kept pace."}]},
+     "riddle 5, solved: the line does not say the way out is open."),
+    ({"riddler_closing": "Here the mood deepens and lingers softly nearby."},
+     "riddler_closing: the line uses filler (drift, linger, sway, gently, softly); say something plain and concrete."),
+    ({"architect_welcome_visitor": "Thanks for the photos, I have shaped them into this room for you."},
+     "architect_welcome_visitor: the visitor sent no photos; welcome them without thanking them for any."),
+])
+def test_the_counts_the_way_out_plain_words_and_the_visitor_welcome_are_checked(four_lock_room, changes, reason):
+    assert story_reasons(StoryResponse.model_validate_json(story_reply(**changes)), four_lock_room) == [reason]
+
+
+def test_a_count_word_that_is_also_an_evidence_word_is_still_a_count(code_and_find_room):
+    # Four riddles, and "four" is in the clock's and the door's evidence; the codes' digits keep "4" refused.
+    assert len(code_and_find_room.puzzles) == 4
+    riddles = [{"opening": "Next one.", "solved": "Well done."}] * 3 + [{"opening": "Last.", "solved": "Way out open."}]
+    words = story_reply(riddles=riddles, riddler_entrance="Answer my four riddles, one at a time.")
+    assert story_reasons(StoryResponse.model_validate_json(words), code_and_find_room) == []
+    digits = story_reply(riddles=riddles, riddler_entrance="Answer my 4 riddles, one at a time.")
+    assert story_reasons(StoryResponse.model_validate_json(digits), code_and_find_room) == [
+        "riddler_entrance: the line gives part of an answer away."]
+    # Elsewhere the word stays refused.
+    four = story_reply(riddles=riddles, riddler_entrance="Answer my four riddles.", riddler_closing="Four cheers.")
+    assert story_reasons(StoryResponse.model_validate_json(four), code_and_find_room) == [
+        "riddler_closing: the line gives part of an answer away."]
+
+
+def test_a_count_may_be_digits_but_never_a_codes_digit(four_lock_room):
+    data = four_lock_room.model_dump()
+    for puzzle in data["puzzles"]:
+        if puzzle["lock_type"] == "code":
+            puzzle["solution"]["code"] = "999"
+    no_codes = Room.model_validate(data)
+    counted = {"guide_chest": "Stuck? I keep 2 hints for the whole house.", "riddler_entrance": "Answer my 5 riddles."}
+    assert story_reasons(StoryResponse.model_validate_json(story_reply(**counted)), no_codes) == []
+    # The four-lock room's codes are 415 and 7342: their digits stay refused, counts or not.
+    assert story_reasons(StoryResponse.model_validate_json(story_reply(**counted)), four_lock_room) == [
+        "riddler_entrance: the line gives part of an answer away.",
+        "guide_chest: the line gives part of an answer away.",
+    ]
 
 
 def test_a_story_with_the_wrong_number_of_riddles_is_refused(four_lock_room):
@@ -282,6 +356,8 @@ def test_the_templates_fill_from_the_room(four_lock_room):
     story = template_story(four_lock_room)
     assert story.architect_welcome == (
         "Thank you for your photos. I built your room from them: 6 angles, 8 things worth a closer look.")
+    assert story.architect_welcome_visitor == (
+        "Welcome to someone's room. I built it from their photos: 6 angles, 8 things worth a closer look.")
     assert story.trickster_trap == (
         "Oh no, you seem to be trapped! I locked the way out and gave the key to the Riddler. Wicked of me, I know.")
     assert story.riddler_entrance == ("Don't mind him; he thinks a locked door is a party. To escape, you must answer "
@@ -385,6 +461,12 @@ def test_an_old_room_without_a_story_still_parses_and_serves_null(four_lock_room
     data.pop("story", None)
     room = Room.model_validate(data)
     assert room.story is None and to_play_view(room).story is None
+
+
+def test_a_story_stored_before_the_visitor_welcome_still_parses_with_it_null(four_lock_room):
+    data = template_story(four_lock_room).model_dump(mode="json")
+    del data["architect_welcome_visitor"]
+    assert Story.model_validate(data).architect_welcome_visitor is None
 
 
 def test_both_play_projections_carry_the_story(tmp_path, four_lock_room):

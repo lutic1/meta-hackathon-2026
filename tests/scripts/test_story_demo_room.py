@@ -84,7 +84,8 @@ def test_the_dry_run_prints_the_brief_every_slot_its_path_and_the_spend_and_writ
     assert status == 0 and environments == ["dev"]
     out = capsys.readouterr().out
     assert out.startswith("Modal Environment: dev\nbrief: StoryBrief(")
-    for slot in ("architect_welcome", "trickster_trap", "riddler_entrance", "guide_chest", "trickster_closing",
+    for slot in ("architect_welcome", "architect_welcome_visitor", "trickster_trap", "riddler_entrance", "guide_chest",
+                 "trickster_closing",
                  "riddler_closing", "guide_closing_no_hints", "guide_closing_hints"):
         assert f"{slot}: {GOOD[slot]}\n" in out, slot
     for n, riddle in enumerate(GOOD["riddles"], start=1):

@@ -438,7 +438,8 @@ class Vendors:
         if schema == "DryRunAnswers":
             return httpx.Response(200, json=self.dry_run(_user_text(body)))
         if schema == "StoryResponse":
-            return httpx.Response(200, json=_chat(canned_story(json.loads(_user_text(body))["riddles"])))
+            brief = json.loads(_user_text(body))
+            return httpx.Response(200, json=_chat(canned_story(brief["riddles"], brief["hints"])))
         if schema == "TricksterProposal":
             return httpx.Response(200, json=load("muse-spark-1.3/chat-trickster").body)
         if schema == "ArchitectResponse" and _images(body) == BUILD_PHOTOS:

@@ -2,8 +2,8 @@
 
 `MockProvider(role)` answers every call with a canned, clearly marked reply,
 except a story request (`StoryResponse`), which it answers with one fixed
-story sized to the riddle count in the brief, so a mock Build keeps a
-storyteller's story and two runs over one Room write the same lines.
+story sized to the riddle and hint counts in the brief, so a mock Build
+keeps a storyteller's story and two runs over one Room write the same lines.
 `MockProvider(role, script=MockScript(...))` answers each call kind from that
 role's script in order and raises once a kind runs out, so a test is never
 served a reply it did not write. The mock bypasses the cache and the ledger
@@ -32,15 +32,31 @@ from .base import (
 CANNED_POLYGON: Polygon = [(0.0, 0.0), (64.0, 0.0), (64.0, 64.0), (0.0, 64.0)]
 
 
-def canned_story(riddles: int) -> str:
-    """The mock's story: fixed lines that name no object, no number and no answer, one riddle pair per riddle."""
+COUNT_WORDS = ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+               "twelve")
+
+
+def _counted(n: int) -> str:
+    """`n` in words, so a count never shares a digit with a room's code."""
+    return COUNT_WORDS[n] if n < len(COUNT_WORDS) else str(n)
+
+
+def canned_story(riddles: int, hints: int) -> str:
+    """The mock's story: fixed lines naming no object and no answer, the counts in words, one riddle pair per riddle."""
     return StoryResponse(
         architect_welcome="Thank you for the photos. I measured every corner twice and grumbled only once.",
+        architect_welcome_visitor="Welcome to someone's home. I measured every corner of it twice.",
         trickster_trap="Oh no, you seem to be trapped! I locked the way out and gave the key to the Riddler.",
-        riddler_entrance="Don't mind him; he thinks a locked door is a party. Answer my riddles, one at a time.",
-        guide_chest="Stuck? I keep two hints for the whole game. Choose your moment.",
-        riddles=[StoryRiddleLines(opening="Here is the next one. Take your time.", solved="Well done. The house noticed.")
-                 for _ in range(riddles)],
+        riddler_entrance=f"Don't mind him; he thinks a locked door is a party. Answer my {_counted(riddles)} riddles, "
+        "one at a time.",
+        guide_chest=f"Stuck? I keep {_counted(hints)} hints for the whole game. Choose your moment.",
+        riddles=[
+            StoryRiddleLines(
+                opening="Here is the next one. Take your time.",
+                solved="Well done. The way out is open." if n == riddles - 1 else "Well done. The house noticed.",
+            )
+            for n in range(riddles)
+        ],
         trickster_closing="Fine. Out you go. I'll lock it again for the next guest.",
         riddler_closing="Clever mind. I'll write harder ones next time.",
         guide_closing_no_hints="Not a single hint. I'm almost offended.",
@@ -114,7 +130,8 @@ class MockProvider(ModelProvider):
             text = self._next("chat", self._script.chat)
         elif response_schema is StoryResponse:
             brief = next(m.content for m in messages if m.role == "user")
-            text = canned_story(int(json.loads(brief)["riddles"]))
+            counts = json.loads(brief)
+            text = canned_story(int(counts["riddles"]), int(counts["hints"]))
         else:
             last_user = next((m.content for m in reversed(messages) if m.role == "user"), "")
             text = f"[mock {self.role}] You said: {last_user!r}. This is a canned response."
