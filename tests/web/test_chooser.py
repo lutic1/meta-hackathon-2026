@@ -182,6 +182,28 @@ def test_the_states_run_arriving_rest_choosing_chosen_returning_and_input_waits_
     assert (ts.count("const T_CHOOSE = 1150"), ts.count("const T_RETURN_PANEL = 380"), ts.count("const T_RETURN_CARD = 560")) == (1, 1, 1)
 
 
+
+def test_every_turn_cancels_its_own_fills_by_reference_so_no_back_or_card_is_left_edge_on():
+    # Chromium may garbage-collect a finished, filling animation that no script holds: getAnimations() stops listing it,
+    # yet its fill stays on the element, over even an inline style. A pause on the main thread (a large allocation on
+    # the first gesture) made that happen between turns and left the next back edge-on and blank, so each turn keeps
+    # its own animations and settles them by reference, never by looking them up.
+    ts = _chooser()
+    choose = _body(ts, "  function choose(i: number): void {")
+    home = _body(ts, "  function goHome(then?: () => void): void {")
+    assert "getAnimations()" not in choose and "getAnimations()" not in home
+    assert "let fills: Animation[] = []" in ts
+    settle = _body(ts, "  function settle(): void {")
+    assert "for (const animation of fills) animation.cancel()" in settle and "fills = []" in settle
+    # Choosing holds the card's, its back's and its deal's fills, and settles the panel's own turn exactly at rest.
+    assert "fills = [\n      turning.animate(" in choose and "reverse.animate(" in choose and "deal.animate(" in choose
+    assert "opening = panel.animate(" in choose and "opening?.finish()" in choose
+    # Home cancels them before its own turn starts, holds the panel's, the card's and the deal's, and settles at its end.
+    assert home.index("settle()") < home.index("panel.animate(")
+    assert "fills = [\n      panel.animate(" in home
+    done = _body(ts, "    const done = (): void => {")
+    assert done.lstrip().startswith("const done = (): void => {\n      settle()")
+
 def test_choosing_makes_everything_outside_the_dialog_inert_and_locks_the_scroll_and_home_undoes_it():
     ts = _chooser()
     outside = _body(ts, "  function outside(): HTMLElement[] {")

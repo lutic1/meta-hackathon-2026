@@ -1161,6 +1161,17 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     )
   }
 
+  /**
+   * The fills a turn leaves on the card, its back, its deal and the panel, held here until the next turn cancels them.
+   * Chromium may garbage-collect a finished, filling animation that no script holds: getAnimations() stops listing it,
+   * yet its fill stays on the element for good (a back left edge-on and blank), so each is settled by reference.
+   */
+  let fills: Animation[] = []
+  function settle(): void {
+    for (const animation of fills) animation.cancel()
+    fills = []
+  }
+
   function choose(i: number): void {
     if (state !== 'rest' || !mounted) return
     chosen = i
@@ -1181,10 +1192,11 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     panel.style.visibility = 'hidden'
     const s0 = startScale()
     state = 'choosing'
+    let opening: Animation | undefined
 
     const finish = (): void => {
       state = 'chosen'
-      for (const animation of panel.getAnimations()) animation.finish() // settle exactly at rest, whatever the frames
+      opening?.finish() // settle exactly at rest, whatever the frames
       panel.style.visibility = ''
       focusPanel(i)
       if (i === 0 && !reduced && !still) {
@@ -1215,20 +1227,22 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     // The slot transition and every animation start in this same task, so they share a start time.
     slot.style.transition = `transform ${swapMs}ms cubic-bezier(0.45, 0, 0.35, 1)`
     applyAll()
-    turning.animate(
-      sampled((q) => ({ transform: `rotateY(${(dir * 360 * SPIN_CURVE(q * P_SWAP)).toFixed(2)}deg)` }), 14),
-      { duration: swapMs, easing: 'linear', fill: 'forwards' },
-    )
-    // The back, the face in view near 270 degrees, fades out exactly at edge-on, so the hand-over needs no timer.
-    // Opacity goes on the leaf face, never on the preserve-3d card, which would flatten it.
-    reverse.animate([{ opacity: 1 }, { opacity: 1, offset: 0.96 }, { opacity: 0 }], { duration: swapMs, fill: 'forwards' })
-    deal.animate([{ transform: 'translate3d(0, 0, 0)' }, { transform: `translate3d(0, 0, ${LIFT_Z}px)` }], {
-      duration: swapMs,
-      easing: 'cubic-bezier(0.3, 0, 0.4, 1)',
-      fill: 'forwards',
-    })
+    fills = [
+      turning.animate(
+        sampled((q) => ({ transform: `rotateY(${(dir * 360 * SPIN_CURVE(q * P_SWAP)).toFixed(2)}deg)` }), 14),
+        { duration: swapMs, easing: 'linear', fill: 'forwards' },
+      ),
+      // The back, the face in view near 270 degrees, fades out exactly at edge-on, so the hand-over needs no timer.
+      // Opacity goes on the leaf face, never on the preserve-3d card, which would flatten it.
+      reverse.animate([{ opacity: 1 }, { opacity: 1, offset: 0.96 }, { opacity: 0 }], { duration: swapMs, fill: 'forwards' }),
+      deal.animate([{ transform: 'translate3d(0, 0, 0)' }, { transform: `translate3d(0, 0, ${LIFT_Z}px)` }], {
+        duration: swapMs,
+        easing: 'cubic-bezier(0.3, 0, 0.4, 1)',
+        fill: 'forwards',
+      }),
+    ]
     panel.style.visibility = ''
-    panel.animate(
+    opening = panel.animate(
       sampled((q) => {
         const p = P_SWAP + q * (1 - P_SWAP)
         const e = easeOut(q)
@@ -1249,7 +1263,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     if (state !== 'chosen') return
     cue('cardClose')
     const i = chosen
-    const { slot, card: turning, deal, reverse, choose: button } = cards[i]
+    const { slot, card: turning, deal, choose: button } = cards[i]
     tutorialVideo.pause()
     panelVideo.pause()
     playVideo.pause()
@@ -1260,7 +1274,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     const dir = i === 2 ? -1 : 1
 
     const done = (): void => {
-      for (const animation of [...turning.getAnimations(), ...deal.getAnimations(), ...panel.getAnimations()]) animation.cancel()
+      settle()
       turning.classList.remove('is-gone')
       panel.hidden = true
       panel.style.visibility = ''
@@ -1294,25 +1308,27 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     }
     // The panel turns on to edge-on, then the card finishes the turn from behind and steps back into the line: each a
     // delayed animation or transition started now, so the hand-over is frame-exact and needs no timer midway.
-    panel.animate(
-      sampled((q) => {
-        const e = easeIn(q)
-        return { transform: `translate3d(0, 0, ${(LIFT_Z * e).toFixed(2)}px) rotateY(${(dir * 90 * e).toFixed(2)}deg) scale(${(1 + (s0 - 1) * e).toFixed(4)})` }
-      }, 10),
-      { duration: T_RETURN_PANEL, easing: 'linear', fill: 'forwards' },
-    )
+    settle()
+    fills = [
+      panel.animate(
+        sampled((q) => {
+          const e = easeIn(q)
+          return { transform: `translate3d(0, 0, ${(LIFT_Z * e).toFixed(2)}px) rotateY(${(dir * 90 * e).toFixed(2)}deg) scale(${(1 + (s0 - 1) * e).toFixed(4)})` }
+        }, 10),
+        { duration: T_RETURN_PANEL, easing: 'linear', fill: 'forwards' },
+      ),
+      turning.animate(
+        sampled((q) => ({ transform: `rotateY(${(dir * (270 + 90 * easeOut(q))).toFixed(2)}deg)` }), 10),
+        { duration: T_RETURN_CARD, delay: T_RETURN_PANEL, easing: 'linear', fill: 'both' },
+      ),
+      deal.animate([{ transform: `translate3d(0, 0, ${LIFT_Z}px)` }, { transform: 'translate3d(0, 0, 0)' }], {
+        duration: T_RETURN_CARD,
+        delay: T_RETURN_PANEL,
+        easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
+        fill: 'both',
+      }),
+    ]
     flash.animate([{ opacity: 0 }, { opacity: 0.6, offset: 0.4 }, { opacity: 0 }], { duration: 420, delay: T_RETURN_PANEL - 160, easing: 'ease-out' })
-    for (const animation of [...turning.getAnimations(), ...deal.getAnimations(), ...reverse.getAnimations()]) animation.cancel()
-    turning.animate(
-      sampled((q) => ({ transform: `rotateY(${(dir * (270 + 90 * easeOut(q))).toFixed(2)}deg)` }), 10),
-      { duration: T_RETURN_CARD, delay: T_RETURN_PANEL, easing: 'linear', fill: 'both' },
-    )
-    deal.animate([{ transform: `translate3d(0, 0, ${LIFT_Z}px)` }, { transform: 'translate3d(0, 0, 0)' }], {
-      duration: T_RETURN_CARD,
-      delay: T_RETURN_PANEL,
-      easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
-      fill: 'both',
-    })
     chosen = -1
     active = i
     slots.forEach((other, k) => {
