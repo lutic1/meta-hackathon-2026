@@ -1,0 +1,581 @@
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+}
+body {
+  margin: 0;
+  background: #141414;
+  color: white;
+  font-family: Arial, Helvetica, sans-serif;
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+}
+header {
+  height: 92px;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding: 0 3%;
+  background: linear-gradient(#08090de8, #101114);
+  position: relative;
+  z-index: 5;
+}
+.logo {
+  font-family: Impact, "Arial Narrow", sans-serif;
+  color: #e50914;
+  font-size: 31px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  transform: scaleX(0.85);
+  transform-origin: left;
+}
+nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  color: #b9b9be;
+  font-size: 18px;
+}
+nav a:hover {
+  color: #fff;
+}
+nav .selected {
+  background: #41414b;
+  border-radius: 26px;
+  padding: 12px 24px;
+  color: white;
+  font-weight: 700;
+}
+.account {
+  margin-left: auto;
+  display: flex;
+  gap: 25px;
+  align-items: center;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #ed829c, #35152e);
+  font-size: 24px;
+}
+.search {
+  background: none;
+  border: 0;
+  color: #fff;
+  font-size: 27px;
+}
+.hero {
+  margin: 8px 3% 0;
+  min-height: 590px;
+  height: calc(100vh - 155px);
+  max-height: 880px;
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  background: #151716 url("../../web/public/promo/keyframe-hero.png")
+    center/cover;
+  isolation: isolate;
+  box-shadow: inset 0 0 0 1px #ffffff18;
+}
+.hero:before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, #030608c9, transparent 75%),
+    linear-gradient(0deg, #000a, transparent 65%);
+}
+.hero-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.hero-content {
+  position: absolute;
+  z-index: 1;
+  left: 3%;
+  bottom: 6%;
+  max-width: 650px;
+  pointer-events: none;
+}
+.hero-content a,
+.hero-content button {
+  pointer-events: auto;
+}
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 5px;
+  color: #e1c88f;
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+.title {
+  font-family: Georgia, serif;
+  font-size: clamp(58px, 6.8vw, 132px);
+  font-weight: 400;
+  letter-spacing: -5px;
+  line-height: 1.05;
+  margin: 0;
+  color: #f0dfb3;
+  text-shadow: 0 2px 35px #0009;
+}
+.tagline {
+  font-weight: 700;
+  font-size: 23px;
+  margin: 15px 0 22px;
+}
+.description {
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 470px;
+  color: #dedede;
+  margin: 0 0 26px;
+}
+.meta {
+  font-size: 16px;
+  font-weight: 600;
+  color: #eee;
+  margin-bottom: 40px;
+}
+.actions {
+  display: flex;
+  gap: 15px;
+}
+.pill {
+  border: 0;
+  border-radius: 40px;
+  font-weight: 700;
+  font-size: 20px;
+  padding: 16px 26px;
+  background: #fff;
+  color: #111;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.pill:hover {
+  background: #ddd;
+}
+.secondary {
+  background: #484848db;
+  color: #fff;
+}
+.secondary:hover {
+  background: #666;
+}
+.badge {
+  position: absolute;
+  bottom: 6%;
+  right: 2.5%;
+  font-size: 15px;
+  font-weight: bold;
+  background: #171717a8;
+  padding: 8px 12px;
+  border-radius: 5px;
+}
+.art-label {
+  position: absolute;
+  right: 22px;
+  top: 20px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #ffffff70;
+}
+.shelf {
+  padding: 0 3%;
+  margin: 42px 0 0;
+}
+.shelf h2 {
+  font-size: 27px;
+  margin: 0 0 20px;
+  letter-spacing: -0.5px;
+}
+.rail {
+  display: flex;
+  gap: 10px;
+  overflow: auto;
+  padding: 4px 0 15px;
+  scrollbar-width: none;
+}
+.rail::-webkit-scrollbar {
+  display: none;
+}
+.tile {
+  flex: 0 0 calc((100% - 50px) / 6);
+  min-width: 180px;
+  aspect-ratio: 315/180;
+  border: none;
+  border-radius: 10px;
+  overflow: hidden;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+  background-color: #222;
+}
+.tile:hover {
+  transform: scale(1.025);
+  box-shadow: 0 0 0 2px #aaa;
+}
+.reference {
+  background-image: url("../../web/public/promo/netflix-rows.png");
+  background-size: var(--bsx) var(--bsy);
+  background-position: var(--bx) var(--by);
+}
+.keyframe-tile {
+  background:
+    linear-gradient(0deg, #000b, transparent),
+    url("../../web/public/promo/keyframe-hero.png") center/cover;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  align-items: center;
+  color: #f6dfac;
+  padding: 20px 8px;
+}
+.keyframe-tile span {
+  font-family: Georgia, serif;
+  font-size: 30px;
+  letter-spacing: -1px;
+}
+.keyframe-tile small {
+  font-size: 11px;
+  margin-top: 5px;
+}
+.mobile-card {
+  flex: 0 0 calc((100% - 60px) / 7);
+  min-width: 145px;
+}
+.portrait {
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+}
+.mobile-card p {
+  font-size: 15px;
+  font-weight: bold;
+  line-height: 1.4;
+  margin: 9px 0;
+}
+footer {
+  color: #777;
+  font-size: 12px;
+  padding: 40px 3% 25px;
+}
+dialog {
+  border: 1px solid #454545;
+  border-radius: 18px;
+  max-width: 620px;
+  width: 90%;
+  background: #1c1c1c;
+  color: #fff;
+  padding: 35px;
+  box-shadow: 0 20px 100px #000b;
+}
+dialog::backdrop {
+  background: #000b;
+}
+dialog h2 {
+  font-family: Georgia, serif;
+  font-size: 40px;
+  color: #e8d4a1;
+  margin-top: 0;
+}
+dialog p {
+  line-height: 1.7;
+  color: #ccc;
+}
+.close {
+  float: right;
+  border: 0;
+  background: none;
+  color: white;
+  font-size: 27px;
+}
+.launch {
+  position: fixed;
+  inset: 0;
+  background: #080808;
+  z-index: 20;
+}
+.launch[hidden],
+.catalog[hidden] {
+  display: none;
+}
+.launch iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #080808;
+}
+.intro-overlay {
+  position: absolute;
+  inset: 0;
+  background: #080808;
+  display: grid;
+  place-items: center;
+}
+.intro-overlay[hidden] {
+  display: none;
+}
+.intro-overlay video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.intro-controls {
+  position: absolute;
+  right: 25px;
+  bottom: 25px;
+  display: flex;
+  gap: 10px;
+}
+.intro-top {
+  position: absolute;
+  left: 25px;
+  top: 25px;
+  background: #0009;
+  border: 1px solid #fff4;
+  color: white;
+  border-radius: 20px;
+  padding: 9px 16px;
+}
+.intro-controls button {
+  border-radius: 30px;
+  background: #eee;
+  color: #111;
+  border: 0;
+  padding: 13px 20px;
+  font-size: 15px;
+  font-weight: bold;
+}
+.game-tools {
+  position: absolute;
+  z-index: 2;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  gap: 8px;
+  opacity: 0.4;
+}
+.game-tools:hover {
+  opacity: 1;
+}
+.game-tools button,
+.game-tools a {
+  font-size: 11px;
+  background: #111;
+  color: #ddd;
+  border: 1px solid #555;
+  padding: 6px 9px;
+  border-radius: 5px;
+}
+:focus-visible {
+  outline: 3px solid #f2c86c;
+  outline-offset: 4px;
+}
+@media (min-width: 1700px) {
+  header {
+    height: 96px;
+  }
+  .hero {
+    min-height: 730px;
+  }
+  .hero-content {
+    bottom: 5%;
+  }
+  .description {
+    font-size: 21px;
+  }
+}
+@media (max-width: 900px) {
+  nav {
+    gap: 12px;
+    font-size: 14px;
+  }
+  nav a:nth-child(n + 4) {
+    display: none;
+  }
+  header {
+    gap: 15px;
+    height: 75px;
+  }
+  .hero {
+    height: 650px;
+    min-height: 0;
+    background-position: 60% center;
+  }
+  .hero:before {
+    background: linear-gradient(0deg, #000e, transparent);
+  }
+  .hero-content {
+    bottom: 5%;
+    left: 6%;
+    right: 6%;
+  }
+  .title {
+    font-size: 70px;
+  }
+  .tagline {
+    font-size: 20px;
+  }
+  .description {
+    font-size: 16px;
+  }
+  .meta {
+    font-size: 13px;
+    margin-bottom: 25px;
+  }
+  .badge {
+    display: none;
+  }
+  .tile {
+    flex-basis: 40%;
+  }
+  .shelf h2 {
+    font-size: 22px;
+  }
+  .account {
+    gap: 10px;
+  }
+  .pill {
+    font-size: 16px;
+  }
+  .mobile-card {
+    flex-basis: 30%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .tile {
+    transition: none;
+  }
+}
+
+.conjuring-first {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border: 0;
+  width: 100%;
+  border-radius: inherit;
+  background: #101312 url("../../web/public/promo/netflix.png") 50%
+    57.1429%/106.2241% 119.7072% no-repeat;
+  opacity: 1;
+  transition: opacity 0.9s ease;
+  cursor: pointer;
+}
+.conjuring-first.fading {
+  opacity: 0;
+  pointer-events: none;
+}
+.tutorial-hero {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 70%;
+  height: 100%;
+  object-fit: contain;
+  background: #080808;
+  opacity: 0;
+  transition: opacity 1s ease;
+  z-index: -2;
+  pointer-events: none;
+}
+.hero.motion .tutorial-hero {
+  opacity: 1;
+}
+.hero.motion .hero-content {
+  max-width: 38%;
+  bottom: 10%;
+}
+.hero.motion .title {
+  font-size: clamp(44px, 5vw, 96px);
+  letter-spacing: -3px;
+}
+.hero.motion .description {
+  max-width: 330px;
+  font-size: 16px;
+}
+.hero.motion .meta {
+  font-size: 13px;
+}
+.hero.motion:before {
+  background: linear-gradient(
+    90deg,
+    #030608 0%,
+    #030608ed 24%,
+    #03060877 42%,
+    transparent 65%
+  );
+}
+.hero-content {
+  transition:
+    max-width 0.8s,
+    bottom 0.8s;
+}
+.hero .title {
+  transition: font-size 0.8s;
+}
+.sequence-replay {
+  position: absolute;
+  z-index: 7;
+  right: 20px;
+  top: 15px;
+  border: 1px solid #ffffff45;
+  border-radius: 30px;
+  background: #15151590;
+  color: white;
+  font-size: 12px;
+  padding: 8px 12px;
+}
+.art-label {
+  right: 150px;
+}
+.hero.motion .art-label {
+  display: none;
+}
+@media (max-width: 900px) {
+  .tutorial-hero {
+    width: 100%;
+    height: 52%;
+    top: 0;
+  }
+  .hero.motion .hero-content {
+    max-width: 88%;
+    bottom: 5%;
+  }
+  .hero.motion:before {
+    background: linear-gradient(0deg, #030608 0%, #030608 40%, transparent 70%);
+  }
+  .hero.motion .title {
+    font-size: 58px;
+  }
+  .hero.motion .description {
+    display: none;
+  }
+  .conjuring-first {
+    background-size: auto 100%;
+    background-position: center;
+  }
+  .hero.motion .meta {
+    margin-bottom: 18px;
+  }
+}

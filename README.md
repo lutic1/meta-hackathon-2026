@@ -61,6 +61,10 @@ Cut 0 (no Build view) is not taken. It is a build-time switch,
 every link to the Build view and `#/build/<job_id>/view` resolves as an
 unknown route, with no request to `/api/builds/<job_id>/view`. (amended 29 Oct 2026, correct-course record)
 
+## Demo inspiration sequence
+
+The optional [Netflix-inspired promotional sequence](demo/promo/README.md) shows the inspiration, reveals Keyframe, and plays its tutorial before opening the live app. Run it locally using the instructions there. Generated promotional art and third-party reference imagery are identified separately from actual gameplay.
+
 ## This repo
 
 Model-access scaffold for the build. Model access lands at kickoff
