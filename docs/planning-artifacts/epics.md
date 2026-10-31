@@ -213,7 +213,7 @@ UX-DR81: Hosted mode differences (EXPERIENCE.md, the one home): entry on the Hos
 UX-DR82: Privacy behavior in the client: raw photos are sent only in `POST /builds` and rendered only from `GET /rooms/<room_id>/photos/<i>`; typed hint text never leaves the browser and no copy implies the Guide read it; the Player profile lives in IndexedDB under the `?profile=` name with no viewer, export or delete control in v1; the client calls only its own server, so the Capture screen makes no request to a service the Retention summary does not name; the reminder about faces, documents and belongings sits after the Input requirement and iPhone tip and before the Retention summary.
 UX-DR83: Wizard portrait art direction (for the FR-23 script): four `muse-image-1.0` prompts sharing one style block (oil painting, visible brushwork, single-candle chiaroscuro from camera left, warm umber, ochre and lamp-amber palette, near-black background close to `canvas`, head and shoulders in three-quarter view, square 1:1 at 1024 px, no text, no painted frame, no resemblance to a real person) with one subject line each (Architect with a brass loupe; Riddler with a half-smile and a sealed folded note; Guide kind and patient with a small lantern held low; Trickster with a sly grin, one eyebrow up and a playing card); faces in the center 70% for the circular crop.
 UX-DR84: Cut variants in the UI: cut 0 (the build-time constant `CUT_0` in `web/src/router.ts`, false today) removes the Build view, every link to it and the direct `#/build/<job_id>/view` route, which then resolves as an unknown hash does, while the Stage list results and role lines still show what each model did; cut 2 adds "Open profile file" under the Privacy line and "Save profile file" on the Completion sheet with the line "Your player profile is a file on this computer; Keyframe reads it only when you open it."; cut 3 shows every Rung verbatim and the Greeting from the template; cut 4 turns every Dry run row and the Model table's Dry run row to "skipped" with the cut 4 caption; cut 5 opens the Triggers panel in a second window with the same content; cut 6 drops the order and `use_on` lock UI; cut 7 shows "attempt n of 1".
-UX-DR85: Banned interactions and do's and don'ts: no sliding, bouncing or shaking (a Wrong attempt is play, not failure), no looping animation (the Hosted landing chooser alone excepted, owner decision Oct 29, UX-DR6), no sound, no browser notifications, no offline mode, no free conversation with any wizard, no reveal or skip after the near-answer, no highlight on a new Evidence card, no dismissable Disclosure, no modal more than one level deep, no text over a photo except on a label chip, no image generation in play, no "verbatim" or "local" badge on a Rung line, no Greeting in Hosted mode, no portrait or serif body on a plain message, no plain message on parchment.
+UX-DR85: Banned interactions and do's and don'ts: no sliding, bouncing or shaking (a Wrong attempt is play, not failure), no looping animation (the Hosted landing chooser alone excepted, owner decision Oct 29, UX-DR6), no sound (until Oct 30; since the owner's request of Oct 30, quiet background music and short interactive sounds synthesized in the browser by `web/src/audio.ts` alone, with no audio file, silent until the first click or key press, behind a "Sound on" / "Sound off" toggle at the right end of every top bar, 1.16), no browser notifications, no offline mode, no free conversation with any wizard, no reveal or skip after the near-answer, no highlight on a new Evidence card, no dismissable Disclosure, no modal more than one level deep, no text over a photo except on a label chip, no image generation in play, no "verbatim" or "local" badge on a Rung line, no Greeting in Hosted mode, no portrait or serif body on a plain message, no plain message on parchment. (amended 31 Oct 2026, owner request)
 UX-DR86: Main demo legibility (EXPERIENCE.md shot list): each §11.3 beat's surface and state keeps its key text legible at 1080p: Mask preview label chips (0:00), the Stage list results and verdict caption (0:15), the held typed words, helper line and Rung label (0:35), the Triggers header with 1× values, newest row and Rung line in frame together with only the newest Card stacked (0:50), both Card labels with the "Proposed" line and reason (1:05, preferring a Merge or Loosen for the accepted Card), the mode indicator "profile demo · 1 room played" on the Greeting (1:20), the Model table ids and captions (1:35), and every Disclosure line (1:50).
 
 ### FR Coverage Map
@@ -1123,6 +1123,8 @@ So that every player surface draws from one dark study palette, one type system 
 
 _Covers UX-DR1, UX-DR2, UX-DR3, UX-DR4, UX-DR5, UX-DR6, UX-DR9, UX-DR10, UX-DR11, UX-DR72, UX-DR85. Owner: web. Depends on: 1.4. Tier 1, Tue Oct 27, before any player surface. On Oct 29 the owner excepted the Hosted landing chooser from the motion rule (7.16) and the top bar's Play controls took a quiet variant of the secondary button (lane D12)._ (amended 29 Oct 2026, correct-course record)
 
+_Sound (owner request Oct 30, verbatim: "can we get music playing hte backgorudn and sounds also when you swish over teh cards to make it inteerracive"; fix A1 2b3b156, with T1 b5a21ca; deploy run 27 (GitHub 41163765234), the judge URL serving b5a21ca): the no-sound ban now excepts `web/src/audio.ts` alone, which synthesizes the background music and the interactive sounds with the Web Audio API, with no audio file and no added dependency (DESIGN.md Sound, EXPERIENCE.md Sound). The banned-interaction criterion below stands as history for every other module; the criterion added after it records what shipped. Checked live on the judge URL on Oct 31 at 1440 and 1024: no AudioContext before a gesture, running within 63 ms of the first click, music from about 2.05 s, the toggle on the landing, a card back, the Play screen and the escape, "Sound off" suspending and "Sound on" resuming, the choice surviving a reload, the music bus ducked to 0 under the intro's own sound, no console or HTTP errors. Open follow-ups, none blocking: the intro overlay's own sound button (7.24) names the action ("Sound off" once the intro is unmuted) and carries no `aria-pressed`, the opposite of the top-bar toggle, which names the state; and the music starts about 2 s after the first gesture by design (`IDLE_WAIT_MS` in `web/src/audio.ts`)._ (amended 31 Oct 2026, owner request)
+
 **Acceptance Criteria:**
 
 **Given** the client stylesheet
@@ -1156,6 +1158,11 @@ _Covers UX-DR1, UX-DR2, UX-DR3, UX-DR4, UX-DR5, UX-DR6, UX-DR9, UX-DR10, UX-DR11
 **When** the banned-interaction check this story adds runs
 **Then** no module plays audio, uses the Notification API or registers a service worker, so there is no sound, no browser notification and no offline mode, and the only text a player types to a wizard is the hint field, whose text never leaves the browser (3.4)
 **And** the other UX-DR85 bans are asserted by the stories that own each surface: no highlight on a new Evidence card (1.20), no dismissable Disclosure (1.17), no stacked modal (1.27), no reveal or skip after the near-answer (3.1), no "verbatim" badge (3.4), no image generation in play (3.6) and no Greeting in Hosted mode (7.15)
+
+**Given** the client source and any screen (amended 31 Oct 2026, owner request)
+**When** the banned-interaction check runs and the player first clicks or presses a key
+**Then** only `web/src/audio.ts` makes sound: no AudioContext exists before the first pointerdown or keydown, which creates (or resumes) it with the light effects graph, so its own cue plays; the reverb's generated impulse and the music are built only in the first idle stretch of 40 ms, or after 2 s at most (1.2 s where the browser has no idle callback), off the first card turn's frames (7.16); the audio is suspended while the tab is hidden; the music, a low drone on D under a sparse bell melody on D minor pentatonic at 64 BPM in a fuller landing mood and a sparser play mood crossfaded over 2 s by route, fades in over 1.5 s at about -26 dBFS RMS and fades out under any video playing with its sound on; each interactive sound is a short synthesized cue where its action already happens, and nothing sounds on plain pointer movement but the throttled card and Hotspot hovers
+**And** a quiet "Sound on" / "Sound off" toggle with `aria-pressed`, naming the current state, sits at the right end of the top bar on every screen (after "Play intro" on the landing and its card backs, 7.16; live over a card back, through the story intro and on the Completion screen); "Sound off" suspends the audio and "Sound on" resumes it, the choice stored per browser as `keyframe.sound.v1`, on by default, and surviving a reload; there is still no browser notification and no offline mode
 
 **Given** this story's changes
 **When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline against the mock provider
@@ -1250,6 +1257,8 @@ _Covers FR-11, UX-DR22, UX-DR23, UX-DR24, UX-DR25, AR-15, NFR-10, AD-11. Owner: 
 
 _Story mode (owner decision Oct 29; lane WEB3 ab60931, with b5e0d4f): the Thumbnail strip is gone and the player walks between the photos instead (EXPERIENCE.md Walk). The Thumbnail strip criterion above stands as history; the Hotspot criteria still hold on the photo the player faces, and the criteria added below record the walk._ (amended 30 Oct 2026, story mode)
 
+_Overlapping Hotspots (owner report Oct 30, playing the live Demo room, verbatim: "for ridlle 3 it sas it doesnt belong belong there and whe im click on the pillows o nt the catchbuttons"; fixes Q1 45afcd5 and Q2 c5f8f83, deploy runs 25 and 26): a collected item kept its Hotspot over whatever lay under it and Hotspots stacked in Tab order, so with the throw pillows in hand a click where they are drawn on the sofa posted the pillows on themselves ("That doesn't go there."), and a mouse click left the browser's rectangular focus box around the Hotspot. Each Hotspot now lies in its own layer, stacked apart from the Tab order, and only keyboard focus draws the ring; the criteria added below record both, the click-through and the needs-item line in 1.26. The Demo room's sofa moved to photo 2 by ops runs 21 and 22 (7.13)._ (amended 31 Oct 2026, owner request)
+
 **Acceptance Criteria:**
 
 **Given** a session on the four-lock fixture room
@@ -1287,6 +1296,15 @@ _Story mode (owner decision Oct 29; lane WEB3 ab60931, with b5e0d4f): the Thumbn
 **When** the player turns or changes area
 **Then** a click on the outer fifth of the photo either side, the turn discs "Turn left" and "Turn right", or ArrowLeft and ArrowRight turn within the ring (nothing at a ring's end, where that zone and disc are hidden); a doorway sign "To the {area}" or ArrowUp walks to that area's entry view, the middle of its ring; "Where you are" at the Scene's top right shows one box per area, a dot per view, a cone on the view faced and one button per area that walks there
 **And** a turn swings in 780 ms and a doorway pushes through in 900 ms, input is ignored while a move runs, every move is a cut under reduced motion, each move lays the new photo's Hotspots, keeps a `use_on` selection and announces the view description, and the Play screen opens, and reloads, on the Active puzzle's `start_photo` (the first photo when none is active)
+
+**Given** two Hotspots on the faced photo that overlap (amended 31 Oct 2026, owner request)
+**When** the pointer hovers or clicks where they overlap
+**Then** the smaller takes the pointer, so an object drawn on a larger one stays clickable, and an item in the pack lies under every other Hotspot; the stacking (`stacking` in `web/src/scene/geometry.ts`, each Hotspot in its own layer of the `.scene-hotspot-stack`) is decided apart from the Tab order, which stays the reading order by centroid, every Hotspot keeping its Tab stop
+**And** with the hand empty a click on a packed item where nothing lies over it reads "{Label}. Already in your pack.", while with an item in hand the click passes through every packed item (1.26)
+
+**Given** a Hotspot clicked with the mouse (amended 31 Oct 2026, owner request)
+**When** it takes focus
+**Then** no focus box is drawn around it (`.hotspot:focus:not(:focus-visible)` drops the browser's own outline), while keyboard focus keeps the two-tone ring traced along the polygon on `:focus-visible` (UX-DR11)
 
 **Given** this story's changes
 **When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline against the mock provider
@@ -1573,6 +1591,8 @@ _Covers FR-12, NFR-14, UX-DR35, UX-DR36, UX-DR37, UX-DR26, UX-DR69. Owner: web. 
 
 _Story mode (lanes WEB2 and WEB3): the order controls sit in the Riddle note; items are taken from "Your pack" (click or Enter takes one in hand with "{Label} in hand. Click where they belong."; a second activation or Escape puts it away with "You put the {label} away." or "Hands empty."); the walk, not the Thumbnail strip, stays usable while an item is held and keeps the selection across moves; a `use_on` verdict shows on the Riddle note and the feedback line, and any `use_on` that opens nothing reads "That doesn't go there." in place of "{label}. Not this one." above._ (amended 30 Oct 2026, story mode)
 
+_Riddle 3 of the Demo room (owner report Oct 30, quoted in 1.19; fixes Q1 45afcd5 and Q2 1b24b09, deploy runs 25 and 26): an item in hand now lets the click through to the Hotspot it is drawn on, and with an empty hand a click on a `use_on` target whose item is in the pack reads "{Label}. It needs something from your pack." in place of the false "{Label}. Not this one." (`SessionState.needs_item`; schema-v1.md, the spine's session rule and EXPERIENCE.md's feedback-line row record it); the criteria added below record both. Checked live on the judge URL on Oct 30 to 31: riddle 1 on the pillows, riddle 3 solved by the pillows' spot on the sofa at 1440 and by the bare sofa at 1024, the needs-item line, the solve with the item, "Not this one" on the clock, no focus box after a click and the Tab ring, then the escape, with no errors._ (amended 31 Oct 2026, owner request)
+
 **Acceptance Criteria:**
 
 **Given** an available `order` Puzzle in the four-lock fixture room
@@ -1604,6 +1624,15 @@ _Story mode (lanes WEB2 and WEB3): the order controls sit in the Riddle note; it
 **When** the session state returns
 **Then** the verdict ("Not this · {n}" or "Solved") shows in the resolved Puzzle's entry and on the feedback line, and that entry becomes the Active puzzle ("Current") while it stays unsolved; once it opens, `active_puzzle_id` is recomputed and "Current" moves to the next available unsolved Puzzle (AD-4)
 **And** a pair resolving to no Puzzle counts nothing, clears "Checking" and reads "{label}. Not this one." on the feedback line
+
+**Given** an item in hand, selected from the pack or dragged (amended 31 Oct 2026, owner request)
+**When** the player hovers or clicks where a packed item is drawn on the photo
+**Then** every packed item's Hotspot takes no pointer and its outline is not lit, so the hover and the click reach the Hotspot under it and the `UseOnInput` names that one (the throw pillows in hand, clicked where they sit on the sofa, reach the sofa), never the item on itself
+
+**Given** an empty hand and an available `use_on` Puzzle whose item is in the pack (amended 31 Oct 2026, owner request)
+**When** the player clicks that Puzzle's target
+**Then** the reply to that `click`, and only that reply, carries `SessionState.needs_item` true (never replayed, naming no item and no Puzzle; `SessionStateMachine.needs_item`), and the feedback line reads "{Label}. It needs something from your pack."
+**And** the click stays exploration and counts no Wrong attempt, as before, and every other click that opens nothing keeps "{Label}. Not this one."
 
 **Given** this story's changes
 **When** `npm run build` and `tsc --noEmit` run in `web/` and `pytest` runs offline against the mock provider
@@ -4889,6 +4918,8 @@ _Covers FR-31, AR-10, AR-12, AD-7. Owner: scripts. Depends on: 1.5, 7.1, 7.7 (a 
 
 _Story mode (lanes SV1 ced752a, SF2 c9f6aaa, X4 75b414d): the patch file may also carry `photos` (`{photo, area, pan}` for every photo exactly once, seeding a Room built before story mode with its areas and pans), a `photo` on an Interactable entry (moving it to that photo with polygons drawn there; a riddle's start photo follows its target by itself) and `story` (`{slot: line}` for any single line of a stored `Room.story`, each checked by the story stage's own line rules through `line_reason`; a refused line, or any line on a Room with no story, refuses the run). Re-applying a patch the Room already has changes nothing. The live Demo room's patch seeds its two areas (front hall, lounge) and pans, moves the wall clock and the decorative tray to photo 2 and the double front door to photo 0, giving start photos 2, 0, 5 and 0, and sets `guide_chest` to the fixed line "Stuck? I keep two hints for the whole house. Choose your moment.": ops run 19 (GitHub 41026767851, dry run) showed every Interactable unchanged and only `guide_chest` changing with validator rules 1 to 8 passing, and ops run 20 (41026890532) applied it, read it back equal, and the live API serves the new line. Its one-line summary still says "re-outlined 5 Interactables" although all five were unchanged, a wording follow-up._ (amended 30 Oct 2026, story mode)
 
+_Riddle 3's sofa (owner report Oct 30, quoted in 1.19; fix Q1 9a714a8): the Demo room's patch moves the sectional sofa, riddle 3's `use_on` target, from photo 5 to photo 2, the lounge view where the pillows are picked up, with a hand-traced 22-point outline of the whole sectional (seat, back and both arms, both pillow pairs inside it), and its reason gains a 30 Oct sentence. Ops run 21 (GitHub 41149592569, `ops/patch-demo-11`, dry run) showed the sofa's photo 5 -> 2 and box [313.0, 669.4, 957.1, 1196.8] -> [266.0, 641.0, 960.0, 1120.0], every other entry unchanged and validator rules 1 to 8 passing; ops run 22 (41149727143, `ops/patch-demo-12`) applied it and read it back equal. The live API serves start photos 2, 0, 2 and 0, photo 2 holding the clock, the pillows, the tray and the sofa. The sofa's outline, like the vent's and the pillows', is a disclosed hand correction, not a pipeline result. The one-line summary says "re-outlined 6 Interactables" although five were unchanged, the wording follow-up already recorded._ (amended 31 Oct 2026, owner request)
+
 **Acceptance Criteria:**
 
 **Given** built Demo rooms in the git-ignored local `rooms/`
@@ -4999,6 +5030,8 @@ _Covers FR-31, UX-DR57, UX-DR58, UX-DR68, UX-DR81, NFR-10. Owner: web. Depends o
 
 _Since Oct 29 to 30 (lanes N2 a99a2ee, M1 3c14785, M2 28e3307, C2 223201d, X3 4bde3b3): the Watch card reads "Two videos", "0:20" and "A twenty-second tutorial, then a real room played start to finish." and its back holds two tabs, the captioned tutorial and the real play-through re-recorded on story mode at real speed ("muted · 1:48"), 7.25; the ten-second clip and its copy above stand as history; "Watch the intro" sits in the chooser's footer before "Pause motion" (7.24); and the Build-your-own back is capped at its stage and scrolls its own body, tightened under 840 px of window, so after a refused code the field, "Check code" and the banner stay inside the stage at 1024 x 768. Starting a Demo room opens on the story intro (1.22), not the Demo room welcome._ (amended 30 Oct 2026, story mode)
 
+_Since Oct 30 (owner requests, verbatim: "i want a button on the top right that says play Intro and then when you click play the sapmple room left (tutorial vidoe) should play the video .. also watch the demo is still too fast its needs be 0.5x speed", then "keep the video at 1x please sorry", and the sound request quoted in 1.16; fixes J1 4ba265c and 6daaf71, A1 2b3b156, T1 cb8907c and b5a21ca; deploy runs 24 (GitHub 41148967072) to 27 (41163765234), the judge URL serving b5a21ca): "Play intro", a quiet button at the top bar's right end on the landing and on every card back, replaces the footer's "Watch the intro" (7.24), so the footer keeps "Pause motion" alone at its right end; the Play back's left column plays the tutorial over a strip of the room's photos; the sound toggle follows "Play intro" (1.16); and every card turn settles face-on whatever the main thread does. The note above placing "Watch the intro" in the footer and the criterion giving the Play back the room's photos alone on its left stand as history; the criteria added below record what shipped. No video was re-encoded, slowed or given a playback rate (7.25)._ (amended 31 Oct 2026, owner request)
+
 **Acceptance Criteria:**
 
 **Given** hosted mode and `#/`
@@ -5033,6 +5066,21 @@ _Since Oct 29 to 30 (lanes N2 a99a2ee, M1 3c14785, M2 28e3307, C2 223201d, X3 4b
 **When** it opens and is used by keyboard
 **Then** no focus is moved on load; the three cards are one Tab stop that starts on Play (on Watch with no Demo room listed), arrows, Home and End move between them, and Tab then reaches the Watch card's clip toggle while Watch holds the stop, "Pause motion" and the page below the fold (the cast, each further card's button and its Build view link, each with its own focus ring); every text pair meets the `DESIGN.md` contrast table, and under reduced motion nothing deals, spins or loops, each change a 160 ms crossfade
 **And** below 1024 px the Narrow-screen message "Keyframe needs a bigger screen" / "Open this page on a laptop or desktop browser to play." replaces the app
+
+**Given** the Play the sample room card chosen (amended 31 Oct 2026, owner request)
+**When** its back opens
+**Then** its left column plays the tutorial (the Watch back's "Tutorial" video from `web/public/tutorial/`, its files as they are, at 1x, named and described as there) muted, looping, with native controls, in the Watch back's framed box, from the start each time the back opens, over a still strip of three of the room's photos, the cover first, with the "{n} photos" chip; the right column (the facts, "Your hosts", "How to play", "Play this room", "How this room was built") is unchanged and stays whole at 1024 x 768, 1280 x 800 and 1440 x 900
+**And** Back, Escape or a cross-link stops it and sets it back to the start, so no two videos ever play at once, and under reduced motion or "Pause motion" it waits on its poster with its play control
+
+**Given** the Hosted landing or any of its card backs (amended 31 Oct 2026, owner request)
+**When** the top bar renders
+**Then** "Play intro", a quiet top-bar button like the Play screen's, sits at the top bar's right end before the sound toggle (1.16), and on no other screen; it opens the full-screen intro (7.24), under reduced motion too, and the footer's "Watch the intro" is gone
+**And** over a card back it stays live while the rest of the bar is inert, the dialog's Tab ring reaches it after the panel's controls, the chooser's own keys wait while the intro shows (Escape skips the intro and leaves the back open), and the videos behind it pause
+
+**Given** a card turn on the chooser (choosing a card, its back opening, Back or Escape closing it, a cross-link, choosing another card from a back) (amended 31 Oct 2026, owner request)
+**When** the main thread stalls during or between turns
+**Then** every turn lands face-on: Chromium may garbage-collect a finished fill-forwards animation that no script holds while its end frame stays applied, so the chooser keeps the animations each turn leaves filling on the card, its back, its deal and the panel and cancels them by reference when the next turn starts and when the way home ends, and finishes the panel's opening turn by reference; timing, easing and reduced motion are unchanged
+**And** the sound engine's first-gesture setup stays off the first card turn's frames (1.16); in stress runs 17 of 240 turns stuck edge-on before the fix and 0 of 240 after, and on the judge URL serving b5a21ca none stuck in 30 runs at 1440 (and 3 single-back checks) and 10 more at 1024 and under reduced motion
 
 **Given** this story's changes
 **When** the web build and type check run (`vite build`, `tsc --noEmit`) and pytest runs offline against the mock provider
@@ -5324,6 +5372,8 @@ So that the game introduces itself before I pick a card, without making me watch
 
 _Covers FR-31, NFR-10, NFR-14. Owner: web. Depends on: 7.16. Shipped Oct 29 (owner decision, verbatim: "use this second video as an intro to page when you first go the page you see it 1nce with a replay and auto brings you to the page.. then thers an option tosee the intro again.. but saved so everytime you go to it you dont have to see it again,, thats the teaser should be full screen"; lane M1 3c14785 and 192416d; the owner-supplied video re-encoded under `web/public/intro/`)._ (amended 30 Oct 2026, story mode)
 
+_Since Oct 30 (owner request, verbatim in 7.16; fix J1 6daaf71, deploy run 24): "Play intro" at the top bar's right end, on the landing and on every card back, replaces the footer's "Watch the intro" and opens the same intro with the same Replay and Enter end, under reduced motion too; the criterion naming the footer control stands as history, amended in place. Since fix A1 (2b3b156) the site's own music fades out while the intro plays with its sound on (1.16). Open follow-up, not blocking: the overlay's sound button names the action ("Sound off" once unmuted) and carries no `aria-pressed`, the opposite of the top-bar sound toggle, which names the state._ (amended 31 Oct 2026, owner request)
+
 **Acceptance Criteria:**
 
 **Given** a page load that opens on the Hosted landing in a browser that has not seen the intro
@@ -5338,7 +5388,7 @@ _Covers FR-31, NFR-10, NFR-14. Owner: web. Depends on: 7.16. Shipped Oct 29 (own
 **Given** the intro ended, was skipped or was entered
 **When** the landing loads again in that browser
 **Then** it never shows by itself again: `keyframe.introSeen.v1` = `yes` is stored in local storage (where storage is refused, it shows at most once per page load); a deep link (`#/play/…`, `#/build/…`, `#/done/…`) and Local mode never show it, and a video that errors or will not play goes straight to the landing and counts as seen
-**And** "Watch the intro" in the chooser's footer reopens it with the same Replay and Enter end and no countdown
+**And** "Watch the intro" in the chooser's footer reopens it with the same Replay and Enter end and no countdown (since Oct 30 "Play intro" at the top bar's right end, on the landing and on every card back, does so in its place, and the footer control is gone, 7.16) (amended 31 Oct 2026, owner request)
 
 **Given** reduced motion
 **When** the landing loads for the first time
@@ -5355,6 +5405,8 @@ I want a short captioned tutorial and a real play-through of the sample room beh
 So that I can see how a room plays before I try one, at a pace I can read.
 
 _Covers FR-31, NFR-10, NFR-14. Owner: web. Depends on: 7.16. Shipped Oct 29 to 30 (owner reports: "watch the demo is way to fast can we slow down the video?" and the tutorial ask quoted in 7.24; lanes N2 a99a2ee, M2 28e3307, C2 223201d; the owner-supplied tutorial footage slowed to half speed with burned-in captions under `web/public/tutorial/`, the play-through recorded from the live judge site under `web/public/clip/`)._ (amended 30 Oct 2026, story mode)
+
+_Oct 30: the owner asked for the demo videos at 0.5x, then withdrew it the same day, verbatim: "keep the video at 1x please sorry"; no video was re-encoded or slowed, their length tags and copy are unchanged, and a test forbids setting a playback rate (fix J1 4ba265c). The tutorial also plays on the Play back's left (7.16)._ (amended 31 Oct 2026, owner request)
 
 **Acceptance Criteria:**
 
@@ -5379,6 +5431,8 @@ I want an ops action that writes the wizard story onto a Demo room built before 
 So that the judges' sample room gets its own story without a rebuild and with its spend recorded like any build's.
 
 _Covers FR-28, FR-31, AD-6, AD-7, AD-9. Owner: scripts (with infra). Depends on: 2.32, 7.13. Shipped Oct 29 to 30 (lane SV3 01a7e22; SV4 2d885c3 added the refusal print, SV6 e817d3e the per-line source). Load the keyframe-modal skill. A live storyteller call cannot run from the development container (its egress cuts at about 30 s), so the action runs on Modal; its dry runs on the live Demo room are GitHub ops runs 40999622298, 41002307130, 41007098793 and 41010145826 (runs 10, 11, 16 and 17), and it was written by ops run 18 (41010435702, `confirm` `story`): 17 lines from model attempt 0, read back equal._ (amended 30 Oct 2026, story mode)
+
+_Ops runs 21 and 22 (GitHub 41149592569 and 41149727143, Oct 30) moved the Demo room's sectional sofa to photo 2 through the patch action (7.13), every other entry unchanged, so `Room.story` stays as run 18 wrote it; riddle 3's start photo follows its target to photo 2, and the riddles start on photos 2, 0, 2 and 0._ (amended 31 Oct 2026, owner request)
 
 **Acceptance Criteria:**
 
