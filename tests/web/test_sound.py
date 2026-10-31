@@ -105,6 +105,35 @@ def test_the_engine_waits_for_a_gesture_ducks_under_a_sounding_video_and_suspend
     assert "createConvolver()" in audio and "fetch(" not in audio and ".mp3" not in audio and ".wav" not in audio
 
 
+
+def _block(text: str, start: str) -> str:
+    """The block from `start` to the first line closing it at the indent of its opening line."""
+    at = text.index(start)
+    indent = at - text.rfind("\n", 0, at) - 1
+    return text[at:text.index("\n" + " " * indent + "}", at)]
+
+
+def test_the_first_gesture_only_makes_the_context_and_the_reverb_and_music_wait_out_the_card_turn():
+    audio = _code(_ts("audio.ts"))
+    # The gesture makes the context (browsers want it there) and the light effects graph, so its own sound still plays;
+    # the reverb's impulse and the music, the heavy part, wait for an idle stretch the card turn never leaves.
+    wake = _block(audio, "function wake(): void {")
+    assert "const mix = createMixer(live, seeded(Date.now()))" in wake
+    later = _block(wake, "whenIdle(() => {")
+    for line in ("mix.start()", "mix.fade(true, FADE_IN_S)", "setInterval("):
+        assert line in later and wake.count(line) == 1, line
+    idle = _block(audio, "function whenIdle(work: () => void): void {")
+    assert "deadline.timeRemaining() >= IDLE_BUDGET_MS || deadline.didTimeout" in idle
+    assert "setTimeout(work, IDLE_FALLBACK_MS)" in idle
+    # One deadline for every retry, so a page that never idles (the landing in full motion) still gets its music.
+    assert "const until = performance.now() + IDLE_WAIT_MS" in idle
+    assert idle.count("idle(wait, { timeout: Math.max(0, until - performance.now()) })") == 2
+    # In the mixer the impulse and the two moods' drones are built by start() alone, once.
+    mixer = _block(audio, "export function createMixer(context: BaseAudioContext, random: () => number): Mixer {")
+    start = _block(mixer, "start: () => {")
+    for line in ("reverb.buffer = impulse(context, 3.2, random)", "moodBus('landing')", "moodBus('play')"):
+        assert line in start and audio.count(line) == 1, line
+
 def test_no_sound_on_plain_mouse_movement_and_every_hover_sound_is_throttled():
     hover = re.compile(r"addEventListener\('(pointermove|mousemove|pointerover|mouseover)'")
     for path in WEB_SRC.rglob("*.ts"):

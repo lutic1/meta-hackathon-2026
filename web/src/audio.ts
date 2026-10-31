@@ -40,6 +40,12 @@ export const FADE_IN_S = 1.5
 export const CROSSFADE_S = 2
 /** The music fades out under a video with its sound on, and back, over this long. */
 const DUCK_S = 0.8
+/** The reverb and the music are built in the first idle stretch this long, which a running card turn never leaves... */
+const IDLE_BUDGET_MS = 40
+/** ...or after this long at most. */
+const IDLE_WAIT_MS = 2000
+/** Where the browser has no idle callback, after this long instead, past a card turn (1150 ms). */
+const IDLE_FALLBACK_MS = 1200
 /** The only sounds a moving pointer plays, each at most once in this many ms. */
 export const HOVER_GAP_MS: Partial<Record<Cue, number>> = { cardHover: 90, hotspotHover: 250 }
 
@@ -70,6 +76,8 @@ export function seeded(seed: number): () => number {
 
 /** One sound engine on any context: the live one, or an OfflineAudioContext that renders it for a level check. */
 export interface Mixer {
+  /** Builds the reverb's impulse and the two moods' drones, the heavy part: until then the effects play dry. */
+  start: () => void
   /** Fades the music in to its level, or out, over `seconds`. */
   fade: (on: boolean, seconds: number) => void
   /** Fades the music out under a video with its sound on, or back, over `seconds`; the effects keep playing. */
@@ -85,6 +93,7 @@ export interface Mixer {
 /**
  * The engine's graph on `context`: a master gain, a music bus (the two moods' drones and melodies, through its fade
  * and its duck) and an effects bus, both sending to one convolver reverb whose impulse is generated decaying noise.
+ * The impulse and the drones wait for `start()`, so the first gesture's frame builds only the light effects graph.
  */
 export function createMixer(context: BaseAudioContext, random: () => number): Mixer {
   const level = (value: number): GainNode => {
@@ -95,7 +104,6 @@ export function createMixer(context: BaseAudioContext, random: () => number): Mi
   const master = level(1)
   master.connect(context.destination)
   const reverb = context.createConvolver()
-  reverb.buffer = impulse(context, 3.2, random)
   reverb.connect(master)
   const music = level(0)
   const ducker = level(1)
@@ -290,12 +298,12 @@ export function createMixer(context: BaseAudioContext, random: () => number): Mi
     return bus
   }
 
-  const buses: Record<Mood, GainNode> = { landing: moodBus('landing'), play: moodBus('play') }
+  let buses: Record<Mood, GainNode> | undefined
   let current: Mood = 'landing'
   const melody = { next: 0, degree: 4, left: 0 }
 
   /** One step of the melody at `t`: a note (or a rest) on a phrase's random walk; returns the time to the next step. */
-  function step(t: number): number {
+  function step(t: number, bus: GainNode): number {
     const spec = MOODS[current]
     if (melody.left <= 0) {
       melody.left = 3 + Math.floor(random() * 5)
@@ -305,21 +313,35 @@ export function createMixer(context: BaseAudioContext, random: () => number): Mi
     if (random() > spec.density) return BEAT_S
     const moves = [-2, -1, -1, 0, 1, 1, 2]
     melody.degree = Math.max(0, Math.min(9, melody.degree + moves[Math.floor(random() * moves.length)]))
-    bell(buses[current], t, pitch(melody.degree), spec.note, 3.2, 0.03)
-    if (spec.fifth && random() < 0.18) bell(buses[current], t, pitch(Math.max(0, melody.degree - 5)) / 2, spec.note * 0.7, 3.6, 0.05)
+    bell(bus, t, pitch(melody.degree), spec.note, 3.2, 0.03)
+    if (spec.fifth && random() < 0.18) bell(bus, t, pitch(Math.max(0, melody.degree - 5)) / 2, spec.note * 0.7, 3.6, 0.05)
     return random() < 0.18 ? BEAT_S / 2 : BEAT_S
   }
 
+  /** Each mood's bus to its level, the current one up and the other silent, over `seconds`. */
+  function blend(seconds: number): void {
+    if (buses === undefined) return
+    for (const name of ['landing', 'play'] as const) glide(buses[name].gain, name === current ? MOODS[name].gain : 0, seconds)
+  }
+
   return {
+    start: () => {
+      if (buses !== undefined) return
+      reverb.buffer = impulse(context, 3.2, random)
+      buses = { landing: moodBus('landing'), play: moodBus('play') }
+      blend(0)
+    },
     fade: (on, seconds) => glide(music.gain, on ? MUSIC_GAIN : 0, seconds),
     duck: (on, seconds) => glide(ducker.gain, on ? 0 : 1, seconds),
     mood: (mood, seconds) => {
       current = mood
-      for (const name of ['landing', 'play'] as const) glide(buses[name].gain, name === mood ? MOODS[name].gain : 0, seconds)
+      blend(seconds)
     },
     compose: (until) => {
+      if (buses === undefined) return
+      const bus = buses[current]
       melody.next = Math.max(melody.next, context.currentTime + 0.05)
-      while (melody.next < until) melody.next += step(melody.next)
+      while (melody.next < until) melody.next += step(melody.next, bus)
     },
     cue: (name, pan = 0) => cues[name](context.currentTime + 0.01, pan),
   }
@@ -378,7 +400,25 @@ export function setSoundOn(on: boolean): void {
   else wake()
 }
 
-/** The first gesture creates the context (browsers refuse sound before one); a later one resumes it. */
+/** Runs `work` in the first idle stretch of `IDLE_BUDGET_MS`, or `IDLE_WAIT_MS` from now at most. */
+function whenIdle(work: () => void): void {
+  const idle = globalThis.requestIdleCallback as typeof requestIdleCallback | undefined
+  if (idle === undefined) {
+    setTimeout(work, IDLE_FALLBACK_MS)
+    return
+  }
+  const until = performance.now() + IDLE_WAIT_MS
+  const wait = (deadline: IdleDeadline): void => {
+    if (deadline.timeRemaining() >= IDLE_BUDGET_MS || deadline.didTimeout) work()
+    else idle(wait, { timeout: Math.max(0, until - performance.now()) })
+  }
+  idle(wait, { timeout: Math.max(0, until - performance.now()) })
+}
+
+/**
+ * The first gesture creates the context (browsers refuse sound before one) and the effects, so its own sound plays; the
+ * reverb and the music follow once the card turn it starts has had its frames. A later gesture resumes the context.
+ */
 function wake(): void {
   if (!enabled || typeof document === 'undefined' || document.hidden) return
   try {
@@ -391,10 +431,17 @@ function wake(): void {
       mixer = mix
       mix.mood(mood, 0)
       mix.duck(ducked, 0)
-      mix.fade(true, FADE_IN_S)
-      setInterval(() => {
-        if (live.state === 'running') mix.compose(live.currentTime + LOOKAHEAD_S)
-      }, COMPOSE_MS)
+      whenIdle(() => {
+        try {
+          mix.start()
+          mix.fade(true, FADE_IN_S)
+        } catch {
+          // Web Audio refused the reverb or the music: the effects still play
+        }
+        setInterval(() => {
+          if (live.state === 'running') mix.compose(live.currentTime + LOOKAHEAD_S)
+        }, COMPOSE_MS)
+      })
     }
     if (context.state !== 'running') void context.resume().catch(() => undefined)
   } catch {
