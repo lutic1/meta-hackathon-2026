@@ -1,6 +1,7 @@
 import './treasure-chest.css'
 import type { PlayView, SessionState } from '../../types'
 import { RequestFailed } from '../api/index.ts'
+import { cue } from '../audio.ts'
 import { announce } from '../live-region.ts'
 import type { PlaySession } from '../play.ts'
 import { CHEST_HINTS, chestCount, chestName, hintAnnouncement, riddleNumber, spendLine } from '../riddles.ts'
@@ -179,6 +180,7 @@ export function treasureChest(
 
   function offer(): void {
     if (!dialog.hidden) return close()
+    cue('chestOpen')
     onOpen()
     said.hidden = true
     if (latest.hints_left <= 0) return openEmpty()

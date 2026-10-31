@@ -1,5 +1,6 @@
 import '../components/chip.css'
 import type { PlayInteractable } from '../../types'
+import { cue } from '../audio.ts'
 import { glowOnce } from '../fade.ts'
 import { fill, strings } from '../strings.ts'
 import { hotspotPath, readingOrder, type Size, stacking, topLeft } from './geometry.ts'
@@ -126,6 +127,7 @@ export function hotspotLayer(photo: Size, interactables: readonly PlayInteractab
     let dwell: ReturnType<typeof setTimeout> | undefined
     hotspot.addEventListener('pointerenter', () => {
       handlers.onPointerEnter()
+      cue('hotspotHover')
       dwell = setTimeout(() => showLabel(interactable, 'dwell'), DWELL_MS)
     })
     hotspot.addEventListener('pointerleave', () => clearTimeout(dwell))

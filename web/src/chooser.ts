@@ -1,6 +1,7 @@
 import './chooser.css'
 import type { RoomSummary } from '../types'
 import { photoUrl } from './api/index.ts'
+import { cue } from './audio.ts'
 import { buildViewLink } from './build-view.ts'
 import { CLIP_CARD, DEMO_VIDEO, DEMO_VIDEO_ASPECT, TUTORIAL, type VideoSources } from './clip.ts'
 import { ACCESS_CODE_FIELD, accessCodeBuild } from './components/access-code-build.ts'
@@ -32,6 +33,8 @@ const HOLD_CARD_MS = 3600
 /** The polite announcement waits this long after the pointer settles on a card. */
 const ANNOUNCE_MS = 500
 const MOTES = 26
+/** Each card's hover swish is panned toward its side of the arc. */
+const PAN = [-0.6, 0, 0.6]
 
 const WIZARDS: readonly Wizard[] = ['architect', 'riddler', 'guide', 'trickster']
 const NAMES: Record<Wizard, string> = {
@@ -1014,6 +1017,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     })
     slot.addEventListener('pointerenter', () => {
       if (state !== 'rest') return
+      cue('cardHover', PAN[i])
       setActive(i)
       announceSoon(i)
     })
@@ -1078,8 +1082,9 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     }
   }
   /**
-   * The dialog keeps Tab inside it, cycling its visible controls and then "Play intro" in the top bar: the browser steps
-   * within the panel, and the ring takes over at its ends, into and out of "Play intro" and from anywhere outside.
+   * The dialog keeps Tab inside it, cycling its visible controls and then "Play intro" and the sound toggle in the top
+   * bar: the browser steps within the panel, and the ring takes over at its ends, into and out of the bar's buttons and
+   * from anywhere outside.
    */
   function trapTab(event: KeyboardEvent): void {
     const view = views[chosen]
@@ -1087,20 +1092,25 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
       (control) => !(control instanceof HTMLButtonElement && control.disabled) && control.offsetParent !== null,
     )
     if (controls.length === 0) return
-    const ring = introButton.isConnected ? [...controls, introButton] : controls
+    const sound = document.querySelector<HTMLElement>('.top-bar-sound')
+    const bar = [introButton, sound].filter((button): button is HTMLElement => button !== null && button.isConnected)
+    const ring = [...controls, ...bar]
     const at = document.activeElement
     const k = ring.findIndex((control) => control === at)
     let next: HTMLElement | undefined
     if (k === -1) next = at instanceof Node && panel.contains(at) ? undefined : ring[0]
-    else if (event.shiftKey) next = k === 0 || at === introButton ? ring.at(k - 1) : undefined
-    else next = k === ring.length - 1 || ring[k + 1] === introButton ? ring[(k + 1) % ring.length] : undefined
+    else if (event.shiftKey) next = k === 0 || bar.includes(ring[k]) ? ring.at(k - 1) : undefined
+    else next = k === ring.length - 1 || bar.includes(ring[k + 1]) ? ring[(k + 1) % ring.length] : undefined
     if (next === undefined) return
     event.preventDefault()
     next.focus()
   }
 
   // ---- choosing and going home ----
-  /** Everything outside the dialog: the top bar but its "Play intro" slot, the row, the footer and the page below the fold. */
+  /**
+   * Everything outside the dialog: the top bar but its right end, where "Play intro" and the sound toggle stay live over
+   * a card back (WCAG 1.4.2), the row, the footer and the page below the fold.
+   */
   function outside(): HTMLElement[] {
     const bar = [...(document.querySelector<HTMLElement>('.top-bar')?.children ?? [])].filter(
       (node): node is HTMLElement => node instanceof HTMLElement && !node.contains(introButton),
@@ -1160,6 +1170,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
     for (const t of tilts) Object.assign(t, { tx: 0, ty: 0, gx: 50, gy: 50 })
     kick()
     const { slot, card: turning, deal, reverse, choose: button } = cards[i]
+    cue('cardChoose')
     button.setAttribute('aria-expanded', 'true')
     setModal(true)
     section.classList.add('is-chosen')
@@ -1236,6 +1247,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
 
   function goHome(then?: () => void): void {
     if (state !== 'chosen') return
+    cue('cardClose')
     const i = chosen
     const { slot, card: turning, deal, reverse, choose: button } = cards[i]
     tutorialVideo.pause()
@@ -1331,6 +1343,7 @@ export function chooser({ first, failed, profile, start, banners, onRetry, onAcc
   // ---- the intro, reopened by hand: no countdown at its end ----
   /** Opens the intro over the landing or a back, the videos behind it paused, so no two play at once. */
   function reopenIntro(): void {
+    cue('playIntro')
     introOpen = true
     for (const video of [frontVideo, tutorialVideo, panelVideo, playVideo]) video.pause()
     introShown = openIntro(false)

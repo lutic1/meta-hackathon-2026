@@ -170,7 +170,8 @@ def test_play_intro_sits_at_the_top_bar_s_right_end_on_the_landing_and_every_bac
     outside = _body(chooser, "  function outside(): HTMLElement[] {")
     assert "!node.contains(introButton)" in outside
     trap = _body(chooser, "  function trapTab(event: KeyboardEvent): void {")
-    assert "const ring = introButton.isConnected ? [...controls, introButton] : controls" in trap
+    assert "const bar = [introButton, sound].filter((button): button is HTMLElement => button !== null && button.isConnected)" in trap
+    assert "const ring = [...controls, ...bar]" in trap
     assert "if (introOpen) return" in _body(chooser, "  function onKey(event: KeyboardEvent): void {")
     reopen = _body(chooser, "  function reopenIntro(): void {")
     for line in ("introOpen = true", "for (const video of [frontVideo, tutorialVideo, panelVideo, playVideo]) video.pause()",
@@ -223,7 +224,9 @@ def test_the_docs_record_the_owner_exception_for_the_intro_and_its_sound():
     assert "**Owner exception: the intro (Oct 29).**" in design
     experience = EXPERIENCE.read_text()
     assert "the full-screen intro (owner decision Oct 29" in experience
-    assert "No sound in v1, except the intro's" in experience and "No sound in v1, except the intro's" in design
+    # The site's own sound came later (owner request Oct 30, test_sound.py); the intro's music still waits for "Sound on".
+    assert "the intro's own music is heard only once the player turns it on" in experience
+    assert "the intro's own music starts only when the player turns it on" in design
 
 
 def test_the_hosted_app_serves_the_intro_files_with_their_media_types(tmp_path: Path):

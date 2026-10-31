@@ -1,4 +1,5 @@
 import type { PlayInteractable, PlayPuzzle, PostedEvent, SessionState } from '../types'
+import type { Cue } from './audio.ts'
 import { riddleNumber } from './riddles.ts'
 import { fill, strings } from './strings.ts'
 
@@ -79,4 +80,30 @@ export function feedbackFor(
   if (found.includes(target)) return fill(strings.found, { label: name })
   if (after.needs_item === true) return fill(strings.needsItem, { Label: capitalized(name) })
   return fill(strings.notThisOne, { Label: capitalized(name) })
+}
+
+/**
+ * The sounds the server's reply `after` to `input` plays (owner request Oct 30, DESIGN.md Sound): a newly open lock
+ * chimes, after the pop of an item it put in the pack, and the Exit plays nothing here (its fanfare plays on the way
+ * out); an item picked up without a lock pops; a `use_on` that opened nothing, a Wrong attempt or a `click` that
+ * changed nothing knocks. An order click mid-sequence, the order controls, a Hint request, an item already in the pack
+ * and a found target play nothing. Pure, like the line.
+ */
+export function soundFor(
+  room: FeedbackRoom,
+  input: PostedEvent,
+  before: FeedbackState,
+  after: FeedbackState,
+  found: readonly string[],
+): Cue[] {
+  const picked = after.inventory.some((id) => !before.inventory.includes(id)) ? (['pickUp'] as const) : []
+  const opened = room.puzzles.findLast((puzzle) => after.locks_open.includes(puzzle.id) && !before.locks_open.includes(puzzle.id))
+  if (opened !== undefined) return opened.is_exit ? [] : [...picked, 'solve']
+  if (picked.length > 0) return [...picked]
+  if (input.type === 'lock_input' && input.input.type === 'use_on') return ['knock']
+  if (room.puzzles.some((puzzle) => (after.wrong_attempts[puzzle.id] ?? 0) > (before.wrong_attempts[puzzle.id] ?? 0))) return ['knock']
+  const target = named(input)
+  if (target === null || !room.interactables.some((interactable) => interactable.id === target)) return []
+  if ((after.order_buffer.clicks ?? []).length > (before.order_buffer.clicks ?? []).length) return []
+  return after.inventory.includes(target) || found.includes(target) ? [] : ['knock']
 }

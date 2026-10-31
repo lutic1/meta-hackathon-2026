@@ -1,6 +1,7 @@
 // The story intro (story mode, owner decision Oct 29; build spec 1.1, 3.1, 5.5): five beats on the Story stage before
 // play, once per Session start, and the walk and the trap that play under them.
 import type { PlayView, SessionState } from '../types'
+import { cue } from './audio.ts'
 import type { StoryBeat, StoryStage } from './components/story-stage.ts'
 import type { TreasureChest } from './components/treasure-chest.ts'
 import { introLines, placeTag, riddleHeading } from './riddles.ts'
@@ -118,6 +119,7 @@ export async function playIntro({ view, state, beats, scene, chest }: Intro): Pr
       skipped = true
       break
     }
+    cue('pageTurn')
     await moved // a press during a move is held until it ends
   }
   chest.element.classList.remove('is-beckoning')

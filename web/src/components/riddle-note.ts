@@ -1,5 +1,6 @@
 import './riddle-note.css'
 import type { PlayPuzzle, PlayView, RungChangeEvent, SessionState } from '../../types'
+import { cue } from '../audio.ts'
 import { glowOnce } from '../fade.ts'
 import type { PlaySession } from '../play.ts'
 import { hintLabel, placeTag, riddleHeading, riddleNumber, seals } from '../riddles.ts'
@@ -213,6 +214,7 @@ export function riddleNote(room: PlayView, play: PlaySession): RiddleNote {
     focus: () => heading.focus({ preventScroll: true }),
     hintSlot: () => hints,
     hintArrived: () => {
+      cue('hintPinned')
       const newest = hints.lastElementChild
       const hold = matchMedia('(prefers-reduced-motion: reduce)').matches ? HINT_ARRIVAL_REDUCED_MS : HINT_ARRIVAL_MS
       if (newest !== null) glowOnce(newest, 'is-arriving-hint', hold)

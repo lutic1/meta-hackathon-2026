@@ -39,6 +39,7 @@
   align-items: baseline;
   gap: var(--spacing-2);
 }
+.top-bar-end,
 .top-bar-controls {
   display: flex;
   justify-content: flex-end;
@@ -58,4 +59,27 @@
   color: var(--lamp-strong);
   border-color: var(--lamp);
   background: var(--lamp-hover-fill);
+}
+/* The sound toggle (owner request Oct 30): a quiet button at the right end of every top bar, a speaker beside "Sound on"
+   or "Sound off". Lit on hover and focus only, never held lit while pressed: its label and the speaker's waves or
+   cross show the state, so it never reads as a gold action. The selectors outrank the toggle's own pressed look. */
+.top-bar-end > .top-bar-sound {
+  color: var(--text);
+  border: 1px solid var(--hairline);
+  padding: 0 var(--spacing-4);
+  background: transparent;
+  gap: var(--spacing-2);
+}
+.top-bar-end > .top-bar-sound:hover,
+.top-bar-end > .top-bar-sound:focus-visible {
+  color: var(--lamp-strong);
+  border-color: var(--lamp);
+  background: var(--lamp-hover-fill);
+}
+.top-bar-sound svg {
+  flex: none;
+}
+.top-bar-sound[aria-pressed='true'] .top-bar-sound-mute,
+.top-bar-sound[aria-pressed='false'] .top-bar-sound-waves {
+  display: none;
 }

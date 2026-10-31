@@ -21,6 +21,8 @@
 export const strings = {
   wordmark: 'Keyframe',
   wordmarkLink: 'Keyframe, back to the start',
+  soundOn: 'Sound on',
+  soundOff: 'Sound off',
   serverUnreachable: "Keyframe can't reach its server. Retrying.",
   profileNameRefused: "Keyframe can't use the profile name “{name}”.",
   profileNameRefusedBody: 'Profile names are plain file names, like dev or playtest.',

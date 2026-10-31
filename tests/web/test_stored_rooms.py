@@ -30,12 +30,12 @@ def test_the_list_comes_only_from_get_rooms_read_afresh_on_every_visit():
     # Capture Timer's one run (2.17), the per-session mark that the story intro ended (story mode), the per-session solved and
     # found targets of the Scene, which name only objects of locks already solved (I1), and the Player profile's
     # IndexedDB, which holds Room results only (5.2), and the one flag that the intro was seen (owner decision Oct 29,
-    # test_intro.py).
+    # test_intro.py), and the one sound choice (owner request Oct 30, test_sound.py).
     assert "listRooms" not in shell.split("async function render()", 1)[0].split("export function startShell", 1)[1]
     for path, text in source_ts().items():
         if path.endswith(
             ("web/src/capture-timer.ts", "web/src/story.ts", "web/src/scene/index.ts", "web/src/profile/index.ts",
-             "web/src/intro.ts")
+             "web/src/intro.ts", "web/src/audio.ts")
         ):
             continue
         assert not re.search(r"localStorage|sessionStorage|indexedDB", text), path

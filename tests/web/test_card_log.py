@@ -205,8 +205,9 @@ def test_it_never_opens_over_another_modal_and_no_modal_opens_over_it():
     # The Leave room confirmation (its button or the browser Back button) asks first.
     assert "modalOpen: () => introducing || cardLog.isOpen()" in play
     assert "isOpen: () => close !== undefined" in log
-    # Under the story intro and the Leave room confirmation, the top bar and the link's column are inert.
-    assert "frame.topBar.inert = on" in play
+    # Under the story intro the top bar but its sound toggle is inert (test_sound.py); under the Leave room
+    # confirmation and the Card log, the whole top bar and the link's column.
+    assert "for (const part of barHeld) part.inert = on" in play
     assert "held: [frame.topBar, sceneColumn, sideColumn]" in play
     # The Completion screen keeps the button in place under its inert top bar.
     behind = play.split("export function mountPlayBehind(", 1)[1]

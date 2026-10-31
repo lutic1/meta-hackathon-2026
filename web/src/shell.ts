@@ -1,6 +1,7 @@
 import './shell.css'
 import type { Meta, RoomSummary, SessionState } from '../types'
 import { getMeta, getSession, listRooms, RequestFailed } from './api/index.ts'
+import { setMood, startSound } from './audio.ts'
 import { judgeBuildsLeft } from './access-code.ts'
 import { buildScreen } from './build-progress.ts'
 import { type BuildViewOptions, type BuildViewState, buildViewSurface, loadBuildView } from './build-view.ts'
@@ -187,6 +188,7 @@ export function startShell(root: HTMLElement): void {
     const body = surface(content, bar)
     const done = content.name === 'done'
     bar.controls.inert = done // the Play screen's controls stay in place, taking no input; the wordmark still goes home
+    setMood(place.route.name === 'play' ? 'play' : 'landing')
     show(bar.element, body.element, ...(banner === null ? [] : [banner]))
     const unmountBody = body.mount?.()
     const owns = timerOwner(place.route)
@@ -205,6 +207,7 @@ export function startShell(root: HTMLElement): void {
   })
   root.after(narrowScreenMessage())
   liveRegion() // in the page before anything is written to it
+  startSound() // the music and sounds wait for the first gesture
   window.addEventListener('hashchange', () => void render())
   void render()
 }

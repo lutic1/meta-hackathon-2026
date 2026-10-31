@@ -186,7 +186,8 @@ def test_choosing_makes_everything_outside_the_dialog_inert_and_locks_the_scroll
     ts = _chooser()
     outside = _body(ts, "  function outside(): HTMLElement[] {")
     assert "document.querySelector<HTMLElement>('.top-bar')?.children" in outside
-    assert "return [...bar, row, keys, ...below]" in outside  # the bar but its "Play intro" slot (test_intro.py)
+    # The bar but its right end, "Play intro" and the sound toggle, both live over a back (test_intro.py, test_sound.py).
+    assert "return [...bar, row, keys, ...below]" in outside
     modal = _body(ts, "  function setModal(on: boolean): void {")
     assert "for (const node of outside()) node.inert = on" in modal and "scroller.classList.toggle('is-locked', on)" in modal
     assert "setModal(true)" in _body(ts, "  function choose(i: number): void {")
@@ -201,9 +202,12 @@ def test_the_dialog_traps_tab_and_escape_back_and_the_bare_stage_turn_it_home():
     ts = _chooser()
     trap = _body(ts, "  function trapTab(event: KeyboardEvent): void {")
     assert "view.querySelectorAll<HTMLElement>('button, a[href], input, video[tabindex]')" in trap
+    # The ring runs the panel's controls, then "Play intro" and the sound toggle in the top bar (test_sound.py).
+    assert "const ring = [...controls, ...bar]" in trap
+    assert "const bar = [introButton, sound].filter((button): button is HTMLElement => button !== null && button.isConnected)" in trap
     assert "if (k === -1) next = at instanceof Node && panel.contains(at) ? undefined : ring[0]" in trap
-    assert "next = k === 0 || at === introButton ? ring.at(k - 1) : undefined" in trap
-    assert "next = k === ring.length - 1 || ring[k + 1] === introButton ? ring[(k + 1) % ring.length] : undefined" in trap
+    assert "next = k === 0 || bar.includes(ring[k]) ? ring.at(k - 1) : undefined" in trap
+    assert "next = k === ring.length - 1 || bar.includes(ring[k + 1]) ? ring[(k + 1) % ring.length] : undefined" in trap
     keys = _body(ts, "  function onKey(event: KeyboardEvent): void {")
     assert "event.key === 'Escape' && state === 'chosen'" in keys and "event.key === 'Tab' && state === 'chosen'" in keys
     # Listened for in the capture phase, so a control inside the panel never keeps Escape from the page.

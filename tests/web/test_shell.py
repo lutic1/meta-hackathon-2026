@@ -82,7 +82,9 @@ def test_top_bar_is_48px_chrome_with_wordmark_mode_indicator_and_centered_timer_
     assert bar["grid-template-columns"] == "minmax(0, 1fr) auto minmax(0, 1fr)"
     ts = (COMPONENTS / "top-bar.ts").read_text()
     assert "wordmark.className = 'top-bar-wordmark display-sm'" in ts and "wordmark.textContent = strings.wordmark" in ts
-    assert "element.append(start, timer, controls)" in ts and "timer.className = 'top-bar-timer'" in ts
+    # The right end holds the controls slot, then the sound toggle (owner request Oct 30, test_sound.py).
+    assert "element.append(start, timer, end)" in ts and "timer.className = 'top-bar-timer'" in ts
+    assert "end.append(controls, soundToggle())" in ts
 
 
 def test_top_bar_controls_are_quiet_until_hovered_focused_or_pressed():

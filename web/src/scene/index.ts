@@ -13,6 +13,7 @@ import {
 } from 'three'
 import type { PlayInteractable, PlayView, PostedEvent } from '../../types'
 import { photoUrl } from '../api/index.ts'
+import { cue } from '../audio.ts'
 import { bannerSlot, showBanner } from '../components/error-banner.ts'
 import { feedbackLine } from '../components/feedback-line.ts'
 import { GLOW_MS, GLOW_REDUCED_MS } from '../components/inventory.ts'
@@ -615,6 +616,7 @@ export function mountScene(
   async function walk(to: number, via?: HTMLElement, quiet = false): Promise<void> {
     if (room === undefined || moving || to === current || areaOf(areas, to) < 0) return
     if (current < 0) return show(to)
+    if (!quiet) cue('step')
     const focused = frame.contains(document.activeElement) ? document.activeElement : null
     const across = areaOf(areas, to) !== areaOf(areas, current)
     moving = true
@@ -758,6 +760,7 @@ export function mountScene(
     seal.append(lockSealSvg())
     view.append(seal)
     placeSeal()
+    cue('trap')
     if (reduced()) return
     world.animate(FLICKER, { duration: FLICKER_MS })
   }

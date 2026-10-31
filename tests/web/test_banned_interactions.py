@@ -1,5 +1,8 @@
 """UX-DR85 for the client source: no sound, no browser notification, no offline mode.
 
+Sound is the one exception (owner request Oct 30, DESIGN.md Sound): web/src/audio.ts alone makes it, synthesized with
+the Web Audio API behind the top bar's sound toggle (tests/web/test_sound.py); every other module stays silent.
+
 Walks every module under web/src and the page itself. The other UX-DR85 bans are asserted by the stories that own
 each surface.
 """
@@ -18,6 +21,8 @@ BANS = {
     "registers a service worker": r"\bserviceWorker\b|\bworkbox\b|\bimportScripts\(|\bCacheStorage\b|\bcaches\.open\(",
 }
 PAGE = (REPO / "web/index.html").read_text()
+SOUND_MODULE = "web/src/audio.ts"
+"""The one module allowed an AudioContext (owner request Oct 30)."""
 
 
 def _sources() -> dict[str, str]:
@@ -27,6 +32,8 @@ def _sources() -> dict[str, str]:
 @pytest.mark.parametrize("ban", BANS)
 def test_no_module(ban):
     for path, text in _sources().items():
+        if ban == "plays audio" and path == SOUND_MODULE:
+            continue
         hit = re.search(BANS[ban], text)
         assert hit is None, f"{path} {ban}: {hit.group(0)!r}"
 

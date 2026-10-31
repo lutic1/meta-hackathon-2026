@@ -1,5 +1,6 @@
 import './use-on.css'
 import type { PlayInteractable } from '../types'
+import { cue } from './audio.ts'
 import { secondaryButton } from './components/button.ts'
 import { fill, strings } from './strings.ts'
 
@@ -79,6 +80,7 @@ export function useOnItem(button: HTMLButtonElement, interactable: PlayInteracta
   button.dataset.item = interactable.id
   button.draggable = true
   button.addEventListener('click', () => {
+    cue('packSelect')
     selection.select(selection.selected() === interactable.id ? null : interactable.id, 'pack')
   })
   button.addEventListener('dragstart', (event) => {

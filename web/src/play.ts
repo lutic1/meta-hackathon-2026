@@ -1,5 +1,6 @@
 import type { Meta, PlayPuzzle, PlayView, PostedEvent, SessionState } from '../types'
 import { getEffectiveRoom, getSession, postEvent, RequestFailed, startSession } from './api/index.ts'
+import { cue } from './audio.ts'
 import { cardLogButton, mountCardLog } from './card-log.ts'
 import { secondaryButton, toggleButton } from './components/button.ts'
 import { inventory } from './components/inventory.ts'
@@ -9,7 +10,7 @@ import { statusStrip } from './components/status-strip.ts'
 import { storyStage } from './components/story-stage.ts'
 import { treasureChest } from './components/treasure-chest.ts'
 import { stateFadeMs } from './fade.ts'
-import { feedbackFor } from './feedback.ts'
+import { feedbackFor, soundFor } from './feedback.ts'
 import { mountLeaveRoom } from './leave-room.ts'
 import { lockOpened, SOLVE_BEAT_DELAY_MS } from './lock-opened.ts'
 import { announce } from './live-region.ts'
@@ -93,8 +94,8 @@ export interface PlaySession {
 }
 
 /**
- * What the Play screen takes from the shell: the page body and the top bar, which the story intro holds inert, the top
- * bar's controls slot, and the `mode` that decides which Derived block "Start again" sends.
+ * What the Play screen takes from the shell: the page body and the top bar, which the story intro holds inert but for its
+ * sound toggle, the top bar's controls slot, and the `mode` that decides which Derived block "Start again" sends.
  */
 export interface PlayFrame {
   body: HTMLElement
@@ -364,11 +365,13 @@ export function mountPlay(
   const start = (view: PlayView): number =>
     introducing ? introPhoto(view) : (view.puzzles.find((puzzle) => puzzle.id === latest.active_puzzle_id)?.start_photo ?? 0)
   const scene: MountedScene = mountScene(stage, play, room, start)
-  /** The intro holds the Scene and the top bar inert and keeps the play parts out of sight until play starts. */
+  /** The top bar but its sound toggle, which stays live through the story intro and its music (WCAG 1.4.2). */
+  const barHeld = [...frame.topBar.querySelectorAll<HTMLElement>('.top-bar-start, .top-bar-timer, .top-bar-controls')]
+  /** The intro holds the Scene and the top bar but its sound toggle inert and keeps the play parts out of sight. */
   function holdForIntro(on: boolean): void {
     introducing = on
     beating = on
-    frame.topBar.inert = on
+    for (const part of barHeld) part.inert = on
     stage.classList.toggle('is-intro', on)
     holdInputs()
   }
@@ -388,6 +391,7 @@ export function mountPlay(
       feedback = (body, before, reply) => {
         const line = feedbackFor(shown, body, before, reply, foundTargets(session.id))
         if (line !== null) speak(line)
+        for (const name of soundFor(shown, body, before, reply, foundTargets(session.id))) cue(name)
       }
       /** Refetches the Effective room when `state` names another revision, then redraws the note and Hotspots. */
       const refetchRoom = async (state: SessionState): Promise<void> => {
@@ -443,6 +447,7 @@ export function mountPlay(
       function wayOut(): void {
         exited.add(session.id)
         exitView = shown
+        cue('escape')
         for (const part of [note.element, held.element, chest.element]) part.hidden = true
         void scene.daylight(solvedTargets(session.id).at(-1) ?? null)
         leaveForDone(stateFadeMs() === 0 ? 0 : EXIT_SHEET_DELAY_MS) // at once under reduced motion
@@ -490,6 +495,7 @@ export function mountPlay(
   return () => {
     mounted = false
     frame.topBar.inert = false
+    for (const part of barHeld) part.inert = false
     cardLog.unmount()
     leaveRoom.unmount()
     unfocus?.()
