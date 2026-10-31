@@ -834,6 +834,9 @@ class SessionState(Model):
     served on top of the replayed state (`trigger_events` in the API), never written by `apply`."""
     hint_reply: HintReply | None = None
     """Set only on the reply to the `hint_request` it answers; never replayed."""
+    needs_item: bool = False
+    """True only on the reply to a `click` on the target of an available `use_on` Puzzle whose item is in the
+    Inventory: the right object, reached with an empty hand (amended 30 Oct 2026, owner report); never replayed."""
 
 
 # --- Profile (AD-8) --------------------------------------------------------

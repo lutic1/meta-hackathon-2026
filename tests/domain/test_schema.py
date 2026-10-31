@@ -433,11 +433,12 @@ def test_session_state_fields():
         "disclosure": [],
     })
     assert state.judge_room is False and state.thresholds is None and state.hint_reply is None and state.cards == []
+    assert state.needs_item is False
     assert state.trigger_events == {} and set(schema.TriggerEvent.model_fields) == {"type", "t_ms"}
     assert set(SessionState.model_fields) == {
         "id", "room_id", "locks_open", "inventory", "current_rung", "wrong_attempts", "rungs_used", "hints_left", "order_buffer",
         "active_puzzle_id", "opening_line", "phrasing", "rung_changes", "trickster_window", "trickster_calls", "cards",
-        "room_revision", "disclosure", "judge_room", "thresholds", "trigger_events", "hint_reply",
+        "room_revision", "disclosure", "judge_room", "thresholds", "trigger_events", "hint_reply", "needs_item",
     }
     assert set(schema.HintReply.model_fields) == {"puzzle_id", "rung", "text", "next_hint_ms", "hints_left"}
     assert set(schema.Thresholds.model_fields) == {

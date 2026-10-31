@@ -150,6 +150,19 @@ def test_a_click_on_any_other_hotspot_changes_no_lock_and_counts_nothing(code_an
         assert state.locks_open == [] and state.inventory == [] and sum(state.wrong_attempts.values()) == 0
 
 
+
+def test_a_bare_click_on_an_available_use_on_target_whose_item_is_carried_needs_the_item_and_counts_nothing(four_lock_room):
+    # Owner report, 30 Oct 2026: the sofa a riddle needs the pillows on is not a wrong object, only an empty hand.
+    machine = SessionStateMachine(four_lock_room)
+    assert not machine.needs_item(run(machine, click("chest")), IX["chest"])  # the chest's riddle is not open yet
+    state = run(machine, click("key"), click("chest"))
+    assert machine.needs_item(state, IX["chest"])
+    assert not any(machine.needs_item(state, IX[name]) for name in ("key", "clock", "rug", "door"))
+    assert state.locks_open == [PZ["find_key"]] and sum(state.wrong_attempts.values()) == 0
+    assert not machine.needs_item(run(machine, click("key"), use_on("key", "chest")), IX["chest"])  # solved
+    loose = SessionStateMachine(with_puzzle(four_lock_room, "key_on_chest", requires=[]))
+    assert not loose.needs_item(run(loose, click("chest")), IX["chest"])  # open, but the key is not in the pack
+
 # --- code locks ---------------------------------------------------------------
 
 

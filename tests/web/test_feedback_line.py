@@ -79,6 +79,10 @@ CASES: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any], str | Non
     ("a use_on that resolves to no Puzzle", _use_on("pillows", "rug"), HELD, HELD, "That doesn't go there."),
     ("a click on an item in hand", _click("pillows"), HELD, HELD, "Throw pillows. Already in your pack."),
     ("a click on a found target", _click("vent"), HELD, HELD, "floor vent · found"),
+    ("an empty-hand click on the use_on target, its item in the pack", _click("sofa"), HELD, {**HELD, "needs_item": True},
+     "Sectional sofa. It needs something from your pack."),
+    ("an empty-hand click on any other object while the item is in the pack", _click("tree"), HELD, HELD,
+     "Potted artificial tree. Not this one."),
     ("arming an order sequence", {"type": "lock_input", "input": {"type": "order_start", "puzzle_id": "p5"}},
      _state(), _state(order={"puzzle_id": "p5", "clicks": []}), None),
     ("a hint request", {"type": "hint_request"}, _state(), _state(), None),
@@ -140,11 +144,12 @@ def test_the_lines_are_the_experience_lines_and_the_note_stamps_solved():
     assert strings["inHandWhere"].format(Label="Throw pillows") == "Throw pillows in hand. Click where they belong."
     assert strings["putAway"].format(label="throw pillows") == "You put the throw pillows away."
     assert strings["handsEmpty"] == "Hands empty."
+    assert strings["needsItem"].format(Label="Sectional sofa") == "Sectional sofa. It needs something from your pack."
     assert strings["solved"] == "Solved" and "open" not in strings and "lockOpen" not in strings
     play = _section("Voice and Tone").split("**Play screen**", 1)[1]
     row = next(line for line in play.splitlines() if line.startswith("| Feedback line"))
     for key in ("notThisOne", "pickUp", "riddleSolvedLine", "wayOut", "lockNotThis", "found", "doesntGoThere",
-                "alreadyInPack", "inHandWhere", "putAway", "handsEmpty"):
+                "alreadyInPack", "inHandWhere", "putAway", "handsEmpty", "needsItem"):
         value = strings[key]
         assert f'"{value}"' in row, key
     assert '| Solved chip | plain | "Solved" |' in play and "| Open chip |" not in play

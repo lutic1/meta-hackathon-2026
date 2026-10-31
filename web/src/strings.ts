@@ -304,6 +304,7 @@ export const strings = {
   lockNotThis: 'Puzzle {n}: not this, {count}.',
   pickUp: 'You pick up the {label}.',
   notThisOne: '{Label}. Not this one.',
+  needsItem: '{Label}. It needs something from your pack.',
   doesntGoThere: "That doesn't go there.",
   alreadyInPack: '{Label}. Already in your pack.',
   inHandWhere: '{Label} in hand. Click where they belong.',

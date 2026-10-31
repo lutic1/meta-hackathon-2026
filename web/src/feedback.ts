@@ -12,7 +12,7 @@ export interface FeedbackRoom {
 }
 
 /** The parts of a session state the line compares across one reply. */
-export type FeedbackState = Pick<SessionState, 'locks_open' | 'inventory' | 'wrong_attempts' | 'order_buffer'>
+export type FeedbackState = Pick<SessionState, 'locks_open' | 'inventory' | 'wrong_attempts' | 'order_buffer' | 'needs_item'>
 
 /** `label` with a capital first letter, as a line starts: "Throw pillows. Not this one." */
 export function capitalized(label: string): string {
@@ -44,8 +44,10 @@ export function foundBy(room: FeedbackRoom, input: PostedEvent, before: Feedback
  * up the {label}." when it put an item in the pack, and the Exit reads "The way out is open." alone; a `use_on` that
  * opened nothing, a Wrong attempt or not, reads "That doesn't go there."; a code or order Wrong attempt reads the lock
  * outcome "Puzzle {n}: not this, {count}." (n = the Puzzle's fixed place in the Room); a `click` that changed nothing
- * reads "{Label}. Not this one.", "{Label}. Already in your pack." on an item the pack holds, or "{label} · found" on
- * a target `found` holds (a solved `find` target no `use_on` needs). A click that only fills an armed order sequence
+ * reads "{Label}. Not this one.", "{Label}. Already in your pack." on an item the pack holds, "{label} · found" on
+ * a target `found` holds (a solved `find` target no `use_on` needs), or "{Label}. It needs something from your pack."
+ * when the reply says `needs_item`: the target of an open `use_on` lock reached with an empty hand (owner report,
+ * Oct 30). A click that only fills an armed order sequence
  * (its Order click progress answers), the order controls and a Hint request read nothing. Pure: Node runs it as it
  * ships.
  */
@@ -75,5 +77,6 @@ export function feedbackFor(
   if ((after.order_buffer.clicks ?? []).length > (before.order_buffer.clicks ?? []).length) return null
   if (after.inventory.includes(target)) return fill(strings.alreadyInPack, { Label: capitalized(name) })
   if (found.includes(target)) return fill(strings.found, { label: name })
+  if (after.needs_item === true) return fill(strings.needsItem, { Label: capitalized(name) })
   return fill(strings.notThisOne, { Label: capitalized(name) })
 }

@@ -3236,6 +3236,11 @@
             }
           ],
           "default": null
+        },
+        "needs_item": {
+          "default": false,
+          "title": "Needs Item",
+          "type": "boolean"
         }
       },
       "required": [

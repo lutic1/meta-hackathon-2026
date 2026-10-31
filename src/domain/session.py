@@ -257,6 +257,13 @@ class SessionStateMachine:
         last = next((change for change in reversed(state.rung_changes) if change.puzzle_id == puzzle_id), None)
         return 0 if last is None else max(0, self._rung_thresholds.rung_spacing_ms - (t_ms - last.t_ms))
 
+    def needs_item(self, state: SessionState, interactable_id: str) -> bool:
+        """Whether `interactable_id` is the target of an available `use_on` Puzzle whose item the Inventory holds."""
+        return any(
+            isinstance(p.solution, UseOnSolution) and p.solution.target == interactable_id and p.solution.item in state.inventory
+            for p in self.available(state)
+        )
+
     def is_complete(self, state: SessionState) -> bool:
         """Whether the exit lock has opened."""
         return any(puzzle.is_exit and puzzle.id in state.locks_open for puzzle in self.room.puzzles)

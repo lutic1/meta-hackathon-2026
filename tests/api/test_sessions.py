@@ -202,6 +202,19 @@ def test_a_click_and_a_lock_input_are_stamped_appended_and_applied(client: TestC
     assert state == welcomed(code_and_find_room).replay(session_id, log).model_dump(mode="json")
 
 
+
+def test_a_bare_click_on_a_use_on_target_whose_item_is_carried_answers_needs_item_on_its_reply_alone(
+    client: TestClient, four_lock_room: Room
+):
+    session_id = start(client, four_lock_room)
+    assert post(client, session_id, click("chest"))["needs_item"] is False  # the key is not carried yet
+    post(client, session_id, click("key"))
+    reply = post(client, session_id, click("chest"))
+    assert reply["needs_item"] is True
+    assert reply["locks_open"] == [PZ["find_key"]] and sum(reply["wrong_attempts"].values()) == 0
+    assert post(client, session_id, click("clock"))["needs_item"] is False
+    assert client.get(f"/api/sessions/{session_id}").json()["needs_item"] is False  # never replayed
+
 @pytest.mark.parametrize("body", [
     {"type": "click", "interactable_id": IX["key"], "t_ms": 12},
     {"type": "lock_input", "input": {"type": "code", "puzzle_id": PZ["clock_code"], "code": "415"}, "t_ms": 0},

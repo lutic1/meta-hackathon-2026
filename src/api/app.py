@@ -71,7 +71,10 @@ its start, are kept in its `SessionHeader`) an ask with no hint left is
 refused 409 `hint_cap_reached` before anything is appended, an ask answers
 the Rung it opened, and one that opened none (the near-answer already open,
 or no Puzzle active) answers `CHEST_NO_HINT_LINE` and spends nothing; every
-reply carries `hints_left`. Each
+reply carries `hints_left`. A `click` on the target of an available
+`use_on` Puzzle whose item is in the Inventory answers `needs_item` true on
+its reply alone, so the client says the object needs something from the pack
+rather than "Not this one" (amended 30 Oct 2026, owner report). Each
 appended event is logged as one JSON line with `session_id`, the event type
 and `duration_ms` (AR-22). Every session state served, the greeted start
 reply included, carries its Room's Disclosure list, composed once at the
@@ -242,6 +245,7 @@ from src.domain.schema import (
     AccessCheck,
     AccessCheckRequest,
     BuildView,
+    ClickBody,
     Derived,
     Event,
     HintReply,
@@ -1026,6 +1030,8 @@ def session_routes(
             if hint and session.machine.hint_policy == "chest" and session.machine.replay(session_id, log_).hints_left == 0:
                 raise HintCapReached()
             state = append(session_id, session, log_, build)
+            if isinstance(body, ClickBody):
+                return state.model_copy(update={"needs_item": session.machine.needs_item(state, body.interactable_id)})
             return state.model_copy(update={"hint_reply": hint_reply(session, state, posted[-1].t_ms)}) if hint else state
 
     @router.post("/{session_id}/trickster")
