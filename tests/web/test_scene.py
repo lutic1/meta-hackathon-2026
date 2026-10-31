@@ -247,6 +247,13 @@ def test_every_hotspot_is_a_focusable_button_that_enter_activates_with_the_ring_
                                                                "stroke-width": "4px"}
 
 
+
+def test_a_pointer_click_draws_no_box_around_a_hotspot_and_keyboard_focus_keeps_its_ring():
+    # Owner report, 30 Oct 2026: after a mouse click Chrome drew its own rectangle around the Hotspot's bounding box.
+    rules = _rules("scene/scene.css")
+    assert rules[".hotspot:focus:not(:focus-visible)"] == {"outline": "none"}  # Chrome's own ring ignores its colour
+    assert rules[".hotspot:focus-visible"] == {"outline-color": "transparent"}  # the ring is traced along the polygon
+
 def test_every_scene_color_pair_is_in_the_contrast_table():
     table = design_text().split("### Contrast (load-bearing pairs)", 1)[1].split("\n## ", 1)[0]
     rows = [[re.findall(r"`([\w-]+)`", cell) for cell in line.strip("|").split("|")[:2]]

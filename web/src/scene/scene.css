@@ -143,6 +143,11 @@
 .hotspot:focus-visible {
   outline-color: transparent;
 }
+/* A pointer click focuses the Hotspot too, and Chrome would draw its own box around the bounding box: the ring is
+   for keyboard focus only (owner report, 30 Oct 2026). */
+.hotspot:focus:not(:focus-visible) {
+  outline: none;
+}
 .hotspot:focus-visible .hotspot-reveal {
   filter: none;
 }

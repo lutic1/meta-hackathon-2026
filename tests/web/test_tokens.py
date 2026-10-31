@@ -7,6 +7,7 @@ import pytest
 
 from tests.web.design import (
     GROUPS,
+    POINTER_FOCUS,
     REPO,
     RINGLESS,
     WALK_CSS,
@@ -172,6 +173,8 @@ def test_focus_ring_is_two_tone_at_2px_offset_on_focus_visible_and_never_removed
         rules = css_rules(text)
         if path in RINGLESS:  # the two headings that take focus but are no control show no ring
             assert rules.pop(RINGLESS[path]) == {"outline": "none", "box-shadow": "none"}, path
+        if path in POINTER_FOCUS:  # a pointer click's focus only: the keyboard ring stays
+            assert rules.pop(POINTER_FOCUS[path]) == {"outline": "none"}, path
         for selector, rule in rules.items():
             assert not re.match(r"(none|0)", rule.get("outline", "")), f"{path}: {selector} removes a focus outline"
             if ":focus-visible" in selector and "box-shadow" in rule:

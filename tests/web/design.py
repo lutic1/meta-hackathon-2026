@@ -15,6 +15,9 @@ RINGLESS = {"web/src/components/riddle-note.css": ".riddle-note-heading:focus-vi
             "web/src/completion.css": ".completion-heading:focus-visible"}
 """The two headings that take focus but are no control, so no ring shows (EXPERIENCE.md Riddle note, DESIGN.md
 Completion screen): the one place a stylesheet drops the focus ring."""
+POINTER_FOCUS = {"web/src/scene/scene.css": ".hotspot:focus:not(:focus-visible)"}
+"""The one rule that drops the browser's own outline: on a Hotspot a pointer click focused, where `:focus-visible`
+does not hold, so no keyboard ring is touched (owner report, 30 Oct 2026)."""
 
 
 def design_text() -> str:

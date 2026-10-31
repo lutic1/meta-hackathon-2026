@@ -15,6 +15,7 @@ from src.domain.schema import Room
 from tests.api.test_app import make_app
 from tests.fixtures.rooms import IX
 from tests.web.design import (
+    POINTER_FOCUS,
     RINGLESS,
     WEB_SRC,
     css_rules,
@@ -215,6 +216,8 @@ def test_every_surface_control_keeps_the_two_tone_focus_ring():
         rules = css_rules(text)
         if path in RINGLESS:
             assert rules.pop(RINGLESS[path]) == {"outline": "none", "box-shadow": "none"}, path
+        if path in POINTER_FOCUS:
+            assert rules.pop(POINTER_FOCUS[path]) == {"outline": "none"}, path
         for selector, declarations in rules.items():
             outline = declarations.get("outline", "")
             assert not re.match(r"(none|0)", outline), f"{path} removes the focus outline on {selector}"
