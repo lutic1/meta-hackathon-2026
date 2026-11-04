@@ -9,6 +9,8 @@ Meta's models play.
 
 ## For judges
 
+**Demo video (3 min):** https://www.youtube.com/watch?v=_tc2Duky9hM
+
 **Live site:** https://luis-ticas1--keyframe-web.modal.run.
 The sample room needs no code; Build your own needs the access code given in the submission.
 
