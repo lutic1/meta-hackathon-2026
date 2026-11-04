@@ -7,6 +7,9 @@ Photograph a room, and about three minutes later you are playing an
 escape room built from your own objects, hosted by four wizards that
 Meta's models play.
 
+**▶ Play it live now: https://luis-ticas1--keyframe-web.modal.run**
+(the sample room opens in one click, with no sign-up and no code).
+
 ## For judges
 
 **Demo video (3 min):** https://www.youtube.com/watch?v=_tc2Duky9hM
@@ -23,6 +26,39 @@ The sample room needs no code; Build your own needs the access code given in the
 *A frame from the play-through recorded on the live site (story mode, the sample room).*
 
 One container is kept warm during judging, so the first visit should not hit a cold start.
+
+## Guardrails: every room is proven solvable before anyone plays it
+
+Model-written puzzles break in two ways: a clue or hint gives the answer
+away, or a lock can never be opened. Keyframe treats every model reply as
+a draft and checks it in code before a player sees it:
+
+1. **The Validator** (code, no model) checks the Riddler's draft against
+   eight rules: no circular locks, every lock reachable, every puzzle
+   citing something the Architect saw, no hint, clue or evidence giving an
+   answer away, and more (the full list is under
+   [What shipped](#what-shipped-and-what-did-not);
+   [src/domain/validator.py](src/domain/validator.py)).
+2. **The blind solver.** A second `muse-spark-1.3` call gets the photos,
+   the object names and each puzzle's clue and hints, never a solution,
+   and must reach every answer
+   ([src/pipeline/dryrun.py](src/pipeline/dryrun.py)).
+3. **The regeneration loop.** A draft that fails either check goes back to
+   the Riddler with fixed reasons that never quote an answer, at most
+   twice. A room that still fails ends the build as `needs_recapture`
+   and never reaches a player
+   ([src/pipeline/regenerate.py](src/pipeline/regenerate.py)).
+4. **During play** every change the live Trickster proposes passes the
+   Validator's bounds and rules before it applies, and every story line
+   passes a leak check, falling back to a template line
+   ([src/domain/edits.py](src/domain/edits.py),
+   [src/pipeline/story.py](src/pipeline/story.py)).
+
+**See it on a real build:** the sample room's
+[Build view](https://luis-ticas1--keyframe-web.modal.run/#/build/job_01M61TZ74F6F3AVVEMPRAS4V1G/view)
+shows its first draft sent back ("A hint gives part of an answer away."),
+the rewrite passing all 8 rules, and the blind solver reaching 4 of 4
+answers, with 1 of 2 regenerations used.
 
 ## Where each Meta model is used
 
