@@ -29,3 +29,42 @@ All dated entries are in ET. Entries from Mon Oct 26 on are event-period work; t
 ## Wed Oct 28: the first hosted deploy to Modal.
 
 - Run 3 of the deploy workflow, from master `0452a4c`, Environment `main`, `MIN_CONTAINERS` 0: the judge URL https://luis-ticas1--keyframe-web.modal.run serves `web/dist` at `/` and the API under `/api/`; `GET /api/meta` answers 200 hosted, the access check answers ok with 20 builds left, the landing renders clean in Chromium.
+
+## Thu Oct 29: the playtest fixes, the follow-up lanes, the hero-select landing, the intro and the way back, and story mode begins.
+
+- Playtest fix lanes on the owner's decisions of Oct 29 (the first three, P3, P6 and B2, landed late on Oct 28): evidence cards hold the answer back until solved; asking the Guide opens a real hint; the Completion screen celebrates; player wording everywhere; play never blanks; small objects keep their SAM outline; only objects a later puzzle uses go into the Inventory. The correct-course record (`docs/planning-artifacts/sprint-change-proposal-2026-10-29.md`) records every accepted departure from the plan.
+- Follow-up lanes C1, V1, G1 to G5, L1 to L3 and R1 to R3: a ten-second clip of the sample room on the landing; an upload byte cap; errors never echo what was sent; one ULID minter; a Demo room is never a Judge room (ops runs 3 to 5); the Trickster only edits puzzles still locked. The docs reconciliation (schema v1, the architecture spine, the epics, EXPERIENCE and DESIGN, README, specs, the SIT run log, the runbooks) against what shipped. Two live replays on the judge URL, on `02965dd` and `d5dc3fa`, each with three testers and an adversarial triage.
+- The Hosted landing opens on a hero-select of three spinning cards (H1); the reviewer-feedback round (K1 to K4); the Demo room's vent and pillow outlines hand-corrected through an ops action (D11, ops runs 6 and 7); the quiet top bar (D12); a new deploy's page replaces a stale one (W1).
+- Every screen has a way back to the start (N1); Watch the demo at real speed (N2); a full-screen intro on the first visit, once, with replay and skip (M1); the Watch card opens on a captioned tutorial (M2); a resumed video range request is answered.
+- Story mode begins: each room gets its own wizard story, written at build time; a two-hint treasure chest and no automatic hints; one riddle at a time; walk around the room instead of a thumbnail strip; the story intro with the Architect, the Trickster's trap, the Riddler and the Guide; an ops action that writes a Demo room's story. Deploy runs 7 to 18, all success.
+
+## Fri Oct 30: story mode finished, the Demo room's story, the riddle 3 fix, sound and music, the card-turn fix, the final live checks.
+
+- Story mode finished overnight: the story check passes the room's name and area labels and keeps the wizards' voices, the rules and the visitor welcome; a failing line falls back to its own template line, and no example or template line names an object (SV4 to SV6); the story box holds one place (SF1); Watch the demo re-recorded on story mode (C2).
+- The Demo room's story and hand edits through the ops actions (ops runs 8 to 20, from late Oct 29): its areas and start photos, its story written by the live story step on Modal and corrected by hand with a patch the story's own line rules check (X4), its clock, tray and door moved to the photos where players look (SF2). These are hand corrections of the Demo room, not pipeline output.
+- Two story-mode replays and their re-checks on the judge URL, on `ae4361a` and `223201d`, led to X1 to X5: the escape stays in daylight, the intro's Next and story box hold still, the chest clears the turn disc, the Build-your-own back stays inside its stage, the intro waits for the first photo; a beat-1 check on `6cc2666` measured no drift. The docs pass for story mode and a record refresh followed.
+- Evening: the tutorial on the Play back and "Play intro" at the top bar's right end (J1); the riddle 3 fix: an item in hand clicks through to its Hotspot and the sectional sofa moves to photo 2 (Q1, ops runs 21 and 22), and an empty-hand click on the sofa says it needs something from the pack (Q2); background music and interactive sounds with a sound toggle (A1); card turns always land face-on (T1).
+- Deploy runs 19 to 27, all success; run 27 put `b5a21ca` on the judge URL after CI passed on both branches. Live checks of riddle 3, Q2, and the sound and card turns passed on the judge URL; no full replay ran on `b5a21ca`. The epics and the correct-course record follow J1 to T1.
+
+## Sat Oct 31: a promo sequence for recording the demo video.
+
+- `demo/promo`: a standalone page for the demo video's inspiration segment, run locally, outside the product; CI green on master. Nothing deployed: the judge URL keeps serving `b5a21ca`.
+
+## Sun Nov 1: no commits.
+
+- No code or docs change; the judge URL keeps serving `b5a21ca`.
+
+## Mon Nov 2: no commits.
+
+- No code or docs change; the judge URL keeps serving `b5a21ca`.
+
+## Tue Nov 3: the site warmed for judging.
+
+- Ops run 23 (GitHub run 41764170265, ops/warm-1, Environment `main`, success): the warm action keeps one container running (min containers 1) on https://luis-ticas1--keyframe-web.modal.run from tonight through judging, against cold starts and the transient 502 seen in the second replay. Cooling it after judging is still to do.
+
+## Wed Nov 4: the submission pass.
+
+- The README rewritten for judges, with the models table and the process map, and pointers to the BMAD install (`_bmad/`), the planning outputs under `docs/` and the owner's own skills under `.claude/skills/` (`keyframe-*`).
+- MIT license added (`LICENSE`).
+- The promo images removed from the repo: the third-party screenshots and the generated hero image under `web/public/promo/`.
+- The state before the event is the annotated `pre-hackathon-baseline` tag on `2f740b3` (Oct 26): https://github.com/lutic1/meta-hackathon-2026/tree/pre-hackathon-baseline.
