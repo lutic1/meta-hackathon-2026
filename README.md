@@ -15,11 +15,11 @@ Meta's models play.
 **Demo video (3 min):** https://www.youtube.com/watch?v=_tc2Duky9hM
 
 **Live site:** https://luis-ticas1--keyframe-web.modal.run.
-The sample room needs no code; Build your own needs the access code given in the submission.
+The sample room needs no code. Build your own needs the judges' access code, which is in the project description of the Cerebral Valley submission.
 
 1. **Open the site.** The first visit plays a short intro ("Skip intro" or Escape ends it). The page opens on three cards: Watch the demo, Play the sample room, Build your own.
 2. **Play the sample room.** Choose "Play this room". The wizards' intro tells the story (the Architect welcomes you, the Trickster locks you in, the Riddler counts the riddles, the Guide lights the treasure chest). Then solve the four riddles one at a time: walk around the room with Turn left and Turn right, click the outlined objects, and open the chest when you are stuck. It holds two hints for the whole game. Solving the last riddle opens the door.
-3. **Or build a room from 6 to 10 photos.** Enter the access code and upload 6 to 10 JPEG photos of one room. The build takes about three minutes. Then open the Build view to see every model call, the object outlines, the Validator's verdict on each of its eight rules and the blind Dry run. The sample room's own Build view is at [#/build/job_01M61TZ74F6F3AVVEMPRAS4V1G/view](https://luis-ticas1--keyframe-web.modal.run/#/build/job_01M61TZ74F6F3AVVEMPRAS4V1G/view).
+3. **Or build a room from 6 to 10 photos.** Enter the access code (from the submission's project description) and upload 6 to 10 JPEG photos of one room. The build takes about three minutes. Then open the Build view to see every model call, the object outlines, the Validator's verdict on each of its eight rules and the blind Dry run. The sample room's own Build view is at [#/build/job_01M61TZ74F6F3AVVEMPRAS4V1G/view](https://luis-ticas1--keyframe-web.modal.run/#/build/job_01M61TZ74F6F3AVVEMPRAS4V1G/view).
 
 ![Playing the sample room: riddle 1 solved, the throw pillows outlined on the lounge photo, the treasure chest with 2 hints](web/public/clip/poster.jpg)
 
